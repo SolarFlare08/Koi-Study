@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f4f1e8">
+  <meta name="description" content="A quiet place to find your rhythm. Focus timers, tasks, and a little room to breathe.">
+  <title>Yin and Yang — A quiet place to focus</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="app" aria-label="Yin and Yang study garden">
+    <div id="landscape" aria-hidden="true"></div>
+    <header class="topbar secondary">
+      <a class="brand" href="./" aria-label="Yin and Yang home"><span class="yin-symbol">☯</span><span>Yin <i>&</i> Yang<small>A LITTLE SPACE FOR YOUR MIND</small></span></a>
+      <div class="top-actions"><button id="focus-mode" class="quiet-button" aria-label="Focus mode" aria-pressed="false"><span class="icon" data-icon="focus"></span><span class="button-text">Focus mode</span></button><button id="fullscreen" class="icon-button" aria-label="Enter fullscreen" title="Enter fullscreen"><span data-icon="expand"></span></button></div>
+    </header>
+    <section class="sky" aria-label="Study timer">
+      <div class="local-clock"><span class="clock-line"></span><time id="wall-clock"></time><span class="clock-line"></span></div>
+      <div class="mode-tabs" aria-label="Timer mode"><button data-mode="focus" aria-pressed="true">Focus</button><span>·</span><button data-mode="break" aria-pressed="false">Rest</button></div>
+      <div id="countdown" role="timer" aria-label="Focus time remaining">25<span>:</span>00</div>
+      <div class="sky-task"><span class="tiny-dot"></span><button id="current-task">One thing at a time.</button></div>
+      <div class="timer-actions"><button id="reset-timer" class="icon-button" title="Reset timer" aria-label="Reset timer"><span data-icon="reset"></span></button><button id="toggle-timer" class="start-button"><span data-icon="play"></span><span>Begin focus</span></button><button id="skip-timer" class="icon-button" title="Skip session" aria-label="Skip session"><span data-icon="skip"></span></button></div>
+      <p id="session-status" class="session-status">Settle in. There’s no rush.</p>
+    </section>
+    <div id="objects"></div>
+    <div class="landscape-caption secondary"><span class="vertical-rule"></span><span>静心<small>A QUIET MIND,<br>A CLEARER PATH.</small></span></div>
+    <footer class="bottom-bar secondary"><span class="footer-thought">Be here, for a little while.</span><div class="bottom-actions"><button id="show-areas" class="quiet-button" aria-pressed="false"><span data-icon="spark"></span><span>Explore the garden</span></button><span class="footer-divider"></span><button id="music-shortcut" class="quiet-button"><span data-icon="music"></span><span>Your music</span></button></div><span id="saved-status" class="saved-status"><span class="tiny-dot"></span>Saved on this device</span></footer>
+    <div id="panel-root"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="announcer" class="sr-only" aria-live="polite"></div>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
