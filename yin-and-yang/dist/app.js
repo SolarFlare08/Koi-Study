@@ -23,7 +23,7 @@ const taskMenu=$('#task-menu');
 const builtinRoutines=[{id:'classic',name:'Classic',focus:25*60000,rest:5*60000},{id:'deep',name:'Deep work',focus:50*60000,rest:10*60000}];
 const desktopTasks=matchMedia('(min-width: 981px)');
 let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1,agendaOffset=0;
-let calendarDate=new Date(),calendarAnchor=null,menuTaskId=null,menuAnchor=null;
+let calendarDate=new Date(),calendarAnchor=null,calendarView='five',menuTaskId=null,menuAnchor=null;
 let dragOffset=0,workspace='focus';
 let capturePointer=null,nativeNotes=[],captureApiAvailable=true,syncingCaptures=false;
 let reopenTasksAfterCalendar=false;
@@ -318,14 +318,20 @@ function closePanel(restore=true){
 function refreshPanel(){if(!activePanel||activePanel==='music')return;const p=visiblePanel();if(p){const focusId=p.contains(document.activeElement)?document.activeElement.id:null;p.innerHTML=panelContent(activePanel);positionPanel(p,lastAnchor);if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});}}
 function refreshTasks(){renderTasks();renderAgenda();if(!calendarPanel.hidden)renderCalendar();render();}
 
+function agendaStart(now){return (now.getHours()-1)*60+agendaOffset;}
+
 function renderAgenda(now=new Date()){
   const minute=now.getHours()*60+now.getMinutes();
-  const start=(now.getHours()-1)*60+agendaOffset;
+  const start=agendaStart(now);
   const end=start+300;
   const firstDay=Math.floor(start/1440);
   const lastDay=Math.floor((end-1)/1440);
   const startDate=shiftDay(now,firstDay);
-  $('#agenda-range').textContent=`${startDate.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})} · ${timeLabel(start-firstDay*1440)} – ${timeLabel(end-Math.floor(end/1440)*1440)}`;
+  const endDate=shiftDay(now,Math.floor(end/1440));
+  const dateLabel=date=>date.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
+  const endLabel=dayKey(startDate)===dayKey(endDate)?'':`${dateLabel(endDate)}, `;
+  const range=`${dateLabel(startDate)} · ${timeLabel(start-firstDay*1440)} – ${endLabel}${timeLabel(end-Math.floor(end/1440)*1440)}`;
+  $('#agenda-range').textContent=range;
   const ticks=Array.from({length:5},(_,index)=>`<div>${timeLabel(((start+index*60)%1440+1440)%1440)}</div>`).join('');
   const columns=[];
   for(let day=firstDay;day<=lastDay;day++){
@@ -335,7 +341,12 @@ function renderAgenda(now=new Date()){
     columns.push(`<div class="calendar-day mini-calendar-day" data-date="${dayKey(date)}" data-from="${from}" data-span="${to-from}" style="--slice-offset:${day*1440+from-start};--slice-span:${to-from}">${blocks.map(block=>calendarBlockMarkup(block,date,Math.max(block.start,from)-from,Math.min(block.end,to)-from)).join('')}</div>`);
   }
   const nowLine=minute>=start&&minute<end?`<div class="mini-now" style="--now-minute:${minute-start}" title="Current time"></div>`:'';
-  $('#agenda-list').innerHTML=`<div class="mini-hours calendar-hours" aria-hidden="true">${ticks}</div><div class="mini-track">${columns.join('')}${nowLine}</div>`;
+  const grid=`<div class="mini-hours calendar-hours" aria-hidden="true">${ticks}</div><div class="mini-track">${columns.join('')}${nowLine}</div>`;
+  $('#agenda-list').innerHTML=grid;
+  if(!calendarPanel.hidden&&calendarView==='five'){
+    $('#calendar-range').textContent=range;
+    $('#planner-five-grid').innerHTML=grid;
+  }
   agendaMinute=Math.floor(now.getTime()/60000);
 }
 
@@ -349,6 +360,15 @@ function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=bloc
 function availableTaskId(){return state.tasks.find(task=>taskStatus(task)==='todo')?.id??null;}
 
 function renderCalendar(){
+  if(calendarView==='five')renderAgenda();
+  else renderWeek();
+  const trayScroll=calendarTray.scrollLeft;
+  calendarTray.hidden=!state.tasks.length;
+  calendarTray.innerHTML=state.tasks.map(task=>`<button type="button" draggable="true" class="calendar-tray-task" data-task="${escape(task.id)}" aria-label="Schedule ${escape(task.text)}" aria-haspopup="dialog">${escape(task.text)}</button>`).join('');
+  calendarTray.scrollLeft=trayScroll;
+}
+
+function renderWeek(){
   const days=weekDays(calendarDate);
   const today=dayKey();
   const shortDate=date=>date.toLocaleDateString([],{month:'short',day:'numeric'});
@@ -361,20 +381,35 @@ function renderCalendar(){
     return `<div class="calendar-day" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${blocks}</div>`;
   }).join('');
   $('#calendar-grid').innerHTML=`<div class="calendar-days"><div class="calendar-corner"></div>${headers}</div><div class="calendar-week"><div class="calendar-hours" aria-hidden="true">${hours}</div>${columns}</div>`;
-  const trayScroll=calendarTray.scrollLeft;
-  calendarTray.hidden=!state.tasks.length;
-  calendarTray.innerHTML=state.tasks.map(task=>`<button type="button" draggable="true" class="calendar-tray-task" data-task="${escape(task.id)}" aria-label="Schedule ${escape(task.text)}" aria-haspopup="dialog">${escape(task.text)}</button>`).join('');
-  calendarTray.scrollLeft=trayScroll;
+}
+
+function setCalendarView(view){
+  calendarView=view;
+  const week=view==='week';
+  $('#calendar-grid').hidden=!week;
+  $('#planner-five-grid').hidden=week;
+  calendarPanel.querySelectorAll('[data-calendar-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.calendarView===view)));
+  $('[data-calendar-step="previous"]').setAttribute('aria-label',week?'Previous week':'Previous five hours');
+  $('[data-calendar-step="next"]').setAttribute('aria-label',week?'Next week':'Next five hours');
+  $('[data-calendar-step="today"]').textContent=week?'Today':'Now';
+  calendarScroll.scrollTop=0;
+  calendarScroll.scrollLeft=0;
+  renderCalendar();
+  if(week){
+    const now=new Date(),start=agendaStart(now);
+    scrollCalendarTo(dayKey(calendarDate),((start%1440)+1440)%1440);
+  }
 }
 
 function scrollCalendarTo(date=dayKey(),minute=new Date().getHours()*60){
+  if(calendarView!=='week')return;
   const column=calendarPanel.querySelector(`[data-date="${CSS.escape(date)}"]`);
   if(column)calendarScroll.scrollLeft=Math.max(0,column.offsetLeft-52);
   const day=calendarPanel.querySelector('.calendar-day');
   calendarScroll.scrollTop=day.offsetHeight*minute/1440;
 }
 
-function openCalendar(anchor){
+function openCalendar(anchor,view='five'){
   closePanel(false);
   closeTaskMenu(false);
   if(calendarPanel.hidden)reopenTasksAfterCalendar=!desktopTasks.matches&&!taskSidebar.hidden;
@@ -385,8 +420,7 @@ function openCalendar(anchor){
   calendarToggle.setAttribute('aria-expanded','true');
   $('#sidebar-calendar').setAttribute('aria-expanded','true');
   $('#sidebar-calendar').textContent='Back to focus';
-  renderCalendar();
-  scrollCalendarTo();
+  setCalendarView(view);
   $('#close-calendar').focus({preventScroll:true});
   wake();
 }
@@ -570,11 +604,23 @@ function openCalendarBlock(block){
   else openTaskEditor(block.dataset.task,block);
 }
 calendarPanel.addEventListener('click',event=>{
-  const week=event.target.closest('[data-week]')?.dataset.week;
-  if(week){
-    calendarDate=week==='today'?new Date():shiftDay(calendarDate,week==='next'?7:-7);
-    renderCalendar();
-    if(week==='today')scrollCalendarTo();
+  const view=event.target.closest('[data-calendar-view]')?.dataset.calendarView;
+  if(view&&view!==calendarView){
+    const now=new Date();
+    if(view==='week')calendarDate=shiftDay(now,Math.floor(agendaStart(now)/1440));
+    setCalendarView(view);
+    return;
+  }
+  const step=event.target.closest('[data-calendar-step]')?.dataset.calendarStep;
+  if(step){
+    if(calendarView==='five'){
+      agendaOffset=step==='today'?0:agendaOffset+(step==='next'?300:-300);
+      renderAgenda();
+    }else{
+      calendarDate=step==='today'?new Date():shiftDay(calendarDate,step==='next'?7:-7);
+      renderWeek();
+      if(step==='today')scrollCalendarTo();
+    }
     return;
   }
   const block=event.target.closest('.calendar-block');
@@ -716,10 +762,16 @@ root.addEventListener('submit',e=>{
     const date=fields.get('date'),time=fields.get('time'),minutes=Number(fields.get('minutes'));
     const existing=task.blocks?.find(item=>item.id===editingBlockId);
     if(existing)Object.assign(existing,{date,time,minutes});else addTaskBlock(task,date,time,minutes);
+    const view=calendarPanel.hidden?'five':calendarView;
     closePanel(false);persist();refreshTasks();
-    calendarDate=new Date(`${date}T00:00:00`);
-    openCalendar(calendarToggle);
-    scrollCalendarTo(date,Math.max(0,timeMinutes(time)-60));
+    const now=new Date(),scheduled=new Date(`${date}T00:00:00`);
+    const utcDay=day=>Date.UTC(day.getFullYear(),day.getMonth(),day.getDate());
+    const minute=(utcDay(scheduled)-utcDay(now))/60000+timeMinutes(time);
+    const start=agendaStart(now);
+    if(minute<start||minute>=start+300)agendaOffset=Math.floor(minute/60)*60-(now.getHours()-1)*60;
+    calendarDate=scheduled;
+    openCalendar(calendarToggle,view);
+    if(view==='week')scrollCalendarTo(date,Math.max(0,timeMinutes(time)-60));
     announce('Block saved.');
   }
   if(e.target.id==='spotify-form'){const link=$('#spotify-link').value.trim();if(!spotifyPath(link)){$('#spotify-error').textContent='Use a Spotify playlist, album, or track link from open.spotify.com.';return;}state.spotify=link;persist();mountSpotify();$('#spotify-error').textContent='Use the Spotify player to start your music.';$('#remove-player').hidden=false;positionPanel(visiblePanel(),lastAnchor);}

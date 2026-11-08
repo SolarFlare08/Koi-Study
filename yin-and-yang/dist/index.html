@@ -43,7 +43,7 @@
       <section id="mini-calendar" class="sidebar-agenda" aria-labelledby="agenda-title">
         <div class="sidebar-section-heading"><h3 id="agenda-title">5-hour calendar</h3><button id="sidebar-calendar" type="button" aria-controls="calendar-panel" aria-expanded="false">Open planner</button></div>
         <div class="mini-calendar-nav"><span id="agenda-range" aria-live="polite"></span><button type="button" data-agenda-shift="-300" aria-label="Previous five hours">‹</button><button type="button" data-agenda-shift="0">Now</button><button type="button" data-agenda-shift="300" aria-label="Next five hours">›</button></div>
-        <div id="agenda-list"></div>
+        <div id="agenda-list" class="five-hour-grid"></div>
       </section>
       <section id="captured-notes" class="sidebar-agenda" aria-labelledby="captured-heading" hidden>
         <div class="sidebar-section-heading"><h3 id="captured-heading">Captured thoughts</h3><button id="sidebar-capture" type="button">+ Note</button></div>
@@ -53,16 +53,20 @@
     <section id="calendar-panel" aria-labelledby="calendar-heading" hidden>
       <header class="calendar-header">
         <div><h2 id="calendar-heading">Calendar</h2><p id="calendar-range" aria-live="polite"></p></div>
-        <nav class="calendar-nav" aria-label="Calendar week">
-          <button type="button" data-week="previous" aria-label="Previous week">‹</button>
-          <button type="button" data-week="today">Today</button>
-          <button type="button" data-week="next" aria-label="Next week">›</button>
+        <nav class="calendar-nav" aria-label="Calendar controls">
+          <div class="calendar-views" aria-label="Calendar view">
+            <button type="button" data-calendar-view="five" aria-pressed="true">5 hours</button>
+            <button type="button" data-calendar-view="week" aria-pressed="false">Week</button>
+          </div>
+          <button type="button" data-calendar-step="previous" aria-label="Previous five hours">‹</button>
+          <button type="button" data-calendar-step="today">Now</button>
+          <button type="button" data-calendar-step="next" aria-label="Next five hours">›</button>
           <button id="close-calendar" class="icon-button" type="button" aria-label="Close calendar"><span data-icon="close"></span></button>
         </nav>
       </header>
       <p class="calendar-help">Drag a task to add a block. Drag an existing block to move it. Blocks can overlap.</p>
       <div id="calendar-task-tray" aria-label="Tasks to schedule" hidden></div>
-      <div id="calendar-scroll" tabindex="0" aria-label="Weekly schedule"><div id="calendar-grid"></div></div>
+      <div id="calendar-scroll" tabindex="0" aria-label="Planner schedule"><div id="planner-five-grid" class="five-hour-grid"></div><div id="calendar-grid" hidden></div></div>
     </section>
     <section id="wip-workspace" hidden><h2>Work in progress</h2><p>A little space for what comes next.</p></section>
     <div id="objects"></div>
