@@ -57,3 +57,116 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
 @keyframes boat-wake{0%{opacity:.32;transform:scale(.7)}75%,100%{opacity:0;transform:scale(1.45)}}
 @keyframes timer-settle{from{opacity:.65}to{opacity:1}}
 @media(max-width:700px){.sky{--timer-size:clamp(60px,16vw,90px)}.local-clock{font-size:clamp(44px,11vw,60px)}}
+
+/* Place the countdown's midpoint at the center of the scene. */
+.sky {
+  --readout-height: calc(var(--timer-size) * 1.15);
+  top: calc(50% - var(--readout-height) / 2);
+}
+.timer-readout {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: var(--readout-height);
+}
+.timer-readout .local-clock {
+  position: absolute;
+  bottom: calc(100% + 3px);
+  font-size: clamp(33px, 4.2vw, 57px);
+}
+.timer-readout #duration-form { min-height: 0; }
+.timer-readout #typed-duration { font-size: calc(var(--timer-size) * .77); }
+.sky .mode-tabs { margin: 5px 0 0; }
+.sky .sky-task { margin-top: 10px; }
+
+#task-sidebar {
+  position: absolute;
+  z-index: 4;
+  top: 89px;
+  right: clamp(15px, 2.4vw, 36px);
+  width: clamp(266px, 26vw, 365px);
+  max-height: calc(100% - 165px);
+  overflow: auto;
+  padding: 14px;
+  color: var(--scene-ink, #34565a);
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  backdrop-filter: blur(15px);
+  scrollbar-width: thin;
+  animation: task-sidebar-enter .25s ease-out;
+  transition: opacity .8s;
+}
+.task-sidebar-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.task-sidebar-header h2 { margin: 0 auto 0 0; font-size: 15px; font-weight: 600; }
+#sidebar-add-task {
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-size: 11px;
+}
+#close-task-sidebar { width: 29px; height: 29px; }
+.task-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.task-column { min-width: 0; }
+.task-column h3, .task-upcoming summary {
+  margin: 0 0 7px;
+  color: var(--scene-muted, #55726c);
+  font-size: 11px;
+  font-weight: 600;
+}
+.task-column h3 span, .task-upcoming summary span { margin-left: 3px; opacity: .75; }
+#task-board ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.task-empty { margin: 5px 0; color: var(--scene-muted, #55726c); font-size: 11px; }
+.task-card {
+  min-width: 0;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+.task-selected { border-color: color-mix(in srgb, currentColor 25%, transparent); }
+.task-card-title { display: flex; align-items: flex-start; gap: 6px; }
+.task-card-title input { flex: none; margin: 3px 0 0; accent-color: #557c70; }
+.task-open { min-width: 0; padding: 0; text-align: left; font-weight: 600; font-size: 12px; overflow-wrap: anywhere; }
+.task-open:hover { text-decoration: underline; text-underline-offset: 2px; }
+.task-description, .task-meta { margin: 5px 0 0; font-size: 10px; line-height: 1.35; overflow-wrap: anywhere; }
+.task-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.task-meta { color: var(--scene-muted, #55726c); }
+.task-card .task-active { display: flex; align-items: center; gap: 4px; margin-top: 4px; padding: 3px 0; font-size: 10px; }
+.task-card .task-active svg { width: 11px; height: 11px; }
+.task-upcoming { margin-top: 13px; }
+.task-upcoming summary { cursor: pointer; }
+.task-editor.panel {
+  top: 50%;
+  right: clamp(15px, 2.4vw, 36px);
+  transform: translateY(-50%);
+  width: 365px;
+}
+.task-editor-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 12px; }
+.task-editor textarea { min-height: 72px; }
+.task-editor select {
+  width: 100%;
+  padding: 10px 7px;
+  border: 1px solid #d9ddcd;
+  border-radius: 6px;
+  background: #fff9;
+  color: #3d5545;
+  font: inherit;
+  font-size: 12px;
+}
+@media(max-width:980px){
+  #task-sidebar { top: auto; bottom: 70px; width: min(380px,calc(100% - 30px)); max-height: 40svh; }
+  .task-editor.panel { right: auto; left: 50%; transform: translate(-50%,-50%); }
+}
+.sky-flock { animation: sky-flock 57s linear infinite; }
+.lake-glimmer { animation: lake-glimmer 12s ease-in-out infinite; }
+.glimmer-late { animation-delay: -5s; }
+@keyframes task-sidebar-enter { from { opacity: 0; translate: 8px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes sky-flock {
+  0% { opacity: 0; transform: translate(0,8px); }
+  10% { opacity: .58; }
+  48% { opacity: .42; }
+  62%,100% { opacity: 0; transform: translate(620px,-24px); }
+}
+@keyframes lake-glimmer { 0%,55%,100% { opacity: 0; } 30% { opacity: .65; } }

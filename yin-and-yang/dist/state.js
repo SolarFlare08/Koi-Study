@@ -1,5 +1,37 @@
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+export const taskFrequencies = { none:'Does not repeat', daily:'Every day', weekdays:'Weekdays', weekly:'Every week' };
+
+export function taskStatus(task, date = new Date()) {
+  const today = dayKey(date);
+  if (task.repeat === 'none' || !task.repeat) {
+    if (task.done) return 'done';
+    return task.date > today ? 'upcoming' : 'todo';
+  }
+  if (task.date > today) return 'upcoming';
+  const weekday = date.getDay();
+  if (task.repeat === 'weekdays' && (weekday === 0 || weekday === 6)) return 'upcoming';
+  if (task.repeat === 'weekly' && new Date(`${task.date}T00:00:00`).getDay() !== weekday) return 'upcoming';
+  return task.completedOn === today ? 'done' : 'todo';
+}
+
+export function completeTask(task, checked, date = new Date()) {
+  if (!task.repeat || task.repeat === 'none') task.done = checked;
+  else task.completedOn = checked ? dayKey(date) : '';
+}
+
+function loadTask(task) {
+  const repeat = Object.hasOwn(taskFrequencies,task.repeat) ? task.repeat : 'none';
+  return {
+    id:task.id, text:task.text, done:task.done,
+    description:typeof task.description === 'string' ? task.description : '',
+    date:/^\d{4}-\d{2}-\d{2}$/.test(task.date) ? task.date : repeat === 'none' ? '' : dayKey(),
+    time:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(task.time) ? task.time : '',
+    estimate:Number.isInteger(task.estimate) && task.estimate > 0 && task.estimate <= 1440 ? task.estimate : null,
+    repeat,
+    completedOn:/^\d{4}-\d{2}-\d{2}$/.test(task.completedOn) ? task.completedOn : ''
+  };
+}
 export const duration = (state, mode = state.timer.mode) => Math.round(state.settings[mode] * 60) * 1000;
 export function parseDuration(text) {
   const match = /^(\d{1,3})(?::([0-5]\d))?$/.exec(text.trim());
@@ -22,8 +54,8 @@ export function loadState(storage) {
     if (!raw || typeof raw !== 'object') return base;
     for (const key of ['intention','notes','spotify']) if (typeof raw[key] === 'string') base[key] = raw[key];
     for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
-    if (Array.isArray(raw.tasks)) base.tasks=raw.tasks.filter(t=>t && typeof t.id==='string' && typeof t.text==='string' && typeof t.done==='boolean');
-    base.activeTask=base.tasks.some(t=>t.id===raw.activeTask && !t.done)?raw.activeTask:null;
+    if (Array.isArray(raw.tasks)) base.tasks=raw.tasks.filter(t=>t && typeof t.id==='string' && typeof t.text==='string' && typeof t.done==='boolean').map(loadTask);
+    base.activeTask=base.tasks.some(t=>t.id===raw.activeTask && taskStatus(t)==='todo')?raw.activeTask:null;
     if (Array.isArray(raw.history)) base.history=raw.history.filter(h=>h && typeof h.id==='string' && ['completed','skipped'].includes(h.outcome) && ['focus','break'].includes(h.mode) && Number.isFinite(h.finishedAt) && Number.isFinite(h.focusMs));
     base.focusMode=raw.focusMode===true;
     const t=raw.timer;

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {freshState,startPause,remaining,settle,record,reset,todayProgress,loadState,STORAGE_KEY,dayKey} from '../dist/state.js';
+import {freshState,startPause,remaining,settle,record,reset,todayProgress,loadState,STORAGE_KEY,dayKey,taskStatus,completeTask} from '../dist/state.js';
 test('running timer recovers from storage and completes once after inactive deadline',()=>{
   const s=freshState();startPause(s,1000000);
   const recovered=loadState({getItem:key=>key===STORAGE_KEY?JSON.stringify(s):null});
@@ -38,4 +38,25 @@ test('malformed storage safely falls back and invalid durations are ignored',()=
 test('recording a session twice cannot duplicate progress',()=>{
   const s=freshState();startPause(s,1000000);assert.ok(record(s,'skipped',1010000));
   assert.equal(record(s,'skipped',1020000),null);assert.equal(s.history.length,1);
+});
+test('a daily task stays done after reload and returns to To do the next day',()=>{
+  const state=freshState();
+  const today=new Date(2026,10,8,23,59);
+  const task={id:'reading',text:'Read notes',done:false,repeat:'daily',date:dayKey(today),time:'09:30',estimate:20,description:'Review chapter two.'};
+  state.tasks.push(task);
+  completeTask(task,true,today);
+  const [saved]=loadState({getItem:()=>JSON.stringify(state)}).tasks;
+  assert.equal(taskStatus(saved,today),'done');
+  assert.equal(taskStatus(saved,new Date(2026,10,9,0,1)),'todo');
+  assert.equal(saved.description,task.description);
+  assert.equal(saved.time,'09:30');
+});
+test('weekly tasks follow their start weekday and older completed tasks remain done',()=>{
+  const state=freshState();
+  state.tasks.push({id:'weekly',text:'Review',done:false,repeat:'weekly',date:'2026-11-08'},{id:'old',text:'Old task',done:true});
+  const [weekly,old]=loadState({getItem:()=>JSON.stringify(state)}).tasks;
+  assert.equal(taskStatus(weekly,new Date(2026,10,1)),'upcoming');
+  assert.equal(taskStatus(weekly,new Date(2026,10,9)),'upcoming');
+  assert.equal(taskStatus(weekly,new Date(2026,10,15)),'todo');
+  assert.equal(taskStatus(old,new Date(2026,10,15)),'done');
 });

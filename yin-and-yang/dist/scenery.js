@@ -17,6 +17,9 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
 <path fill="url(#air)" d="M0 0h1600v900H0z"/>
 <g id="sun-halo"><circle r="135" fill="url(#halo)"/></g><circle id="travelling-sun" r="34" fill="#fff0cd"/>
 <g fill="#f5f0e2" opacity=".25"><path class="cloud-drift" d="M80 221q128-20 253-5t232 0q-122 17-248 13T80 221Z"/><path class="cloud-drift cloud-east" d="M1020 173q105-14 190-5t264-2q-88 22-197 14t-257-7Z"/></g>
+<g class="sky-flock" fill="none" stroke="#5f8586" stroke-width="1.5" stroke-linecap="round" opacity="0">
+  <path d="M492 195q4-4 8 0 4-5 8-3M520 180q3-4 7-1 3-4 7-2M538 201q3-4 7-1 3-4 7-2"/>
+</g>
 <path fill="url(#far)" d="${ridge([[0,435],[100,390],[190,418],[280,355],[375,423],[475,431],[580,469],[710,452],[810,481],[920,440],[1020,451],[1120,386],[1220,411],[1340,350],[1460,419],[1540,403],[1600,434]])}"/>
 <path fill="url(#middle)" d="${ridge([[0,390],[65,344],[140,278],[205,333],[270,391],[345,441],[425,459],[555,509],[710,522],[855,499],[970,476],[1050,438],[1165,331],[1255,391],[1330,416],[1420,453],[1510,473],[1600,450]])}"/>
 <path fill="url(#mist)" d="M0 417h1600v152H0z"/>
@@ -25,6 +28,10 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
 <path fill="url(#mist)" d="M0 481h1600v117H0z"/>
 <g id="shine"><ellipse cx="0" cy="640" rx="105" ry="150" fill="url(#halo)" opacity=".35"/><g stroke="#fff1cd" stroke-linecap="round" opacity=".65"><path d="M-64 556H62M-43 563H49M-78 575H66M-28 590H42M-62 612H82M-38 646H59M-69 695H51"/><path d="M-108 573h19m169 27h32m-132 62h24m-65 66h34" opacity=".5"/></g></g>
 <g class="lake-mist" fill="none" stroke="#e3e7d3" stroke-width="1" opacity=".4"><path d="M175 588h206m-105 28h83m176-12h189m285-22h232m-100 42h180M101 677h184m134-13h144m337 19h182m180-10h118M277 753h217m371 22h191m59-43h157"/><path d="M411 579h31m400 39h72m-207 97h54m410-57h39m-752 158h91"/></g>
+<g fill="none" stroke="#f3ebcf" stroke-linecap="round">
+  <path class="lake-glimmer" d="M650 734h20m-12 5h7" opacity="0"/>
+  <path class="lake-glimmer glimmer-late" d="M878 704h13m-8 4h4" opacity="0"/>
+</g>
 <path fill="#6b9382" d="M1600 581q-113-37-211-20-44 8-85 5-66-1-109 25-45 24-121 24 36 13 100 10 151-13 253 1l173 28Z"/>
 <path fill="#9eb5a0" d="M1145 609q74-8 112-27 59-24 139-16-45 4-76 18-94 34-175 25Z"/>
 ${pine(1303,582,.49)}${pine(1335,581,.31)}${pine(1467,575,.56)}${pine(1495,580,.4)}
