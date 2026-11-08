@@ -2,16 +2,22 @@ export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 export const taskFrequencies = { none:'Does not repeat', daily:'Every day', weekdays:'Weekdays', weekly:'Every week' };
 
+export function taskOccursOn(task, date) {
+  const day = dayKey(date);
+  if (!task.date || task.date > day) return false;
+  if (task.repeat === 'daily') return true;
+  if (task.repeat === 'weekdays') return date.getDay() !== 0 && date.getDay() !== 6;
+  if (task.repeat === 'weekly') return new Date(`${task.date}T00:00:00`).getDay() === date.getDay();
+  return task.date === day;
+}
+
 export function taskStatus(task, date = new Date()) {
   const today = dayKey(date);
   if (task.repeat === 'none' || !task.repeat) {
     if (task.done) return 'done';
     return task.date > today ? 'upcoming' : 'todo';
   }
-  if (task.date > today) return 'upcoming';
-  const weekday = date.getDay();
-  if (task.repeat === 'weekdays' && (weekday === 0 || weekday === 6)) return 'upcoming';
-  if (task.repeat === 'weekly' && new Date(`${task.date}T00:00:00`).getDay() !== weekday) return 'upcoming';
+  if (!taskOccursOn(task, date)) return 'upcoming';
   return task.completedOn === today ? 'done' : 'todo';
 }
 
@@ -29,6 +35,7 @@ function loadTask(task) {
     time:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(task.time) ? task.time : '',
     estimate:Number.isInteger(task.estimate) && task.estimate > 0 && task.estimate <= 1440 ? task.estimate : null,
     repeat,
+    priority:task.priority === true,
     completedOn:/^\d{4}-\d{2}-\d{2}$/.test(task.completedOn) ? task.completedOn : ''
   };
 }

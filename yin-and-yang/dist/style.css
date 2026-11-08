@@ -170,3 +170,205 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
   62%,100% { opacity: 0; transform: translate(620px,-24px); }
 }
 @keyframes lake-glimmer { 0%,55%,100% { opacity: 0; } 30% { opacity: .65; } }
+
+/* Planning opens beside the task board. The focus scene stays behind it. */
+#sidebar-calendar {
+  font-size: 11px;
+  padding: 6px 7px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+}
+.task-sidebar-header { gap: 5px; }
+.task-card[draggable] { cursor: grab; }
+.task-dragging { opacity: .55; }
+.task-more {
+  margin: -4px -4px 0 auto;
+  min-width: 23px;
+  min-height: 24px;
+  flex: none;
+  padding: 0 4px;
+  border-radius: 5px;
+  line-height: 1;
+  color: var(--scene-muted, #55726c);
+}
+.task-more:hover, .task-more[aria-expanded="true"] {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+.task-priority {
+  display: inline-block;
+  font-size: 9px;
+  margin-top: 4px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #c3a7722b;
+  color: var(--scene-ink, #34565a);
+}
+#task-menu {
+  position: fixed;
+  z-index: 25;
+  min-width: 172px;
+  max-height: calc(100svh - 16px);
+  overflow: auto;
+  padding: 5px;
+  border-radius: 11px;
+  border: 1px solid #fff9;
+  background: #f8f6ec;
+  box-shadow: 0 10px 30px #192f3940;
+  color: #36524c;
+}
+#task-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 11px;
+  text-align: left;
+  font-size: 12px;
+  border-radius: 5px;
+}
+#task-menu button:hover, #task-menu button:focus-visible { background: #d9e4d8; outline-offset: -2px; }
+#task-menu [data-task-action="delete"] { color: #99433d; border-top: 1px solid #d7ded2; margin-top: 3px; }
+
+#calendar-panel {
+  --calendar-hour: 50px;
+  --calendar-gutter: 52px;
+  position: absolute;
+  z-index: 6;
+  inset: 89px 22px 71px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 15px 16px 13px;
+  border: 1px solid #f9f4e5;
+  border-radius: 16px;
+  color: #334f4b;
+  background: #f3f1e7;
+  box-shadow: 0 10px 38px #172c3640;
+  animation: task-sidebar-enter .24s ease-out;
+}
+@media(min-width:981px){
+  #app:has(#task-sidebar:not([hidden])) #calendar-panel {
+    right: calc(clamp(15px, 2.4vw, 36px) + clamp(266px, 26vw, 365px) + 14px);
+  }
+}
+.calendar-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.calendar-header h2 { font-size: 18px; margin: 0; font-weight: 600; }
+#calendar-range { margin: 3px 0 0; font-size: 11px; color: #647671; }
+.calendar-nav { display: flex; align-items: center; gap: 3px; }
+.calendar-nav button { min-width: 29px; min-height: 30px; border-radius: 7px; padding: 4px 7px; }
+.calendar-nav button:hover { background: #dce7da; }
+.calendar-nav [data-week="today"] { font-size: 11px; }
+.calendar-nav [data-week="previous"], .calendar-nav [data-week="next"] { font-size: 20px; }
+.calendar-help { margin: 11px 0 9px; font-size: 11px; line-height: 1.4; color: #59706a; }
+#calendar-scroll {
+  min-height: 0;
+  overflow: auto;
+  flex: 1;
+  border: 1px solid #ced9ce;
+  border-radius: 9px;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+#calendar-grid { min-width: 570px; position: relative; }
+.calendar-days, .calendar-week { display: grid; grid-template-columns: var(--calendar-gutter) repeat(7,minmax(0,1fr)); }
+.calendar-days {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: #f1f2e8;
+  border-bottom: 1px solid #ced9ce;
+}
+.calendar-date {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 9px 2px;
+  font-size: 11px;
+  border-left: 1px solid #d9e1d5;
+}
+.calendar-today { color: #23564e; background: #dce9dc; }
+.calendar-hours, .calendar-corner { position: sticky; left: 0; background: #f1f2e8; z-index: 3; }
+.calendar-hours div {
+  height: var(--calendar-hour);
+  padding: 4px 4px 0 0;
+  font-size: 9px;
+  text-align: right;
+  color: #647671;
+  border-bottom: 1px solid #dce4d8;
+}
+.calendar-day {
+  position: relative;
+  height: calc(24 * var(--calendar-hour));
+  border-left: 1px solid #dce4d8;
+  background: linear-gradient(to bottom, #dce4d8 1px, transparent 1px) 0 0 / 100% var(--calendar-hour);
+}
+.calendar-block {
+  position: absolute;
+  z-index: 1;
+  top: calc(var(--start) * var(--calendar-hour) / 60);
+  left: calc(var(--lane) * 100% / var(--lanes) + 1px);
+  width: calc(100% / var(--lanes) - 2px);
+  height: calc(var(--length) * var(--calendar-hour) / 60);
+  min-height: 10px;
+  overflow: hidden;
+  padding: 4px 4px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  color: #24483e;
+  background: #d6e7d8;
+  border: 1px solid #abc7b1;
+  border-radius: 5px;
+  font-size: 10px;
+  line-height: 1.2;
+  cursor: grab;
+}
+.calendar-block strong, .calendar-block span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-block span { font-size: 9px; color: #47635b; margin-top: 2px; }
+.calendar-block:hover { z-index: 2; background: #c6ddcc; }
+.calendar-priority { background: #efe2bd; border-color: #cdbb8b; }
+.calendar-priority:hover { background: #ead8a7; }
+.calendar-drop-target { background-color: #d9e8d982; }
+.calendar-drop-target::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  top: calc(var(--drop-minute) * var(--calendar-hour) / 60);
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #4b8570;
+}
+@media(max-width:700px){
+  #calendar-panel { inset: 61px 12px 68px; padding: 11px; }
+  .calendar-help { margin-top: 7px; }
+}
+
+.calendar-done strong { text-decoration: line-through; opacity: .75; }
+#calendar-task-tray { display: none; }
+@media(max-width:980px){
+  #calendar-task-tray {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    margin-bottom: 8px;
+    padding: 3px 1px 5px;
+    scrollbar-width: thin;
+  }
+  .calendar-tray-task {
+    flex: none;
+    max-width: 185px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    padding: 6px 9px;
+    border: 1px solid #c4d7c7;
+    border-radius: 7px;
+    background: #e1ebdf;
+    cursor: grab;
+  }
+}

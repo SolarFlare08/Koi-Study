@@ -1,6 +1,6 @@
 export {blossomMarkup} from './landscape.js';
 import {daylight,blend,ridge,sunPosition} from './daylight.js';
-export const objects=[['pagoda','Timer settings'],['tasks','Add tasks'],['music','Your Spotify'],['notes','Distraction notes'],['progress','Today’s progress']].map(([id,hint])=>({id,hint,label:hint,className:'',art:''}));
+export const objects=[['pagoda','Timer settings'],['tasks','Add tasks'],['calendar','Open calendar'],['music','Your Spotify'],['notes','Distraction notes'],['progress','Today’s progress']].map(([id,hint])=>({id,hint,label:hint,className:'',art:''}));
 function pine(x,y,s=1){return `<g transform="translate(${x} ${y}) scale(${s})"><path d="M-5 0Q3-40-2-74Q-5-108 9-144L12-178Q17-142 8-111Q3-80 10-50L10 0Z" fill="#315858"/><path d="M4-60-40-83M3-95 44-119M8-131-18-148" stroke="#315858" stroke-width="4" fill="none"/><g fill="#3e6863"><path d="M-64-86q16-9 26-24 6 12 22 16l24 5q-22 9-72 3Z"/><path d="M-34-143q23-11 40-33 13 21 35 31-39 8-75 2Z"/><path d="M-3-119q26-8 46-28 10 18 36 25-39 11-82 3Z"/><path d="M-39-63q20-7 28-16 13 11 33 14-24 11-61 2Z"/></g><g fill="#63867a" opacity=".6"><path d="m-60-88 22-17 16 14Z"/><path d="m-23-145 28-24 14 23Z"/><path d="m13-122 30-19 12 19Z"/></g></g>`;}
 export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
 <defs>
