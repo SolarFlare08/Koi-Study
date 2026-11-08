@@ -1,5 +1,5 @@
 import {STORAGE_KEY,loadState,remaining,startPause,reset,record,settle,todayProgress,duration} from './state.js';
-import {renderLandscape,objects,blossomMarkup} from './landscape.js';
+import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
 
 const $=s=>document.querySelector(s);
 const icons={
@@ -16,7 +16,8 @@ function persist(){try{storage.setItem(STORAGE_KEY,JSON.stringify(state));$('#sa
 function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4200);}
 function announce(text){$('#announcer').textContent=text;}
 $('#landscape').innerHTML=renderLandscape();
-$('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="object-art">${o.art}</span><span class="object-label">${o.label}<small>${o.hint}</small></span></button>`).join('');
+$('#objects').classList.add('secondary');
+$('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",music:"music",notes:"spark",progress:"target"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",music:"Music",notes:"Notes",progress:"Today"})[o.id]}</span></button>`).join('');
 applyIcons();
 
 function render(){
@@ -24,7 +25,9 @@ function render(){
   $('#countdown').innerHTML=`${String(mins).padStart(2,'0')}<span>:</span>${String(secs).padStart(2,'0')}`;
   $('#countdown').setAttribute('aria-label',`${mins} minutes ${secs} seconds of ${t.mode==='focus'?'focus':'rest'} remaining`);
   const clock=new Date();
-  $('#wall-clock').textContent=clock.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  const [hour,period]=clock.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}).split(/\s+/);
+  $('#wall-clock').innerHTML=hour+'<small>'+period+'</small>';
+
   $('#wall-clock').dateTime=clock.toISOString();
   const task=state.tasks.find(v=>v.id===state.activeTask&&!v.done);
   $('#current-task').textContent=t.mode==='break'?'A little room to breathe.':(task?.text||state.intention||'One thing at a time.');
@@ -43,13 +46,11 @@ function render(){
 function checkCompletion(){const h=settle(state);if(h){persist();render();if(h.mode==='focus'){toast('A session complete. A little blossom earned.');announce('Focus session complete. Your break is ready.');}else{toast('Welcome back. Your next focus session is ready.');announce('Break complete. Your focus timer is ready.');}if(activePanel==='progress')refreshPanel();wake();}return h;}
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
 $('#toggle-timer').onclick=()=>action(()=>{startPause(state);announce(state.timer.status==='running'?`${state.timer.mode} timer started.`:'Timer paused.');});
-$('#reset-timer').onclick=()=>action(()=>{if(state.timer.id){record(state,'skipped');toast('Timer reset. The unfinished session was marked skipped.');}reset(state);});
+$('#reset-timer').onclick=()=>action(()=>{const total=state.timer.total;if(state.timer.id){record(state,'skipped');toast('Timer reset. The unfinished session was marked skipped.');}reset(state);state.timer.remaining=state.timer.total=total;});
 $('#skip-timer').onclick=()=>action(()=>{const started=!!state.timer.id;record(state,'skipped');reset(state,state.timer.mode==='focus'?'break':'focus');toast(started?'Session skipped. It won’t count as completed.':`${state.timer.mode==='focus'?'Focus':'Rest'} timer ready.`);});
 document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>{if(el.dataset.mode===state.timer.mode)return;action(()=>{if(state.timer.id){record(state,'skipped');toast('Unfinished session marked skipped.');}reset(state,el.dataset.mode);});});
 $('#current-task').onclick=()=>openPanel('tasks',$('[data-panel="tasks"]'));
-$('#music-shortcut').onclick=()=>openPanel('music',$('[data-panel="music"]'));
 document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>activePanel===el.dataset.panel?closePanel():openPanel(el.dataset.panel,el));
-$('#show-areas').onclick=()=>{const enabled=$('#app').classList.toggle('show-areas');$('#show-areas').setAttribute('aria-pressed',enabled);};
 $('#focus-mode').onclick=()=>{state.focusMode=!state.focusMode;persist();render();wake();toast(state.focusMode?'Focus mode on. Controls fade after a quiet moment.':'Focus mode off.');};
 async function fullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else toast('Use your browser’s fullscreen option to fill the screen.');}catch{toast('Fullscreen is unavailable here. Open in your browser and use F11.');}}
 $('#fullscreen').onclick=fullscreen;
@@ -60,11 +61,11 @@ for(const event of ['pointermove','pointerdown','keydown','focusin'])document.ad
 function header(eyebrow,title){return `<div class="panel-header"><div><span class="eyebrow">${eyebrow}</span><h2 id="panel-title">${title}</h2></div><button class="icon-button close-panel" aria-label="Close panel">${icon('close')}</button></div>`;}
 function taskList(){return state.tasks.length?`<ul class="task-list">${state.tasks.map(t=>`<li class="task-row ${t.done?'done':''}" data-task="${escape(t.id)}"><input type="checkbox" class="task-check" aria-label="Complete ${escape(t.text)}" ${t.done?'checked':''}><input class="task-text" aria-label="Edit task" value="${escape(t.text)}" maxlength="160"><button class="task-active" aria-label="Focus on ${escape(t.text)}" title="Make active task" aria-pressed="${state.activeTask===t.id}" ${t.done?'disabled':''}>${icon('target')}</button><button class="delete-task" aria-label="Delete ${escape(t.text)}">×</button></li>`).join('')}</ul>`:'<div class="empty-state">A clear path starts<br>with one small step.</div>';}
 function panelContent(id){
-  if(id==='pagoda')return `${header('THE PAVILION','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" type="number" min="1" max="180" step="1" value="${state.settings.focus}" required><span>min</span></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" type="number" min="1" max="180" step="1" value="${state.settings.break}" required><span>min</span></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form><div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
-  if(id==='tasks')return `${header('THE STONE PATH','One step at a time.')}<p>Choose one thing. Give it your attention.</p><form id="add-task" class="task-add"><input id="new-task" aria-label="New task" placeholder="What’s your next small step?" maxlength="160" required><button type="submit" aria-label="Add task">+</button></form><div id="task-list-wrap">${taskList()}</div><p class="panel-subtle">${icon('target')} Select the circle beside a task to bring it into focus. Tap a task’s text to edit it.</p>`;
-  if(id==='notes')return `${header('THE LANTERN','Leave it here.')}<p>A thought for later. A little less to carry now.</p><label class="field-label" for="notes-input">Your wandering thoughts</label><textarea id="notes-input" placeholder="Write it down, then come back to the moment…" rows="7" maxlength="20000">${escape(state.notes)}</textarea><p class="panel-subtle" id="notes-saved">Saved as you type, on this device.</p><div class="panel-actions"><span class="panel-subtle">Only for you.</span><button class="text-button" id="clear-notes">Clear notes</button></div>`;
+  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" type="number" min="1" max="180" step="1" value="${state.settings.focus}" required><span>min</span></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" type="number" min="1" max="180" step="1" value="${state.settings.break}" required><span>min</span></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form><div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
+  if(id==='tasks')return `${header('TASKS','One step at a time.')}<p>Choose one thing. Give it your attention.</p><form id="add-task" class="task-add"><input id="new-task" aria-label="New task" placeholder="What’s your next small step?" maxlength="160" required><button type="submit" aria-label="Add task">+</button></form><div id="task-list-wrap">${taskList()}</div><p class="panel-subtle">${icon('target')} Select the circle beside a task to bring it into focus. Tap a task’s text to edit it.</p>`;
+  if(id==='notes')return `${header('QUICK NOTES','Leave it here.')}<p>A thought for later. A little less to carry now.</p><label class="field-label" for="notes-input">Your wandering thoughts</label><textarea id="notes-input" placeholder="Write it down, then come back to the moment…" rows="7" maxlength="20000">${escape(state.notes)}</textarea><p class="panel-subtle" id="notes-saved">Saved as you type, on this device.</p><div class="panel-actions"><span class="panel-subtle">Only for you.</span><button class="text-button" id="clear-notes">Clear notes</button></div>`;
   if(id==='progress'){
-    const p=todayProgress(state);return `${header('THE GROWING TREE','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time></span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p>`;
+    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time></span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p>`;
   }
   return `${header('BY THE LAKE','Your own soundtrack.')}<p>Bring a favorite Spotify playlist into the garden.</p><label class="field-label" for="spotify-link">Spotify playlist, album, or track link</label><form id="spotify-form" class="music-link"><input id="spotify-link" type="url" value="${escape(state.spotify)}" placeholder="https://open.spotify.com/playlist/…" required><button class="panel-primary" type="submit">Load</button></form><div id="music-player-wrap"></div><p id="spotify-error" role="status" class="panel-subtle"></p><div class="panel-actions"><a class="panel-primary" href="https://open.spotify.com/" target="_blank" rel="noopener noreferrer">Open Spotify ${icon('external')}</a><button class="text-button" id="remove-player" ${state.spotify?'':'hidden'}>Remove player</button></div><p class="music-tip">Spotify controls playback and volume in the player or its app. Playback may require sign-in. Closing this panel keeps an embedded player loaded.</p><p class="panel-subtle">This garden is silent. Music playing elsewhere stays in your hands.</p>`;
 }
@@ -72,7 +73,7 @@ function positionPanel(panel,anchor){
   if(!anchor)return;
   const r=anchor.getBoundingClientRect(),w=panel.offsetWidth,h=panel.offsetHeight,W=window.innerWidth,H=window.innerHeight;
   let x=r.left+r.width/2-w/2,y=r.top-h+15;
-  if(W>600){if(r.left<W/3){x=r.right+8;y=r.top+15;}else if(r.left>W*.65){x=r.left-w+25;y=r.top+30;}}
+  if(anchor.classList.contains('world-object')) y=r.top-h-22;
   if(y<16)y=r.bottom-15;
   panel.style.left=`${Math.max(14,Math.min(x,W-w-14))}px`;
   panel.style.top=`${Math.max(16,Math.min(y,H-h-16))}px`;
@@ -137,3 +138,16 @@ window.addEventListener('pageshow',()=>{checkCompletion();render();});
 window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){state=loadState(storage);checkCompletion();render();if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();}});
 checkCompletion();render();wake();
 setInterval(()=>{checkCompletion();render();},500);
+
+const editDuration=$('#edit-duration'),durationForm=$('#duration-form'),typed=$('#typed-duration');
+function finishEdit(){durationForm.hidden=true;editDuration.hidden=false;editDuration.focus();}
+editDuration.onclick=()=>{typed.value=$('#countdown').textContent.trim();typed.setCustomValidity('');editDuration.hidden=true;durationForm.hidden=false;typed.focus();typed.select();};
+$('#cancel-duration').onclick=finishEdit;
+typed.oninput=()=>typed.setCustomValidity('');
+typed.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();finishEdit();}};
+durationForm.onsubmit=e=>{e.preventDefault();const match=/^([0-9]{1,3})(?::([0-5][0-9]))?$/.exec(typed.value.trim());const sec=match?Number(match[1])*60+Number(match[2]||0):0;if(sec<1||sec>10800){typed.setCustomValidity('Enter 0:01 to 180:00, or whole minutes.');typed.reportValidity();return;}action(()=>{if(state.timer.id)record(state,'skipped');reset(state);state.timer.remaining=state.timer.total=sec*1000;});finishEdit();};
+
+
+const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
+function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:1-remaining(state)/t.total,motionPreference.matches);requestAnimationFrame(environmentFrame);}
+requestAnimationFrame(environmentFrame);
