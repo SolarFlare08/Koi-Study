@@ -99,9 +99,12 @@ ${pine(116,739,.64)}${pine(176,767,1.04)}${pine(216,767,.39)}
 <path d="M1600 745C1546 750 1512 760 1478 782C1439 808 1408 809 1368 815C1336 820 1307 830 1303 837C1299 844 1320 845 1345 844C1391 843 1425 852 1448 872C1459 882 1466 892 1472 900H1600Z" fill="url(#shore)"/>
 <path d="M1600 799C1541 791 1510 808 1480 826C1457 840 1449 862 1436 878L1417 900H1600Z" fill="url(#bank)"/>
 <path d="M1314 850C1350 846 1382 851 1408 858M1452 803C1472 796 1488 786 1506 778" fill="none" stroke="#c3d0b2" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>
-<g class="reed-sway" stroke="#93a690" fill="none" stroke-width="2"><path d="M1460 862q1-46-17-69m20 64q2-55 23-79m-17 84q10-40 30-48M1463 847q-18-35-38-38"/></g>
 ${rock(146,790,.83)}${rock(200,780,.43,-1)}${rock(218,784,.22)}
 ${rock(1514,844,1.05,-1)}${rock(1462,850,.49)}${rock(1418,854,.33,-1)}
+<g class="reed-sway" fill="none" stroke="#a7b69a" stroke-linecap="round">
+  <path d="M1458 858q3-42-16-63m19 63q1-49 24-74m-21 74q10-35 33-47" stroke-width="2"/>
+  <path d="M1459 851q-12-27-32-39m36 33q1-27 13-41" stroke-width="1.25" opacity=".8"/>
+</g>
 <rect id="night-shade" width="1600" height="900" fill="#071730" opacity="0"/>
 <g id="stars" fill="#f5e8ce" opacity="0">
   <circle cx="321" cy="116" r="1.2"/><circle cx="1013" cy="87" r="1"/><circle cx="1280" cy="167" r="1.3"/><circle cx="460" cy="237" r=".9"/><circle cx="1107" cy="247" r="1"/><circle cx="620" cy="66" r="1"/><circle cx="1423" cy="88" r=".8"/>
