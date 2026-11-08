@@ -28,19 +28,32 @@ export function scheduleTask(task, date, start) {
   task.time = timeValue(start);
 }
 
+export function timeMinutes(time) {
+  const [hour, minute] = time.split(':').map(Number);
+  return hour * 60 + minute;
+}
+
+export function addTaskBlock(task, date, time, minutes = task.estimate || defaultBlockMinutes) {
+  const block = {id: globalThis.crypto.randomUUID(), date, time, minutes};
+  (task.blocks ??= []).push(block);
+  return block;
+}
+
 export function calendarBlocks(tasks, date) {
   const previous = shiftDay(date, -1);
   const blocks = [];
+  const today = dayKey(date);
+  const yesterday = dayKey(previous);
   for (const task of tasks) {
-    if (!task.time) continue;
-    const [hour, minute] = task.time.split(':').map(Number);
-    const start = hour * 60 + minute;
-    const end = start + (task.estimate || defaultBlockMinutes);
-    if (taskOccursOn(task, date)) {
-      blocks.push({task, start, end: Math.min(end, minutesPerDay), occurrence: dayKey(date), continues: false});
-    }
-    if (end > minutesPerDay && taskOccursOn(task, previous)) {
-      blocks.push({task, start: 0, end: end - minutesPerDay, occurrence: dayKey(previous), continues: true});
+    const schedules = [...(task.blocks || [])];
+    if (task.time) schedules.push({time:task.time, minutes:task.estimate || defaultBlockMinutes});
+    for (const entry of schedules) {
+      const start = timeMinutes(entry.time);
+      const end = start + entry.minutes;
+      const occursToday = entry.id ? entry.date === today : taskOccursOn(task, date);
+      const occursYesterday = entry.id ? entry.date === yesterday : taskOccursOn(task, previous);
+      if (occursToday) blocks.push({task, blockId:entry.id, start, end:Math.min(end, minutesPerDay), occurrence:today, continues:false});
+      if (end > minutesPerDay && occursYesterday) blocks.push({task, blockId:entry.id, start:0, end:end-minutesPerDay, occurrence:yesterday, continues:true});
     }
   }
   return layoutBlocks(blocks);

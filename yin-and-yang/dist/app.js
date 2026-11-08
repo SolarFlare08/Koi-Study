@@ -1,10 +1,10 @@
 import {STORAGE_KEY,loadState,remaining,startPause,reset,record,settle,todayProgress,duration,formatDuration,parseDuration,dayKey,taskStatus,completeTask,taskFrequencies} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
-import {calendarBlocks, calendarDragType, scheduleTask, shiftDay, timeLabel, weekDays} from './calendar.js';
+import {addTaskBlock, calendarBlocks, calendarDragType, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, weekDays} from './calendar.js';
+import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
 
 const $=s=>document.querySelector(s);
 const icons={
-  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18M8 14h2m4 0h2m-8 3h2"/>',
   play:'<path d="m8 5 11 7-11 7z"/>',pause:'<path d="M8 5v14M16 5v14"/>',reset:'<path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/>',skip:'<path d="m5 5 10 7-10 7zM19 5v14"/>',expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',collapse:'<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m13 5v-5h5"/>',focus:'<path d="M9 3H5a2 2 0 0 0-2 2v4m12-6h4a2 2 0 0 1 2 2v4M3 15v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4"/><circle cx="12" cy="12" r="3"/>',music:'<path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/>',spark:'<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/>',close:'<path d="m6 6 12 12M18 6 6 18"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',external:'<path d="M14 3h7v7m0-7L10 14M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/>'
 };
 const icon=name=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||''}</svg>`;
@@ -19,17 +19,18 @@ const calendarPanel=$('#calendar-panel');
 const calendarScroll=$('#calendar-scroll');
 const calendarTray=$('#calendar-task-tray');
 const taskMenu=$('#task-menu');
+const builtinRoutines=[{id:'classic',name:'Classic',focus:25*60000,rest:5*60000},{id:'deep',name:'Deep work',focus:50*60000,rest:10*60000}];
 const desktopTasks=matchMedia('(min-width: 981px)');
-let editingTaskId=null,renderedTaskDay='',schedulingTask=false;
+let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1;
 let calendarDate=new Date(),calendarAnchor=null,menuTaskId=null,menuAnchor=null;
-let dragOffset=0;
+let dragOffset=0,workspace='focus';
 let reopenTasksAfterCalendar=false;
 function persist(){try{storage.setItem(STORAGE_KEY,JSON.stringify(state));$('#saved-status').innerHTML='<span class="tiny-dot"></span>Saved on this device';}catch{$('#saved-status').textContent='Storage unavailable — keep this tab open';toast('Your browser could not save changes. Keep this tab open.');}}
 function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4200);}
 function announce(text){$('#announcer').textContent=text;}
 $('#landscape').innerHTML=renderLandscape();
 $('#objects').classList.add('secondary');
-$('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",calendar:"calendar",music:"music",notes:"spark",progress:"target"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",calendar:"Calendar",music:"Music",notes:"Notes",progress:"Today"})[o.id]}</span></button>`).join('');
+$('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",music:"music",notes:"spark",progress:"target"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",music:"Music",notes:"Notes",progress:"Today"})[o.id]}</span></button>`).join('');
 applyIcons();
 
 function setTaskSidebar(open){
@@ -41,11 +42,32 @@ const taskToggle=$('[data-panel="tasks"]');
 taskToggle.removeAttribute('aria-haspopup');
 taskToggle.setAttribute('aria-controls','task-sidebar');
 taskToggle.setAttribute('aria-label','Show or hide tasks');
-const calendarToggle=$('[data-panel="calendar"]');
-calendarToggle.removeAttribute('aria-haspopup');
+const calendarToggle=$('#workspace-tabs [data-workspace="planner"]');
 calendarToggle.setAttribute('aria-controls','calendar-panel');
 setTaskSidebar(desktopTasks.matches);
-desktopTasks.addEventListener('change',()=>setTaskSidebar(desktopTasks.matches));
+desktopTasks.addEventListener('change',()=>setTaskSidebar(workspace!=='wip'&&desktopTasks.matches));
+
+function showWorkspace(next){
+  workspace=next;
+  $('#app').dataset.workspace=next;
+  $('.sky').hidden=next!=='focus';
+  $('#wip-workspace').hidden=next!=='wip';
+  $('#objects').hidden=next==='wip';
+  document.querySelectorAll('[data-workspace]').forEach(button=>{
+    if(button.tagName==='BUTTON')button.setAttribute('aria-pressed',String(button.dataset.workspace===next));
+  });
+}
+$('#workspace-tabs').addEventListener('click',event=>{
+  const button=event.target.closest('button[data-workspace]');
+  if(!button||button.dataset.workspace===workspace)return;
+  closePanel(false);closeTaskMenu(false);
+  const next=button.dataset.workspace;
+  if(next==='planner'){openCalendar(button);return;}
+  if(!calendarPanel.hidden)closeCalendar();
+  showWorkspace(next);
+  setTaskSidebar(next==='focus'&&desktopTasks.matches);
+  button.focus({preventScroll:true});
+});
 
 function focusedTask(date=new Date()){
   return state.tasks.find(task=>task.id===state.activeTask&&taskStatus(task,date)==='todo');
@@ -67,6 +89,7 @@ function render(){
     renderTasks(clock);
     if(!calendarPanel.hidden)renderCalendar();
   }
+  if(agendaMinute!==Math.floor(clock.getTime()/60000))renderAgenda(clock);
   const running=t.status==='running';
   $('#toggle-timer').innerHTML=icon(running?'pause':'play')+`<span>${running?'Pause':t.status==='paused'?'Continue':t.mode==='focus'?'Begin focus':'Begin rest'}</span>`;
   $('[data-mode="focus"]').setAttribute('aria-pressed',t.mode==='focus');
@@ -90,6 +113,13 @@ document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>{if(el.datas
 $('#current-task').onclick=()=>openTaskEditor(focusedTask()?.id,$('#current-task'));
 $('#sidebar-add-task').onclick=()=>openTaskEditor(null,$('#sidebar-add-task'));
 $('#sidebar-calendar').onclick=()=>toggleCalendar($('#sidebar-calendar'));
+$('#sidebar-capture').onclick=()=>openPanel('capture',$('#sidebar-capture'));
+$('#agenda-list').addEventListener('click',event=>{
+  const button=event.target.closest('[data-agenda-task]');
+  if(!button)return;
+  if(button.dataset.block)openBlockEditor(button.dataset.agendaTask,button,button.dataset.block);
+  else openTaskEditor(button.dataset.agendaTask,button);
+});
 $('#close-calendar').onclick=()=>closeCalendar();
 $('#close-task-sidebar').onclick=()=>{setTaskSidebar(false);taskToggle.focus();};
 document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>{
@@ -98,7 +128,6 @@ document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>{
     else setTaskSidebar(taskSidebar.hidden);
     return;
   }
-  if(el===calendarToggle){toggleCalendar(el);return;}
   if(activePanel===el.dataset.panel)closePanel();else openPanel(el.dataset.panel,el);
 });
 $('#focus-mode').onclick=()=>{state.focusMode=!state.focusMode;persist();render();wake();toast(state.focusMode?'Focus mode on. Controls fade after a quiet moment.':'Focus mode off.');};
@@ -153,27 +182,65 @@ function renderTasks(date=new Date()){
   </div>${groups.upcoming.length?`<details class="task-upcoming" ${upcomingOpen?'open':''}><summary>Upcoming <span>${groups.upcoming.length}</span></summary>${list(groups.upcoming)}</details>`:''}`;
   renderedTaskDay=dayKey(date);
 }
-function openTaskEditor(id,anchor,schedule=false){
+function openTaskEditor(id,anchor){
   editingTaskId=id??null;
-  schedulingTask=schedule;
   if(calendarPanel.hidden||desktopTasks.matches)setTaskSidebar(true);
   openPanel('task-editor',anchor);
-  if(schedule)$('#task-date').focus();
+}
+function openBlockEditor(id,anchor,blockId=null){
+  editingTaskId=id;
+  editingBlockId=blockId;
+  openPanel('block-editor',anchor);
+}
+
+function blockEditor(){
+  const task=state.tasks.find(item=>item.id===editingTaskId);
+  if(!task)return header('PLANNER','Task unavailable');
+  const block=task.blocks?.find(item=>item.id===editingBlockId);
+  return `${header('PLANNER',block?'Edit block':'Add a block')}
+    <p>${escape(task.text)}</p>
+    <form id="block-editor-form">
+      <div class="task-editor-grid">
+        <div><label class="field-label" for="block-date">Date</label><input id="block-date" name="date" type="date" value="${escape(block?.date||task.date||dayKey())}" required></div>
+        <div><label class="field-label" for="block-time">Time</label><input id="block-time" name="time" type="time" value="${escape(block?.time||task.time||'09:00')}" required></div>
+      </div>
+      <label class="field-label" for="block-minutes">Duration (min)</label>
+      <input id="block-minutes" name="minutes" type="number" min="1" max="1440" value="${block?.minutes||task.estimate||60}" required>
+      <div class="panel-actions"><button class="panel-primary" type="submit">Save block</button>${block?'<button type="button" class="text-button" id="delete-block">Remove block</button>':''}</div>
+    </form>`;
+}
+function timerRoutines(){
+  const routines=[...builtinRoutines,...state.routines];
+  return `<section class="routine-section"><h3>Timer routines</h3>
+    <div class="routine-list">${routines.map(routine=>`<div class="routine-row"><button type="button" data-routine="${escape(routine.id)}"><strong>${escape(routine.name)}</strong><span>${formatDuration(routine.focus)} / ${formatDuration(routine.rest)}</span></button>${state.routines.includes(routine)?`<button type="button" class="routine-remove" data-delete-routine="${escape(routine.id)}" aria-label="Delete ${escape(routine.name)} routine">×</button>`:''}</div>`).join('')}</div>
+    <form id="save-routine" class="routine-save"><label class="sr-only" for="routine-name">Routine name</label><input id="routine-name" name="name" placeholder="Name these durations" maxlength="40" required><button class="panel-primary" type="submit">Save routine</button></form>
+  </section>`;
+}
+
+function captureCards(){
+  let notes=[];
+  try{notes=readCaptures(storage);}catch{ /* Storage may be unavailable. */ }
+  return notes.map(note=>`<article class="capture-card"><p>${escape(note.text)}</p><button type="button" data-dismiss-capture="${escape(note.key)}" aria-label="Dismiss captured note" title="Dismiss note">×</button></article>`).join('');
+}
+function renderCaptures(){
+  const cards=captureCards();
+  $('#captured-notes').hidden=!cards;
+  $('#captured-list').innerHTML=cards;
+  const notesPanel=$('#notes-captures');
+  if(notesPanel)notesPanel.innerHTML=cards;
 }
 function taskEditor(){
   const task=state.tasks.find(item=>item.id===editingTaskId);
   const options=Object.entries(taskFrequencies).map(([value,label])=>`<option value="${value}" ${task?.repeat===value?'selected':''}>${label}</option>`).join('');
-  const date=task?.date||(schedulingTask?dayKey():'');
-  const time=task?.time||(schedulingTask?'09:00':'');
-  return `${header('TASK DETAILS',schedulingTask?'Schedule task':task?'Edit task':'Add task')}
+  return `${header('TASK DETAILS',task?'Edit task':'Add task')}
     <form id="task-editor-form">
       <label class="field-label" for="task-title">Task name</label>
       <input id="task-title" name="title" value="${escape(task?.text)}" maxlength="160" required>
       <label class="field-label" for="task-description">Description</label>
       <textarea id="task-description" name="description" rows="3" maxlength="2000" placeholder="Anything you want to remember">${escape(task?.description)}</textarea>
       <div class="task-editor-grid">
-        <div><label class="field-label" for="task-date">Date</label><input id="task-date" name="date" type="date" value="${escape(date)}" ${schedulingTask?'required':''}></div>
-        <div><label class="field-label" for="task-time">Time</label><input id="task-time" name="time" type="time" value="${escape(time)}" ${schedulingTask?'required':''}></div>
+        <div><label class="field-label" for="task-date">Date</label><input id="task-date" name="date" type="date" value="${escape(task?.date)}"></div>
+        <div><label class="field-label" for="task-time">Time</label><input id="task-time" name="time" type="time" value="${escape(task?.time)}"></div>
         <div><label class="field-label" for="task-estimate">Estimate (min)</label><input id="task-estimate" name="estimate" type="number" min="1" max="1440" step="1" value="${task?.estimate??''}" placeholder="60"></div>
         <div><label class="field-label" for="task-repeat">Repeat</label><select id="task-repeat" name="repeat">${options}</select></div>
       </div>
@@ -182,9 +249,11 @@ function taskEditor(){
     </form>`;
 }
 function panelContent(id){
-  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form><div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
+  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerRoutines()}<div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
   if(id==='task-editor')return taskEditor();
-  if(id==='notes')return `${header('QUICK NOTES','Leave it here.')}<p>A thought for later. A little less to carry now.</p><label class="field-label" for="notes-input">Your wandering thoughts</label><textarea id="notes-input" placeholder="Write it down, then come back to the moment…" rows="7" maxlength="20000">${escape(state.notes)}</textarea><p class="panel-subtle" id="notes-saved">Saved as you type, on this device.</p><div class="panel-actions"><span class="panel-subtle">Only for you.</span><button class="text-button" id="clear-notes">Clear notes</button></div>`;
+  if(id==='block-editor')return blockEditor();
+  if(id==='capture')return `${header('QUICK CAPTURE','Leave a thought here.')}<form id="capture-form"><label class="field-label" for="capture-text">Quick note</label><textarea id="capture-text" name="thought" rows="3" maxlength="1000" required></textarea><div class="panel-actions"><button class="panel-primary" type="submit">Save note</button><button type="button" class="text-button" id="capture-window">Open mini window</button></div></form>`;
+  if(id==='notes')return `${header('QUICK NOTES','Leave it here.')}<div class="capture-options"><button type="button" class="panel-primary" id="quick-capture">Quick capture</button><button type="button" class="text-button" id="capture-window">Open mini window</button></div><p class="panel-subtle">Ctrl+Alt+N opens quick capture in the app.</p><div id="notes-captures">${captureCards()}</div><label class="field-label" for="notes-input">Your wandering thoughts</label><textarea id="notes-input" placeholder="Write it down, then come back to the moment…" rows="7" maxlength="20000">${escape(state.notes)}</textarea><p class="panel-subtle" id="notes-saved">Saved as you type, on this device.</p><div class="panel-actions"><span class="panel-subtle">Only for you.</span><button class="text-button" id="clear-notes">Clear notes</button></div>`;
   if(id==='progress'){
     const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time></span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p>`;
   }
@@ -192,7 +261,7 @@ function panelContent(id){
 }
 function positionPanel(panel,anchor){
   if(!anchor)return;
-  if(panel.classList.contains('task-editor'))return;
+  if(panel.classList.contains('task-editor')||panel.classList.contains('capture-panel'))return;
   const r=anchor.getBoundingClientRect(),w=panel.offsetWidth,h=panel.offsetHeight,W=window.innerWidth,H=window.innerHeight;
   let x=r.left+r.width/2-w/2,y=r.top-h+15;
   if(anchor.classList.contains('world-object')) y=r.top-h-22;
@@ -205,7 +274,7 @@ function openPanel(id,anchor){
   closePanel(false);activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='task-editor'?'panel task-editor':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel':['task-editor','block-editor'].includes(id)?'panel task-editor':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
   positionPanel(panel,anchor);wake();
   (panel.querySelector('input,textarea')||panel.querySelector('button')).focus({preventScroll:true});
 }
@@ -215,7 +284,16 @@ function closePanel(restore=true){
   activePanel=null;wake();
 }
 function refreshPanel(){if(!activePanel||activePanel==='music')return;const p=visiblePanel();if(p){const focusId=p.contains(document.activeElement)?document.activeElement.id:null;p.innerHTML=panelContent(activePanel);positionPanel(p,lastAnchor);if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});}}
-function refreshTasks(){renderTasks();if(!calendarPanel.hidden)renderCalendar();render();}
+function refreshTasks(){renderTasks();renderAgenda();if(!calendarPanel.hidden)renderCalendar();render();}
+
+function renderAgenda(now=new Date()){
+  const minute=now.getHours()*60+now.getMinutes();
+  const horizon=minute+300;
+  const blocks=[...calendarBlocks(state.tasks,now).filter(block=>block.end>minute&&block.start<horizon)];
+  if(horizon>1440)blocks.push(...calendarBlocks(state.tasks,shiftDay(now,1)).filter(block=>!block.continues&&block.start<horizon-1440));
+  $('#agenda-list').innerHTML=blocks.length?`<ul class="agenda-list">${blocks.map(block=>`<li><time>${timeLabel(block.start)}</time><button type="button" data-agenda-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}">${escape(block.task.text)}</button></li>`).join('')}</ul>`:'<p class="task-empty">Nothing on the calendar in the next five hours.</p>';
+  agendaMinute=Math.floor(now.getTime()/60000);
+}
 function availableTaskId(){return state.tasks.find(task=>taskStatus(task)==='todo')?.id??null;}
 
 function renderCalendar(){
@@ -227,11 +305,11 @@ function renderCalendar(){
   const headers=days.map(date=>`<div class="calendar-date${dayKey(date)===today?' calendar-today':''}"><span>${date.toLocaleDateString([],{weekday:'short'})}</span><strong>${date.getDate()}</strong></div>`).join('');
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
   const columns=days.map(date=>{
-    const blocks=calendarBlocks(state.tasks,date).map(({task,start,end,lane,lanes,continues,occurrence})=>{
+    const blocks=calendarBlocks(state.tasks,date).map(({task,blockId,start,end,lane,lanes,continues,occurrence})=>{
       const time=`${timeLabel(start)} – ${timeLabel(end)}`;
       const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
       const done=taskStatus(task,new Date(`${occurrence}T00:00:00`))==='done';
-      return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-task="${escape(task.id)}" aria-label="Edit ${escape(title)}${done?', done':''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${start};--length:${end-start};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span></button>`;
+      return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" aria-label="Edit ${escape(title)}${done?', done':''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${start};--length:${end-start};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span></button>`;
     }).join('');
     return `<div class="calendar-day" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${blocks}</div>`;
   }).join('');
@@ -242,7 +320,7 @@ function renderCalendar(){
   calendarTray.scrollLeft=trayScroll;
 }
 
-function scrollCalendarTo(date=dayKey(),minute=8*60){
+function scrollCalendarTo(date=dayKey(),minute=new Date().getHours()*60){
   const column=calendarPanel.querySelector(`[data-date="${CSS.escape(date)}"]`);
   if(column)calendarScroll.scrollLeft=Math.max(0,column.offsetLeft-52);
   const day=calendarPanel.querySelector('.calendar-day');
@@ -256,8 +334,10 @@ function openCalendar(anchor){
   calendarAnchor=anchor;
   setTaskSidebar(desktopTasks.matches);
   calendarPanel.hidden=false;
+  showWorkspace('planner');
   calendarToggle.setAttribute('aria-expanded','true');
   $('#sidebar-calendar').setAttribute('aria-expanded','true');
+  $('#sidebar-calendar').textContent='Back to focus';
   renderCalendar();
   scrollCalendarTo();
   $('#close-calendar').focus({preventScroll:true});
@@ -267,9 +347,11 @@ function openCalendar(anchor){
 function closeCalendar(){
   closeTaskMenu(false);
   calendarPanel.hidden=true;
+  showWorkspace('focus');
   if(reopenTasksAfterCalendar&&!desktopTasks.matches)setTaskSidebar(true);
   calendarToggle.setAttribute('aria-expanded','false');
   $('#sidebar-calendar').setAttribute('aria-expanded','false');
+  $('#sidebar-calendar').textContent='Open planner';
   const anchor=calendarAnchor?.getClientRects().length?calendarAnchor:calendarToggle;
   anchor.focus({preventScroll:true});
   wake();
@@ -290,10 +372,11 @@ function openTaskMenu(id,anchor,x,y){
   menuTaskId=id;
   menuAnchor=anchor;
   const status=taskStatus(task);
-  const actions=[['edit','Edit task'],['priority',task.priority?'Remove priority':'Prioritize'],['schedule',task.date&&task.time?'Reschedule…':'Schedule…']];
+  const actions=[['edit','Edit task'],['priority',task.priority?'Remove priority':'Prioritize'],['schedule','Add a block…']];
+  if(anchor.dataset.block)actions.push(['edit-block','Edit block'],['remove-block','Remove block']);
   if(status==='todo')actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
   if(status!=='upcoming')actions.push(['complete',status==='done'?'Reopen task':'Mark done']);
-  if(task.date&&task.time)actions.push(['unschedule','Remove from calendar']);
+  if(task.date&&task.time&&!anchor.dataset.block)actions.push(['unschedule','Remove scheduled time']);
   actions.push(['delete','Delete task']);
   taskMenu.innerHTML=actions.map(([key,label])=>`<button type="button" role="menuitem" data-task-action="${key}">${label}</button>`).join('');
   taskMenu.hidden=false;
@@ -330,10 +413,8 @@ taskMenu.addEventListener('click',event=>{
   if(!action||!task)return;
   const anchor=menuAnchor;
   closeTaskMenu(false);
-  if(action==='edit'||action==='schedule'){
-    openTaskEditor(task.id,anchor,action==='schedule');
-    return;
-  }
+  if(action==='edit'){openTaskEditor(task.id,anchor);return;}
+  if(action==='schedule'||action==='edit-block'){openBlockEditor(task.id,anchor,action==='edit-block'?anchor.dataset.block:null);return;}
   if(action==='delete'){deleteTask(task.id);return;}
   if(action==='priority')task.priority=!task.priority;
   if(action==='focus')state.activeTask=state.activeTask===task.id?null:task.id;
@@ -342,6 +423,7 @@ taskMenu.addEventListener('click',event=>{
     if(state.activeTask===task.id&&taskStatus(task)==='done')state.activeTask=availableTaskId();
   }
   if(action==='unschedule')task.time='';
+  if(action==='remove-block')task.blocks=task.blocks.filter(block=>block.id!==anchor.dataset.block);
   persist();refreshTasks();
   const block=calendarPanel.querySelector(`[data-task="${CSS.escape(task.id)}"]`);
   const next=anchor.classList.contains('calendar-block')?block||$('#close-calendar'):taskButton(task.id);
@@ -370,7 +452,7 @@ for(const surface of [taskSidebar,calendarPanel]){
     const card=event.target.closest('[data-task][draggable]');
     if(!card||!event.dataTransfer)return;
     closeTaskMenu(false);
-    event.dataTransfer.setData(calendarDragType,card.dataset.task);
+    event.dataTransfer.setData(calendarDragType,JSON.stringify({task:card.dataset.task,move:card.classList.contains('calendar-block'),block:card.dataset.block||null}));
     event.dataTransfer.effectAllowed='move';
     dragOffset=card.classList.contains('calendar-block')?event.clientY-card.getBoundingClientRect().top:0;
     card.classList.add('task-dragging');
@@ -405,15 +487,24 @@ calendarPanel.addEventListener('drop',event=>{
   if(!column||!event.dataTransfer?.types.includes(calendarDragType))return;
   event.preventDefault();clearDropTarget();
   $('.task-dragging')?.classList.remove('task-dragging');
-  const task=state.tasks.find(item=>item.id===event.dataTransfer.getData(calendarDragType));
+  let drag;
+  try{drag=JSON.parse(event.dataTransfer.getData(calendarDragType));}catch{return;}
+  if(!drag)return;
+  const task=state.tasks.find(item=>item.id===drag.task);
   if(!task)return;
   const weekday=new Date(`${column.dataset.date}T00:00:00`).getDay();
-  if(task.repeat==='weekdays'&&(weekday===0||weekday===6)){
+  if(drag.move&&!drag.block&&task.repeat==='weekdays'&&(weekday===0||weekday===6)){
     toast('This task repeats on weekdays. Choose a weekday.');return;
   }
   const minute=dropMinute(event,column);
   dragOffset=0;
-  scheduleTask(task,column.dataset.date,minute);
+  if(drag.block){
+    const block=task.blocks?.find(item=>item.id===drag.block);
+    if(!block)return;
+    block.date=column.dataset.date;
+    block.time=timeValue(minute);
+  }else if(drag.move)scheduleTask(task,column.dataset.date,minute);
+  else addTaskBlock(task,column.dataset.date,timeValue(minute));
   if(state.activeTask===task.id&&taskStatus(task)!=='todo')state.activeTask=availableTaskId();
   persist();refreshTasks();
   announce(`Task scheduled for ${timeLabel(minute)}.`);
@@ -427,9 +518,13 @@ calendarPanel.addEventListener('click',event=>{
     return;
   }
   const block=event.target.closest('.calendar-block');
-  if(block){openTaskEditor(block.dataset.task,block);return;}
+  if(block){
+    if(block.dataset.block)openBlockEditor(block.dataset.task,block,block.dataset.block);
+    else openTaskEditor(block.dataset.task,block);
+    return;
+  }
   const trayTask=event.target.closest('.calendar-tray-task');
-  if(trayTask)openTaskEditor(trayTask.dataset.task,trayTask,true);
+  if(trayTask)openBlockEditor(trayTask.dataset.task,trayTask);
 });
 
 taskSidebar.addEventListener('click',event=>{
@@ -462,10 +557,37 @@ root.addEventListener('click',e=>{
   const btn=e.target.closest('button');if(!btn)return;
   if(btn.classList.contains('close-panel'))closePanel();
   if(btn.id==='panel-timer-toggle')$('#toggle-timer').click();
+  if(btn.id==='quick-capture')openPanel('capture',$('[data-panel="notes"]'));
+  if(btn.id==='capture-window'){
+    const windowRef=window.open('./capture.html','yin-yang-capture','popup,width=390,height=340');
+    if(windowRef){windowRef.focus();closePanel();}else toast('Open the quick note page in another tab to capture a thought.');
+  }
+  if(btn.dataset.routine){
+    const routine=[...builtinRoutines,...state.routines].find(item=>item.id===btn.dataset.routine);
+    if(!routine)return;
+    action(()=>{
+      state.settings.focus=routine.focus/60000;
+      state.settings.break=routine.rest/60000;
+      if(!state.timer.id)reset(state);
+    });
+    $('#focus-minutes')?.focus({preventScroll:true});
+    toast(state.timer.id?'Routine ready for the next session.':'Routine applied.');
+  }
+  if(btn.dataset.deleteRoutine){
+    state.routines=state.routines.filter(routine=>routine.id!==btn.dataset.deleteRoutine);
+    persist();refreshPanel();$('#routine-name')?.focus();
+  }
   if(btn.id==='clear-notes'){const previous=state.notes;if(!previous)return;state.notes='';$('#notes-input').value='';persist();toast('Notes cleared.');$('#notes-input').focus();}
   if(btn.id==='remove-player'){state.spotify='';$('#music-player-wrap').innerHTML='';$('#spotify-link').value='';btn.hidden=true;persist();toast('Spotify player removed.');}
   if(btn.id==='delete-task'){
     closePanel(false);deleteTask(editingTaskId);
+  }
+  if(btn.id==='delete-block'){
+    const task=state.tasks.find(item=>item.id===editingTaskId);
+    if(!task)return;
+    task.blocks=task.blocks.filter(block=>block.id!==editingBlockId);
+    closePanel(false);persist();refreshTasks();
+    (calendarPanel.hidden?$('#sidebar-calendar'):$('#close-calendar')).focus({preventScroll:true});
   }
 });
 root.addEventListener('input',e=>{
@@ -477,6 +599,22 @@ root.addEventListener('input',e=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='save-routine'){
+    const name=$('#routine-name').value.trim();
+    if(!name)return;
+    const focus=readDuration($('#focus-minutes'));
+    if(focus===null)return;
+    const rest=readDuration($('#break-minutes'));
+    if(rest===null)return;
+    state.routines.push({id:crypto.randomUUID(),name,focus,rest});
+    persist();refreshPanel();$('#routine-name')?.focus();toast('Routine saved.');
+  }
+  if(e.target.id==='capture-form'){
+    try{
+      if(!saveCapture(storage,$('#capture-text').value))return;
+      renderCaptures();closePanel();toast('Note captured.');
+    }catch{toast('Could not save the note. Your text is still here.');}
+  }
   if(e.target.id==='timer-settings'){
     const focus=readDuration($('#focus-minutes'));
     if(focus===null)return;
@@ -504,31 +642,27 @@ root.addEventListener('submit',e=>{
       done:repeat==='none'&&Boolean(wasDone),
       completedOn:repeat!=='none'&&wasDone?dayKey():''
     };
-    if(schedulingTask&&task.repeat==='weekdays'){
-      const weekday=new Date(`${task.date}T00:00:00`).getDay();
-      if(weekday===0||weekday===6){
-        const dateInput=$('#task-date');
-        dateInput.setCustomValidity('Choose a weekday for this repeating task.');
-        dateInput.reportValidity();
-        return;
-      }
-    }
     if(existing)Object.assign(existing,task);else state.tasks.push(task);
     const status=taskStatus(task);
     if(state.activeTask===task.id && status!=='todo')state.activeTask=availableTaskId();
     if(!focusedTask() && status==='todo')state.activeTask=task.id;
     closePanel(false);persist();refreshTasks();
-    if(schedulingTask&&task.date&&task.time){
-      calendarDate=new Date(`${task.date}T00:00:00`);
-      openCalendar(calendarToggle);
-      const [hour,minute]=task.time.split(':').map(Number);
-      scrollCalendarTo(task.date,Math.max(0,hour*60+minute-60));
-      announce('Task scheduled.');
-      return;
-    }
     if(status==='upcoming')$('.task-upcoming').open=true;
     taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus();
     announce(existing?'Task updated.':'Task added.');
+  }
+  if(e.target.id==='block-editor-form'){
+    const task=state.tasks.find(item=>item.id===editingTaskId);
+    if(!task)return;
+    const fields=new FormData(e.target);
+    const date=fields.get('date'),time=fields.get('time'),minutes=Number(fields.get('minutes'));
+    const existing=task.blocks?.find(item=>item.id===editingBlockId);
+    if(existing)Object.assign(existing,{date,time,minutes});else addTaskBlock(task,date,time,minutes);
+    closePanel(false);persist();refreshTasks();
+    calendarDate=new Date(`${date}T00:00:00`);
+    openCalendar(calendarToggle);
+    scrollCalendarTo(date,Math.max(0,timeMinutes(time)-60));
+    announce('Block saved.');
   }
   if(e.target.id==='spotify-form'){const link=$('#spotify-link').value.trim();if(!spotifyPath(link)){$('#spotify-error').textContent='Use a Spotify playlist, album, or track link from open.spotify.com.';return;}state.spotify=link;persist();mountSpotify();$('#spotify-error').textContent='Use the Spotify player to start your music.';$('#remove-player').hidden=false;positionPanel(visiblePanel(),lastAnchor);}
 });
@@ -536,7 +670,20 @@ document.addEventListener('pointerdown',e=>{
   if(!taskMenu.hidden&&!e.target.closest('#task-menu'))closeTaskMenu(false);
   if(activePanel&&!e.target.closest('.panel')&&!e.target.closest('[data-panel]')&&!e.target.closest('#music-shortcut')&&!e.target.closest('#current-task'))closePanel(false);
 });
+document.addEventListener('click',event=>{
+  const dismiss=event.target.closest('[data-dismiss-capture]');
+  if(!dismiss)return;
+  try{storage.removeItem(dismiss.dataset.dismissCapture);renderCaptures();}catch{toast('Could not dismiss the note.');}
+});
 document.addEventListener('keydown',e=>{
+  if(e.ctrlKey&&e.altKey&&e.code==='KeyN'&&!e.repeat){
+    e.preventDefault();
+    if(activePanel!=='capture')openPanel('capture',document.activeElement===document.body?$('#workspace-tabs button[aria-pressed="true"]'):document.activeElement);
+    return;
+  }
+  if(activePanel==='capture'&&e.key==='Enter'&&(e.ctrlKey||e.metaKey)){
+    e.preventDefault();$('#capture-form').requestSubmit();return;
+  }
   if(e.key==='Escape'&&!taskMenu.hidden){e.preventDefault();closeTaskMenu();return;}
   if(e.key==='Escape'&&activePanel){e.preventDefault();closePanel();return;}
   if(e.key==='Escape'&&!calendarPanel.hidden){e.preventDefault();closeCalendar();return;}
@@ -547,7 +694,11 @@ document.addEventListener('keydown',e=>{
 window.addEventListener('resize',()=>{const p=visiblePanel();if(p)positionPanel(p,lastAnchor);});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkCompletion();render();wake();}});
 window.addEventListener('pageshow',()=>{checkCompletion();render();});
-window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){state=loadState(storage);checkCompletion();refreshTasks();if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();}});
+window.addEventListener('storage',e=>{
+  if(e.key===STORAGE_KEY){state=loadState(storage);checkCompletion();refreshTasks();if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();}
+  if(e.key===null||e.key?.startsWith(CAPTURE_PREFIX))renderCaptures();
+});
+renderCaptures();
 checkCompletion();render();wake();
 setInterval(()=>{checkCompletion();render();},500);
 

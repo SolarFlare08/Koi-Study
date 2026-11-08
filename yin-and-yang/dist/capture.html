@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Quick note · Yin and Yang</title>
+  <link rel="stylesheet" href="./capture.css">
+</head>
+<body>
+  <main>
+    <h1>Leave a thought here.</h1>
+    <form>
+      <label for="thought">Quick note</label>
+      <textarea id="thought" name="thought" rows="4" maxlength="1000" required autofocus placeholder="Write it down and get back to work…"></textarea>
+      <button type="submit">Save note</button>
+      <p role="status" id="capture-status"></p>
+    </form>
+  </main>
+  <script type="module" src="./capture-window.js"></script>
+</body>
+</html>

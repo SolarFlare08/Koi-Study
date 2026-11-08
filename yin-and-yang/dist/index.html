@@ -34,11 +34,18 @@
     <aside id="task-sidebar" class="secondary" aria-labelledby="tasks-heading" hidden>
       <div class="task-sidebar-header">
         <h2 id="tasks-heading">Tasks</h2>
-        <button id="sidebar-calendar" type="button" aria-controls="calendar-panel" aria-expanded="false">Calendar</button>
         <button id="sidebar-add-task" type="button" aria-haspopup="dialog">+ Add task</button>
         <button id="close-task-sidebar" class="icon-button" type="button" aria-label="Hide tasks" title="Hide tasks"><span data-icon="close"></span></button>
       </div>
       <div id="task-board"></div>
+      <section class="sidebar-agenda" aria-labelledby="agenda-title">
+        <div class="sidebar-section-heading"><h3 id="agenda-title">Next 5 hours</h3><button id="sidebar-calendar" type="button" aria-controls="calendar-panel" aria-expanded="false">Open planner</button></div>
+        <div id="agenda-list"></div>
+      </section>
+      <section id="captured-notes" class="sidebar-agenda" aria-labelledby="captured-heading" hidden>
+        <div class="sidebar-section-heading"><h3 id="captured-heading">Captured thoughts</h3><button id="sidebar-capture" type="button">+ Note</button></div>
+        <div id="captured-list"></div>
+      </section>
     </aside>
     <section id="calendar-panel" aria-labelledby="calendar-heading" hidden>
       <header class="calendar-header">
@@ -50,11 +57,17 @@
           <button id="close-calendar" class="icon-button" type="button" aria-label="Close calendar"><span data-icon="close"></span></button>
         </nav>
       </header>
-      <p class="calendar-help">Drag tasks or blocks onto a time. Blocks can overlap. For touch or keyboard, set a date and time in the task editor.</p>
+      <p class="calendar-help">Drag a task to add a block. Drag an existing block to move it. Blocks can overlap.</p>
       <div id="calendar-task-tray" aria-label="Tasks to schedule" hidden></div>
       <div id="calendar-scroll" tabindex="0" aria-label="Weekly schedule"><div id="calendar-grid"></div></div>
     </section>
+    <section id="wip-workspace" hidden><h2>Work in progress</h2><p>A little space for what comes next.</p></section>
     <div id="objects"></div>
+    <nav id="workspace-tabs" aria-label="App workspace">
+      <button type="button" data-workspace="focus" aria-pressed="true">Focus</button>
+      <button type="button" data-workspace="planner" aria-pressed="false">Planner</button>
+      <button type="button" data-workspace="wip" aria-pressed="false">WIP</button>
+    </nav>
     <footer class="bottom-bar secondary"><span id="saved-status" class="saved-status"><span class="tiny-dot"></span>Saved on this device</span></footer>
     <div id="panel-root"></div>
     <div id="task-menu" role="menu" aria-label="Task actions" hidden></div>

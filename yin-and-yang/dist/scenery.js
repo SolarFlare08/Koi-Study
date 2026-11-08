@@ -1,6 +1,6 @@
 export {blossomMarkup} from './landscape.js';
 import {daylight,blend,ridge,sunPosition} from './daylight.js';
-export const objects=[['pagoda','Timer settings'],['tasks','Add tasks'],['calendar','Open calendar'],['music','Your Spotify'],['notes','Distraction notes'],['progress','Today’s progress']].map(([id,hint])=>({id,hint,label:hint,className:'',art:''}));
+export const objects=[['pagoda','Timer settings'],['tasks','Add tasks'],['music','Your Spotify'],['notes','Distraction notes'],['progress','Today’s progress']].map(([id,hint])=>({id,hint,label:hint,className:'',art:''}));
 function pine(x,y,s=1){return `<g transform="translate(${x} ${y}) scale(${s})"><path d="M-5 0Q3-40-2-74Q-5-108 9-144L12-178Q17-142 8-111Q3-80 10-50L10 0Z" fill="#315858"/><path d="M4-60-40-83M3-95 44-119M8-131-18-148" stroke="#315858" stroke-width="4" fill="none"/><g fill="#3e6863"><path d="M-64-86q16-9 26-24 6 12 22 16l24 5q-22 9-72 3Z"/><path d="M-34-143q23-11 40-33 13 21 35 31-39 8-75 2Z"/><path d="M-3-119q26-8 46-28 10 18 36 25-39 11-82 3Z"/><path d="M-39-63q20-7 28-16 13 11 33 14-24 11-61 2Z"/></g><g fill="#63867a" opacity=".6"><path d="m-60-88 22-17 16 14Z"/><path d="m-23-145 28-24 14 23Z"/><path d="m13-122 30-19 12 19Z"/></g></g>`;}
 export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
 <defs>
@@ -35,7 +35,8 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
 <path fill="#6b9382" d="M1600 581q-113-37-211-20-44 8-85 5-66-1-109 25-45 24-121 24 36 13 100 10 151-13 253 1l173 28Z"/>
 <path fill="#9eb5a0" d="M1145 609q74-8 112-27 59-24 139-16-45 4-76 18-94 34-175 25Z"/>
 ${pine(1303,582,.49)}${pine(1335,581,.31)}${pine(1467,575,.56)}${pine(1495,580,.4)}
-<g transform="translate(1228 579)"><path d="M-21 0h48l8 4h-62Z" fill="#758f77"/><path d="M-14-35h30V0h-30Z" fill="#c7c3a0"/><path d="M-11-33V0m24-33V0M1-33V0" stroke="#566d5b" stroke-width="3"/><path d="M-28-35q19-5 29-19 10 14 29 19-29 7-58 0Z" fill="#456b62"/><path d="M-27-35q29 4 57 0" fill="none" stroke="#7e9880"/><path d="M1-54v-5" stroke="#456b62"/></g>
+<g transform="translate(1252 594)"><path d="M-21 0h48l8 4h-62Z" fill="#758f77"/><path d="M-14-35h30V0h-30Z" fill="#c7c3a0"/><path d="M-11-33V0m24-33V0M1-33V0" stroke="#566d5b" stroke-width="3"/><path class="pavilion-glow" d="M3-24h8v15H3z" fill="#fff0bc" opacity=".35"/><path d="M-28-35q19-5 29-19 10 14 29 19-29 7-58 0Z" fill="#456b62"/><path d="M-27-35q29 4 57 0" fill="none" stroke="#7e9880"/><path d="M1-54v-5" stroke="#456b62"/></g>
+<path d="M1206 604q27-12 52-14t65-10l-33 21q-43 5-84 3Z" fill="#6b9382"/>
 <g id="blossoms" transform="translate(1185 452) scale(.22)"/>
 <g transform="translate(778 671)" opacity=".65">
   <ellipse class="boat-wake" cx="0" cy="10" rx="36" ry="5" fill="none" stroke="#d2dcc9" opacity=".3"/>
@@ -46,7 +47,7 @@ ${pine(1303,582,.49)}${pine(1335,581,.31)}${pine(1467,575,.56)}${pine(1495,580,.
 ${pine(71,733,1.12)}${pine(19,695,.78)}${pine(110,756,.44)}
 <path d="M1600 745q-75 2-122 33t-128 35q-43 4-66 24 68-4 111 12t70 51h135Z" fill="#648878"/>
 <path d="M1600 803q-84-22-146 12l-45 85h191Z" fill="#3b665d"/>
-<g stroke="#93a690" fill="none" stroke-width="2"><path d="M1460 862q1-46-17-69m20 64q2-55 23-79m-17 84q10-40 30-48M1463 847q-18-35-38-38"/></g>
+<g class="reed-sway" stroke="#93a690" fill="none" stroke-width="2"><path d="M1460 862q1-46-17-69m20 64q2-55 23-79m-17 84q10-40 30-48M1463 847q-18-35-38-38"/></g>
 <g fill="#8b9f8a"><path d="m102 777 29-20 36 10 12 16-45 6Z"/><path d="m1512 828 29-22 42 13 17 24-59 4Z"/></g>
 <rect id="night-shade" width="1600" height="900" fill="#071730" opacity="0"/>
 <g id="stars" fill="#f5e8ce" opacity="0"><circle cx="321" cy="116" r="1.2"/><circle cx="1013" cy="87" r="1"/><circle cx="1280" cy="167" r="1.3"/><circle cx="460" cy="237" r=".9"/><circle cx="1107" cy="247" r="1"/><circle cx="923" cy="185" r=".8"/><circle cx="620" cy="66" r="1"/><circle cx="1423" cy="88" r=".8"/></g>

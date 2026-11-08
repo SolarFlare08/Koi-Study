@@ -1,0 +1,8 @@
+* { box-sizing: border-box; }
+body { margin: 0; padding: 18px; background: #e3e9df; color: #35524b; font: 14px system-ui, sans-serif; }
+main { max-width: 440px; margin: auto; background: #f7f0da; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px #243e3520; }
+h1 { margin: 0 0 12px; font: 23px Georgia, serif; }
+label { display: block; margin-bottom: 6px; font-size: 11px; }
+textarea { width: 100%; resize: vertical; padding: 8px; border-radius: 6px; border: 1px solid #b8c4ae; background: #fffcf0; color: inherit; font: inherit; }
+button { margin-top: 9px; padding: 8px 13px; border: 0; border-radius: 7px; background: #40685a; color: #faf5e4; cursor: pointer; }
+#capture-status { margin: 6px 0 0; font-size: 11px; }

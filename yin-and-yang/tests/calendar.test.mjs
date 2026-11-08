@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {calendarBlocks, scheduleTask, weekDays} from '../dist/calendar.js';
+import {addTaskBlock, calendarBlocks, scheduleTask, weekDays} from '../dist/calendar.js';
 import {freshState, loadState} from '../dist/state.js';
 
 test('overlapping tasks get different lanes and an unsized task occupies one hour',()=>{
@@ -28,4 +28,17 @@ test('priority and a scheduled repeating block survive reload and continue after
   assert.deepEqual([carry.start,carry.end,carry.continues],[0,60,true]);
   assert.deepEqual([evening.start,evening.end,evening.continues],[1410,1440,false]);
   assert.deepEqual(calendarBlocks([],startOfWeek),[]);
+});
+
+test('one task keeps multiple overlapping blocks and its recurring schedule after reload',()=>{
+  const state=freshState();
+  const task={id:'practice',text:'Practice',done:false,repeat:'daily',date:'2026-11-09',time:'09:00'};
+  state.tasks.push(task);
+  const first=addTaskBlock(task,'2026-11-09','09:30');
+  const second=addTaskBlock(task,'2026-11-09','10:15',30);
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  const blocks=calendarBlocks(restored.tasks,new Date(2026,10,9));
+  assert.deepEqual(blocks.map(block=>block.blockId),[undefined,first.id,second.id]);
+  assert.deepEqual(blocks.map(block=>[block.start,block.end]),[[540,600],[570,630],[615,645]]);
+  assert.equal(calendarBlocks(restored.tasks,new Date(2026,10,10)).length,1);
 });
