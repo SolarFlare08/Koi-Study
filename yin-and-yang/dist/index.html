@@ -17,7 +17,14 @@
     <section class="sky" aria-label="Study timer">
       <div class="local-clock"><span class="clock-line"></span><time id="wall-clock"></time><span class="clock-line"></span></div>
       <div class="mode-tabs" aria-label="Timer mode"><button data-mode="focus" aria-pressed="true">Focus</button><span>·</span><button data-mode="break" aria-pressed="false">Rest</button></div>
-      <button id="edit-duration" title="Type a duration" aria-label="Edit countdown duration"><span id="countdown" role="timer" aria-label="Focus time remaining">25<span>:</span>00</span><sup>✎</sup></button><form id="duration-form" hidden><input id="typed-duration" aria-label="Duration in minutes or minutes and seconds" placeholder="25:00" required maxlength="6"><button>Set</button><button type="button" id="cancel-duration">Cancel</button></form>
+      <button id="edit-duration" type="button" title="Type a duration and press Enter" aria-label="Edit countdown duration"><span id="countdown" role="timer" aria-label="Focus time remaining">25<span>:</span>00</span><sup>✎</sup></button>
+      <form id="duration-form" hidden>
+        <input id="typed-duration" aria-label="Duration in minutes or minutes and seconds" placeholder="25:00" enterkeyhint="done" required maxlength="6">
+        <div class="duration-actions">
+          <button type="submit" title="Save duration (Enter)">Set</button>
+          <button type="button" id="cancel-duration">Cancel</button>
+        </div>
+      </form>
       <div class="sky-task"><span class="tiny-dot"></span><button id="current-task">One thing at a time.</button></div>
       <div class="timer-actions"><button id="reset-timer" class="icon-button" title="Reset timer" aria-label="Reset timer"><span data-icon="reset"></span></button><button id="toggle-timer" class="start-button"><span data-icon="play"></span><span>Begin focus</span></button><button id="skip-timer" class="icon-button" title="Skip session" aria-label="Skip session"><span data-icon="skip"></span></button></div>
       <p id="session-status" class="session-status">Settle in. There’s no rush.</p>

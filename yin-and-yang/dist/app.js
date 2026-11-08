@@ -1,4 +1,4 @@
-import {STORAGE_KEY,loadState,remaining,startPause,reset,record,settle,todayProgress,duration} from './state.js';
+import {STORAGE_KEY,loadState,remaining,startPause,reset,record,settle,todayProgress,duration,formatDuration,parseDuration} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
 
 const $=s=>document.querySelector(s);
@@ -46,7 +46,10 @@ function render(){
 function checkCompletion(){const h=settle(state);if(h){persist();render();if(h.mode==='focus'){toast('A session complete. A little blossom earned.');announce('Focus session complete. Your break is ready.');}else{toast('Welcome back. Your next focus session is ready.');announce('Break complete. Your focus timer is ready.');}if(activePanel==='progress')refreshPanel();wake();}return h;}
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
 $('#toggle-timer').onclick=()=>action(()=>{startPause(state);announce(state.timer.status==='running'?`${state.timer.mode} timer started.`:'Timer paused.');});
-$('#reset-timer').onclick=()=>action(()=>{const total=state.timer.total;if(state.timer.id){record(state,'skipped');toast('Timer reset. The unfinished session was marked skipped.');}reset(state);state.timer.remaining=state.timer.total=total;});
+$('#reset-timer').onclick=()=>action(()=>{
+  if(state.timer.id){record(state,'skipped');toast('Timer reset. The unfinished session was marked skipped.');}
+  reset(state);
+});
 $('#skip-timer').onclick=()=>action(()=>{const started=!!state.timer.id;record(state,'skipped');reset(state,state.timer.mode==='focus'?'break':'focus');toast(started?'Session skipped. It won’t count as completed.':`${state.timer.mode==='focus'?'Focus':'Rest'} timer ready.`);});
 document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>{if(el.dataset.mode===state.timer.mode)return;action(()=>{if(state.timer.id){record(state,'skipped');toast('Unfinished session marked skipped.');}reset(state,el.dataset.mode);});});
 $('#current-task').onclick=()=>openPanel('tasks',$('[data-panel="tasks"]'));
@@ -61,7 +64,7 @@ for(const event of ['pointermove','pointerdown','keydown','focusin'])document.ad
 function header(eyebrow,title){return `<div class="panel-header"><div><span class="eyebrow">${eyebrow}</span><h2 id="panel-title">${title}</h2></div><button class="icon-button close-panel" aria-label="Close panel">${icon('close')}</button></div>`;}
 function taskList(){return state.tasks.length?`<ul class="task-list">${state.tasks.map(t=>`<li class="task-row ${t.done?'done':''}" data-task="${escape(t.id)}"><input type="checkbox" class="task-check" aria-label="Complete ${escape(t.text)}" ${t.done?'checked':''}><input class="task-text" aria-label="Edit task" value="${escape(t.text)}" maxlength="160"><button class="task-active" aria-label="Focus on ${escape(t.text)}" title="Make active task" aria-pressed="${state.activeTask===t.id}" ${t.done?'disabled':''}>${icon('target')}</button><button class="delete-task" aria-label="Delete ${escape(t.text)}">×</button></li>`).join('')}</ul>`:'<div class="empty-state">A clear path starts<br>with one small step.</div>';}
 function panelContent(id){
-  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" type="number" min="1" max="180" step="1" value="${state.settings.focus}" required><span>min</span></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" type="number" min="1" max="180" step="1" value="${state.settings.break}" required><span>min</span></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form><div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
+  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form><div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
   if(id==='tasks')return `${header('TASKS','One step at a time.')}<p>Choose one thing. Give it your attention.</p><form id="add-task" class="task-add"><input id="new-task" aria-label="New task" placeholder="What’s your next small step?" maxlength="160" required><button type="submit" aria-label="Add task">+</button></form><div id="task-list-wrap">${taskList()}</div><p class="panel-subtle">${icon('target')} Select the circle beside a task to bring it into focus. Tap a task’s text to edit it.</p>`;
   if(id==='notes')return `${header('QUICK NOTES','Leave it here.')}<p>A thought for later. A little less to carry now.</p><label class="field-label" for="notes-input">Your wandering thoughts</label><textarea id="notes-input" placeholder="Write it down, then come back to the moment…" rows="7" maxlength="20000">${escape(state.notes)}</textarea><p class="panel-subtle" id="notes-saved">Saved as you type, on this device.</p><div class="panel-actions"><span class="panel-subtle">Only for you.</span><button class="text-button" id="clear-notes">Clear notes</button></div>`;
   if(id==='progress'){
@@ -108,6 +111,7 @@ root.addEventListener('click',e=>{
   if(btn.classList.contains('task-active')){state.activeTask=row.dataset.task;persist();refreshTasks();root.querySelector(`[data-task="${state.activeTask}"] .task-active`)?.focus();}
 });
 root.addEventListener('input',e=>{
+  if(e.target.id==='focus-minutes'||e.target.id==='break-minutes')e.target.setCustomValidity('');
   if(e.target.id==='notes-input'){state.notes=e.target.value;persist();}
   if(e.target.id==='intention'){state.intention=e.target.value;persist();render();}
   if(e.target.classList.contains('task-text')){const task=state.tasks.find(t=>t.id===e.target.closest('[data-task]').dataset.task);if(task){task.text=e.target.value;persist();render();}}
@@ -118,7 +122,13 @@ root.addEventListener('change',e=>{
 root.addEventListener('submit',e=>{
   e.preventDefault();
   if(e.target.id==='timer-settings'){
-    state.settings.focus=Number($('#focus-minutes').value);state.settings.break=Number($('#break-minutes').value);state.intention=$('#intention').value.trim();
+    const focus=readDuration($('#focus-minutes'));
+    if(focus===null)return;
+    const rest=readDuration($('#break-minutes'));
+    if(rest===null)return;
+    state.settings.focus=focus/60000;
+    state.settings.break=rest/60000;
+    state.intention=$('#intention').value.trim();
     if(!state.timer.id)reset(state);
     persist();render();toast('Your rhythm is saved.');closePanel();
   }
@@ -140,12 +150,32 @@ checkCompletion();render();wake();
 setInterval(()=>{checkCompletion();render();},500);
 
 const editDuration=$('#edit-duration'),durationForm=$('#duration-form'),typed=$('#typed-duration');
+function readDuration(input){
+  const ms=parseDuration(input.value);
+  if(ms===null){
+    input.setCustomValidity('Enter 0:01 to 180:00, or whole minutes.');
+    input.reportValidity();
+  }
+  return ms;
+}
 function finishEdit(){durationForm.hidden=true;editDuration.hidden=false;editDuration.focus();}
-editDuration.onclick=()=>{typed.value=$('#countdown').textContent.trim();typed.setCustomValidity('');editDuration.hidden=true;durationForm.hidden=false;typed.focus();typed.select();};
+editDuration.onclick=()=>{typed.value=formatDuration(duration(state));typed.setCustomValidity('');editDuration.hidden=true;durationForm.hidden=false;typed.focus();typed.select();};
 $('#cancel-duration').onclick=finishEdit;
 typed.oninput=()=>typed.setCustomValidity('');
 typed.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();finishEdit();}};
-durationForm.onsubmit=e=>{e.preventDefault();const match=/^([0-9]{1,3})(?::([0-5][0-9]))?$/.exec(typed.value.trim());const sec=match?Number(match[1])*60+Number(match[2]||0):0;if(sec<1||sec>10800){typed.setCustomValidity('Enter 0:01 to 180:00, or whole minutes.');typed.reportValidity();return;}action(()=>{if(state.timer.id)record(state,'skipped');reset(state);state.timer.remaining=state.timer.total=sec*1000;});finishEdit();};
+durationForm.onsubmit=e=>{
+  e.preventDefault();
+  const ms=readDuration(typed);
+  if(ms===null)return;
+  const mode=state.timer.mode;
+  action(()=>{
+    if(state.timer.id)record(state,'skipped');
+    state.settings[mode]=ms/60000;
+    reset(state,mode);
+  });
+  finishEdit();
+  announce(`Timer set to ${formatDuration(ms)}.`);
+};
 
 
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');

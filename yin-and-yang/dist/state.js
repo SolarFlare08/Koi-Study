@@ -1,8 +1,18 @@
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-export const duration = (state, mode = state.timer.mode) => state.settings[mode] * 60000;
+export const duration = (state, mode = state.timer.mode) => Math.round(state.settings[mode] * 60) * 1000;
+export function parseDuration(text) {
+  const match = /^(\d{1,3})(?::([0-5]\d))?$/.exec(text.trim());
+  if (!match) return null;
+  const seconds = Number(match[1]) * 60 + Number(match[2] || 0);
+  return seconds >= 1 && seconds <= 10800 ? seconds * 1000 : null;
+}
+export function formatDuration(ms) {
+  const seconds = Math.ceil(ms / 1000);
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
 export function freshState() {
-  return { settings: { focus:25, break:5 }, intention:'', tasks:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, intention:'', tasks:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -11,13 +21,19 @@ export function loadState(storage) {
     const raw = JSON.parse(storage.getItem(STORAGE_KEY));
     if (!raw || typeof raw !== 'object') return base;
     for (const key of ['intention','notes','spotify']) if (typeof raw[key] === 'string') base[key] = raw[key];
-    for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
+    for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
     if (Array.isArray(raw.tasks)) base.tasks=raw.tasks.filter(t=>t && typeof t.id==='string' && typeof t.text==='string' && typeof t.done==='boolean');
     base.activeTask=base.tasks.some(t=>t.id===raw.activeTask && !t.done)?raw.activeTask:null;
     if (Array.isArray(raw.history)) base.history=raw.history.filter(h=>h && typeof h.id==='string' && ['completed','skipped'].includes(h.outcome) && ['focus','break'].includes(h.mode) && Number.isFinite(h.finishedAt) && Number.isFinite(h.focusMs));
     base.focusMode=raw.focusMode===true;
     const t=raw.timer;
-    if (t && ['focus','break'].includes(t.mode) && ['idle','running','paused'].includes(t.status) && Number.isFinite(t.remaining) && t.remaining>=0 && t.remaining<=10800000 && Number.isFinite(t.total) && t.total>0 && t.total<=10800000 && (t.status!=='running' || (Number.isFinite(t.endAt) && typeof t.id==='string' && Number.isFinite(t.startedAt)))) base.timer={...t};
+    if (t && ['focus','break'].includes(t.mode) && ['idle','running','paused'].includes(t.status) && Number.isFinite(t.remaining) && t.remaining>=0 && t.remaining<=10800000 && Number.isFinite(t.total) && t.total>0 && t.total<=10800000 && (t.status!=='running' || (Number.isFinite(t.endAt) && typeof t.id==='string' && Number.isFinite(t.startedAt)))) {
+      base.timer={...t};
+      // Older versions saved inline edits only in the active timer.
+      if (!raw.settings?.savesInlineDuration && t.total >= 1000) {
+        base.settings[t.mode] = t.total / 60000;
+      }
+    }
     else base.timer.remaining=base.timer.total=duration(base);
     return base;
   } catch { return base; }

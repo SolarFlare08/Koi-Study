@@ -16,7 +16,7 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
 </defs>
 <path fill="url(#air)" d="M0 0h1600v900H0z"/>
 <g id="sun-halo"><circle r="135" fill="url(#halo)"/></g><circle id="travelling-sun" r="34" fill="#fff0cd"/>
-<g fill="#f5f0e2" opacity=".25"><path d="M80 221q128-20 253-5t232 0q-122 17-248 13T80 221Z"/><path d="M1020 173q105-14 190-5t264-2q-88 22-197 14t-257-7Z"/></g>
+<g fill="#f5f0e2" opacity=".25"><path class="cloud-drift" d="M80 221q128-20 253-5t232 0q-122 17-248 13T80 221Z"/><path class="cloud-drift cloud-east" d="M1020 173q105-14 190-5t264-2q-88 22-197 14t-257-7Z"/></g>
 <path fill="url(#far)" d="${ridge([[0,435],[100,390],[190,418],[280,355],[375,423],[475,431],[580,469],[710,452],[810,481],[920,440],[1020,451],[1120,386],[1220,411],[1340,350],[1460,419],[1540,403],[1600,434]])}"/>
 <path fill="url(#middle)" d="${ridge([[0,390],[65,344],[140,278],[205,333],[270,391],[345,441],[425,459],[555,509],[710,522],[855,499],[970,476],[1050,438],[1165,331],[1255,391],[1330,416],[1420,453],[1510,473],[1600,450]])}"/>
 <path fill="url(#mist)" d="M0 417h1600v152H0z"/>
@@ -30,7 +30,10 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
 ${pine(1303,582,.49)}${pine(1335,581,.31)}${pine(1467,575,.56)}${pine(1495,580,.4)}
 <g transform="translate(1228 579)"><path d="M-21 0h48l8 4h-62Z" fill="#758f77"/><path d="M-14-35h30V0h-30Z" fill="#c7c3a0"/><path d="M-11-33V0m24-33V0M1-33V0" stroke="#566d5b" stroke-width="3"/><path d="M-28-35q19-5 29-19 10 14 29 19-29 7-58 0Z" fill="#456b62"/><path d="M-27-35q29 4 57 0" fill="none" stroke="#7e9880"/><path d="M1-54v-5" stroke="#456b62"/></g>
 <g id="blossoms" transform="translate(1185 452) scale(.22)"/>
-<g transform="translate(778 671)" opacity=".65"><path d="M-19 0q19 8 39 0l-8 8h-23Z" fill="#4c7873"/><path d="M-13 15h37" stroke="#d2dcc9"/><path d="M1-4 17-23" stroke="#547c72"/><path d="M-2-2v-9" stroke="#547c72" stroke-width="3"/></g>
+<g transform="translate(778 671)" opacity=".65">
+  <ellipse class="boat-wake" cx="0" cy="10" rx="36" ry="5" fill="none" stroke="#d2dcc9" opacity=".3"/>
+  <g class="boat-bob"><path d="M-19 0q19 8 39 0l-8 8h-23Z" fill="#4c7873"/><path d="M1-4 17-23" stroke="#547c72"/><path d="M-2-2v-9" stroke="#547c72" stroke-width="3"/></g>
+</g>
 <path d="M0 629q53 7 87 56t91 47q42 1 72 25-48 7-81 26-24 12-31 32l69 85H0Z" fill="#668b78"/>
 <path d="M0 674q65 6 88 62t83 63q-62 10-83 34l70 67H0Z" fill="url(#bank)"/>
 ${pine(71,733,1.12)}${pine(19,695,.78)}${pine(110,756,.44)}
