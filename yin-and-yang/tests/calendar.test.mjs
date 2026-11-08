@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {addTaskBlock, calendarBlocks, scheduleTask, weekDays} from '../dist/calendar.js';
+import {addTaskBlock, blockFocusTiming, calendarBlocks, scheduleTask, weekDays} from '../dist/calendar.js';
 import {freshState, loadState} from '../dist/state.js';
 
 test('overlapping tasks get different lanes and an unsized task occupies one hour',()=>{
@@ -41,4 +41,17 @@ test('one task keeps multiple overlapping blocks and its recurring schedule afte
   assert.deepEqual(blocks.map(block=>block.blockId),[undefined,first.id,second.id]);
   assert.deepEqual(blocks.map(block=>[block.start,block.end]),[[540,600],[570,630],[615,645]]);
   assert.equal(calendarBlocks(restored.tasks,new Date(2026,10,10)).length,1);
+});
+
+test('block focus measures time to the end of the original overnight occurrence',()=>{
+  const task={id:'reading',repeat:'daily',date:'2026-11-09',time:'23:30',estimate:90};
+  const [carry]=calendarBlocks([task],new Date(2026,10,10));
+  assert.deepEqual(blockFocusTiming(task,carry.blockId,carry.occurrence,new Date(2026,10,10,0,15,30).getTime()),{
+    available:44.5*60000, split:true, early:false
+  });
+  assert.equal(blockFocusTiming(task,null,carry.occurrence,new Date(2026,10,10,1).getTime()).available,0);
+  const block=addTaskBlock(task,'2026-11-10','09:00',60);
+  assert.deepEqual(blockFocusTiming(task,block.id,block.date,new Date(2026,10,10,8,30).getTime()),{
+    available:60*60000, split:false, early:true
+  });
 });

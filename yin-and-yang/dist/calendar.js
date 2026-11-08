@@ -39,6 +39,19 @@ export function addTaskBlock(task, date, time, minutes = task.estimate || defaul
   return block;
 }
 
+export function blockFocusTiming(task, blockId, occurrence, now = Date.now()) {
+  const date = new Date(`${occurrence}T00:00:00`);
+  const entry = blockId
+    ? task.blocks?.find(block => block.id === blockId && block.date === occurrence)
+    : taskOccursOn(task, date) && task;
+  if (!entry?.time) return null;
+  const minutes = entry.minutes || task.estimate || defaultBlockMinutes;
+  const start = new Date(`${occurrence}T${entry.time}`);
+  const end = new Date(date);
+  end.setMinutes(timeMinutes(entry.time) + minutes);
+  return {available: Math.max(0, end - Math.max(start, now)), split: minutes > 60, early: now < start};
+}
+
 export function calendarBlocks(tasks, date) {
   const previous = shiftDay(date, -1);
   const blocks = [];

@@ -54,19 +54,15 @@
       <header class="calendar-header">
         <div><h2 id="calendar-heading">Calendar</h2><p id="calendar-range" aria-live="polite"></p></div>
         <nav class="calendar-nav" aria-label="Calendar controls">
-          <div class="calendar-views" aria-label="Calendar view">
-            <button type="button" data-calendar-view="five" aria-pressed="true">5 hours</button>
-            <button type="button" data-calendar-view="week" aria-pressed="false">Week</button>
-          </div>
-          <button type="button" data-calendar-step="previous" aria-label="Previous five hours">‹</button>
-          <button type="button" data-calendar-step="today">Now</button>
-          <button type="button" data-calendar-step="next" aria-label="Next five hours">›</button>
+          <button type="button" data-calendar-step="previous" aria-label="Previous week">‹</button>
+          <button type="button" data-calendar-step="today">Today</button>
+          <button type="button" data-calendar-step="next" aria-label="Next week">›</button>
           <button id="close-calendar" class="icon-button" type="button" aria-label="Close calendar"><span data-icon="close"></span></button>
         </nav>
       </header>
-      <p class="calendar-help">Drag a task to add a block. Drag an existing block to move it. Blocks can overlap.</p>
+      <p class="calendar-help">Drag tasks onto the week to schedule them. Open a block to edit it or start focus.</p>
       <div id="calendar-task-tray" aria-label="Tasks to schedule" hidden></div>
-      <div id="calendar-scroll" tabindex="0" aria-label="Planner schedule"><div id="planner-five-grid" class="five-hour-grid"></div><div id="calendar-grid" hidden></div></div>
+      <div id="calendar-scroll" tabindex="0" aria-label="Weekly schedule"><div id="calendar-grid"></div></div>
     </section>
     <section id="wip-workspace" hidden><h2>Work in progress</h2><p>A little space for what comes next.</p></section>
     <div id="objects"></div>

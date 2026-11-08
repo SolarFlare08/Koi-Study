@@ -70,6 +70,9 @@ export function loadState(storage) {
     const t=raw.timer;
     if (t && ['focus','break'].includes(t.mode) && ['idle','running','paused'].includes(t.status) && Number.isFinite(t.remaining) && t.remaining>=0 && t.remaining<=10800000 && Number.isFinite(t.total) && t.total>0 && t.total<=10800000 && (t.status!=='running' || (Number.isFinite(t.endAt) && typeof t.id==='string' && Number.isFinite(t.startedAt)))) {
       base.timer={...t};
+      const block=t.block;
+      if (t.status==='idle' || typeof block?.taskId!=='string' || !Number.isFinite(block.left) || block.left<0 || block.left>25*3600000) delete base.timer.block;
+      else if (base.tasks.some(task=>task.id===block.taskId)) base.activeTask=block.taskId;
       // Older versions saved inline edits only in the active timer.
       if (!raw.settings?.savesInlineDuration && t.total >= 1000) {
         base.settings[t.mode] = t.total / 60000;
@@ -88,17 +91,44 @@ export function startPause(state, now=Date.now()) {
 export function reset(state, mode=state.timer.mode) {
   state.timer={mode,status:'idle',remaining:duration(state,mode),total:duration(state,mode),endAt:null,startedAt:null,id:null};
 }
+const blockPhaseLength={focus:50*60000,break:10*60000};
+
+function startBlockPhase(state, mode, taskId, available, split, now) {
+  const total=split ? Math.min(available,blockPhaseLength[mode]) : available;
+  reset(state,mode);
+  Object.assign(state.timer,{remaining:total,total,block:{taskId,left:available-total}});
+  startPause(state,now);
+}
+
+export function startBlockFocus(state, taskId, available, split, now=Date.now()) {
+  state.activeTask=taskId;
+  startBlockPhase(state,'focus',taskId,available,split,now);
+}
+
+function advanceTimer(state, now) {
+  const {mode,block}=state.timer;
+  const next=mode==='focus'?'break':'focus';
+  if (block?.left>0) startBlockPhase(state,next,block.taskId,block.left,true,now);
+  else reset(state,block?'focus':next);
+}
+
+export function skipPhase(state, now=Date.now()) {
+  const h=record(state,'skipped',now);
+  advanceTimer(state,now);
+  return h;
+}
 export function record(state, outcome, now=Date.now()) {
   const t=state.timer;
   if(!t.id || state.history.some(h=>h.id===t.id)) return null;
   const finish=outcome==='completed' && t.endAt ? t.endAt : now;
-  const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention:state.intention};
+  const task=state.tasks.find(task=>task.id===t.block?.taskId);
+  const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention:task?.text??state.intention};
   state.history.push(h); return h;
 }
 export function settle(state, now=Date.now()) {
   if(state.timer.status!=='running' || remaining(state,now)>0) return null;
   const h=record(state,'completed',now);
-  reset(state,state.timer.mode==='focus'?'break':'focus');
+  advanceTimer(state,state.timer.endAt);
   return h;
 }
 export function todayProgress(state, date=new Date()) {

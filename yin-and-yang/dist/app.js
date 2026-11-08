@@ -1,6 +1,6 @@
-import {STORAGE_KEY,loadState,remaining,startPause,reset,record,settle,todayProgress,duration,formatDuration,parseDuration,dayKey,taskStatus,completeTask,taskFrequencies} from './state.js';
+import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,todayProgress,duration,formatDuration,parseDuration,dayKey,taskStatus,completeTask,taskFrequencies} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
-import {addTaskBlock, calendarBlocks, calendarDragType, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, weekDays} from './calendar.js';
+import {addTaskBlock, blockFocusTiming, calendarBlocks, calendarDragType, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, weekDays} from './calendar.js';
 import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
 
 const $=s=>document.querySelector(s);
@@ -23,7 +23,7 @@ const taskMenu=$('#task-menu');
 const builtinRoutines=[{id:'classic',name:'Classic',focus:25*60000,rest:5*60000},{id:'deep',name:'Deep work',focus:50*60000,rest:10*60000}];
 const desktopTasks=matchMedia('(min-width: 981px)');
 let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1,agendaOffset=0;
-let calendarDate=new Date(),calendarAnchor=null,calendarView='five',menuTaskId=null,menuAnchor=null;
+let calendarDate=new Date(),calendarAnchor=null,calendarExit=null,menuTaskId=null,menuAnchor=null;
 let dragOffset=0,workspace='focus';
 let capturePointer=null,nativeNotes=[],captureApiAvailable=true,syncingCaptures=false;
 let reopenTasksAfterCalendar=false;
@@ -65,13 +65,14 @@ $('#workspace-tabs').addEventListener('click',event=>{
   closePanel(false);closeTaskMenu(false);
   const next=button.dataset.workspace;
   if(next==='planner'){openCalendar(button);return;}
-  if(!calendarPanel.hidden)closeCalendar();
+  if(workspace==='planner')closeCalendar();
   showWorkspace(next);
   setTaskSidebar(next==='focus'&&desktopTasks.matches);
   button.focus({preventScroll:true});
 });
 
 function focusedTask(date=new Date()){
+  if(state.timer.block)return state.tasks.find(task=>task.id===state.timer.block.taskId);
   return state.tasks.find(task=>task.id===state.activeTask&&taskStatus(task,date)==='todo');
 }
 
@@ -89,9 +90,10 @@ function render(){
   $('#current-task').title=task?'Edit active task':'Add a task';
   if(renderedTaskDay!==dayKey(clock)){
     renderTasks(clock);
-    if(!calendarPanel.hidden)renderCalendar();
+    if(workspace==='planner')renderCalendar();
   }
   if(agendaMinute!==Math.floor(clock.getTime()/60000))renderAgenda(clock);
+  if(activePanel==='calendar-block')updateBlockPreview(clock.getTime());
   const running=t.status==='running';
   $('#toggle-timer').innerHTML=icon(running?'pause':'play')+`<span>${running?'Pause':t.status==='paused'?'Continue':t.mode==='focus'?'Begin focus':'Begin rest'}</span>`;
   $('[data-mode="focus"]').setAttribute('aria-pressed',t.mode==='focus');
@@ -103,14 +105,25 @@ function render(){
   if(progress.completed!==lastBlossoms){$('#blossoms').innerHTML=blossomMarkup(progress.completed);lastBlossoms=progress.completed;}
   document.title=t.status==='idle'?'Yin and Yang — A quiet place to focus':`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} · ${t.mode==='focus'?'Focus':'Rest'} — Yin and Yang`;
 }
-function checkCompletion(){const h=settle(state);if(h){persist();render();if(h.mode==='focus'){toast('A session complete. A little blossom earned.');announce('Focus session complete. Your break is ready.');}else{toast('Welcome back. Your next focus session is ready.');announce('Break complete. Your focus timer is ready.');}if(activePanel==='progress')refreshPanel();wake();}return h;}
+function checkCompletion(){
+  const now=Date.now(),wasBlock=Boolean(state.timer.block);
+  let completed=null;
+  for(let phase=settle(state,now);phase;phase=settle(state,now))completed=phase;
+  if(!completed)return;
+  const message=wasBlock
+    ? state.timer.block ? (state.timer.mode==='break'?'Focus complete. A short rest has started.':'Rest complete. Focus has resumed.') : 'Calendar block finished.'
+    : completed.mode==='focus'?'Focus session complete. Your break is ready.':'Break complete. Your focus timer is ready.';
+  persist();render();toast(message);announce(message);
+  if(activePanel==='progress')refreshPanel();
+  wake();
+}
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
 $('#toggle-timer').onclick=()=>action(()=>{startPause(state);announce(state.timer.status==='running'?`${state.timer.mode} timer started.`:'Timer paused.');});
 $('#reset-timer').onclick=()=>action(()=>{
   if(state.timer.id){record(state,'skipped');toast('Timer reset. The unfinished session was marked skipped.');}
   reset(state);
 });
-$('#skip-timer').onclick=()=>action(()=>{const started=!!state.timer.id;record(state,'skipped');reset(state,state.timer.mode==='focus'?'break':'focus');toast(started?'Session skipped. It won’t count as completed.':`${state.timer.mode==='focus'?'Focus':'Rest'} timer ready.`);});
+$('#skip-timer').onclick=()=>action(()=>{const skipped=skipPhase(state);toast(skipped?'Session skipped. It won’t count as completed.':`${state.timer.mode==='focus'?'Focus':'Rest'} timer ready.`);});
 document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>{if(el.dataset.mode===state.timer.mode)return;action(()=>{if(state.timer.id){record(state,'skipped');toast('Unfinished session marked skipped.');}reset(state,el.dataset.mode);});});
 $('#current-task').onclick=()=>openTaskEditor(focusedTask()?.id,$('#current-task'));
 $('#sidebar-add-task').onclick=()=>openTaskEditor(null,$('#sidebar-add-task'));
@@ -126,7 +139,7 @@ $('#close-calendar').onclick=()=>closeCalendar();
 $('#close-task-sidebar').onclick=()=>{setTaskSidebar(false);taskToggle.focus();};
 document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>{
   if(el===taskToggle){
-    if(!desktopTasks.matches&&!calendarPanel.hidden){closeCalendar();setTaskSidebar(true);taskToggle.focus();}
+    if(!desktopTasks.matches&&workspace==='planner'){closeCalendar();setTaskSidebar(true);taskToggle.focus();}
     else setTaskSidebar(taskSidebar.hidden);
     return;
   }
@@ -137,7 +150,7 @@ async function fullscreen(){try{if(document.fullscreenElement)await document.exi
 $('#fullscreen').onclick=fullscreen;
 document.addEventListener('fullscreenchange',()=>{const full=!!document.fullscreenElement;$('#fullscreen').innerHTML=icon(full?'collapse':'expand');$('#fullscreen').setAttribute('aria-label',full?'Exit fullscreen':'Enter fullscreen');$('#fullscreen').title=full?'Exit fullscreen':'Enter fullscreen';});
 
-function wake(){clearTimeout(idleTimeout);$('#app').classList.remove('is-idle');if(state.focusMode&&state.timer.status==='running'&&!activePanel&&calendarPanel.hidden&&taskMenu.hidden)idleTimeout=setTimeout(()=>$('#app').classList.add('is-idle'),6500);}
+function wake(){clearTimeout(idleTimeout);$('#app').classList.remove('is-idle');if(state.focusMode&&state.timer.status==='running'&&!activePanel&&workspace==='focus'&&taskMenu.hidden)idleTimeout=setTimeout(()=>$('#app').classList.add('is-idle'),6500);}
 for(const event of ['pointermove','pointerdown','keydown','focusin'])document.addEventListener(event,wake,{passive:true});
 document.addEventListener('pointermove',event=>{
   capturePointer={x:event.clientX,y:event.clientY,screenX:event.screenX,screenY:event.screenY};
@@ -189,7 +202,7 @@ function renderTasks(date=new Date()){
 }
 function openTaskEditor(id,anchor){
   editingTaskId=id??null;
-  if(calendarPanel.hidden||desktopTasks.matches)setTaskSidebar(true);
+  if(workspace!=='planner'||desktopTasks.matches)setTaskSidebar(true);
   openPanel('task-editor',anchor);
 }
 function openBlockEditor(id,anchor,blockId=null){
@@ -268,7 +281,34 @@ function taskEditor(){
       <div class="panel-actions"><button class="panel-primary" type="submit">Save task</button>${task?'<button type="button" class="text-button" id="delete-task">Delete task</button>':''}</div>
     </form>`;
 }
+function calendarBlockPreview(){
+  const task=state.tasks.find(item=>item.id===lastAnchor.dataset.task);
+  return `${header('CALENDAR BLOCK',escape(task?.text||'Task unavailable'))}
+    <p id="block-focus-time"></p>
+    <div class="panel-actions">
+      <button class="panel-primary" type="button" id="start-block-focus">${icon('play')} Start focus</button>
+      <button type="button" class="text-button" id="edit-calendar-block">${lastAnchor.dataset.block?'Edit block':'Edit task'}</button>
+    </div>`;
+}
+
+function selectedBlockTiming(now){
+  const {task,block,occurrence}=lastAnchor.dataset;
+  const selected=state.tasks.find(item=>item.id===task);
+  return selected ? blockFocusTiming(selected,block,occurrence,now) : null;
+}
+
+function updateBlockPreview(now){
+  const timing=selectedBlockTiming(now);
+  const start=$('#start-block-focus');
+  start.disabled=!timing?.available;
+  const message=!timing?.available?'This block has ended or is no longer scheduled.':
+    `${formatDuration(timing.available)} ${timing.early?'if you start now':'left in this block'}.${timing.split&&timing.available>50*60000?' The timer alternates up to 50 minutes of focus with 10 minutes of rest.':''}`;
+  const label=$('#block-focus-time');
+  if(label.textContent!==message)label.textContent=message;
+}
+
 function panelContent(id){
+  if(id==='calendar-block')return calendarBlockPreview();
   if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerRoutines()}<div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
   if(id==='task-editor')return taskEditor();
   if(id==='block-editor')return blockEditor();
@@ -312,11 +352,26 @@ function openPanel(id,anchor){
 }
 function closePanel(restore=true){
   const p=visiblePanel();if(p){if(p.id==='music-panel'){p.classList.add('music-hidden');p.setAttribute('aria-hidden','true');p.inert=true;p.querySelector('h2').id='music-hidden-title';p.setAttribute('aria-labelledby','music-hidden-title');}else p.remove();}
-  if(lastAnchor){lastAnchor.setAttribute('aria-expanded','false');if(restore)lastAnchor.focus({preventScroll:true});}
+  if(lastAnchor){
+    lastAnchor.setAttribute('aria-expanded','false');
+    if(restore){
+      const anchor=lastAnchor.isConnected?lastAnchor:workspace==='planner'?$('#close-calendar'):$('#sidebar-calendar');
+      anchor.focus({preventScroll:true});
+    }
+  }
   activePanel=null;wake();
 }
-function refreshPanel(){if(!activePanel||activePanel==='music')return;const p=visiblePanel();if(p){const focusId=p.contains(document.activeElement)?document.activeElement.id:null;p.innerHTML=panelContent(activePanel);positionPanel(p,lastAnchor);if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});}}
-function refreshTasks(){renderTasks();renderAgenda();if(!calendarPanel.hidden)renderCalendar();render();}
+function refreshPanel(){
+  if(!activePanel||activePanel==='music')return;
+  const p=visiblePanel();
+  if(!p)return;
+  const focusId=p.contains(document.activeElement)?document.activeElement.id:null;
+  p.innerHTML=panelContent(activePanel);
+  if(activePanel==='calendar-block')updateBlockPreview(Date.now());
+  positionPanel(p,lastAnchor);
+  if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
+}
+function refreshTasks(){renderTasks();renderAgenda();if(workspace==='planner')renderCalendar();render();}
 
 function agendaStart(now){return (now.getHours()-1)*60+agendaOffset;}
 
@@ -343,10 +398,7 @@ function renderAgenda(now=new Date()){
   const nowLine=minute>=start&&minute<end?`<div class="mini-now" style="--now-minute:${minute-start}" title="Current time"></div>`:'';
   const grid=`<div class="mini-hours calendar-hours" aria-hidden="true">${ticks}</div><div class="mini-track">${columns.join('')}${nowLine}</div>`;
   $('#agenda-list').innerHTML=grid;
-  if(!calendarPanel.hidden&&calendarView==='five'){
-    $('#calendar-range').textContent=range;
-    $('#planner-five-grid').innerHTML=grid;
-  }
+  calendarPanel.querySelector('.calendar-now')?.style.setProperty('--now-minute',minute);
   agendaMinute=Math.floor(now.getTime()/60000);
 }
 
@@ -355,13 +407,12 @@ function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=bloc
   const time=`${timeLabel(start)} – ${timeLabel(end)}`;
   const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
   const done=taskStatus(task,new Date(`${occurrence}T00:00:00`))==='done';
-  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" aria-label="Edit ${escape(title)}${done?', done':''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span></button>`;
+  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" aria-label="Open ${escape(title)}${done?', done':''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span></button>`;
 }
 function availableTaskId(){return state.tasks.find(task=>taskStatus(task)==='todo')?.id??null;}
 
 function renderCalendar(){
-  if(calendarView==='five')renderAgenda();
-  else renderWeek();
+  renderWeek();
   const trayScroll=calendarTray.scrollLeft;
   calendarTray.hidden=!state.tasks.length;
   calendarTray.innerHTML=state.tasks.map(task=>`<button type="button" draggable="true" class="calendar-tray-task" data-task="${escape(task.id)}" aria-label="Schedule ${escape(task.text)}" aria-haspopup="dialog">${escape(task.text)}</button>`).join('');
@@ -370,7 +421,7 @@ function renderCalendar(){
 
 function renderWeek(){
   const days=weekDays(calendarDate);
-  const today=dayKey();
+  const now=new Date(),today=dayKey(now),minute=now.getHours()*60+now.getMinutes();
   const shortDate=date=>date.toLocaleDateString([],{month:'short',day:'numeric'});
   const lastDay=days.at(-1);
   $('#calendar-range').textContent=`${shortDate(days[0])} – ${shortDate(lastDay)}, ${lastDay.getFullYear()}`;
@@ -378,56 +429,42 @@ function renderWeek(){
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
   const columns=days.map(date=>{
     const blocks=calendarBlocks(state.tasks,date).map(block=>calendarBlockMarkup(block,date)).join('');
-    return `<div class="calendar-day" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${blocks}</div>`;
+    const nowLine=dayKey(date)===today?`<div class="mini-now calendar-now" style="--now-minute:${minute}" title="Current time"></div>`:'';
+    return `<div class="calendar-day" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${blocks}${nowLine}</div>`;
   }).join('');
   $('#calendar-grid').innerHTML=`<div class="calendar-days"><div class="calendar-corner"></div>${headers}</div><div class="calendar-week"><div class="calendar-hours" aria-hidden="true">${hours}</div>${columns}</div>`;
 }
 
-function setCalendarView(view){
-  calendarView=view;
-  const week=view==='week';
-  $('#calendar-grid').hidden=!week;
-  $('#planner-five-grid').hidden=week;
-  calendarPanel.querySelectorAll('[data-calendar-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.calendarView===view)));
-  $('[data-calendar-step="previous"]').setAttribute('aria-label',week?'Previous week':'Previous five hours');
-  $('[data-calendar-step="next"]').setAttribute('aria-label',week?'Next week':'Next five hours');
-  $('[data-calendar-step="today"]').textContent=week?'Today':'Now';
-  calendarScroll.scrollTop=0;
-  calendarScroll.scrollLeft=0;
-  renderCalendar();
-  if(week){
-    const now=new Date(),start=agendaStart(now);
-    scrollCalendarTo(dayKey(calendarDate),((start%1440)+1440)%1440);
-  }
-}
-
-function scrollCalendarTo(date=dayKey(),minute=new Date().getHours()*60){
-  if(calendarView!=='week')return;
+function scrollCalendarTo(date=dayKey(),minute=Math.max(0,new Date().getHours()-1)*60){
   const column=calendarPanel.querySelector(`[data-date="${CSS.escape(date)}"]`);
   if(column)calendarScroll.scrollLeft=Math.max(0,column.offsetLeft-52);
   const day=calendarPanel.querySelector('.calendar-day');
   calendarScroll.scrollTop=day.offsetHeight*minute/1440;
 }
 
-function openCalendar(anchor,view='five'){
+function openCalendar(anchor,date=new Date(),minute){
   closePanel(false);
   closeTaskMenu(false);
-  if(calendarPanel.hidden)reopenTasksAfterCalendar=!desktopTasks.matches&&!taskSidebar.hidden;
+  if(workspace!=='planner')reopenTasksAfterCalendar=!desktopTasks.matches&&!taskSidebar.hidden;
+  calendarExit?.cancel();
+  calendarExit=null;
   calendarAnchor=anchor;
+  calendarDate=date;
   setTaskSidebar(desktopTasks.matches);
+  calendarPanel.inert=false;
   calendarPanel.hidden=false;
   showWorkspace('planner');
   calendarToggle.setAttribute('aria-expanded','true');
   $('#sidebar-calendar').setAttribute('aria-expanded','true');
   $('#sidebar-calendar').textContent='Back to focus';
-  setCalendarView(view);
+  renderCalendar();
+  scrollCalendarTo(dayKey(date),minute);
   $('#close-calendar').focus({preventScroll:true});
   wake();
 }
 
 function closeCalendar(){
   closeTaskMenu(false);
-  calendarPanel.hidden=true;
   showWorkspace('focus');
   if(reopenTasksAfterCalendar&&!desktopTasks.matches)setTaskSidebar(true);
   calendarToggle.setAttribute('aria-expanded','false');
@@ -435,11 +472,23 @@ function closeCalendar(){
   $('#sidebar-calendar').textContent='Open planner';
   const anchor=calendarAnchor?.getClientRects().length?calendarAnchor:calendarToggle;
   anchor.focus({preventScroll:true});
+  calendarPanel.inert=true;
+  if(motionPreference.matches)calendarPanel.hidden=true;
+  else{
+    const exit=calendarPanel.animate({opacity:[1,0],translate:['0 0','0 9px']},{duration:220,easing:'ease-in',fill:'forwards'});
+    calendarExit=exit;
+    exit.onfinish=()=>{
+      if(calendarExit!==exit)return;
+      calendarPanel.hidden=true;
+      exit.cancel();
+      calendarExit=null;
+    };
+  }
   wake();
 }
 
 function toggleCalendar(anchor){
-  if(calendarPanel.hidden)openCalendar(anchor);else closeCalendar();
+  if(workspace!=='planner')openCalendar(anchor);else closeCalendar();
 }
 
 function taskButton(id){
@@ -454,6 +503,7 @@ function openTaskMenu(id,anchor,x,y){
   menuAnchor=anchor;
   const status=taskStatus(task);
   const actions=[['edit','Edit task'],['priority',task.priority?'Remove priority':'Prioritize'],['schedule','Add a block…']];
+  if(anchor.classList.contains('calendar-block'))actions.unshift(['block-focus','Start focus…']);
   if(anchor.dataset.block)actions.push(['edit-block','Edit block'],['remove-block','Remove block']);
   if(status==='todo')actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
   if(status!=='upcoming')actions.push(['complete',status==='done'?'Reopen task':'Mark done']);
@@ -483,7 +533,7 @@ function deleteTask(id){
   state.tasks=state.tasks.filter(task=>task.id!==id);
   if(state.activeTask===id)state.activeTask=availableTaskId();
   persist();refreshTasks();
-  const focus=!calendarPanel.hidden&&!desktopTasks.matches?$('#close-calendar'):taskSidebar.hidden?taskToggle:$('#sidebar-add-task');
+  const focus=workspace==='planner'&&!desktopTasks.matches?$('#close-calendar'):taskSidebar.hidden?taskToggle:$('#sidebar-add-task');
   focus.focus({preventScroll:true});
   announce('Task deleted.');
 }
@@ -495,6 +545,7 @@ taskMenu.addEventListener('click',event=>{
   const anchor=menuAnchor;
   const blockSurface=anchor.closest('#mini-calendar')||calendarPanel;
   closeTaskMenu(false);
+  if(action==='block-focus'){openCalendarBlock(anchor);return;}
   if(action==='edit'){openTaskEditor(task.id,anchor);return;}
   if(action==='schedule'||action==='edit-block'){openBlockEditor(task.id,anchor,action==='edit-block'?anchor.dataset.block:null);return;}
   if(action==='delete'){deleteTask(task.id);return;}
@@ -600,27 +651,16 @@ for(const calendar of [calendarPanel,miniCalendar]){
   calendar.addEventListener('drop',onCalendarDrop);
 }
 function openCalendarBlock(block){
-  if(block.dataset.block)openBlockEditor(block.dataset.task,block,block.dataset.block);
-  else openTaskEditor(block.dataset.task,block);
+  openPanel('calendar-block',block);
+  updateBlockPreview(Date.now());
+  $('#start-block-focus:not(:disabled)')?.focus({preventScroll:true});
 }
 calendarPanel.addEventListener('click',event=>{
-  const view=event.target.closest('[data-calendar-view]')?.dataset.calendarView;
-  if(view&&view!==calendarView){
-    const now=new Date();
-    if(view==='week')calendarDate=shiftDay(now,Math.floor(agendaStart(now)/1440));
-    setCalendarView(view);
-    return;
-  }
   const step=event.target.closest('[data-calendar-step]')?.dataset.calendarStep;
   if(step){
-    if(calendarView==='five'){
-      agendaOffset=step==='today'?0:agendaOffset+(step==='next'?300:-300);
-      renderAgenda();
-    }else{
-      calendarDate=step==='today'?new Date():shiftDay(calendarDate,step==='next'?7:-7);
-      renderWeek();
-      if(step==='today')scrollCalendarTo();
-    }
+    calendarDate=step==='today'?new Date():shiftDay(calendarDate,step==='next'?7:-7);
+    renderWeek();
+    if(step==='today')scrollCalendarTo();
     return;
   }
   const block=event.target.closest('.calendar-block');
@@ -658,6 +698,26 @@ function mountSpotify(){const wrap=$('#music-player-wrap');if(!wrap)return;const
 root.addEventListener('click',e=>{
   const btn=e.target.closest('button');if(!btn)return;
   if(btn.classList.contains('close-panel'))closePanel();
+  if(btn.id==='edit-calendar-block'){
+    const {task,block}=lastAnchor.dataset;
+    if(block)openBlockEditor(task,lastAnchor,block);
+    else openTaskEditor(task,lastAnchor);
+  }
+  if(btn.id==='start-block-focus'){
+    checkCompletion();
+    const now=Date.now(),timing=selectedBlockTiming(now);
+    if(!timing?.available){updateBlockPreview(now);return;}
+    const id=lastAnchor.dataset.task;
+    const skipped=record(state,'skipped',now);
+    startBlockFocus(state,id,timing.available,timing.split,now);
+    closePanel(false);
+    if(workspace==='planner')closeCalendar();
+    if(!durationForm.hidden)finishEdit();
+    persist();refreshTasks();wake();
+    $('#toggle-timer').focus({preventScroll:true});
+    const message=skipped?'Block focus started. The previous session was skipped.':'Block focus started.';
+    toast(message);announce(message);
+  }
   if(btn.id==='panel-timer-toggle')$('#toggle-timer').click();
   if(btn.id==='quick-capture')openPanel('capture',$('[data-panel="notes"]'));
   if(btn.id==='capture-window'){
@@ -691,7 +751,7 @@ root.addEventListener('click',e=>{
     if(!task)return;
     task.blocks=task.blocks.filter(block=>block.id!==editingBlockId);
     closePanel(false);persist();refreshTasks();
-    (calendarPanel.hidden?$('#sidebar-calendar'):$('#close-calendar')).focus({preventScroll:true});
+    (workspace==='planner'?$('#close-calendar'):$('#sidebar-calendar')).focus({preventScroll:true});
   }
 });
 root.addEventListener('input',e=>{
@@ -762,16 +822,8 @@ root.addEventListener('submit',e=>{
     const date=fields.get('date'),time=fields.get('time'),minutes=Number(fields.get('minutes'));
     const existing=task.blocks?.find(item=>item.id===editingBlockId);
     if(existing)Object.assign(existing,{date,time,minutes});else addTaskBlock(task,date,time,minutes);
-    const view=calendarPanel.hidden?'five':calendarView;
     closePanel(false);persist();refreshTasks();
-    const now=new Date(),scheduled=new Date(`${date}T00:00:00`);
-    const utcDay=day=>Date.UTC(day.getFullYear(),day.getMonth(),day.getDate());
-    const minute=(utcDay(scheduled)-utcDay(now))/60000+timeMinutes(time);
-    const start=agendaStart(now);
-    if(minute<start||minute>=start+300)agendaOffset=Math.floor(minute/60)*60-(now.getHours()-1)*60;
-    calendarDate=scheduled;
-    openCalendar(calendarToggle,view);
-    if(view==='week')scrollCalendarTo(date,Math.max(0,timeMinutes(time)-60));
+    openCalendar(calendarToggle,new Date(`${date}T00:00:00`),Math.max(0,timeMinutes(time)-60));
     announce('Block saved.');
   }
   if(e.target.id==='spotify-form'){const link=$('#spotify-link').value.trim();if(!spotifyPath(link)){$('#spotify-error').textContent='Use a Spotify playlist, album, or track link from open.spotify.com.';return;}state.spotify=link;persist();mountSpotify();$('#spotify-error').textContent='Use the Spotify player to start your music.';$('#remove-player').hidden=false;positionPanel(visiblePanel(),lastAnchor);}
@@ -804,7 +856,7 @@ document.addEventListener('keydown',e=>{
   }
   if(e.key==='Escape'&&!taskMenu.hidden){e.preventDefault();closeTaskMenu();return;}
   if(e.key==='Escape'&&activePanel){e.preventDefault();closePanel();return;}
-  if(e.key==='Escape'&&!calendarPanel.hidden){e.preventDefault();closeCalendar();return;}
+  if(e.key==='Escape'&&workspace==='planner'){e.preventDefault();closeCalendar();return;}
   const p=visiblePanel();
   if(e.key==='Tab'&&p){const els=[...p.querySelectorAll('button:not(:disabled):not([hidden]),input,textarea,select,a[href],iframe')].filter(el=>el.offsetParent!==null);const first=els[0],last=els.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
   if(e.code==='Space'&&!activePanel&&!e.target.closest('button,a,input,textarea')){e.preventDefault();$('#toggle-timer').click();}

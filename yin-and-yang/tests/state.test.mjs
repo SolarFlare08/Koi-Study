@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {freshState,startPause,remaining,settle,record,reset,todayProgress,loadState,STORAGE_KEY,dayKey,taskStatus,completeTask} from '../dist/state.js';
+import {freshState,startPause,startBlockFocus,skipPhase,remaining,settle,record,reset,todayProgress,loadState,STORAGE_KEY,dayKey,taskStatus,completeTask} from '../dist/state.js';
 test('running timer recovers from storage and completes once after inactive deadline',()=>{
   const s=freshState();startPause(s,1000000);
   const recovered=loadState({getItem:key=>key===STORAGE_KEY?JSON.stringify(s):null});
@@ -59,4 +59,38 @@ test('weekly tasks follow their start weekday and older completed tasks remain d
   assert.equal(taskStatus(weekly,new Date(2026,10,9)),'upcoming');
   assert.equal(taskStatus(weekly,new Date(2026,10,15)),'todo');
   assert.equal(taskStatus(old,new Date(2026,10,15)),'done');
+});
+
+test('long block phases survive reload and catch up from their scheduled deadlines',()=>{
+  const s=freshState(), minute=60000, start=new Date(2026,10,6,10).getTime();
+  s.tasks.push({id:'reading',text:'Read chapter two',done:false,date:'2026-11-07'});
+  startBlockFocus(s,'reading',90*minute,true,start);
+  const recovered=loadState({getItem:()=>JSON.stringify(s)});
+  assert.equal(recovered.activeTask,'reading');
+  assert.equal(recovered.timer.total,50*minute);
+  const wake=start+65*minute;
+  assert.equal(settle(recovered,wake).intention,'Read chapter two');
+  assert.equal(recovered.timer.mode,'break');
+  assert.equal(recovered.timer.endAt,start+60*minute);
+  assert.equal(settle(recovered,wake).mode,'break');
+  assert.equal(recovered.timer.total,30*minute);
+  assert.equal(remaining(recovered,wake),25*minute);
+  settle(recovered,start+90*minute);
+  assert.equal(todayProgress(recovered,new Date(start)).minutes,80);
+  assert.equal(recovered.timer.total,25*minute);
+  assert.equal(recovered.timer.status,'idle');
+});
+
+test('short blocks preserve their exact countdown and skipping rest advances a long block',()=>{
+  const s=freshState(), minute=60000;
+  startBlockFocus(s,'reading',33*minute+23500,false,0);
+  assert.equal(s.timer.endAt,33*minute+23500);
+  settle(s,s.timer.endAt);
+  assert.equal(s.timer.block,undefined);
+  startBlockFocus(s,'reading',120*minute,true,0);
+  settle(s,50*minute);
+  assert.equal(skipPhase(s,51*minute).outcome,'skipped');
+  assert.equal(s.timer.endAt,101*minute);
+  reset(s);
+  assert.equal(s.timer.block,undefined);
 });
