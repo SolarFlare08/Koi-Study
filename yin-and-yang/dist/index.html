@@ -31,6 +31,24 @@
       <div class="sky-task"><span class="tiny-dot"></span><button id="current-task" aria-haspopup="dialog">Add task</button></div>
       <p id="session-status" class="session-status">Settle in. There’s no rush.</p>
     </section>
+    <aside id="penguin" class="secondary" aria-label="Penguin companion">
+      <p id="penguin-thought">Small steps still carry you forward.</p>
+      <button id="penguin-next" type="button" aria-label="Ask the penguin for another thought" aria-describedby="penguin-thought" title="Another thought">
+        <svg viewBox="0 0 72 79" aria-hidden="true" fill="none">
+          <ellipse cx="37" cy="73" rx="27" ry="4" fill="#142c3a" opacity=".2"/>
+          <path d="M24 64c-7 1-12 7-7 9 4 2 13 0 17-5m15-5c7 1 12 6 8 9-5 2-13 0-17-4" fill="#c99567"/>
+          <path d="M16 35C6 40 5 52 8 57c4 1 10-5 14-11m35-13c10 3 13 12 9 15-3 3-11 0-15-5" fill="#344f58" stroke="#243c49" stroke-width="1.2"/>
+          <path d="M14 37c0-10 2-24 12-30C34 2 50 4 55 16c4 9 2 16 5 27 6 19-6 28-23 28C21 71 9 61 14 37Z" fill="#344f58" stroke="#243c49" stroke-width="1.25"/>
+          <path d="M20 40c3-7 5-10 9-13-3-4-3-11 1-14 4-4 9-2 12 3 5-3 11 2 9 8-2 3-4 4-5 6 8 6 12 17 10 25-2 9-10 13-19 13-13 0-22-11-17-28Z" fill="#f0ead8"/>
+          <path d="M19 36c10 3 25 3 36-2l2 5c-11 5-26 7-38 2Z" fill="#a66150"/>
+          <path d="M25 40c-3 6-7 10-13 10l3 6c8-1 14-6 17-14Z" fill="#bc7861"/>
+          <path d="M19 39c12 3 24 2 36-3" stroke="#edb497" stroke-width="1" opacity=".66"/>
+          <circle cx="35" cy="22" r="1.65" fill="#243c49"/><circle cx="47" cy="21" r="1.45" fill="#243c49"/>
+          <path d="M40 25q6-2 9 1-4 5-9 1Z" fill="#d5a271"/>
+          <path d="M22 14c5-6 13-7 20-6" stroke="#7b9898" stroke-width="1.1" stroke-linecap="round" opacity=".7"/>
+        </svg>
+      </button>
+    </aside>
     <aside id="task-sidebar" class="secondary" aria-labelledby="tasks-heading" hidden>
       <div class="task-board-box">
       <div class="task-sidebar-header">
@@ -60,9 +78,9 @@
           <button id="close-calendar" class="icon-button" type="button" aria-label="Close calendar"><span data-icon="close"></span></button>
         </nav>
       </header>
-      <p class="calendar-help">Drag tasks onto the week to schedule them. Open a block to edit it or start focus.</p>
+      <p class="calendar-help" id="calendar-help">Scroll sideways for more dates. Drag tasks to schedule them, or open a block to edit it or start focus.</p>
       <div id="calendar-task-tray" aria-label="Tasks to schedule" hidden></div>
-      <div id="calendar-scroll" tabindex="0" aria-label="Weekly schedule"><div id="calendar-grid"></div></div>
+      <div id="calendar-scroll" role="region" tabindex="0" aria-label="Schedule" aria-describedby="calendar-help"><div id="calendar-grid"></div></div>
     </section>
     <section id="wip-workspace" hidden><h2>Work in progress</h2><p>A little space for what comes next.</p></section>
     <div id="objects"></div>

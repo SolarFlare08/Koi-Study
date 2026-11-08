@@ -52,6 +52,7 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
 .cloud-high{animation-duration:112s;animation-delay:-21s}
 .boat-bob{animation:boat-bob 7s ease-in-out infinite;transform-origin:0 4px}
 .boat-wake{animation:boat-wake 8s ease-out infinite;transform-origin:0 10px}
+.fishing-ripple{animation:boat-wake 6s ease-out infinite;animation-delay:-2s}
 .focus-running #countdown{animation:timer-settle .65s ease-out}
 @keyframes cloud-drift{from{transform:translateX(-16px)}to{transform:translateX(30px)}}
 @keyframes boat-bob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-2px) rotate(1deg)}}
@@ -260,12 +261,21 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
   min-height: 0;
   overflow: auto;
   flex: 1;
+  container-type: inline-size;
+  overflow-anchor: none;
+  scroll-padding: 35px 0 0 var(--calendar-gutter);
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb,currentColor 30%,transparent) transparent;
   overscroll-behavior: contain;
 }
-#calendar-grid { min-width: 570px; position: relative; }
-.calendar-days, .calendar-week { display: grid; grid-template-columns: var(--calendar-gutter) repeat(7,minmax(0,1fr)); }
+#calendar-grid {
+  --planner-day-width: max(92px, calc((100cqw - var(--calendar-gutter)) / 7));
+  width: calc(var(--calendar-gutter) + var(--planner-date-count, 1) * var(--planner-day-width));
+}
+.calendar-days, .calendar-week {
+  display: grid;
+  grid-template-columns: var(--calendar-gutter) repeat(var(--planner-date-count, 1),var(--planner-day-width));
+}
 .calendar-days {
   position: sticky;
   top: 0;
@@ -369,6 +379,7 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
     border: 1px solid #c4d7c7;
     border-radius: 7px;
     background: #e1ebdf;
+    color: #24483e;
     cursor: grab;
   }
 }
@@ -475,6 +486,57 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
 .mini-now { pointer-events: none; position: absolute; z-index: 4; inset-inline: 0; top: calc(var(--now-minute) * var(--calendar-hour) / 60); border-top: 1px solid #d9a775; }
 .mini-now::before { content: ""; position: absolute; left: 0; top: -3px; width: 5px; height: 5px; border-radius: 50%; background: #d9a775; }
 .calendar-now { z-index: 2; }
+#penguin {
+  position: absolute;
+  left: clamp(12px,3.5vw,50px);
+  bottom: clamp(85px,16vh,144px);
+  z-index: 3;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--scene-ink,#34565a);
+}
+#penguin-next {
+  width: 62px;
+  padding: 0;
+  border-radius: 24px;
+}
+#penguin-next svg {
+  width: 100%;
+  height: auto;
+  transform-origin: 50% 90%;
+  transition: transform .22s ease-out;
+}
+#penguin-next:hover svg, #penguin-next:focus-visible svg { transform: translateY(-3px) rotate(-4deg); }
+#penguin-thought {
+  position: relative;
+  width: max-content;
+  max-width: 155px;
+  margin: -15px 0 0;
+  padding: 8px 11px;
+  border: 1px solid color-mix(in srgb,currentColor 17%,transparent);
+  border-radius: 14px 14px 14px 5px;
+  background: color-mix(in srgb,var(--scene-paper,#e7eadc) 88%,transparent);
+  font-size: 11px;
+  line-height: 1.45;
+}
+#penguin-thought::before, #penguin-thought::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .5;
+}
+#penguin-thought::before { width: 4px; height: 4px; left: -8px; bottom: -3px; }
+#penguin-thought::after { width: 2px; height: 2px; left: -13px; bottom: -7px; }
+@media(max-width:700px) {
+  #penguin { left: 14px; bottom: 107px; gap: 4px; }
+  #penguin-next { width: 47px; }
+  #penguin-thought { max-width: 122px; font-size: 10px; padding: 6px 9px; }
+}
+@media(max-width:980px) { #app:has(#task-sidebar:not([hidden])) #penguin { visibility: hidden; } }
+@media(max-width:700px) and (max-height:650px) { #penguin { top: 95px; bottom: auto; } }
 .valley-fog { animation: fog-breathe 38s ease-in-out infinite alternate; }
 .shore-fog { animation-duration: 47s; animation-delay: -14s; }
 @keyframes fog-breathe { from { opacity: .25; transform: translateY(5px); } to { opacity: .92; transform: translateY(-7px); } }
