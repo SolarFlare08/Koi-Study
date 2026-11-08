@@ -23,7 +23,9 @@ export function daylight(progress){
   const a=frames[i],b=frames[i+1],v=(p-a[0])/(b[0]-a[0]),t=v*v*(3-2*v);
   const ramp=x=>{const v=Math.max(0,Math.min(1,x));return v*v*(3-2*v);};
   const sunlight=ramp(p/.06)*ramp((1-p)/.08);
-  return {p,top:blend(a[1],b[1],t),middle:blend(a[2],b[2],t),horizon:blend(a[3],b[3],t),shade:a[4]+(b[4]-a[4])*t,night:a[5]+(b[5]-a[5])*t,sunlight};
+  const night=a[5]+(b[5]-a[5])*t;
+  const lamplight=ramp((night-.05)/.37);
+  return {p,top:blend(a[1],b[1],t),middle:blend(a[2],b[2],t),horizon:blend(a[3],b[3],t),shade:a[4]+(b[4]-a[4])*t,night,sunlight,lamplight};
 }
 export function ridge(points,bottom=650){
   let d=`M${points[0].join(' ')}`;

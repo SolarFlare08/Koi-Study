@@ -24,6 +24,14 @@ test('the end of focus matches its start with all sunlight hidden',()=>{
   assert.ok(daylight(.01).sunlight<daylight(.03).sunlight);
   assert.ok(daylight(.99).sunlight<daylight(.96).sunlight);
 });
+test('lamps fade out through dawn and light up before sunset',()=>{
+  assert.equal(daylight(0).lamplight,1);
+  assert.ok(daylight(.08).lamplight>daylight(.16).lamplight);
+  assert.equal(daylight(.5).lamplight,0);
+  assert.ok(daylight(.8).lamplight>0);
+  assert.ok(daylight(.88).lamplight>daylight(.8).lamplight);
+  assert.equal(daylight(1).lamplight,1);
+});
 test('reset immediately returns the sun and lighting to sunrise; noon is high',()=>{
   const nodes=new Map();
   globalThis.innerWidth=1600;globalThis.innerHeight=900;
@@ -37,8 +45,10 @@ test('reset immediately returns the sun and lighting to sunrise; noon is high',(
   assert.equal(sun.attrs.cx,375);
   assert.equal(sun.attrs.cy,482);
   assert.equal(nodes.get('#night-shade').attrs.opacity,daylight(0).shade);
+  assert.equal(nodes.get('#evening-lights').attrs.opacity,1);
   animateLandscape(32,.5,false);
   assert.ok(sun.attrs.cy<70);
+  assert.equal(nodes.get('#evening-lights').attrs.opacity,0);
   animateLandscape(48,1,false);
   assert.ok(sun.attrs.cy>480);
   assert.equal(sun.attrs.opacity,0);

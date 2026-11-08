@@ -1,6 +1,8 @@
 export {blossomMarkup} from './landscape.js';
 import {daylight,blend,ridge,sunPosition} from './daylight.js';
 export const objects=[['pagoda','Timer settings'],['tasks','Add tasks'],['music','Your Spotify'],['notes','Distraction notes'],['progress','Today’s progress']].map(([id,hint])=>({id,hint,label:hint,className:'',art:''}));
+const pavilionOrigin='1096 615';
+const boatOrigin='783 711';
 function pine(x,y,scale=1){
   return `<g transform="translate(${x} ${y}) scale(${scale})">
     <path d="M-9 1C1-28 1-55-4-82C-8-109 4-133 10-166L15-180C18-149 9-129 7-107C3-83 11-56 9-29Q8-13 14 1Z" fill="#315858"/>
@@ -33,6 +35,7 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
 <linearGradient id="mist" x2="0" y2="1"><stop stop-color="#f6eddc" stop-opacity="0"/><stop offset=".5" stop-color="#f6eddc" stop-opacity=".8"/><stop offset="1" stop-color="#f6eddc" stop-opacity="0"/></linearGradient>
 <linearGradient id="reflection" x2="0" y2="1"><stop stop-color="#fce4bb" stop-opacity=".7"/><stop offset="1" stop-color="#fce4bb" stop-opacity="0"/></linearGradient>
 <radialGradient id="halo"><stop stop-color="#ffe9bd" stop-opacity=".65"/><stop offset="1" stop-color="#ffe9bd" stop-opacity="0"/></radialGradient>
+<radialGradient id="lamp-halo"><stop stop-color="#ffbe75" stop-opacity=".52"/><stop offset=".36" stop-color="#e6a66d" stop-opacity=".24"/><stop offset="1" stop-color="#e6a66d" stop-opacity="0"/></radialGradient>
 <linearGradient id="bank" x2=".4" y2="1"><stop stop-color="#547d6b"/><stop offset="1" stop-color="#294f4d"/></linearGradient>
 <linearGradient id="shore" x2="0" y2="1"><stop stop-color="#8eac91"/><stop offset="1" stop-color="#527e70"/></linearGradient>
 <linearGradient id="rock-face" x2=".55" y2="1"><stop stop-color="#9cae99"/><stop offset="1" stop-color="#597b73"/></linearGradient>
@@ -61,16 +64,26 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
   <path class="lake-glimmer" d="M650 734h20m-12 5h7" opacity="0"/>
   <path class="lake-glimmer glimmer-late" d="M878 704h13m-8 4h4" opacity="0"/>
 </g>
-<path d="M1600 641C1515 624 1453 622 1387 624C1302 626 1243 632 1187 632C1156 632 1125 627 1108 624C1136 639 1176 642 1220 641C1319 638 1400 634 1481 640C1530 644 1567 650 1600 658Z" fill="#6a948a" opacity=".28"/>
-<path fill="url(#shore)" d="M1600 580C1519 553 1451 551 1392 562C1359 569 1327 566 1302 569C1255 573 1226 585 1197 599C1166 613 1131 615 1112 618C1103 620 1115 624 1134 627C1165 633 1199 631 1234 626C1300 618 1367 612 1429 616C1491 620 1545 633 1600 644Z"/>
-<path fill="#abc1a4" opacity=".7" d="M1134 621C1176 616 1197 602 1226 593C1271 576 1328 572 1375 571C1346 574 1316 581 1287 591C1233 610 1183 624 1134 621Z"/>
-<path d="M1128 628C1174 638 1225 630 1265 627M1364 623C1415 621 1460 626 1504 634" fill="none" stroke="#d3dbc2" stroke-width="1.4" stroke-linecap="round" opacity=".56"/>
-${rock(1150,624,.26,-1)}${rock(1167,626,.15)}
-${pine(1311,584,.46)}${pine(1352,583,.31)}${pine(1431,579,.53)}${pine(1471,585,.34)}
-<g transform="translate(1252 594)"><path d="M-21 0h48l8 4h-62Z" fill="#758f77"/><path d="M-14-35h30V0h-30Z" fill="#c7c3a0"/><path d="M-11-33V0m24-33V0M1-33V0" stroke="#566d5b" stroke-width="3"/><path class="pavilion-glow" d="M3-24h8v15H3z" fill="#fff0bc" opacity=".35"/><path d="M-28-35q19-5 29-19 10 14 29 19-29 7-58 0Z" fill="#456b62"/><path d="M-27-35q29 4 57 0" fill="none" stroke="#7e9880"/><path d="M1-54v-5" stroke="#456b62"/></g>
-<path d="M1213 604C1231 597 1249 593 1273 591C1292 589 1307 585 1323 581C1307 593 1293 601 1275 603C1250 606 1231 606 1213 604Z" fill="#759986"/>
+<g class="far-shore">
+  <path d="M1600 641C1515 624 1453 622 1387 624C1293 626 1203 634 1129 636C1096 636 1068 631 1041 626C1069 642 1101 646 1147 645C1283 641 1397 634 1481 640C1530 644 1567 650 1600 658Z" fill="#6a948a" opacity=".28"/>
+  <path fill="url(#shore)" d="M1600 580C1519 553 1451 551 1392 562C1359 569 1327 566 1302 569C1234 574 1181 582 1141 596C1102 610 1069 615 1041 620C1030 623 1044 628 1067 631C1121 639 1179 633 1234 626C1300 618 1367 612 1429 616C1491 620 1545 633 1600 644Z"/>
+  <path fill="#abc1a4" opacity=".7" d="M1060 622C1103 615 1132 601 1168 593C1226 578 1311 572 1375 571C1346 574 1316 581 1287 591C1208 610 1118 629 1060 622Z"/>
+  <path d="M1058 631C1120 641 1209 631 1265 627M1364 623C1415 621 1460 626 1504 634" fill="none" stroke="#d3dbc2" stroke-width="1.4" stroke-linecap="round" opacity=".56"/>
+  ${rock(1059,625,.23,-1)}${rock(1074,628,.14)}
+  ${pine(1142,611,.27)}${pine(1311,584,.46)}${pine(1352,583,.31)}${pine(1431,579,.53)}${pine(1471,585,.34)}
+  <g transform="translate(${pavilionOrigin})">
+    <path d="M-21 0h48l8 4h-62Z" fill="#758f77"/>
+    <path d="M-14-35h30V0h-30Z" fill="#c7c3a0"/>
+    <path d="M-11-26h9v17h-9zm14 0h9v17H3z" fill="#728478"/>
+    <path d="M-13-33V0m27-33V0M1-33V0" stroke="#566d5b" stroke-width="2.5"/>
+    <path d="M-28-35q19-5 29-19 10 14 29 19-29 7-58 0Z" fill="#456b62"/>
+    <path d="M-27-35q29 4 57 0m-29-19v-5M22-34v8" fill="none" stroke="#6a8675"/>
+    <ellipse cx="22" cy="-23" rx="3" ry="4" fill="#ae7359"/>
+  </g>
+  <path d="M1074 623C1101 619 1129 619 1149 611C1171 602 1187 600 1200 600C1180 611 1160 620 1132 624C1108 627 1092 625 1074 623Z" fill="#759986"/>
+</g>
 <g id="blossoms" transform="translate(1185 452) scale(.22)"/>
-<g transform="translate(783 711)">
+<g transform="translate(${boatOrigin})">
   <ellipse cy="10" rx="50" ry="4" fill="#315e60" opacity=".2"/>
   <ellipse class="boat-wake" cy="10" rx="48" ry="6" fill="none" stroke="#d2dcc9" opacity=".28"/>
   <path d="M-63 10h19m83 4h20m-92 5h50" fill="none" stroke="#d9dec9" stroke-linecap="round" opacity=".38"/>
@@ -80,7 +93,7 @@ ${pine(1311,584,.46)}${pine(1352,583,.31)}${pine(1431,579,.53)}${pine(1471,585,.
     <path d="M-25-4v-11q10-7 23-4L1-4Z" fill="#3e5d56"/>
     <path d="M-30-16q12-7 32-7M-31-10q6-4 13-5" fill="none" stroke="#d0c9a2" stroke-width=".85" opacity=".65"/>
     <path d="M-3-16v4" stroke="#344f46" stroke-width=".8"/>
-    <ellipse class="pavilion-glow" cx="-3" cy="-9" rx="2.6" ry="3.1" fill="#ffd49b"/>
+    <ellipse cx="-3" cy="-9" rx="3.2" ry="4" fill="#a87354"/>
     <path d="M15-18q5-3 8 2l2 7 10 4h-20l-2-7Z" fill="#426760"/>
     <path d="M20-15l7 5 5-2" fill="none" stroke="#416760" stroke-width="2.4" stroke-linecap="round"/>
     <circle cx="19" cy="-21" r="3" fill="#ab8c6c"/>
@@ -106,6 +119,25 @@ ${rock(1514,844,1.05,-1)}${rock(1462,850,.49)}${rock(1418,854,.33,-1)}
   <path d="M1459 851q-12-27-32-39m36 33q1-27 13-41" stroke-width="1.25" opacity=".8"/>
 </g>
 <rect id="night-shade" width="1600" height="900" fill="#071730" opacity="0"/>
+<g id="evening-lights" opacity="0">
+  <g class="far-shore">
+    <g transform="translate(${pavilionOrigin})">
+      <ellipse cy="-17" rx="37" ry="28" fill="url(#lamp-halo)" opacity=".8"/>
+      <path d="M-11-26h9v17h-9zm14 0h9v17H3z" fill="#f9c583"/>
+      <path d="M-11-20h9m5 0h9" stroke="#a67150" stroke-width=".85"/>
+      <circle cx="22" cy="-23" r="16" fill="url(#lamp-halo)"/>
+      <ellipse cx="22" cy="-23" rx="2.8" ry="3.7" fill="#ffd39a"/>
+      <path d="M-10 26h24m-17 5h16m-20 6H3" stroke="#f7c58c" stroke-linecap="round" opacity=".34"/>
+    </g>
+  </g>
+  <g transform="translate(${boatOrigin})">
+    <g class="boat-bob">
+      <circle cx="-3" cy="-9" r="19" fill="url(#lamp-halo)"/>
+      <ellipse cx="-3" cy="-9" rx="3.2" ry="4" fill="#ffcd86"/>
+      <ellipse cx="-3" cy="-9" rx="1.55" ry="2.5" fill="#ffecd0"/>
+    </g>
+  </g>
+</g>
 <g id="stars" fill="#f5e8ce" opacity="0">
   <circle cx="321" cy="116" r="1.2"/><circle cx="1013" cy="87" r="1"/><circle cx="1280" cy="167" r="1.3"/><circle cx="460" cy="237" r=".9"/><circle cx="1107" cy="247" r="1"/><circle cx="620" cy="66" r="1"/><circle cx="1423" cy="88" r=".8"/>
   <g class="orion"><title>Orion</title><path d="M901 126L932 101L974 133L949 173L938 178L927 183L901 126M927 183L916 250L983 235L949 173" stroke="#b6c8d9" stroke-width=".85" opacity=".52" fill="none"/>
@@ -115,11 +147,12 @@ ${rock(1514,844,1.05,-1)}${rock(1462,850,.49)}${rock(1418,854,.33,-1)}
 </svg>`;}
 let nodes;
 export function paintDay(p){
-nodes??={sun:document.querySelector('#travelling-sun'),halo:document.querySelector('#sun-halo'),shine:document.querySelector('#shine'),top:document.querySelector('#zenith'),middle:document.querySelector('#sky-middle'),bottom:document.querySelector('#horizon'),shade:document.querySelector('#night-shade'),stars:document.querySelector('#stars'),app:document.querySelector('#app')};
+nodes??={sun:document.querySelector('#travelling-sun'),halo:document.querySelector('#sun-halo'),shine:document.querySelector('#shine'),top:document.querySelector('#zenith'),middle:document.querySelector('#sky-middle'),bottom:document.querySelector('#horizon'),shade:document.querySelector('#night-shade'),lamps:document.querySelector('#evening-lights'),stars:document.querySelector('#stars'),app:document.querySelector('#app')};
 const light=daylight(p),k=light.p,{x,y}=sunPosition(k,innerWidth,innerHeight);
 nodes.sun.setAttribute('cx',x);nodes.sun.setAttribute('cy',y);nodes.halo.setAttribute('transform',`translate(${x} ${y})`);nodes.shine.setAttribute('transform',`translate(${x} 0)`);
 nodes.top.setAttribute('stop-color',light.top);nodes.middle.setAttribute('stop-color',light.middle);nodes.bottom.setAttribute('stop-color',light.horizon);
 nodes.shade.setAttribute('opacity',light.shade);nodes.stars.setAttribute('opacity',Math.max(0,(light.night-.65)/.35)*.6);
+nodes.lamps.setAttribute('opacity',light.lamplight);
 nodes.shine.setAttribute('opacity',(1-light.night)*light.sunlight);nodes.sun.setAttribute('opacity',light.sunlight);nodes.halo.setAttribute('opacity',light.sunlight);nodes.sun.setAttribute('fill',blend('#fff2ca','#eea177',Math.pow(Math.abs(k-.5)*2,3)));
 nodes.app.style.setProperty('--scene-ink',blend('#34565a','#f1e6d3',light.night));
 nodes.app.style.setProperty('--scene-muted',blend('#55726c','#c9cdd1',light.night));
