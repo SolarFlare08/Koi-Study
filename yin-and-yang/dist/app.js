@@ -13,6 +13,9 @@ const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 let storage;
 try{storage=localStorage;}catch{storage={getItem:()=>null,setItem:()=>{throw new Error('Storage unavailable');}};}
 let state=loadState(storage),activePanel=null,lastAnchor=null,idleTimeout,toastTimeout,lastBlossoms=-1;
+const app=$('#app');
+const focusModeButton=$('#focus-mode');
+const timerButton=$('#toggle-timer');
 const root=$('#panel-root');
 const taskSidebar=$('#task-sidebar');
 const calendarPanel=$('#calendar-panel');
@@ -51,11 +54,11 @@ function nextPenguinThought(){
 }
 $('#penguin-next').onclick=()=>announce(nextPenguinThought());
 $('#landscape').innerHTML=renderLandscape();
-$('#objects').classList.add('secondary');
 $('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",music:"music",notes:"spark",progress:"target"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",music:"Music",notes:"Notes",progress:"Today"})[o.id]}</span></button>`).join('');
 applyIcons();
 
 function setTaskSidebar(open){
+  open=open&&!state.focusMode;
   taskSidebar.hidden=!open;
   const toggle=$('[data-panel="tasks"]');
   toggle.setAttribute('aria-expanded',String(open));
@@ -66,12 +69,13 @@ taskToggle.setAttribute('aria-controls','task-sidebar');
 taskToggle.setAttribute('aria-label','Show or hide tasks');
 const calendarToggle=$('#workspace-tabs [data-workspace="planner"]');
 calendarToggle.setAttribute('aria-controls','calendar-panel');
-setTaskSidebar(desktopTasks.matches);
+let sidebarBeforeFocus=desktopTasks.matches;
+setTaskSidebar(sidebarBeforeFocus);
 desktopTasks.addEventListener('change',()=>setTaskSidebar(workspace!=='wip'&&desktopTasks.matches));
 
 function showWorkspace(next){
   workspace=next;
-  $('#app').dataset.workspace=next;
+  app.dataset.workspace=next;
   $('.sky').hidden=next!=='focus';
   $('#wip-workspace').hidden=next!=='wip';
   $('#objects').hidden=next==='wip';
@@ -98,6 +102,7 @@ function focusedTask(date=new Date()){
 }
 
 function render(){
+  syncFocusMode();
   const ms=remaining(state),seconds=Math.ceil(ms/1000),mins=Math.floor(seconds/60),secs=seconds%60,t=state.timer;
   $('#countdown').innerHTML=`${String(mins).padStart(2,'0')}<span>:</span>${String(secs).padStart(2,'0')}`;
   $('#countdown').setAttribute('aria-label',`${mins} minutes ${secs} seconds of ${t.mode==='focus'?'focus':'rest'} remaining`);
@@ -120,12 +125,10 @@ function render(){
   if(agendaMinute!==Math.floor(clock.getTime()/60000))renderAgenda(clock);
   if(activePanel==='calendar-block')updateBlockPreview(clock.getTime());
   const running=t.status==='running';
-  $('#toggle-timer').innerHTML=icon(running?'pause':'play')+`<span>${running?'Pause':t.status==='paused'?'Continue':t.mode==='focus'?'Begin focus':'Begin rest'}</span>`;
+  timerButton.innerHTML=icon(running?'pause':'play')+`<span>${running?'Pause':t.status==='paused'?'Continue':t.mode==='focus'?'Begin focus':'Begin rest'}</span>`;
   $('[data-mode="focus"]').setAttribute('aria-pressed',t.mode==='focus');
   $('[data-mode="break"]').setAttribute('aria-pressed',t.mode==='break');
-  $('#session-status').textContent=running?(t.mode==='focus'?'Just this moment. Just this task.':'Breathe out. You’ve made some space.'):t.status==='paused'?'A pause is part of the practice.':t.mode==='break'?'A little rest helps you return.':'Settle in. There’s no rush.';
-  $('#focus-mode').setAttribute('aria-pressed',state.focusMode);
-  $('#app').classList.toggle('focus-running',running);
+  app.classList.toggle('focus-running',running);
   const progress=todayProgress(state);
   if(progress.completed!==lastBlossoms){$('#blossoms').innerHTML=blossomMarkup(progress.completed);lastBlossoms=progress.completed;}
   document.title=t.status==='idle'?'Yin and Yang — A quiet place to focus':`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} · ${t.mode==='focus'?'Focus':'Rest'} — Yin and Yang`;
@@ -148,7 +151,7 @@ function checkCompletion(){
   wake();
 }
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
-$('#toggle-timer').onclick=()=>action(()=>{startPause(state);announce(state.timer.status==='running'?`${state.timer.mode} timer started.`:'Timer paused.');});
+timerButton.onclick=()=>action(()=>{startPause(state);announce(state.timer.status==='running'?`${state.timer.mode} timer started.`:'Timer paused.');});
 $('#reset-timer').onclick=()=>action(()=>{
   if(state.timer.id){record(state,'skipped');toast('Timer reset. The unfinished session was marked skipped.');}
   reset(state);
@@ -175,12 +178,41 @@ document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>{
   }
   if(activePanel===el.dataset.panel)closePanel();else openPanel(el.dataset.panel,el);
 });
-$('#focus-mode').onclick=()=>{state.focusMode=!state.focusMode;persist();render();wake();toast(state.focusMode?'Focus mode on. Controls fade after a quiet moment.':'Focus mode off.');};
+function syncFocusMode(){
+  const enabled=state.focusMode;
+  if(app.classList.contains('focus-view')===enabled)return;
+  if(enabled){
+    if(renderedTaskDay){
+      sidebarBeforeFocus=workspace==='planner'?(!taskSidebar.hidden||reopenTasksAfterCalendar):workspace==='wip'?desktopTasks.matches:!taskSidebar.hidden;
+    }
+    closePanel(false);
+    closeTaskMenu(false);
+    if(workspace==='planner')closeCalendar();
+    showWorkspace('focus');
+    setTaskSidebar(false);
+  }
+  app.classList.toggle('focus-view',enabled);
+  if(!enabled)setTaskSidebar(sidebarBeforeFocus);
+  focusModeButton.setAttribute('aria-pressed',String(enabled));
+  $('#focus-mode-label').textContent=enabled?'Exit focus':'Focus mode';
+  focusModeButton.title=enabled?'Exit focus mode (Esc)':'Hide tasks, the planner, and garden tools';
+  if(!document.activeElement.getClientRects().length)focusModeButton.focus({preventScroll:true});
+}
+function toggleFocusMode(){
+  state.focusMode=!state.focusMode;
+  persist();render();wake();
+  announce(state.focusMode?'Focus mode on. Press Escape to return to the garden.':'Focus mode off.');
+}
+focusModeButton.onclick=toggleFocusMode;
 async function fullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else toast('Use your browser’s fullscreen option to fill the screen.');}catch{toast('Fullscreen is unavailable here. Open in your browser and use F11.');}}
 $('#fullscreen').onclick=fullscreen;
 document.addEventListener('fullscreenchange',()=>{const full=!!document.fullscreenElement;$('#fullscreen').innerHTML=icon(full?'collapse':'expand');$('#fullscreen').setAttribute('aria-label',full?'Exit fullscreen':'Enter fullscreen');$('#fullscreen').title=full?'Exit fullscreen':'Enter fullscreen';});
 
-function wake(){clearTimeout(idleTimeout);$('#app').classList.remove('is-idle');if(state.focusMode&&state.timer.status==='running'&&!activePanel&&workspace==='focus'&&taskMenu.hidden)idleTimeout=setTimeout(()=>$('#app').classList.add('is-idle'),6500);}
+function wake(){
+  clearTimeout(idleTimeout);
+  app.classList.remove('is-idle');
+  if(state.focusMode&&state.timer.status==='running'&&!activePanel)idleTimeout=setTimeout(()=>app.classList.add('is-idle'),4000);
+}
 for(const event of ['pointermove','pointerdown','keydown','focusin'])document.addEventListener(event,wake,{passive:true});
 document.addEventListener('pointermove',event=>{
   capturePointer={x:event.clientX,y:event.clientY,screenX:event.screenX,screenY:event.screenY};
@@ -342,8 +374,23 @@ function panelContent(id){
   if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerRoutines()}<div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
   if(id==='task-editor')return taskEditor();
   if(id==='block-editor')return blockEditor();
-  if(id==='capture')return `${header('QUICK CAPTURE','Leave a thought here.')}<form id="capture-form"><label class="field-label" for="capture-text">Quick note</label><textarea id="capture-text" name="thought" rows="3" maxlength="1000" required></textarea><div class="panel-actions"><button class="panel-primary" type="submit">Save note</button><button type="button" class="text-button" id="capture-window">Open mini window</button></div></form>`;
-  if(id==='notes')return `${header('QUICK NOTES','Leave it here.')}<div class="capture-options"><button type="button" class="panel-primary" id="quick-capture">Quick capture</button><button type="button" class="text-button" id="capture-window">Open mini window</button></div><p class="panel-subtle">Ctrl+Alt+N opens quick capture in the app.</p><div id="notes-captures">${captureCards()}</div><label class="field-label" for="notes-input">Your wandering thoughts</label><textarea id="notes-input" placeholder="Write it down, then come back to the moment…" rows="7" maxlength="20000">${escape(state.notes)}</textarea><p class="panel-subtle" id="notes-saved">Saved as you type, on this device.</p><div class="panel-actions"><span class="panel-subtle">Only for you.</span><button class="text-button" id="clear-notes">Clear notes</button></div>`;
+  if(id==='capture')return `${header('QUICK CAPTURE','Leave a thought here.')}
+    <form id="capture-form">
+      <label class="sr-only" for="capture-text">Quick note</label>
+      <textarea class="note-field" id="capture-text" name="thought" rows="4" maxlength="1000" placeholder="What’s on your mind?" required></textarea>
+      <div class="note-actions"><button class="note-primary" type="submit">Save note</button><button type="button" class="note-secondary" id="capture-window">Open mini window</button></div>
+      <p class="note-caption"><kbd>Ctrl+Enter</kbd> to save</p>
+    </form>`;
+  if(id==='notes')return `${header('GARDEN NOTES','Leave it here.')}
+    <div class="note-label"><label for="notes-input">Notes</label><span>Saved as you type</span></div>
+    <textarea class="note-field" id="notes-input" placeholder="What’s on your mind?" rows="5" maxlength="20000">${escape(state.notes)}</textarea>
+    <div class="note-actions">
+      <button type="button" class="note-primary" id="quick-capture">Quick capture</button>
+      <button type="button" class="note-secondary" id="capture-window">Open mini window</button>
+      <button type="button" class="note-secondary" id="clear-notes">Clear notes</button>
+    </div>
+    <p class="note-caption"><kbd>Ctrl+Alt+N</kbd> for quick capture</p>
+    <div id="notes-captures">${captureCards()}</div>`;
   if(id==='progress'){
     const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time></span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p>`;
   }
@@ -366,7 +413,7 @@ function positionPanel(panel,anchor){
   if(panel.classList.contains('task-editor'))return;
   const r=anchor.getBoundingClientRect(),w=panel.offsetWidth,h=panel.offsetHeight,W=window.innerWidth,H=window.innerHeight;
   let x=r.left+r.width/2-w/2,y=r.top-h+15;
-  if(anchor.classList.contains('world-object')) y=r.top-h-22;
+  if(anchor.classList.contains('world-object')) y=r.bottom+12;
   if(y<16)y=r.bottom-15;
   panel.style.left=`${Math.max(14,Math.min(x,W-w-14))}px`;
   panel.style.top=`${Math.max(16,Math.min(y,H-h-16))}px`;
@@ -376,7 +423,7 @@ function openPanel(id,anchor){
   closePanel(false);activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel':['task-editor','block-editor'].includes(id)?'panel task-editor':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':['task-editor','block-editor'].includes(id)?'panel task-editor':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
   positionPanel(panel,anchor);wake();
   (panel.querySelector('input,textarea')||panel.querySelector('button')).focus({preventScroll:true});
 }
@@ -950,7 +997,10 @@ document.addEventListener('click',async event=>{
 document.addEventListener('keydown',e=>{
   if(e.ctrlKey&&e.altKey&&e.code==='KeyN'&&!e.repeat){
     e.preventDefault();
-    if(activePanel!=='capture')openPanel('capture',document.activeElement===document.body?$('#workspace-tabs button[aria-pressed="true"]'):document.activeElement);
+    if(activePanel!=='capture'){
+      const fallback=state.focusMode?focusModeButton:$('#workspace-tabs button[aria-pressed="true"]');
+      openPanel('capture',document.activeElement===document.body?fallback:document.activeElement);
+    }
     return;
   }
   if(activePanel==='capture'&&e.key==='Enter'&&(e.ctrlKey||e.metaKey)){
@@ -959,9 +1009,12 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&!taskMenu.hidden){e.preventDefault();closeTaskMenu();return;}
   if(e.key==='Escape'&&activePanel){e.preventDefault();closePanel();return;}
   if(e.key==='Escape'&&workspace==='planner'){e.preventDefault();closeCalendar();return;}
+  if(e.key==='Escape'&&state.focusMode&&!e.defaultPrevented){e.preventDefault();toggleFocusMode();return;}
   const p=visiblePanel();
   if(e.key==='Tab'&&p){const els=[...p.querySelectorAll('button:not(:disabled):not([hidden]),input,textarea,select,a[href],iframe')].filter(el=>el.offsetParent!==null);const first=els[0],last=els.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
-  if(e.code==='Space'&&!activePanel&&!e.target.closest('button,a,input,textarea')){e.preventDefault();$('#toggle-timer').click();}
+  if(e.code==='Space'&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&workspace==='focus'&&!activePanel&&taskMenu.hidden&&!e.target.closest('button,a,input,textarea,select,summary,[contenteditable]')){
+    e.preventDefault();timerButton.click();
+  }
 });
 window.addEventListener('resize',()=>{const p=visiblePanel();if(p)positionPanel(p,lastAnchor);});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkCompletion();render();wake();}});
@@ -986,9 +1039,9 @@ function readDuration(input){
   }
   return ms;
 }
-function finishEdit(){durationForm.hidden=true;editDuration.hidden=false;editDuration.focus();}
+function finishEdit(focusTarget=editDuration){durationForm.hidden=true;editDuration.hidden=false;focusTarget.focus({preventScroll:true});}
 editDuration.onclick=()=>{typed.value=formatDuration(duration(state));typed.setCustomValidity('');editDuration.hidden=true;durationForm.hidden=false;typed.focus();typed.select();};
-$('#cancel-duration').onclick=finishEdit;
+$('#cancel-duration').onclick=()=>finishEdit();
 typed.oninput=()=>typed.setCustomValidity('');
 typed.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();finishEdit();}};
 durationForm.onsubmit=e=>{
@@ -1001,7 +1054,7 @@ durationForm.onsubmit=e=>{
     state.settings[mode]=ms/60000;
     reset(state,mode);
   });
-  finishEdit();
+  finishEdit(timerButton);
   announce(`Timer set to ${formatDuration(ms)}.`);
 };
 

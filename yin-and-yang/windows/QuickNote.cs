@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -11,11 +12,21 @@ internal sealed class QuickNote : Form
     private const int HotkeyId = 1;
     private const int HotkeyMessage = 0x0312;
     private const uint CtrlAltNoRepeat = 0x4003;
+    private static readonly Color Paper = Color.FromArgb(36, 57, 69);
+    private static readonly Color Field = Color.FromArgb(27, 48, 59);
+    private static readonly Color Ink = Color.FromArgb(242, 232, 213);
+    private static readonly Color Muted = Color.FromArgb(184, 200, 199);
+    private static readonly Color Accent = Color.FromArgb(224, 184, 143);
+    private static readonly Color Line = Color.FromArgb(77, 104, 113);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint key);
     [DllImport("user32.dll")]
     private static extern bool UnregisterHotKey(IntPtr window, int id);
+    [DllImport("user32.dll")]
+    private static extern bool ReleaseCapture();
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 
     private readonly string inbox;
     private readonly TextBox thought;
@@ -27,23 +38,45 @@ internal sealed class QuickNote : Form
     {
         inbox = directory;
         Text = "Quick note · Yin and Yang";
-        FormBorderStyle = FormBorderStyle.FixedToolWindow;
+        FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false;
         TopMost = true;
         KeyPreview = true;
-        ClientSize = new Size(356, 211);
-        BackColor = Color.FromArgb(246, 241, 222);
-        ForeColor = Color.FromArgb(53, 82, 75);
+        AutoScaleDimensions = new SizeF(96F, 96F);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        ClientSize = new Size(358, 218);
+        BackColor = Paper;
+        ForeColor = Ink;
         Font = new Font("Segoe UI", 9F);
 
-        Controls.Add(new Label { Text = "Leave a thought here.", Font = new Font("Georgia", 17F), Location = new Point(14, 12), AutoSize = true });
-        thought = new TextBox { Location = new Point(15, 48), Size = new Size(326, 92), Multiline = true, ScrollBars = ScrollBars.Vertical, MaxLength = 1000, BackColor = Color.FromArgb(255, 252, 240), AccessibleName = "Quick note" };
-        Controls.Add(thought);
-        var save = new Button { Text = "Save note", Location = new Point(15, 150), Size = new Size(100, 31), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(64, 104, 90), ForeColor = Color.White };
+        var eyebrow = new Label { Text = "QUICK CAPTURE", Location = new Point(17, 14), AutoSize = true, ForeColor = Accent, Font = new Font("Segoe UI", 7.5F, FontStyle.Bold) };
+        var heading = new Label { Text = "Leave a thought here.", Font = new Font("Georgia", 16F), Location = new Point(15, 30), AutoSize = true };
+        Controls.Add(eyebrow);
+        Controls.Add(heading);
+        MouseDown += DragWindow;
+        eyebrow.MouseDown += DragWindow;
+        heading.MouseDown += DragWindow;
+
+        var close = new Button { Text = "×", AccessibleName = "Hide quick note", Location = new Point(311, 11), Size = new Size(32, 29), FlatStyle = FlatStyle.Flat, ForeColor = Muted, TabIndex = 2 };
+        close.FlatAppearance.BorderSize = 0;
+        close.FlatAppearance.MouseOverBackColor = Field;
+        close.Click += delegate { Hide(); };
+        Controls.Add(close);
+
+        var editor = new Panel { Location = new Point(17, 64), Size = new Size(324, 88), Padding = new Padding(10, 8, 10, 8), BackColor = Field };
+        editor.Paint += delegate(object sender, PaintEventArgs args) {
+            using (var pen = new Pen(Line)) args.Graphics.DrawRectangle(pen, 0, 0, editor.Width - 1, editor.Height - 1);
+        };
+        thought = new TextBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, Multiline = true, AcceptsReturn = true, MaxLength = 1000, BackColor = Field, ForeColor = Ink, AccessibleName = "Quick note", TabIndex = 0 };
+        editor.Controls.Add(thought);
+        Controls.Add(editor);
+        var save = new Button { Text = "Save note", Location = new Point(17, 163), Size = new Size(91, 34), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(175, 201, 188), ForeColor = Color.FromArgb(32, 58, 61), TabIndex = 1 };
+        save.FlatAppearance.BorderSize = 0;
+        save.FlatAppearance.MouseOverBackColor = Color.FromArgb(194, 216, 204);
         save.Click += delegate { SaveNote(); };
         Controls.Add(save);
-        status = new Label { Text = "Ctrl+Enter saves · Esc hides", Location = new Point(15, 186), Size = new Size(326, 19), ForeColor = ForeColor };
+        status = new Label { Text = "Ctrl+Enter saves · Esc hides", Location = new Point(119, 163), Size = new Size(222, 34), ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft };
         Controls.Add(status);
 
         var menu = new ContextMenuStrip();
@@ -54,6 +87,33 @@ internal sealed class QuickNote : Form
         FormClosing += delegate(object sender, FormClosingEventArgs args) {
             if (!quitting && args.CloseReason == CloseReason.UserClosing) { args.Cancel = true; Hide(); }
         };
+    }
+
+    protected override void OnSizeChanged(EventArgs args)
+    {
+        base.OnSizeChanged(args);
+        int curve = 24;
+        if (ClientSize.Width < curve || ClientSize.Height < curve) return;
+        int right = ClientSize.Width - curve;
+        int bottom = ClientSize.Height - curve;
+        using (var outline = new GraphicsPath())
+        {
+            outline.AddArc(0, 0, curve, curve, 180, 90);
+            outline.AddArc(right, 0, curve, curve, 270, 90);
+            outline.AddArc(right, bottom, curve, curve, 0, 90);
+            outline.AddArc(0, bottom, curve, curve, 90, 90);
+            outline.CloseFigure();
+            var previous = Region;
+            Region = new Region(outline);
+            if (previous != null) previous.Dispose();
+        }
+    }
+
+    private void DragWindow(object sender, MouseEventArgs args)
+    {
+        if (args.Button != MouseButtons.Left) return;
+        ReleaseCapture();
+        SendMessage(Handle, 0x00A1, new IntPtr(2), IntPtr.Zero);
     }
 
     private void ShowAtCursor()

@@ -2,7 +2,7 @@ export {blossomMarkup} from './landscape.js';
 import {daylight,blend,ridge,sunPosition} from './daylight.js';
 export const objects=[['pagoda','Timer settings'],['tasks','Add tasks'],['music','Your Spotify'],['notes','Distraction notes'],['progress','Today’s progress']].map(([id,hint])=>({id,hint,label:hint,className:'',art:''}));
 const pavilionOrigin='1096 615';
-const boatOrigin='783 711';
+const boatOrigin='783 751';
 function pine(x,y,scale=1){
   return `<g transform="translate(${x} ${y}) scale(${scale})">
     <path d="M-9 1C1-28 1-55-4-82C-8-109 4-133 10-166L15-180C18-149 9-129 7-107C3-83 11-56 9-29Q8-13 14 1Z" fill="#315858"/>
