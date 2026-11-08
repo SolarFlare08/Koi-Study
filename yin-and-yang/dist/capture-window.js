@@ -3,6 +3,15 @@ import {saveCapture} from './capture.js';
 const form = document.querySelector('form');
 const text = document.querySelector('#thought');
 const status = document.querySelector('#capture-status');
+if (window.opener) {
+  const close = document.querySelector('#capture-close');
+  close.hidden = false;
+  document.querySelector('#capture-esc').hidden = false;
+  close.onclick = () => window.close();
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') window.close();
+  });
+}
 form.addEventListener('submit', event => {
   event.preventDefault();
   try {

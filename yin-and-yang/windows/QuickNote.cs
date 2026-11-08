@@ -12,12 +12,12 @@ internal sealed class QuickNote : Form
     private const int HotkeyId = 1;
     private const int HotkeyMessage = 0x0312;
     private const uint CtrlAltNoRepeat = 0x4003;
-    private static readonly Color Paper = Color.FromArgb(36, 57, 69);
-    private static readonly Color Field = Color.FromArgb(27, 48, 59);
-    private static readonly Color Ink = Color.FromArgb(242, 232, 213);
-    private static readonly Color Muted = Color.FromArgb(184, 200, 199);
-    private static readonly Color Accent = Color.FromArgb(224, 184, 143);
-    private static readonly Color Line = Color.FromArgb(77, 104, 113);
+    private static readonly Color Paper = Color.FromArgb(32, 47, 69);
+    private static readonly Color Field = Color.FromArgb(24, 38, 59);
+    private static readonly Color Ink = Color.FromArgb(237, 243, 248);
+    private static readonly Color Muted = Color.FromArgb(180, 199, 217);
+    private static readonly Color Accent = Color.FromArgb(169, 204, 228);
+    private static readonly Color Line = Color.FromArgb(83, 109, 134);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint key);
@@ -45,13 +45,13 @@ internal sealed class QuickNote : Form
         KeyPreview = true;
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(358, 218);
+        ClientSize = new Size(358, 210);
         BackColor = Paper;
         ForeColor = Ink;
         Font = new Font("Segoe UI", 9F);
 
-        var eyebrow = new Label { Text = "QUICK CAPTURE", Location = new Point(17, 14), AutoSize = true, ForeColor = Accent, Font = new Font("Segoe UI", 7.5F, FontStyle.Bold) };
-        var heading = new Label { Text = "Leave a thought here.", Font = new Font("Georgia", 16F), Location = new Point(15, 30), AutoSize = true };
+        var eyebrow = new Label { Text = "YIN AND YANG", Location = new Point(17, 14), AutoSize = true, ForeColor = Accent, Font = new Font("Segoe UI", 7.5F, FontStyle.Bold) };
+        var heading = new Label { Text = "Quick note", Font = new Font("Georgia", 16F), Location = new Point(15, 30), AutoSize = true };
         Controls.Add(eyebrow);
         Controls.Add(heading);
         MouseDown += DragWindow;
@@ -61,6 +61,8 @@ internal sealed class QuickNote : Form
         var close = new Button { Text = "×", AccessibleName = "Hide quick note", Location = new Point(311, 11), Size = new Size(32, 29), FlatStyle = FlatStyle.Flat, ForeColor = Muted, TabIndex = 2 };
         close.FlatAppearance.BorderSize = 0;
         close.FlatAppearance.MouseOverBackColor = Field;
+        close.SizeChanged += delegate { RoundCorners(close, 12); };
+        RoundCorners(close, 12);
         close.Click += delegate { Hide(); };
         Controls.Add(close);
 
@@ -71,12 +73,14 @@ internal sealed class QuickNote : Form
         thought = new TextBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, Multiline = true, AcceptsReturn = true, MaxLength = 1000, BackColor = Field, ForeColor = Ink, AccessibleName = "Quick note", TabIndex = 0 };
         editor.Controls.Add(thought);
         Controls.Add(editor);
-        var save = new Button { Text = "Save note", Location = new Point(17, 163), Size = new Size(91, 34), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(175, 201, 188), ForeColor = Color.FromArgb(32, 58, 61), TabIndex = 1 };
+        var save = new Button { Text = "Save note", Location = new Point(17, 163), Size = new Size(91, 31), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(190, 217, 236), ForeColor = Field, TabIndex = 1 };
         save.FlatAppearance.BorderSize = 0;
-        save.FlatAppearance.MouseOverBackColor = Color.FromArgb(194, 216, 204);
+        save.FlatAppearance.MouseOverBackColor = Color.FromArgb(211, 233, 247);
+        save.SizeChanged += delegate { RoundCorners(save, 12); };
+        RoundCorners(save, 12);
         save.Click += delegate { SaveNote(); };
         Controls.Add(save);
-        status = new Label { Text = "Ctrl+Enter saves · Esc hides", Location = new Point(119, 163), Size = new Size(222, 34), ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft };
+        status = new Label { Text = "Ctrl+Enter saves · Esc hides", Location = new Point(119, 163), Size = new Size(222, 31), ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft };
         Controls.Add(status);
 
         var menu = new ContextMenuStrip();
@@ -92,10 +96,15 @@ internal sealed class QuickNote : Form
     protected override void OnSizeChanged(EventArgs args)
     {
         base.OnSizeChanged(args);
-        int curve = 24;
-        if (ClientSize.Width < curve || ClientSize.Height < curve) return;
-        int right = ClientSize.Width - curve;
-        int bottom = ClientSize.Height - curve;
+        RoundCorners(this, 24);
+    }
+
+    private static void RoundCorners(Control control, int curve)
+    {
+        Size size = control.ClientSize;
+        if (size.Width < curve || size.Height < curve) return;
+        int right = size.Width - curve;
+        int bottom = size.Height - curve;
         using (var outline = new GraphicsPath())
         {
             outline.AddArc(0, 0, curve, curve, 180, 90);
@@ -103,8 +112,8 @@ internal sealed class QuickNote : Form
             outline.AddArc(right, bottom, curve, curve, 0, 90);
             outline.AddArc(0, bottom, curve, curve, 90, 90);
             outline.CloseFigure();
-            var previous = Region;
-            Region = new Region(outline);
+            var previous = control.Region;
+            control.Region = new Region(outline);
             if (previous != null) previous.Dispose();
         }
     }

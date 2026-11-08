@@ -5,6 +5,7 @@ import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
 
 const $=s=>document.querySelector(s);
 const icons={
+  down:'<path d="m6 9 6 6 6-6"/>',
   play:'<path d="m8 5 11 7-11 7z"/>',pause:'<path d="M8 5v14M16 5v14"/>',reset:'<path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/>',skip:'<path d="m5 5 10 7-10 7zM19 5v14"/>',expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',collapse:'<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m13 5v-5h5"/>',focus:'<path d="M9 3H5a2 2 0 0 0-2 2v4m12-6h4a2 2 0 0 1 2 2v4M3 15v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4"/><circle cx="12" cy="12" r="3"/>',music:'<path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/>',spark:'<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/>',close:'<path d="m6 6 12 12M18 6 6 18"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',external:'<path d="M14 3h7v7m0-7L10 14M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/>'
 };
 const icon=name=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||''}</svg>`;
@@ -16,6 +17,8 @@ let state=loadState(storage),activePanel=null,lastAnchor=null,idleTimeout,toastT
 const app=$('#app');
 const focusModeButton=$('#focus-mode');
 const timerButton=$('#toggle-timer');
+const currentTaskButton=$('#current-task');
+const currentTaskName=$('#current-task-name');
 const root=$('#panel-root');
 const taskSidebar=$('#task-sidebar');
 const calendarPanel=$('#calendar-panel');
@@ -112,8 +115,9 @@ function render(){
 
   $('#wall-clock').dateTime=clock.toISOString();
   const task=focusedTask(clock);
-  $('#current-task').textContent=task?.text||'Add task';
-  $('#current-task').title=task?'Edit active task':'Add a task';
+  const taskName=task?.text||'Choose a task';
+  if(currentTaskName.textContent!==taskName)currentTaskName.textContent=taskName;
+  currentTaskButton.title=task?task.text:'Choose a task';
   if(renderedTaskDay!==dayKey(clock)){
     const wasShowingToday=workspace==='planner'&&dayKey(leadingPlannerDay())===renderedTaskDay;
     renderTasks(clock);
@@ -147,7 +151,7 @@ function checkCompletion(){
     ? state.timer.block ? (state.timer.mode==='break'?'Focus complete. A short rest has started.':'Rest complete. Focus has resumed.') : 'Calendar block finished.'
     : completed.mode==='focus'?'Focus session complete. Your break is ready.':'Break complete. Your focus timer is ready.';
   persist();render();toast(message);announce(message);
-  if(activePanel==='progress')refreshPanel();
+  if(activePanel==='progress'||activePanel==='focus-task')refreshPanel();
   wake();
 }
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
@@ -158,7 +162,12 @@ $('#reset-timer').onclick=()=>action(()=>{
 });
 $('#skip-timer').onclick=()=>action(()=>{const skipped=skipPhase(state);toast(skipped?'Session skipped. It won’t count as completed.':`${state.timer.mode==='focus'?'Focus':'Rest'} timer ready.`);});
 document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>{if(el.dataset.mode===state.timer.mode)return;action(()=>{if(state.timer.id){record(state,'skipped');toast('Unfinished session marked skipped.');}reset(state,el.dataset.mode);});});
-$('#current-task').onclick=()=>openTaskEditor(focusedTask()?.id,$('#current-task'));
+currentTaskButton.onclick=()=>{
+  if(activePanel==='focus-task'){closePanel();return;}
+  openPanel('focus-task',currentTaskButton);
+  const selected=root.querySelector('[data-focus-task][aria-pressed="true"]')||root.querySelector('[data-focus-task], #focus-task-edit, #focus-task-add');
+  selected?.focus({preventScroll:true});
+};
 $('#sidebar-add-task').onclick=()=>openTaskEditor(null,$('#sidebar-add-task'));
 $('#sidebar-calendar').onclick=()=>toggleCalendar($('#sidebar-calendar'));
 $('#sidebar-capture').onclick=()=>openPanel('capture',$('#sidebar-capture'));
@@ -369,7 +378,26 @@ function updateBlockPreview(now){
   if(label.textContent!==message)label.textContent=message;
 }
 
+function focusTaskPicker(){
+  const current=focusedTask();
+  const edit=current?'<button type="button" class="text-button" id="focus-task-edit">Edit current task</button>':'';
+  if(state.timer.block){
+    return `${header('CURRENT TASK','Calendar session')}
+      ${current?`<p class="block-task-name">${escape(current.text)}</p>`:''}
+      <p>This timer follows its scheduled task.</p><div class="panel-actions">${edit}</div>`;
+  }
+  const tasks=state.tasks.filter(task=>taskStatus(task)==='todo').sort((a,b)=>Number(b.priority)-Number(a.priority));
+  const choices=tasks.map(task=>{
+    const selected=task.id===current?.id;
+    return `<li><button type="button" data-focus-task="${escape(task.id)}" aria-pressed="${selected}"><span>${escape(task.text)}</span>${selected?'<span class="task-current-indicator" aria-hidden="true">Current</span>':''}</button></li>`;
+  }).join('');
+  return `${header('CURRENT TASK','Choose what to work on')}
+    ${choices?`<ul class="focus-task-list">${choices}</ul>`:'<p>No unfinished tasks for today.</p>'}
+    <div class="panel-actions"><button type="button" class="panel-primary" id="focus-task-add">Add task</button>${edit}</div>`;
+}
+
 function panelContent(id){
+  if(id==='focus-task')return focusTaskPicker();
   if(id==='calendar-block')return calendarBlockPreview();
   if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerRoutines()}<div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
   if(id==='task-editor')return taskEditor();
@@ -447,6 +475,7 @@ function refreshPanel(){
   if(activePanel==='calendar-block')updateBlockPreview(Date.now());
   positionPanel(p,lastAnchor);
   if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
+  else if(activePanel==='focus-task')p.querySelector('button')?.focus({preventScroll:true});
 }
 function refreshTasks(){renderTasks();renderAgenda();if(workspace==='planner')renderCalendar();render();}
 
@@ -683,7 +712,7 @@ function deleteTask(id){
   state.tasks=state.tasks.filter(task=>task.id!==id);
   if(state.activeTask===id)state.activeTask=availableTaskId();
   persist();refreshTasks();
-  const focus=workspace==='planner'&&!desktopTasks.matches?$('#close-calendar'):taskSidebar.hidden?taskToggle:$('#sidebar-add-task');
+  const focus=state.focusMode?currentTaskButton:workspace==='planner'&&!desktopTasks.matches?$('#close-calendar'):taskSidebar.hidden?taskToggle:$('#sidebar-add-task');
   focus.focus({preventScroll:true});
   announce('Task deleted.');
 }
@@ -847,6 +876,19 @@ function mountSpotify(){const wrap=$('#music-player-wrap');if(!wrap)return;const
 root.addEventListener('click',e=>{
   const btn=e.target.closest('button');if(!btn)return;
   if(btn.classList.contains('close-panel'))closePanel();
+  if(btn.id==='focus-task-add'||btn.id==='focus-task-edit'){
+    openTaskEditor(btn.id==='focus-task-edit'?focusedTask()?.id:null,currentTaskButton);
+    return;
+  }
+  if(btn.dataset.focusTask){
+    const task=state.tasks.find(item=>item.id===btn.dataset.focusTask);
+    if(!task||state.timer.block||taskStatus(task)!=='todo')return;
+    state.activeTask=task.id;
+    closePanel(false);persist();refreshTasks();
+    timerButton.focus({preventScroll:true});
+    announce(`Current task: ${task.text}`);
+    return;
+  }
   if(btn.id==='edit-calendar-block'){
     const {task,block}=lastAnchor.dataset;
     if(block)openBlockEditor(task,lastAnchor,block);
@@ -872,7 +914,7 @@ root.addEventListener('click',e=>{
   if(btn.id==='capture-window'){
     const left=Math.round(capturePointer?.screenX??window.screenX);
     const top=Math.round(capturePointer?.screenY??window.screenY);
-    const windowRef=window.open('./capture.html','yin-yang-capture',`popup,width=390,height=340,left=${left},top=${top}`);
+    const windowRef=window.open('./capture.html','yin-yang-capture',`popup,width=360,height=245,left=${left},top=${top}`);
     if(windowRef){windowRef.focus();closePanel();}else toast('Open the quick note page in another tab to capture a thought.');
   }
   if(btn.dataset.routine){
@@ -959,9 +1001,11 @@ root.addEventListener('submit',e=>{
     const status=taskStatus(task);
     if(state.activeTask===task.id && status!=='todo')state.activeTask=availableTaskId();
     if(!focusedTask() && status==='todo')state.activeTask=task.id;
+    const fromCurrentTask=lastAnchor===currentTaskButton;
     closePanel(false);persist();refreshTasks();
     if(status==='upcoming')$('.task-upcoming').open=true;
-    taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus();
+    if(fromCurrentTask)currentTaskButton.focus({preventScroll:true});
+    else taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus();
     announce(existing?'Task updated.':'Task added.');
   }
   if(e.target.id==='block-editor-form'){

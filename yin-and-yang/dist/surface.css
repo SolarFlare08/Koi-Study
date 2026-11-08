@@ -1,0 +1,12 @@
+:root {
+  --surface-paper: #202f45;
+  --surface-field: #18263b;
+  --surface-raised: #2c4057;
+  --surface-line: #536d86;
+  --surface-ink: #edf3f8;
+  --surface-muted: #b4c7d9;
+  --surface-accent: #a9cce4;
+  --surface-button: #bed9ec;
+  --surface-button-hover: #d3e9f7;
+  --surface-danger: #f3b5b1;
+}
