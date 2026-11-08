@@ -12,11 +12,6 @@
   <main id="app" aria-label="Yin and Yang study garden">
     <div id="landscape" aria-hidden="true"></div>
     <header class="topbar">
-      <nav id="workspace-tabs" aria-label="App workspace">
-        <button type="button" data-workspace="focus" aria-pressed="true">Garden</button>
-        <button type="button" data-workspace="planner" aria-pressed="false">Planner</button>
-        <button type="button" data-workspace="wip" aria-pressed="false">WIP</button>
-      </nav>
       <nav id="objects" aria-label="Garden tools"></nav>
       <div class="top-actions"><button id="focus-mode" class="quiet-button" aria-pressed="false" title="Hide tasks, the planner, and garden tools"><span class="icon" data-icon="focus"></span><span id="focus-mode-label">Focus mode</span></button><button id="fullscreen" class="icon-button" aria-label="Enter fullscreen" title="Enter fullscreen"><span data-icon="expand"></span></button></div>
     </header>
@@ -34,7 +29,13 @@
       </div>
       <div class="mode-tabs" aria-label="Timer mode"><button data-mode="focus" aria-pressed="true">Focus</button><button data-mode="break" aria-pressed="false">Rest</button></div>
       <div class="timer-actions"><button id="reset-timer" class="icon-button" title="Reset timer" aria-label="Reset timer"><span data-icon="reset"></span></button><button id="toggle-timer" class="start-button" aria-keyshortcuts="Space" title="Start or pause (Space)"><span data-icon="play"></span><span>Begin focus</span></button><button id="skip-timer" class="icon-button" title="Skip session" aria-label="Skip session"><span data-icon="skip"></span></button></div>
-      <div class="sky-task"><span class="tiny-dot"></span><button id="current-task" aria-haspopup="dialog">Add task</button></div>
+      <div class="sky-task">
+        <button id="current-task" type="button" aria-haspopup="dialog" aria-expanded="false">
+          <span data-icon="target" class="current-task-icon"></span>
+          <span class="current-task-copy"><span class="current-task-label">Current task</span><span id="current-task-name">Choose a task</span></span>
+          <span data-icon="down" class="current-task-chevron"></span>
+        </button>
+      </div>
     </section>
     <aside id="penguin" class="secondary" aria-label="Penguin companion">
       <button id="penguin-next" type="button" aria-label="Ask the penguin for another thought" aria-describedby="penguin-thought" title="Another thought">
@@ -84,6 +85,11 @@
       <div id="calendar-scroll" role="region" tabindex="0" aria-label="Schedule" aria-describedby="calendar-help"><div id="calendar-grid"></div></div>
     </section>
     <section id="wip-workspace" hidden><h2>Work in progress</h2><p>A little space for what comes next.</p></section>
+    <nav id="workspace-tabs" aria-label="App workspace">
+      <button type="button" data-workspace="focus" aria-pressed="true">Garden</button>
+      <button type="button" data-workspace="planner" aria-pressed="false">Planner</button>
+      <button type="button" data-workspace="wip" aria-pressed="false">WIP</button>
+    </nav>
     <footer class="sr-only"><span id="saved-status">Saved on this device</span></footer>
     <div id="panel-root"></div>
     <div id="task-menu" role="menu" aria-label="Task actions" hidden></div>

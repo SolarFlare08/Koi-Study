@@ -3,17 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#202f45">
   <title>Quick note · Yin and Yang</title>
   <link rel="stylesheet" href="./capture.css">
 </head>
 <body class="capture-window">
   <main class="lake-note">
-    <span class="eyebrow">Quick capture</span>
-    <h1>Leave a thought here.</h1>
+    <header>
+      <div><span class="eyebrow">Yin and Yang</span><h1>Quick note</h1></div>
+      <button id="capture-close" class="note-secondary" type="button" aria-label="Close quick note" hidden>×</button>
+    </header>
     <form>
       <label class="sr-only" for="thought">Quick note</label>
       <textarea class="note-field" id="thought" name="thought" rows="4" maxlength="1000" required autofocus placeholder="What’s on your mind?"></textarea>
-      <div class="note-actions"><button class="note-primary" type="submit">Save note</button><span class="note-caption"><kbd>Ctrl+Enter</kbd> to save</span></div>
+      <div class="note-actions"><button class="note-primary" type="submit">Save note</button><span class="note-caption"><kbd>Ctrl+Enter</kbd> to save</span><span id="capture-esc" class="note-caption" hidden><kbd>Esc</kbd> to close</span></div>
       <p role="status" id="capture-status"></p>
     </form>
   </main>
