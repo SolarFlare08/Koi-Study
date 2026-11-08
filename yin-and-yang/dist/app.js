@@ -18,12 +18,14 @@ const taskSidebar=$('#task-sidebar');
 const calendarPanel=$('#calendar-panel');
 const calendarScroll=$('#calendar-scroll');
 const calendarTray=$('#calendar-task-tray');
+const miniCalendar=$('#mini-calendar');
 const taskMenu=$('#task-menu');
 const builtinRoutines=[{id:'classic',name:'Classic',focus:25*60000,rest:5*60000},{id:'deep',name:'Deep work',focus:50*60000,rest:10*60000}];
 const desktopTasks=matchMedia('(min-width: 981px)');
-let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1;
+let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1,agendaOffset=0;
 let calendarDate=new Date(),calendarAnchor=null,menuTaskId=null,menuAnchor=null;
 let dragOffset=0,workspace='focus';
+let capturePointer=null,nativeNotes=[],captureApiAvailable=true,syncingCaptures=false;
 let reopenTasksAfterCalendar=false;
 function persist(){try{storage.setItem(STORAGE_KEY,JSON.stringify(state));$('#saved-status').innerHTML='<span class="tiny-dot"></span>Saved on this device';}catch{$('#saved-status').textContent='Storage unavailable — keep this tab open';toast('Your browser could not save changes. Keep this tab open.');}}
 function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4200);}
@@ -114,11 +116,11 @@ $('#current-task').onclick=()=>openTaskEditor(focusedTask()?.id,$('#current-task
 $('#sidebar-add-task').onclick=()=>openTaskEditor(null,$('#sidebar-add-task'));
 $('#sidebar-calendar').onclick=()=>toggleCalendar($('#sidebar-calendar'));
 $('#sidebar-capture').onclick=()=>openPanel('capture',$('#sidebar-capture'));
-$('#agenda-list').addEventListener('click',event=>{
-  const button=event.target.closest('[data-agenda-task]');
-  if(!button)return;
-  if(button.dataset.block)openBlockEditor(button.dataset.agendaTask,button,button.dataset.block);
-  else openTaskEditor(button.dataset.agendaTask,button);
+miniCalendar.addEventListener('click',event=>{
+  const shift=event.target.closest('[data-agenda-shift]');
+  if(shift){const delta=Number(shift.dataset.agendaShift);agendaOffset=delta?agendaOffset+delta:0;renderAgenda();return;}
+  const block=event.target.closest('.calendar-block');
+  if(block)openCalendarBlock(block);
 });
 $('#close-calendar').onclick=()=>closeCalendar();
 $('#close-task-sidebar').onclick=()=>{setTaskSidebar(false);taskToggle.focus();};
@@ -137,6 +139,9 @@ document.addEventListener('fullscreenchange',()=>{const full=!!document.fullscre
 
 function wake(){clearTimeout(idleTimeout);$('#app').classList.remove('is-idle');if(state.focusMode&&state.timer.status==='running'&&!activePanel&&calendarPanel.hidden&&taskMenu.hidden)idleTimeout=setTimeout(()=>$('#app').classList.add('is-idle'),6500);}
 for(const event of ['pointermove','pointerdown','keydown','focusin'])document.addEventListener(event,wake,{passive:true});
+document.addEventListener('pointermove',event=>{
+  capturePointer={x:event.clientX,y:event.clientY,screenX:event.screenX,screenY:event.screenY};
+},{passive:true});
 function header(eyebrow,title){return `<div class="panel-header"><div><span class="eyebrow">${eyebrow}</span><h2 id="panel-title">${title}</h2></div><button class="icon-button close-panel" aria-label="Close panel">${icon('close')}</button></div>`;}
 function taskCard(task,status,date){
   const details=[];
@@ -220,7 +225,8 @@ function timerRoutines(){
 function captureCards(){
   let notes=[];
   try{notes=readCaptures(storage);}catch{ /* Storage may be unavailable. */ }
-  return notes.map(note=>`<article class="capture-card"><p>${escape(note.text)}</p><button type="button" data-dismiss-capture="${escape(note.key)}" aria-label="Dismiss captured note" title="Dismiss note">×</button></article>`).join('');
+  const all=[...notes,...nativeNotes].sort((a,b)=>b.createdAt-a.createdAt);
+  return all.map(note=>`<article class="capture-card"><p>${escape(note.text)}</p><button type="button" data-dismiss-capture="${escape(note.key)}" aria-label="Dismiss captured note" title="Dismiss note">×</button></article>`).join('');
 }
 function renderCaptures(){
   const cards=captureCards();
@@ -228,6 +234,20 @@ function renderCaptures(){
   $('#captured-list').innerHTML=cards;
   const notesPanel=$('#notes-captures');
   if(notesPanel)notesPanel.innerHTML=cards;
+}
+async function syncNativeCaptures(){
+  if(!captureApiAvailable||syncingCaptures||!['localhost','127.0.0.1'].includes(location.hostname))return;
+  syncingCaptures=true;
+  try{
+    const response=await fetch('./api/capture-inbox',{cache:'no-store'});
+    if(response.status===404){captureApiAvailable=false;return;}
+    if(!response.ok)return;
+    const notes=await response.json();
+    if(!Array.isArray(notes))return;
+    const next=notes.filter(note=>note&&typeof note.text==='string'&&Number.isFinite(note.createdAt)&&/^[a-f0-9]{32}$/.test(note.id)).map(note=>({text:note.text,createdAt:note.createdAt,key:`native:${note.id}`}));
+    if(JSON.stringify(next)!==JSON.stringify(nativeNotes)){nativeNotes=next;renderCaptures();}
+  }catch{ /* The app keeps working while the local server reconnects. */ }
+  finally{syncingCaptures=false;}
 }
 function taskEditor(){
   const task=state.tasks.find(item=>item.id===editingTaskId);
@@ -261,7 +281,19 @@ function panelContent(id){
 }
 function positionPanel(panel,anchor){
   if(!anchor)return;
-  if(panel.classList.contains('task-editor')||panel.classList.contains('capture-panel'))return;
+  if(panel.classList.contains('capture-panel')){
+    if(capturePointer){
+      const {x,y}=capturePointer;
+      const width=panel.offsetWidth,height=panel.offsetHeight;
+      const left=x+width+12<innerWidth?x+12:x-width-12;
+      const top=y+height+12<innerHeight?y+12:y-height-12;
+      panel.style.left=`${Math.max(8,Math.min(left,innerWidth-width-8))}px`;
+      panel.style.top=`${Math.max(8,Math.min(top,innerHeight-height-8))}px`;
+      panel.style.transform='none';
+    }
+    return;
+  }
+  if(panel.classList.contains('task-editor'))return;
   const r=anchor.getBoundingClientRect(),w=panel.offsetWidth,h=panel.offsetHeight,W=window.innerWidth,H=window.innerHeight;
   let x=r.left+r.width/2-w/2,y=r.top-h+15;
   if(anchor.classList.contains('world-object')) y=r.top-h-22;
@@ -288,11 +320,31 @@ function refreshTasks(){renderTasks();renderAgenda();if(!calendarPanel.hidden)re
 
 function renderAgenda(now=new Date()){
   const minute=now.getHours()*60+now.getMinutes();
-  const horizon=minute+300;
-  const blocks=[...calendarBlocks(state.tasks,now).filter(block=>block.end>minute&&block.start<horizon)];
-  if(horizon>1440)blocks.push(...calendarBlocks(state.tasks,shiftDay(now,1)).filter(block=>!block.continues&&block.start<horizon-1440));
-  $('#agenda-list').innerHTML=blocks.length?`<ul class="agenda-list">${blocks.map(block=>`<li><time>${timeLabel(block.start)}</time><button type="button" data-agenda-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}">${escape(block.task.text)}</button></li>`).join('')}</ul>`:'<p class="task-empty">Nothing on the calendar in the next five hours.</p>';
+  const start=(now.getHours()-1)*60+agendaOffset;
+  const end=start+300;
+  const firstDay=Math.floor(start/1440);
+  const lastDay=Math.floor((end-1)/1440);
+  const startDate=shiftDay(now,firstDay);
+  $('#agenda-range').textContent=`${startDate.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})} · ${timeLabel(start-firstDay*1440)} – ${timeLabel(end-Math.floor(end/1440)*1440)}`;
+  const ticks=Array.from({length:5},(_,index)=>`<div>${timeLabel(((start+index*60)%1440+1440)%1440)}</div>`).join('');
+  const columns=[];
+  for(let day=firstDay;day<=lastDay;day++){
+    const date=shiftDay(now,day);
+    const from=Math.max(0,start-day*1440),to=Math.min(1440,end-day*1440);
+    const blocks=calendarBlocks(state.tasks,date).filter(block=>block.start<to&&block.end>from);
+    columns.push(`<div class="calendar-day mini-calendar-day" data-date="${dayKey(date)}" data-from="${from}" data-span="${to-from}" style="--slice-offset:${day*1440+from-start};--slice-span:${to-from}">${blocks.map(block=>calendarBlockMarkup(block,date,Math.max(block.start,from)-from,Math.min(block.end,to)-from)).join('')}</div>`);
+  }
+  const nowLine=minute>=start&&minute<end?`<div class="mini-now" style="--now-minute:${minute-start}" title="Current time"></div>`:'';
+  $('#agenda-list').innerHTML=`<div class="mini-hours calendar-hours" aria-hidden="true">${ticks}</div><div class="mini-track">${columns.join('')}${nowLine}</div>`;
   agendaMinute=Math.floor(now.getTime()/60000);
+}
+
+function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=block.end){
+  const {task,blockId,start,end,lane,lanes,continues,occurrence}=block;
+  const time=`${timeLabel(start)} – ${timeLabel(end)}`;
+  const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
+  const done=taskStatus(task,new Date(`${occurrence}T00:00:00`))==='done';
+  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" aria-label="Edit ${escape(title)}${done?', done':''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span></button>`;
 }
 function availableTaskId(){return state.tasks.find(task=>taskStatus(task)==='todo')?.id??null;}
 
@@ -305,12 +357,7 @@ function renderCalendar(){
   const headers=days.map(date=>`<div class="calendar-date${dayKey(date)===today?' calendar-today':''}"><span>${date.toLocaleDateString([],{weekday:'short'})}</span><strong>${date.getDate()}</strong></div>`).join('');
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
   const columns=days.map(date=>{
-    const blocks=calendarBlocks(state.tasks,date).map(({task,blockId,start,end,lane,lanes,continues,occurrence})=>{
-      const time=`${timeLabel(start)} – ${timeLabel(end)}`;
-      const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
-      const done=taskStatus(task,new Date(`${occurrence}T00:00:00`))==='done';
-      return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" aria-label="Edit ${escape(title)}${done?', done':''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${start};--length:${end-start};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span></button>`;
-    }).join('');
+    const blocks=calendarBlocks(state.tasks,date).map(block=>calendarBlockMarkup(block,date)).join('');
     return `<div class="calendar-day" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${blocks}</div>`;
   }).join('');
   $('#calendar-grid').innerHTML=`<div class="calendar-days"><div class="calendar-corner"></div>${headers}</div><div class="calendar-week"><div class="calendar-hours" aria-hidden="true">${hours}</div>${columns}</div>`;
@@ -412,6 +459,7 @@ taskMenu.addEventListener('click',event=>{
   const task=state.tasks.find(item=>item.id===menuTaskId);
   if(!action||!task)return;
   const anchor=menuAnchor;
+  const blockSurface=anchor.closest('#mini-calendar')||calendarPanel;
   closeTaskMenu(false);
   if(action==='edit'){openTaskEditor(task.id,anchor);return;}
   if(action==='schedule'||action==='edit-block'){openBlockEditor(task.id,anchor,action==='edit-block'?anchor.dataset.block:null);return;}
@@ -425,8 +473,8 @@ taskMenu.addEventListener('click',event=>{
   if(action==='unschedule')task.time='';
   if(action==='remove-block')task.blocks=task.blocks.filter(block=>block.id!==anchor.dataset.block);
   persist();refreshTasks();
-  const block=calendarPanel.querySelector(`[data-task="${CSS.escape(task.id)}"]`);
-  const next=anchor.classList.contains('calendar-block')?block||$('#close-calendar'):taskButton(task.id);
+  const block=blockSurface.querySelector(`[data-task="${CSS.escape(task.id)}"]`);
+  const next=anchor.classList.contains('calendar-block')?block||$(blockSurface===miniCalendar?'#sidebar-calendar':'#close-calendar'):taskButton(task.id);
   (next||taskToggle).focus({preventScroll:true});
 });
 
@@ -454,7 +502,8 @@ for(const surface of [taskSidebar,calendarPanel]){
     closeTaskMenu(false);
     event.dataTransfer.setData(calendarDragType,JSON.stringify({task:card.dataset.task,move:card.classList.contains('calendar-block'),block:card.dataset.block||null}));
     event.dataTransfer.effectAllowed='move';
-    dragOffset=card.classList.contains('calendar-block')?event.clientY-card.getBoundingClientRect().top:0;
+    const day=card.closest('.calendar-day');
+    dragOffset=day?(event.clientY-card.getBoundingClientRect().top)*Number(day.dataset.span||1440)/day.offsetHeight:0;
     card.classList.add('task-dragging');
   });
 }
@@ -465,10 +514,12 @@ function clearDropTarget(){
 
 function dropMinute(event,column){
   const bounds=column.getBoundingClientRect();
-  return Math.min(1425,Math.max(0,Math.floor((event.clientY-bounds.top-dragOffset)/bounds.height*96)*15));
+  const span=Number(column.dataset.span||1440);
+  const offset=(event.clientY-bounds.top)/bounds.height*span-dragOffset;
+  return Math.min(span-15,Math.max(0,Math.floor(offset/15)*15));
 }
 
-calendarPanel.addEventListener('dragover',event=>{
+function onCalendarDragOver(event){
   const column=event.target.closest('.calendar-day');
   if(!column||!event.dataTransfer?.types.includes(calendarDragType))return;
   event.preventDefault();
@@ -476,13 +527,13 @@ calendarPanel.addEventListener('dragover',event=>{
   if(!column.classList.contains('calendar-drop-target'))clearDropTarget();
   column.classList.add('calendar-drop-target');
   column.style.setProperty('--drop-minute',dropMinute(event,column));
-});
-calendarPanel.addEventListener('dragleave',event=>{
+}
+function onCalendarDragLeave(event){
   const column=event.target.closest('.calendar-day');
   if(column&&!column.contains(event.relatedTarget))clearDropTarget();
-});
+}
 document.addEventListener('dragend',()=>{dragOffset=0;clearDropTarget();$('.task-dragging')?.classList.remove('task-dragging');});
-calendarPanel.addEventListener('drop',event=>{
+function onCalendarDrop(event){
   const column=event.target.closest('.calendar-day');
   if(!column||!event.dataTransfer?.types.includes(calendarDragType))return;
   event.preventDefault();clearDropTarget();
@@ -496,7 +547,7 @@ calendarPanel.addEventListener('drop',event=>{
   if(drag.move&&!drag.block&&task.repeat==='weekdays'&&(weekday===0||weekday===6)){
     toast('This task repeats on weekdays. Choose a weekday.');return;
   }
-  const minute=dropMinute(event,column);
+  const minute=Number(column.dataset.from||0)+dropMinute(event,column);
   dragOffset=0;
   if(drag.block){
     const block=task.blocks?.find(item=>item.id===drag.block);
@@ -508,7 +559,16 @@ calendarPanel.addEventListener('drop',event=>{
   if(state.activeTask===task.id&&taskStatus(task)!=='todo')state.activeTask=availableTaskId();
   persist();refreshTasks();
   announce(`Task scheduled for ${timeLabel(minute)}.`);
-});
+}
+for(const calendar of [calendarPanel,miniCalendar]){
+  calendar.addEventListener('dragover',onCalendarDragOver);
+  calendar.addEventListener('dragleave',onCalendarDragLeave);
+  calendar.addEventListener('drop',onCalendarDrop);
+}
+function openCalendarBlock(block){
+  if(block.dataset.block)openBlockEditor(block.dataset.task,block,block.dataset.block);
+  else openTaskEditor(block.dataset.task,block);
+}
 calendarPanel.addEventListener('click',event=>{
   const week=event.target.closest('[data-week]')?.dataset.week;
   if(week){
@@ -518,11 +578,7 @@ calendarPanel.addEventListener('click',event=>{
     return;
   }
   const block=event.target.closest('.calendar-block');
-  if(block){
-    if(block.dataset.block)openBlockEditor(block.dataset.task,block,block.dataset.block);
-    else openTaskEditor(block.dataset.task,block);
-    return;
-  }
+  if(block){openCalendarBlock(block);return;}
   const trayTask=event.target.closest('.calendar-tray-task');
   if(trayTask)openBlockEditor(trayTask.dataset.task,trayTask);
 });
@@ -559,7 +615,9 @@ root.addEventListener('click',e=>{
   if(btn.id==='panel-timer-toggle')$('#toggle-timer').click();
   if(btn.id==='quick-capture')openPanel('capture',$('[data-panel="notes"]'));
   if(btn.id==='capture-window'){
-    const windowRef=window.open('./capture.html','yin-yang-capture','popup,width=390,height=340');
+    const left=Math.round(capturePointer?.screenX??window.screenX);
+    const top=Math.round(capturePointer?.screenY??window.screenY);
+    const windowRef=window.open('./capture.html','yin-yang-capture',`popup,width=390,height=340,left=${left},top=${top}`);
     if(windowRef){windowRef.focus();closePanel();}else toast('Open the quick note page in another tab to capture a thought.');
   }
   if(btn.dataset.routine){
@@ -670,10 +728,18 @@ document.addEventListener('pointerdown',e=>{
   if(!taskMenu.hidden&&!e.target.closest('#task-menu'))closeTaskMenu(false);
   if(activePanel&&!e.target.closest('.panel')&&!e.target.closest('[data-panel]')&&!e.target.closest('#music-shortcut')&&!e.target.closest('#current-task'))closePanel(false);
 });
-document.addEventListener('click',event=>{
+document.addEventListener('click',async event=>{
   const dismiss=event.target.closest('[data-dismiss-capture]');
   if(!dismiss)return;
-  try{storage.removeItem(dismiss.dataset.dismissCapture);renderCaptures();}catch{toast('Could not dismiss the note.');}
+  const key=dismiss.dataset.dismissCapture;
+  try{
+    if(key.startsWith('native:')){
+      const response=await fetch(`./api/capture-inbox/${key.slice(7)}`,{method:'DELETE'});
+      if(!response.ok)throw new Error('Capture inbox unavailable');
+      nativeNotes=nativeNotes.filter(note=>note.key!==key);
+    }else storage.removeItem(key);
+    renderCaptures();
+  }catch{toast('Could not dismiss the note.');}
 });
 document.addEventListener('keydown',e=>{
   if(e.ctrlKey&&e.altKey&&e.code==='KeyN'&&!e.repeat){
@@ -693,12 +759,15 @@ document.addEventListener('keydown',e=>{
 });
 window.addEventListener('resize',()=>{const p=visiblePanel();if(p)positionPanel(p,lastAnchor);});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkCompletion();render();wake();}});
+window.addEventListener('focus',syncNativeCaptures);
 window.addEventListener('pageshow',()=>{checkCompletion();render();});
 window.addEventListener('storage',e=>{
   if(e.key===STORAGE_KEY){state=loadState(storage);checkCompletion();refreshTasks();if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();}
   if(e.key===null||e.key?.startsWith(CAPTURE_PREFIX))renderCaptures();
 });
 renderCaptures();
+syncNativeCaptures();
+setInterval(()=>{if(!document.hidden)syncNativeCaptures();},4000);
 checkCompletion();render();wake();
 setInterval(()=>{checkCompletion();render();},500);
 

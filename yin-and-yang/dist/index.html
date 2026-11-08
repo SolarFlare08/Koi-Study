@@ -32,14 +32,17 @@
       <p id="session-status" class="session-status">Settle in. There’s no rush.</p>
     </section>
     <aside id="task-sidebar" class="secondary" aria-labelledby="tasks-heading" hidden>
+      <div class="task-board-box">
       <div class="task-sidebar-header">
         <h2 id="tasks-heading">Tasks</h2>
         <button id="sidebar-add-task" type="button" aria-haspopup="dialog">+ Add task</button>
         <button id="close-task-sidebar" class="icon-button" type="button" aria-label="Hide tasks" title="Hide tasks"><span data-icon="close"></span></button>
       </div>
       <div id="task-board"></div>
-      <section class="sidebar-agenda" aria-labelledby="agenda-title">
-        <div class="sidebar-section-heading"><h3 id="agenda-title">Next 5 hours</h3><button id="sidebar-calendar" type="button" aria-controls="calendar-panel" aria-expanded="false">Open planner</button></div>
+      </div>
+      <section id="mini-calendar" class="sidebar-agenda" aria-labelledby="agenda-title">
+        <div class="sidebar-section-heading"><h3 id="agenda-title">5-hour calendar</h3><button id="sidebar-calendar" type="button" aria-controls="calendar-panel" aria-expanded="false">Open planner</button></div>
+        <div class="mini-calendar-nav"><span id="agenda-range" aria-live="polite"></span><button type="button" data-agenda-shift="-300" aria-label="Previous five hours">‹</button><button type="button" data-agenda-shift="0">Now</button><button type="button" data-agenda-shift="300" aria-label="Next five hours">›</button></div>
         <div id="agenda-list"></div>
       </section>
       <section id="captured-notes" class="sidebar-agenda" aria-labelledby="captured-heading" hidden>

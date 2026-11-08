@@ -4,6 +4,8 @@ A silent, fullscreen study garden built with HTML, CSS, and native JavaScript mo
 
 Run `npm run dev` and open http://localhost:5173. Run `npm test` for timer and persistence checks, or `npm run build` for module syntax checks. The `dist` directory is the deployable app and can be served by any static web host.
 
+For system-wide capture on Windows, run `npm run capture-hotkey -- 5178` in a second terminal from this folder. Substitute the port printed by your dev server. If the server was running before the update, restart it first. The helper uses the Windows .NET Framework compiler and stays in the tray until you quit it. **Ctrl+Alt+N** opens a note near the pointer, **Ctrl+Enter** saves it, and **Esc** hides the window with the draft intact. Saved notes appear under **Captured thoughts** in the app. The browser capture shortcut also works while the helper is closed.
+
 ## Changing the landscape
 
 `dist/scenery.js` owns the scenic SVG landscape, tool definitions, and smooth daylight progression. `dist/landscape.js` supplies the small blossom artwork. Replace its scenery freely. Keep the five object IDs (`pagoda`, `tasks`, `music`, `notes`, `progress`) to retain tool bindings. Set their positions and responsive sizes in `dist/style.css`. `dist/app.js` owns panels and interactions; `dist/state.js` owns timer and persistence logic. The study data does not depend on the landscape.
