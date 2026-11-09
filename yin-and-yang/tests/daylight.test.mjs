@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {daylight,sunPosition} from '../dist/daylight.js';
 import {animateLandscape} from '../dist/scenery.js';
+import {gardenWeather,loadAppearance,sceneProgress,weatherInterval} from '../dist/garden-appearance.js';
 
 test('sunrise brightens into day; sunset darkens into night',()=>{
   assert.ok(daylight(0).shade>daylight(.12).shade);
@@ -63,4 +64,25 @@ test('sun follows a circular arc on standard and wide screens',()=>{
       assert.ok(Math.abs(Math.hypot(pos.x-800,pos.y-482)-radius)<1e-8);
     }
   }
+});
+test('fixed lighting stays still and saved seasons load independently',()=>{
+  assert.deepEqual(loadAppearance({lighting:'day',season:'winter'},0),{lighting:'day',season:'winter',weather:'auto',weatherSince:0});
+  assert.deepEqual(loadAppearance({lighting:'unknown',season:'spring'},0),{lighting:'session',season:'spring',weather:'auto',weatherSince:0});
+  assert.equal(sceneProgress(.12,'day',false),sceneProgress(.86,'day',false));
+  assert.equal(sceneProgress(.12,'night',false),1);
+  assert.equal(sceneProgress(.12,'session',false),.12);
+  assert.equal(sceneProgress(.12,'session',true),sceneProgress(.86,'session',true));
+});
+test('seasonal weather rotates every eight minutes and manual weather holds across reloads',()=>{
+  const start=1000;
+  const winter=loadAppearance({season:'winter'},start);
+  assert.equal(gardenWeather(winter,start+weatherInterval-1),'snow');
+  assert.equal(gardenWeather(winter,start+weatherInterval),'frost');
+  assert.equal(gardenWeather(winter,start+weatherInterval*2),'clear');
+  assert.equal(gardenWeather(winter,start+weatherInterval*3),'snow');
+  const summer=loadAppearance({season:'summer',weather:'snow'},start);
+  assert.equal(gardenWeather(summer,start+weatherInterval),'heat');
+  const saved=loadAppearance({...summer,weather:'rain'},start+weatherInterval);
+  assert.equal(saved.weatherSince,start);
+  assert.equal(gardenWeather(saved,start+weatherInterval*8),'rain');
 });

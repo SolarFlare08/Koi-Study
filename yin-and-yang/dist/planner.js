@@ -13,9 +13,10 @@ const paths={
   filters:'<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
   reporting:'<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M7 13h3l2-4 2 6 2-3h2"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',project:'<path d="m10 4-4 16m12-16-4 16M5 9h15M3 15h15"/>',
-  mark:'<path d="m5 8 3 3 6-6m-9 9 3 3 10-10m-8 12 3 2 6-6"/>',
   label:'<path d="M4 13 13 4h7v7l-9 9z"/><circle cx="16.5" cy="7.5" r=".7"/>',
-  check:'<path d="m6 12 4 4 8-8"/>',down:'<path d="m6 9 6 6 6-6"/>',download:'<path d="M12 3v12m-4-4 4 4 4-4M5 17v3h14v-3"/>'
+  check:'<path d="m6 12 4 4 8-8"/>',down:'<path d="m6 9 6 6 6-6"/>',download:'<path d="M12 3v12m-4-4 4 4 4-4M5 17v3h14v-3"/>',
+  pavilion:'<path d="M3 12c4-1 7-3 9-6 2 3 5 5 9 6H3Zm4 0v7m5-7v7m5-7v7M4 19h16M12 6V4"/>',
+  upload:'<path d="M12 15V4m-4 4 4-4 4 4M5 16v4h14v-4"/>'
 };
 const icon=name=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]}</svg>`;
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -28,6 +29,7 @@ const blankId=()=>crypto.randomUUID();
 export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,notify,hasPanel}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
+  const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
   const layoutSelect=$('#planner-layout'), completed=$('#planner-completed'), sort=$('#planner-sort');
   const state=()=>getState();
   let view='today', selection='', layout='list', query='', date=new Date(), quick=null, expanded=new Set(), dialogAnchor=null;
@@ -37,6 +39,13 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   const report={mode:'activity',period:'all',project:'all',type:'task',metric:'ms'};
   const layoutKey=()=>`${view}:${selection}`;
   const defaultLayout=()=>['upcoming','project'].includes(view)?'board':'list';
+
+  function syncSidebar(){
+    const open=smallScreen.matches?root.classList.contains('planner-sidebar-open'):!root.classList.contains('planner-sidebar-compact');
+    sidebarToggle.setAttribute('aria-expanded',String(open));
+    sidebarToggle.title=open?'Collapse Planner sidebar':'Expand Planner sidebar';
+  }
+  smallScreen.addEventListener('change',syncSidebar);
 
   function selectLayout(next,remember=true) {
     layout=next;
@@ -50,7 +59,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     selectLayout(layouts.get(layoutKey())||defaultLayout(),false);
     if (view==='today'||view==='upcoming') date=new Date();
     root.classList.remove('planner-sidebar-open');
-    $('#planner-toggle-sidebar').setAttribute('aria-expanded','false');
+    syncSidebar();
     content.scrollLeft=0;
     content.scrollTop=0;
     render();
@@ -87,20 +96,28 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
 
   function navItem(key,label,count='',value='',mark=icon(key)) {
     const current=view===key&&selection===value;
-    return `<button type="button" class="planner-nav-item" data-planner-view="${key}" data-value="${escape(value)}" ${current?'aria-current="page"':''}>${mark}<span>${escape(label)}</span>${count!==''?`<small>${count}</small>`:''}</button>`;
+    return `<button type="button" class="planner-nav-item" data-planner-view="${key}" data-value="${escape(value)}" title="${escape(label)}" ${current?'aria-current="page"':''}>${mark}<span class="planner-nav-label">${escape(label)}</span>${count!==''&&count>0?`<small>${count}</small>`:''}</button>`;
   }
 
   function renderSidebar() {
     const now=new Date(), tasks=activeTasks().filter(task=>taskStatus(task,now)!=='done');
     const projects=state().projects.filter(project=>!project.archived).sort((a,b)=>Number(b.favorite)-Number(a.favorite));
-    const primary=Object.entries(views).map(([key,label])=>navItem(key,label,key==='inbox'?tasks.filter(task=>!projectFor(task)).length:key==='today'?tasks.filter(task=>todayDate(task,now)||overdueDate(task,now)).length:''));
-    sidebar.innerHTML=`<div class="planner-brand"><span>${icon('mark')}</span><div><strong>Yin and Yang</strong><small>Personal workspace</small></div></div>
-      <button class="planner-add" type="button" data-planner-add>${icon('plus')} Add task <kbd>Q</kbd></button>
-      <nav aria-label="Planner views">${primary.join('')}</nav>
-      <div class="planner-sidebar-heading"><h3>My projects</h3><button type="button" data-manage="project" aria-label="Add project">${icon('plus')}</button></div>
-      <nav aria-label="Projects">${projects.map(project=>navItem('project',project.name,tasks.filter(task=>task.projectId===project.id).length,project.id,`<span class="planner-project-mark" style="color:${escape(project.color)}">${icon('project')}</span>`)).join('')||'<p class="planner-side-empty">Group related tasks in a project.</p>'}</nav>
-      ${state().plannerFilters.length?`<div class="planner-sidebar-heading"><h3>Saved filters</h3></div><nav aria-label="Saved filters">${state().plannerFilters.map(filter=>navItem('filter',filter.name,'',filter.id,icon('filters'))).join('')}</nav>`:''}
-      <div class="planner-sidebar-foot"><button type="button" data-manage="import">Import Todoist CSV</button><span></span> Stored on this device</div>`;
+    const count={inbox:tasks.filter(task=>!projectFor(task)).length,today:tasks.filter(task=>todayDate(task,now)||overdueDate(task,now)).length};
+    const plan=['inbox','today','upcoming'].map(key=>navItem(key,views[key],count[key])).join('');
+    const organize=['filters','reporting'].map(key=>navItem(key,views[key])).join('');
+    const scroll=sidebar.querySelector('.planner-rail-sections')?.scrollTop||0;
+    sidebar.innerHTML=`<div class="planner-brand"><span>${icon('pavilion')}</span><div><strong>Planner</strong><small>Yin and Yang</small></div></div>
+      <div class="planner-rail-actions"><button class="planner-add" type="button" title="Add task (Q)" data-planner-add>${icon('plus')} <span>Add task</span> <kbd aria-hidden="true">Q</kbd></button>
+      <button class="planner-search-link" type="button" data-planner-view="search" data-value="" title="Search tasks (/)" ${view==='search'?'aria-current="page"':''}>${icon('search')} <span>Search tasks</span> <kbd aria-hidden="true">/</kbd></button></div>
+      <div class="planner-rail-sections">
+        <section class="planner-rail-group"><div class="planner-sidebar-heading"><h3>Plan</h3></div><nav aria-label="Plan">${plan}</nav></section>
+        <section class="planner-rail-group"><div class="planner-sidebar-heading"><h3>Organize</h3></div><nav aria-label="Organize">${organize}</nav></section>
+        <section class="planner-rail-group"><div class="planner-sidebar-heading"><h3>Projects</h3><button type="button" data-manage="project" title="Add project" aria-label="Add project">${icon('plus')}</button></div>
+          <nav aria-label="Projects">${projects.map(project=>navItem('project',project.name,tasks.filter(task=>task.projectId===project.id).length,project.id,`<span class="planner-project-mark" style="--project-color:${escape(project.color)}" aria-hidden="true"></span>`)).join('')||'<p class="planner-side-empty">Group related tasks in a project.</p>'}</nav></section>
+        ${state().plannerFilters.length?`<section class="planner-rail-group"><div class="planner-sidebar-heading"><h3>Saved filters</h3></div><nav aria-label="Saved filters">${state().plannerFilters.map(filter=>navItem('filter',filter.name,'',filter.id,icon('filters'))).join('')}</nav></section>`:''}
+      </div>
+      <div class="planner-sidebar-foot"><button type="button" data-manage="import" title="Import Todoist CSV">${icon('upload')}<span>Import Todoist CSV</span></button><small>Stored on this device</small></div>`;
+    sidebar.querySelector('.planner-rail-sections').scrollTop=scroll;
   }
 
   function sortTasks(tasks) {
@@ -376,6 +393,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     }
     $('#planner-board-tools').hidden=sectionView||standalone||calendar||(view!=='upcoming'&&layout!=='month');
     $('#calendar-toolbar').hidden=!standalone&&!calendar;
+    $('#calendar-queue-toggle').hidden=!calendar;
     if (standalone&&layout==='month') {
       $('#calendar-range').textContent=date.toLocaleDateString([],{month:'long',year:'numeric'});
       $('#calendar-jump-date').value=dayKey(date);
@@ -409,7 +427,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       selectLayout(layout,false);
     }
     root.classList.remove('planner-sidebar-open');
-    $('#planner-toggle-sidebar').setAttribute('aria-expanded','false');
+    syncSidebar();
     render();
     if (destination==='planner'&&parkedPlanner) {
       content.scrollLeft=parkedPlanner.left; content.scrollTop=parkedPlanner.top;
@@ -567,8 +585,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       quick=null; content.scrollLeft=0; return render();
     }
     if (button.id==='planner-toggle-sidebar') {
-      const open=root.classList.toggle('planner-sidebar-open');
-      button.setAttribute('aria-expanded',String(open)); return;
+      root.classList.toggle(smallScreen.matches?'planner-sidebar-open':'planner-sidebar-compact');
+      syncSidebar(); return;
     }
     if ('plannerAdd' in data) return add(button);
     if ('quickCancel' in data) { quick=null; return render(); }

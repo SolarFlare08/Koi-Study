@@ -1,0 +1,101 @@
+#app[data-workspace="crochet"] > .topbar { display: none; }
+#crochet-workspace {
+  --stitch-paper:#f6eee7; --stitch-card:#fffaf5; --stitch-line:#ddcec1;
+  --stitch-ink:#443330; --stitch-muted:#6e5850; --stitch-accent:#8e514a;
+  --stitch-green:#4e644a;
+  position: absolute;
+  inset: 0 0 62px;
+  z-index: 4;
+  overflow: auto;
+  scrollbar-width: thin;
+  color-scheme: light;
+  color: var(--stitch-ink);
+  background: radial-gradient(ellipse at 86% 4%,#ecd9cb,transparent 50%), var(--stitch-paper);
+}
+.crochet-wrap { width: min(100%,1130px); margin: auto; padding: 24px clamp(16px,5vw,62px) 36px; }
+.crochet-hero { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 129px; padding-bottom: 14px; border-bottom: 1px solid var(--stitch-line); }
+.crochet-hero span { color: var(--stitch-accent); font-size: 10px; font-weight: 700; letter-spacing: .2em; }
+.crochet-hero h2 { margin: 4px 0; font: normal clamp(38px,6.5vw,68px)/1.04 Georgia,serif; letter-spacing: -.045em; }
+.crochet-hero p { margin: 6px 0 0; color: var(--stitch-muted); font-size: 13px; }
+.crochet-hero svg { flex: none; width: clamp(96px,25vw,220px); height: auto; }
+.crochet-navigation, .crochet-list-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.crochet-navigation { padding-block: 14px 9px; }
+.crochet-tabs { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--stitch-line); border-radius: 9px; background: #f0e5db; }
+.crochet-tabs button, .crochet-primary { min-height: 34px; padding: 5px 11px; border-radius: 6px; font-size: 13px; }
+.crochet-tabs button { color: var(--stitch-muted); }
+.crochet-tabs button[aria-pressed="true"] { background: var(--stitch-card); color: var(--stitch-accent); font-weight: 700; box-shadow: 0 1px 3px #513b2f24; }
+.crochet-primary { background: var(--stitch-accent); color: #fff8f3; font-weight: 650; }
+.crochet-primary:hover { background: #77433d; }
+.crochet-list-heading { margin: 3px 0 11px; color: var(--stitch-muted); font-size: 12px; }
+.crochet-list-heading p { margin: 0; }
+.crochet-list-heading p span { margin-inline: 4px; color: var(--stitch-accent); }
+.crochet-list-heading select { margin-left: 4px; padding: 5px 6px; border: 1px solid var(--stitch-line); border-radius: 6px; background: var(--stitch-card); color: var(--stitch-ink); font: inherit; }
+.crochet-empty { padding: 24px 17px; border: 1px dashed #bca797; border-radius: 11px; background: #fffaf57a; }
+.crochet-empty h3 { margin: 0 0 4px; font: 20px Georgia,serif; }
+.crochet-empty p { margin: 0; color: var(--stitch-muted); font-size: 13px; }
+.crochet-projects { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,270px),1fr)); align-items: start; gap: 12px; }
+.crochet-project { min-width: 0; padding: 15px; border: 1px solid var(--stitch-line); border-radius: 11px; background: var(--stitch-card); overflow-wrap: anywhere; }
+.crochet-card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 7px; }
+.crochet-card-heading h3, .crochet-yarn-name h3 { margin: 4px 0 3px; font: 22px/1.15 Georgia,serif; }
+.crochet-link, .crochet-yarn-actions button { padding: 5px 7px; border: 1px solid var(--stitch-line); border-radius: 6px; color: var(--stitch-accent); font-size: 11px; }
+.crochet-link:hover, .crochet-yarn-actions button:hover { border-color: var(--stitch-accent); }
+.crochet-status { display: inline-flex; border-radius: 8px; padding: 2px 6px; background: #eee2d6; color: #694d3c; font-size: 10px; font-weight: 650; }
+.crochet-status[data-status="making"] { background: #dfe8d8; color: #3c5938; }
+.crochet-status[data-status="finished"] { background: #ebdedf; color: #774d59; }
+.crochet-status[data-status="paused"] { background: #f1e4cc; color: #775927; }
+.crochet-project-meta { min-height: 19px; color: var(--stitch-muted); font-size: 12px; }
+.crochet-project-meta a { color: var(--stitch-accent); text-underline-offset: 2px; }
+.crochet-counter { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0 3px; border-top: 1px solid var(--stitch-line); margin-top: 8px; }
+.crochet-counter div:first-child { display: grid; gap: 1px; }
+.crochet-counter div:first-child span, .crochet-counter output small { color: var(--stitch-muted); font-size: 11px; }
+.crochet-counter output { font: 700 24px/1 Manrope,sans-serif; font-variant-numeric: tabular-nums; }
+.crochet-counter-buttons { display: flex; gap: 6px; }
+.crochet-counter-buttons button { width: 33px; height: 33px; border: 1px solid var(--stitch-line); border-radius: 7px; color: var(--stitch-accent); font-size: 19px; }
+.crochet-counter-buttons button:not(:disabled):hover, .crochet-counter-buttons button:last-child { background: #f3e2d9; }
+.crochet-project progress { display: block; width: 100%; height: 7px; margin-top: 8px; accent-color: #71866d; }
+.crochet-project-yarn { display: flex; flex-wrap: wrap; gap: 5px; list-style: none; padding: 0; margin: 10px 0 0; }
+.crochet-project-yarn li { display: flex; align-items: center; gap: 5px; padding: 3px 6px; border: 1px solid var(--stitch-line); border-radius: 7px; color: var(--stitch-muted); font-size: 11px; }
+.crochet-project-yarn i, .crochet-yarn-choice i { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--swatch); box-shadow: inset 0 0 0 1px #49393324; }
+.crochet-project-notes { max-height: 115px; overflow: auto; white-space: pre-wrap; margin: 10px 0 0; color: var(--stitch-muted); font-size: 12px; }
+.crochet-yarn-list { list-style: none; padding: 0; margin: 0; border: 1px solid var(--stitch-line); border-radius: 10px; background: var(--stitch-card); }
+.crochet-yarn-row { display: grid; grid-template-columns: 32px minmax(0,1fr) auto auto; align-items: center; gap: 10px; padding: 12px; }
+.crochet-yarn-row + .crochet-yarn-row { border-top: 1px solid var(--stitch-line); }
+.crochet-swatch { width: 32px; height: 32px; border-radius: 50%; background: repeating-linear-gradient(139deg,#ffffff32 0 1px,transparent 1px 4px),var(--swatch); box-shadow: inset 0 0 0 1px #49393330; }
+.crochet-yarn-name h3 { margin: 0 0 3px; font-size: 18px; }
+.crochet-yarn-name p { margin: 0; color: var(--stitch-muted); font-size: 12px; }
+.crochet-yarn-name { overflow-wrap: anywhere; }
+.crochet-stock { display: grid; gap: 1px; min-width: 55px; text-align: right; }
+.crochet-stock strong { color: var(--stitch-green); font-size: 14px; }
+.crochet-stock span { color: var(--stitch-muted); font-size: 10px; }
+.crochet-yarn-actions { display: flex; gap: 5px; }
+#crochet-dialog { width: min(505px,calc(100vw - 28px)); max-height: calc(100svh - 28px); padding: 0; overflow: hidden; border: 1px solid var(--stitch-line); border-radius: 13px; color: var(--stitch-ink); background: var(--stitch-card); box-shadow: 0 13px 44px #32221d66; }
+#crochet-dialog::backdrop { background: #32252381; }
+#crochet-dialog form { display: flex; flex-direction: column; max-height: calc(100svh - 30px); }
+#crochet-dialog :is(header,footer) { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; padding: 13px 16px; }
+#crochet-dialog header { border-bottom: 1px solid var(--stitch-line); }
+#crochet-dialog header h3 { margin: 0; font: 23px Georgia,serif; }
+#crochet-dialog header button { padding: 2px 5px; color: var(--stitch-accent); font-size: 22px; }
+.crochet-dialog-fields { display: grid; gap: 10px; overflow: auto; padding: 12px 16px; }
+.crochet-dialog-fields label { display: grid; gap: 4px; color: var(--stitch-muted); font-size: 12px; }
+.crochet-dialog-fields :is(input:not([type="checkbox"]),textarea,select) { width: 100%; min-width: 0; padding: 7px; border: 1px solid var(--stitch-line); border-radius: 6px; background: #fffcf8; color: var(--stitch-ink); font: inherit; }
+.crochet-dialog-fields input[type="color"] { width: 55px; height: 33px; padding: 3px; }
+.crochet-dialog-fields fieldset { min-width: 0; padding: 6px 8px 8px; margin: 0; border: 1px solid var(--stitch-line); border-radius: 7px; }
+.crochet-dialog-fields legend { color: var(--stitch-muted); font-size: 12px; }
+.crochet-dialog-fields fieldset small { color: var(--stitch-muted); }
+.crochet-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.crochet-yarn-choices { display: grid; gap: 4px; max-height: 140px; overflow: auto; }
+.crochet-yarn-choice { display: flex !important; align-items: center; overflow-wrap: anywhere; }
+.crochet-yarn-choice input { accent-color: var(--stitch-accent); }
+.crochet-use-context { margin: 0; color: var(--stitch-muted); font-size: 13px; }
+#crochet-dialog footer { justify-content: flex-end; border-top: 1px solid var(--stitch-line); }
+.crochet-delete { margin-right: auto; padding: 5px; color: var(--stitch-accent); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
+#crochet-form-error { margin: 0; color: #8b3e40; font-size: 12px; }
+#crochet-workspace :is(button,a,input,select,textarea):focus-visible { outline: 2px solid var(--stitch-accent); outline-offset: 2px; }
+@media (max-width:480px) {
+  .crochet-wrap { padding-top: 14px; }
+  .crochet-hero { min-height: 100px; }
+  .crochet-hero svg { max-width: 28vw; }
+  .crochet-yarn-row { grid-template-columns: 28px minmax(0,1fr) auto; gap: 6px 8px; }
+  .crochet-swatch { width: 28px; height: 28px; }
+  .crochet-yarn-actions { grid-column: 2 / -1; justify-self: end; }
+}

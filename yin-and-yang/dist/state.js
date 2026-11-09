@@ -1,3 +1,5 @@
+import {loadAppearance} from './garden-appearance.js';
+
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 export const taskFrequencies = { none:'Does not repeat', daily:'Every day', weekdays:'Weekdays', weekly:'Every week', monthly:'Every month', yearly:'Every year', interval:'Every N days' };
@@ -91,7 +93,7 @@ export function formatDuration(ms) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -99,6 +101,7 @@ export function loadState(storage) {
   try {
     const raw = JSON.parse(storage.getItem(STORAGE_KEY));
     if (!raw || typeof raw !== 'object') return base;
+    base.appearance=loadAppearance(raw.appearance);
     if (Array.isArray(raw.routines)) base.routines=raw.routines.filter(routine=>routine && typeof routine.id==='string' && typeof routine.name==='string' && ['focus','rest'].every(key=>Number.isInteger(routine[key])&&routine[key]>=1000&&routine[key]<=10800000));
     for (const key of ['intention','notes','spotify']) if (typeof raw[key] === 'string') base[key] = raw[key];
     for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];

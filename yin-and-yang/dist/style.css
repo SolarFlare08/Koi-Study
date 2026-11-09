@@ -386,37 +386,7 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
 @media(max-width:700px){
   #calendar-panel { inset: 61px 12px 68px; padding: 11px; }
 }
-@media(max-width:520px){
-}
-
 .calendar-done strong { text-decoration: line-through; opacity: .75; }
-#calendar-task-tray { display: none; }
-@media(max-width:980px){
-  #calendar-task-tray {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: 6px;
-    overflow-x: auto;
-    margin-bottom: 8px;
-    padding: 3px 1px 5px;
-    scrollbar-width: thin;
-  }
-  .calendar-tray-task {
-    flex: none;
-    max-width: 185px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 11px;
-    padding: 6px 9px;
-    border: 1px solid #c4d7c7;
-    border-radius: 7px;
-    background: #e1ebdf;
-    color: #24483e;
-    cursor: grab;
-  }
-}
 
 /* Tools sit above the scene and the workspace switcher rests at the bottom. */
 .topbar {
@@ -489,9 +459,6 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
   .world-object { width: 30px; padding: 6px; }
   .top-actions { grid-column: 2; }
 }
-#wip-workspace { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; color: var(--scene-ink,#34565a); }
-#wip-workspace h2 { font: 27px Georgia,serif; margin: 0; }
-#wip-workspace p { font-size: 12px; color: var(--scene-muted,#55726c); }
 .sidebar-agenda { margin-top: 13px; padding-top: 10px; border-top: 1px solid color-mix(in srgb,currentColor 17%,transparent); }
 .sidebar-section-heading { display: flex; align-items: center; gap: 7px; justify-content: space-between; }
 .sidebar-section-heading h3 { margin: 0; font-size: 11px; font-weight: 600; }

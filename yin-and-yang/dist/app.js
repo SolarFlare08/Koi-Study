@@ -3,6 +3,8 @@ import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.
 import {addTaskBlock, blockFocusTiming, calendarBlocks, calendarDragType, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue} from './calendar.js';
 import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
 import {installPlanner} from './planner.js';
+import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearance} from './garden-appearance.js';
+import {installCrochet} from './crochet.js';
 
 const $=s=>document.querySelector(s);
 const icons={
@@ -10,8 +12,11 @@ const icons={
   left:'<path d="m14 6-6 6 6 6"/>',right:'<path d="m10 6 6 6-6 6"/>',
   calendar:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4m8-4v4m-8 7h2m4 0h2"/>',
   list:'<path d="m4 7 1 1 2-2m-3 6 1 1 2-2m-3 6 1 1 2-2M10 7h10m-10 5h10m-10 5h10"/>',
+  sidebar:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 5v14m-3-9h.1m-.1 4h.1"/>',
   sprout:'<path d="M12 20v-8m0 2c-5 0-8-3-8-7 5 0 8 3 8 7Zm0-2c0-5 3-8 8-8 0 5-3 8-8 8Z"/>',
   sliders:'<path d="M4 7h5m4 0h7M4 17h10m4 0h2"/><circle cx="11" cy="7" r="2"/><circle cx="16" cy="17" r="2"/>',
+  appearance:'<path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/><circle cx="12" cy="12" r="4"/>',
+  yarn:'<circle cx="11" cy="10" r="6.5"/><path d="m5 9 7 7m-5-11 9 9m-4-10 5 5m-3 7c0 2 2 3 4 3h3"/>',
   play:'<path d="m8 5 11 7-11 7z"/>',pause:'<path d="M8 5v14M16 5v14"/>',reset:'<path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/>',skip:'<path d="m5 5 10 7-10 7zM19 5v14"/>',expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',collapse:'<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m13 5v-5h5"/>',focus:'<path d="M9 3H5a2 2 0 0 0-2 2v4m12-6h4a2 2 0 0 1 2 2v4M3 15v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4"/><circle cx="12" cy="12" r="3"/>',music:'<path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/>',spark:'<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/>',close:'<path d="m6 6 12 12M18 6 6 18"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',external:'<path d="M14 3h7v7m0-7L10 14M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/>'
 };
 const icon=name=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||''}</svg>`;
@@ -31,6 +36,9 @@ const calendarPanel=$('#calendar-panel');
 const calendarScroll=$('#calendar-scroll');
 const calendarGrid=$('#calendar-grid');
 const calendarTray=$('#calendar-task-tray');
+const calendarShelf=$('#calendar-queue');
+const calendarShelfToggle=$('#calendar-queue-toggle');
+const calendarShelfSearch=$('#calendar-queue-search');
 const miniCalendar=$('#mini-calendar');
 const taskMenu=$('#task-menu');
 const builtinRoutines=[{id:'classic',name:'Classic',focus:25*60000,rest:5*60000},{id:'deep',name:'Deep work',focus:50*60000,rest:10*60000}];
@@ -69,7 +77,8 @@ function nextPenguinThought(){
 }
 $('#penguin-next').onclick=()=>announce(nextPenguinThought());
 $('#landscape').innerHTML=renderLandscape();
-$('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",music:"music",notes:"spark",progress:"target"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",music:"Music",notes:"Notes",progress:"Today"})[o.id]}</span></button>`).join('');
+$('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",music:"music",notes:"spark",progress:"target",appearance:"appearance"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",music:"Music",notes:"Notes",progress:"Today",appearance:"Appearance"})[o.id]}</span></button>`).join('');
+installCrochet({root:$('#crochet-workspace'),storage,notify:message=>{toast(message);announce(message);}});
 applyIcons();
 
 function setTaskSidebar(open){
@@ -92,7 +101,7 @@ function showWorkspace(next){
   workspace=next;
   app.dataset.workspace=next;
   $('.sky').hidden=next!=='focus';
-  $('#wip-workspace').hidden=next!=='wip';
+  $('#crochet-workspace').hidden=next!=='crochet';
   $('#objects').hidden=next!=='focus';
   $('#penguin').hidden=next!=='focus';
   document.querySelectorAll('[data-workspace]').forEach(button=>{
@@ -122,6 +131,15 @@ function gardenTasks(){return state.tasks.filter(task=>!state.projects.some(proj
 
 function render(){
   syncFocusMode();
+  app.dataset.lighting=state.appearance.lighting;
+  app.dataset.season=state.appearance.season;
+  const weather=gardenWeather(state.appearance);
+  if(app.dataset.weather!==weather)app.dataset.weather=weather;
+  const weatherCurrent=$('#garden-weather-current');
+  if(weatherCurrent){
+    const label=weatherBySeason[state.appearance.season][weather];
+    if(weatherCurrent.textContent!==label)weatherCurrent.textContent=label;
+  }
   const ms=remaining(state),seconds=Math.ceil(ms/1000),mins=Math.floor(seconds/60),secs=seconds%60,t=state.timer;
   $('#countdown').innerHTML=`${String(mins).padStart(2,'0')}<span>:</span>${String(secs).padStart(2,'0')}`;
   $('#countdown').setAttribute('aria-label',`${mins} minutes ${secs} seconds of ${t.mode==='focus'?'focus':'rest'} remaining`);
@@ -198,6 +216,7 @@ miniCalendar.addEventListener('click',event=>{
   if(block)openCalendarBlock(block);
 });
 $('#close-calendar').onclick=()=>closeCalendar();
+$('#planner-appearance').onclick=()=>openPanel('appearance',$('#planner-appearance'));
 $('#close-task-sidebar').onclick=()=>{setTaskSidebar(false);taskToggle.focus();};
 document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>{
   if(el===taskToggle){
@@ -212,7 +231,7 @@ function syncFocusMode(){
   if(app.classList.contains('focus-view')===enabled)return;
   if(enabled){
     if(renderedTaskDay){
-      sidebarBeforeFocus=inSchedule()?reopenTasksAfterCalendar:workspace==='wip'?desktopTasks.matches:!taskSidebar.hidden;
+      sidebarBeforeFocus=inSchedule()?reopenTasksAfterCalendar:workspace==='crochet'?desktopTasks.matches:!taskSidebar.hidden;
     }
     closePanel(false);
     closeTaskMenu(false);
@@ -482,7 +501,26 @@ function focusTaskPicker(){
     <div class="panel-actions"><button type="button" class="panel-primary" id="focus-task-add">Add task</button>${edit}</div>`;
 }
 
+function gardenWeatherOptions(){
+  const {season,weather}=state.appearance;
+  return [['auto','Rotate every 8 minutes'],...Object.entries(weatherBySeason[season])]
+    .map(([value,label])=>`<option value="${value}" ${value===weather?'selected':''}>${label}</option>`).join('');
+}
 function panelContent(id){
+  if(id==='appearance'){
+    const {lighting,season}=state.appearance;
+    return `${header('GARDEN APPEARANCE','Light and seasons')}
+      <fieldset class="appearance-options"><legend>Lighting</legend><div class="lighting-options">
+        ${Object.entries(lightingOptions).map(([value,label])=>`<label><input class="sr-only" type="radio" name="garden-lighting" value="${value}" ${lighting===value?'checked':''}><span>${label}</span></label>`).join('')}
+      </div><p>Follow timer gives each focus session its own sunrise and sunset.</p></fieldset>
+      <fieldset class="appearance-options"><legend>Season</legend><div class="season-options">
+        ${Object.entries(seasonOptions).map(([value,item])=>`<label><input class="sr-only" type="radio" name="garden-season" value="${value}" ${season===value?'checked':''}><span style="--season-a:${item.colors[0]};--season-b:${item.colors[1]}"><i aria-hidden="true"></i><strong>${item.name}</strong><small>${item.detail}</small></span></label>`).join('')}
+      </div></fieldset>
+      <fieldset class="appearance-options weather-options"><legend>Weather</legend>
+        <select id="garden-weather" name="garden-weather" aria-label="Weather">${gardenWeatherOptions()}</select>
+        <p>Now in the Garden <strong id="garden-weather-current">${weatherBySeason[season][gardenWeather(state.appearance)]}</strong></p>
+      </fieldset>`;
+  }
   if(id==='focus-task')return focusTaskPicker();
   if(id==='calendar-block')return calendarBlockPreview();
   if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerRoutines()}<div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
@@ -537,9 +575,9 @@ function openPanel(id,anchor){
   closePanel(false);activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':id==='block-editor'?'panel task-editor':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
   positionPanel(panel,anchor);wake();
-  const firstControl=panel.querySelector('input,textarea')||panel.querySelector('button');
+  const firstControl=panel.querySelector(id==='appearance'?'input:checked':'input,textarea')||panel.querySelector('button');
   const initialFocus=id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
   if(initialFocus.id==='panel-title')initialFocus.tabIndex=-1;
   initialFocus.focus({preventScroll:true});
@@ -634,13 +672,35 @@ function showPlannerCalendar(date,visibleDays,enteringTimeline){
     calendarOpenMinute=undefined;
   }
   updatePlannerViewport();
-  const trayScroll=calendarTray.scrollLeft;
-  const tasks=planner.calendarTasks().filter(task=>taskStatus(task)!=='done');
-  $('#calendar-queue').hidden=!tasks.length;
-  $('#calendar-queue-count').textContent=tasks.length;
-  calendarTray.innerHTML=tasks.map(task=>`<button type="button" draggable="true" class="calendar-tray-task" data-task="${escape(task.id)}" aria-label="Schedule ${escape(task.text)}" aria-haspopup="dialog">${escape(task.text)}</button>`).join('');
-  calendarTray.scrollLeft=trayScroll;
+  renderCalendarShelf();
 }
+
+function renderCalendarShelf(){
+  const scroll=calendarTray.scrollTop;
+  const query=calendarShelfSearch.value.trim().toLowerCase();
+  const projects=new Map(state.projects.map(project=>[project.id,project.name]));
+  const tasks=planner.calendarTasks().filter(task=>taskStatus(task)!=='done');
+  $('#calendar-queue-count').textContent=tasks.length||'';
+  const rows=tasks.filter(task=>`${task.text} ${projects.get(task.projectId)||'Inbox'}`.toLowerCase().includes(query))
+    .sort((a,b)=>taskPriority(a)-taskPriority(b)||a.text.localeCompare(b.text)).map(task=>{
+      const project=projects.get(task.projectId)||'Inbox';
+      const duration=task.estimate||60;
+      return `<li><button type="button" draggable="true" class="calendar-tray-task" data-task="${escape(task.id)}" data-priority="${taskPriority(task)}" aria-label="Schedule ${escape(task.text)}" aria-haspopup="dialog">
+        <span class="calendar-shelf-grip" aria-hidden="true">⠿</span><span class="calendar-shelf-copy"><strong>${escape(task.text)}</strong><small>${escape(project)} · ${duration} min</small></span><span class="calendar-shelf-add" aria-hidden="true">+</span>
+      </button></li>`;
+    });
+  calendarTray.innerHTML=rows.join('')||`<li class="calendar-shelf-empty">${tasks.length?'No matching tasks.':'No open tasks in this view.'}</li>`;
+  calendarTray.scrollTop=scroll;
+}
+
+function setCalendarShelf(open){
+  calendarShelf.hidden=!open;
+  calendarShelfToggle.setAttribute('aria-expanded',String(open));
+  (open?calendarShelfSearch:calendarShelfToggle).focus({preventScroll:true});
+}
+calendarShelfToggle.onclick=()=>setCalendarShelf(calendarShelf.hidden);
+$('#calendar-queue-close').onclick=()=>setCalendarShelf(false);
+calendarShelfSearch.oninput=renderCalendarShelf;
 
 function renderPlannerDays(){
   const now=new Date(),today=dayKey(now),minute=now.getHours()*60+now.getMinutes();
@@ -1137,6 +1197,16 @@ root.addEventListener('input',e=>{
   if(e.target.id==='task-date'||e.target.id==='task-repeat')$('#task-date').setCustomValidity('');
 });
 root.addEventListener('change',event=>{
+  const appearanceField={'garden-lighting':'lighting','garden-season':'season','garden-weather':'weather'}[event.target.name];
+  if(appearanceField){
+    const value=event.target.value;
+    const appearance={...state.appearance,[appearanceField]:value};
+    if(appearanceField==='season'||appearanceField==='weather'&&value==='auto')appearance.weatherSince=Date.now();
+    if(appearanceField==='season')appearance.weather='auto';
+    state.appearance=loadAppearance(appearance);
+    if(appearanceField==='season')$('#garden-weather').innerHTML=gardenWeatherOptions();
+    persist();render();
+  }
   if(event.target.id==='task-project')$('#task-section').innerHTML=taskSectionOptions(event.target.value);
   if(event.target.id==='task-repeat'){
     const hidden=event.target.value!=='interval';
@@ -1250,7 +1320,7 @@ document.addEventListener('click',async event=>{
   }catch{toast('Could not dismiss the note.');}
 });
 document.addEventListener('keydown',e=>{
-  if(e.target.closest('#planner-dialog'))return;
+  if(e.target.closest('#planner-dialog, #crochet-dialog'))return;
   if(e.ctrlKey&&e.altKey&&e.code==='KeyN'&&!e.repeat){
     e.preventDefault();
     if(activePanel!=='capture'){
@@ -1264,11 +1334,12 @@ document.addEventListener('keydown',e=>{
   }
   if(e.key==='Escape'&&!taskMenu.hidden){e.preventDefault();closeTaskMenu();return;}
   if(e.key==='Escape'&&activePanel){e.preventDefault();closePanel();return;}
+  if(e.key==='Escape'&&inSchedule()&&planner.calendarVisible()&&!calendarShelf.hidden){e.preventDefault();setCalendarShelf(false);return;}
   if(e.key==='Escape'&&inSchedule()){e.preventDefault();closeCalendar();return;}
   if(e.key==='Escape'&&state.focusMode&&!e.defaultPrevented){e.preventDefault();toggleFocusMode();return;}
   const p=visiblePanel();
   if(e.key==='Tab'&&p){
-    const controls=[...p.querySelectorAll('button,input,textarea,select,a[href],iframe')].filter(el=>!el.disabled&&el.offsetParent!==null);
+    const controls=[...p.querySelectorAll('button,input,textarea,select,a[href],iframe')].filter(el=>!el.disabled&&el.offsetParent!==null&&(el.type!=='radio'||el.checked));
     const focused=document.activeElement, first=controls[0], last=controls.at(-1);
     if(e.shiftKey&&(focused===first||focused.id==='panel-title')){e.preventDefault();last?.focus();}
     else if(!e.shiftKey&&focused===last){e.preventDefault();first?.focus();}
@@ -1321,5 +1392,5 @@ durationForm.onsubmit=e=>{
 
 
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
-function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:1-remaining(state)/t.total,motionPreference.matches);requestAnimationFrame(environmentFrame);}
+function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:1-remaining(state)/t.total,motionPreference.matches,state.appearance.lighting);requestAnimationFrame(environmentFrame);}
 requestAnimationFrame(environmentFrame);
