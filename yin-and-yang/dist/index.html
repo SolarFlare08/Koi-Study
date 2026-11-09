@@ -7,6 +7,7 @@
   <title>Yin and Yang — A quiet place to focus</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./planner.css">
 </head>
 <body>
   <main id="app" aria-label="Yin and Yang study garden">
@@ -70,19 +71,43 @@
         <div id="captured-list"></div>
       </section>
     </aside>
-    <section id="calendar-panel" aria-labelledby="calendar-heading" hidden>
+    <section id="calendar-panel" aria-labelledby="planner-heading" hidden>
+      <aside id="planner-sidebar" aria-label="Planner navigation"></aside>
+      <div class="planner-main">
+        <header class="planner-top">
+          <button id="planner-toggle-sidebar" type="button" aria-label="Toggle planner sidebar" aria-controls="planner-sidebar" aria-expanded="false">☰</button>
+          <div id="planner-breadcrumb">Personal planner</div>
+          <label id="planner-layout-label">Display <select id="planner-layout"><option value="board">Board</option><option value="list">List</option><option value="calendar">Calendar · Week</option><option value="3days">Calendar · 3 days</option><option value="month">Calendar · Month</option></select></label>
+          <details id="planner-display"><summary aria-label="Display options">⋯</summary><div class="planner-popover">
+            <label><input id="planner-completed" type="checkbox"> Show completed</label>
+            <label>Sort by <select id="planner-sort"><option value="schedule">Schedule</option><option value="priority">Priority</option><option value="name">Name</option></select></label>
+          </div></details>
+          <button id="close-calendar" class="icon-button" type="button" aria-label="Return to Garden"><span data-icon="close"></span></button>
+        </header>
+        <div class="planner-heading-row"><h2 id="planner-heading" tabindex="-1">Upcoming</h2><div id="planner-heading-actions"></div></div>
+        <div id="planner-board-tools">
+          <input id="planner-jump-date" type="date" aria-label="Jump to date">
+          <span id="planner-month"></span>
+          <nav aria-label="Upcoming dates"><button type="button" data-planner-step="-7" aria-label="Earlier dates">‹</button><button type="button" data-planner-step="0">Today</button><button type="button" data-planner-step="7" aria-label="Later dates">›</button></nav>
+        </div>
+        <div id="planner-quick-strip" hidden></div>
+        <div id="planner-search-row" hidden><label class="sr-only" for="planner-search">Search tasks</label><input id="planner-search" type="search" placeholder="Find a task, project, or label…"><span id="planner-search-count" aria-live="polite"></span></div>
+        <div id="planner-content"></div>
+        <div id="planner-calendar-view" hidden>
       <header class="calendar-header">
         <div><h2 id="calendar-heading">Calendar</h2><p id="calendar-range" aria-live="polite"></p></div>
         <nav class="calendar-nav" aria-label="Calendar controls">
           <button type="button" data-calendar-step="previous" aria-label="Previous week">‹</button>
           <button type="button" data-calendar-step="today">Today</button>
           <button type="button" data-calendar-step="next" aria-label="Next week">›</button>
-          <button id="close-calendar" class="icon-button" type="button" aria-label="Close calendar"><span data-icon="close"></span></button>
         </nav>
       </header>
       <p class="calendar-help" id="calendar-help">Scroll sideways for more dates. Drag tasks to schedule them, or open a block to edit it or start focus.</p>
       <div id="calendar-task-tray" aria-label="Tasks to schedule" hidden></div>
       <div id="calendar-scroll" role="region" tabindex="0" aria-label="Schedule" aria-describedby="calendar-help"><div id="calendar-grid"></div></div>
+        </div>
+      </div>
+      <dialog id="planner-dialog"></dialog>
     </section>
     <section id="wip-workspace" hidden><h2>Work in progress</h2><p>A little space for what comes next.</p></section>
     <nav id="workspace-tabs" aria-label="App workspace">

@@ -288,11 +288,6 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
   animation: task-sidebar-enter .24s ease-out;
 }
 #calendar-panel[inert] { pointer-events: none; }
-@media(min-width:981px){
-  #app:has(#task-sidebar:not([hidden])) #calendar-panel {
-    right: calc(clamp(15px, 2.4vw, 36px) + clamp(266px, 26vw, 365px) + 14px);
-  }
-}
 .calendar-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .calendar-header h2 { font-size: 16px; margin: 0; font-weight: 600; }
 #calendar-range { margin: 4px 0 0; font-size: 11px; color: var(--scene-muted); }

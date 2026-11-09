@@ -1,13 +1,21 @@
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-export const taskFrequencies = { none:'Does not repeat', daily:'Every day', weekdays:'Weekdays', weekly:'Every week' };
+export const taskFrequencies = { none:'Does not repeat', daily:'Every day', weekdays:'Weekdays', weekly:'Every week', monthly:'Every month', yearly:'Every year', interval:'Every N days' };
+const isDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value);
+const dateNumber = date => Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())/86400000;
 
 export function taskOccursOn(task, date) {
   const day = dayKey(date);
   if (!task.date || task.date > day) return false;
   if (task.repeat === 'daily') return true;
   if (task.repeat === 'weekdays') return date.getDay() !== 0 && date.getDay() !== 6;
-  if (task.repeat === 'weekly') return new Date(`${task.date}T00:00:00`).getDay() === date.getDay();
+  const first = new Date(`${task.date}T00:00:00`);
+  if (task.repeat === 'weekly') return first.getDay() === date.getDay();
+  if (task.repeat === 'interval') return (dateNumber(date)-dateNumber(first))%(task.repeatEvery||2) === 0;
+  if (task.repeat === 'monthly' || task.repeat === 'yearly') {
+    const last = new Date(date.getFullYear(),date.getMonth()+1,0).getDate();
+    return date.getDate() === Math.min(first.getDate(),last) && (task.repeat === 'monthly' || date.getMonth() === first.getMonth());
+  }
   return task.date === day;
 }
 
@@ -18,13 +26,25 @@ export function taskStatus(task, date = new Date()) {
     return task.date > today ? 'upcoming' : 'todo';
   }
   if (!taskOccursOn(task, date)) return 'upcoming';
-  return task.completedOn === today ? 'done' : 'todo';
+  return task.completedOn === today || task.completions?.includes(today) ? 'done' : 'todo';
 }
 
 export function completeTask(task, checked, date = new Date()) {
-  if (!task.repeat || task.repeat === 'none') task.done = checked;
-  else task.completedOn = checked ? dayKey(date) : '';
+  const day = dayKey(date);
+  if (!task.repeat || task.repeat === 'none') {
+    task.done = checked;
+    task.completedOn = checked ? day : '';
+  } else {
+    const completions = new Set(task.completions||[]);
+    if (task.completedOn) completions.add(task.completedOn);
+    if (checked) completions.add(day);
+    else completions.delete(day);
+    task.completions = [...completions].sort();
+    task.completedOn = task.completions.at(-1)||'';
+  }
 }
+
+export function taskPriority(task) { return task.priorityLevel || (task.priority ? 1 : 4); }
 
 function loadTask(task) {
   const repeat = Object.hasOwn(taskFrequencies,task.repeat) ? task.repeat : 'none';
@@ -36,6 +56,17 @@ function loadTask(task) {
     estimate:Number.isInteger(task.estimate) && task.estimate > 0 && task.estimate <= 1440 ? task.estimate : null,
     repeat,
     priority:task.priority === true,
+    priorityLevel:[1,2,3,4].includes(task.priorityLevel)?task.priorityLevel:undefined,
+    projectId:typeof task.projectId==='string'?task.projectId:'',
+    sectionId:typeof task.sectionId==='string'?task.sectionId:'',
+    labels:Array.isArray(task.labels)?task.labels.filter(label=>typeof label==='string'&&label.length<=40):[],
+    deadline:isDay(task.deadline)?task.deadline:'',
+    reminderAt:Number.isFinite(task.reminderAt)?task.reminderAt:null,
+    reminderShown:task.reminderShown===true,
+    repeatEvery:Number.isInteger(task.repeatEvery)&&task.repeatEvery>=2&&task.repeatEvery<=365?task.repeatEvery:2,
+    subtasks:Array.isArray(task.subtasks)?task.subtasks.filter(item=>item&&typeof item.id==='string'&&typeof item.text==='string'&&typeof item.done==='boolean'):[],
+    comments:Array.isArray(task.comments)?task.comments.filter(item=>item&&typeof item.id==='string'&&typeof item.text==='string'&&Number.isFinite(item.at)):[],
+    completions:Array.isArray(task.completions)?task.completions.filter(isDay):[],
     blocks:Array.isArray(task.blocks) ? task.blocks.filter(block=>block && typeof block.id==='string' && /^\d{4}-\d{2}-\d{2}$/.test(block.date) && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(block.time) && Number.isInteger(block.minutes) && block.minutes>0 && block.minutes<=1440) : [],
     completedOn:/^\d{4}-\d{2}-\d{2}$/.test(task.completedOn) ? task.completedOn : ''
   };
@@ -52,7 +83,7 @@ export function formatDuration(ms) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, routines:[], intention:'', tasks:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -64,6 +95,11 @@ export function loadState(storage) {
     for (const key of ['intention','notes','spotify']) if (typeof raw[key] === 'string') base[key] = raw[key];
     for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
     if (Array.isArray(raw.tasks)) base.tasks=raw.tasks.filter(t=>t && typeof t.id==='string' && typeof t.text==='string' && typeof t.done==='boolean').map(loadTask);
+    if (Array.isArray(raw.projects)) base.projects=raw.projects.filter(project=>project&&typeof project.id==='string'&&typeof project.name==='string').map(project=>({
+      id:project.id,name:project.name,color:/^#[\da-f]{6}$/i.test(project.color)?project.color:'#d94b49',favorite:project.favorite===true,archived:project.archived===true,
+      sections:Array.isArray(project.sections)?project.sections.filter(section=>section&&typeof section.id==='string'&&typeof section.name==='string'):[]
+    }));
+    if (Array.isArray(raw.plannerFilters)) base.plannerFilters=raw.plannerFilters.filter(filter=>filter&&typeof filter.id==='string'&&typeof filter.name==='string'&&typeof filter.query==='string');
     base.activeTask=base.tasks.some(t=>t.id===raw.activeTask && taskStatus(t)==='todo')?raw.activeTask:null;
     if (Array.isArray(raw.history)) base.history=raw.history.filter(h=>h && typeof h.id==='string' && ['completed','skipped'].includes(h.outcome) && ['focus','break'].includes(h.mode) && Number.isFinite(h.finishedAt) && Number.isFinite(h.focusMs));
     base.focusMode=raw.focusMode===true;
