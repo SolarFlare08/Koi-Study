@@ -46,13 +46,55 @@ export function reportMetrics(events) {
   return {total,days:[...groups.values()].sort((a,b)=>b.day.localeCompare(a.day))};
 }
 
-export function reportCsv(events, projectName) {
+export function estimateAccuracy(state,filters={},now=new Date()){
+  const visible=new Set(reportEvents(state,{...filters,type:'task'},now).map(event=>event.id));
+  const sessions=new Map(),completions=new Map(),results=[];
+  for(const session of state.history){
+    if(session.mode!=='focus'||session.outcome!=='completed'||!session.taskId||session.focusMs<=0)continue;
+    if(!sessions.has(session.taskId))sessions.set(session.taskId,[]);
+    sessions.get(session.taskId).push(session);
+  }
+  for(const event of state.taskActivity){
+    if(!completions.has(event.taskId))completions.set(event.taskId,[]);
+    completions.get(event.taskId).push(event);
+  }
+  for(const [taskId,events] of completions){
+    const work=sessions.get(taskId)?.sort((a,b)=>a.finishedAt-b.finishedAt);
+    if(!work)continue;
+    let index=0;
+    const row={taskId,text:'',samples:0,over:0,estimatedMs:0,actualMs:0};
+    for(const event of events.sort((a,b)=>a.at-b.at)){
+      let actual=0;
+      while(index<work.length&&work[index].finishedAt<=event.at)actual+=work[index++].focusMs;
+      if(!actual||!Number.isInteger(event.estimate)||event.estimate<=0||!visible.has(event.id))continue;
+      const estimated=event.estimate*60000;
+      row.text=event.text;
+      row.samples++;
+      row.over+=Number(actual>estimated);
+      row.estimatedMs+=estimated;
+      row.actualMs+=actual;
+    }
+    if(row.samples)results.push({...row,consistent:row.over>=2&&row.over*2>row.samples});
+  }
+  return results.sort((a,b)=>Number(b.consistent)-Number(a.consistent)||b.over-a.over||a.text.localeCompare(b.text));
+}
+
+function toCsv(rows){
   const cell=value=>{
     const text=String(value??'');
     const safe=/^\s*[=+@-]/.test(text)?`'${text}`:text;
     return `"${safe.replace(/"/g,'""')}"`;
   };
-  return [['Date','Activity','Task or session','Project','Focus minutes'],...events.map(event=>[
+  return rows.map(row=>row.map(cell).join(',')).join('\r\n');
+}
+export function reportCsv(events, projectName) {
+  return toCsv([['Date','Activity','Task or session','Project','Focus minutes'],...events.map(event=>[
     event.day,activityLabels[event.type],event.text,projectName(event.projectId),event.type==='focus'?Math.round(event.ms/6000)/10:''
-  ])].map(row=>row.map(cell).join(',')).join('\r\n');
+  ])]);
+}
+export function estimateCsv(rows){
+  const average=(ms,samples)=>Math.round(ms/samples/6000)/10;
+  return toCsv([['Task','Samples','Over estimate','Average estimate (min)','Average focus (min)','Consistently over'],...rows.map(row=>[
+    row.text,row.samples,row.over,average(row.estimatedMs,row.samples),average(row.actualMs,row.samples),row.consistent?'Yes':''
+  ])]);
 }

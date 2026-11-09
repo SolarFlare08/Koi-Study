@@ -623,3 +623,26 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
 #task-menu button:hover, #task-menu button:focus-visible { background: var(--surface-raised); }
 .capture-card { background: var(--surface-raised); color: var(--surface-ink); }
 .panel .capture-card p { color: inherit; }
+
+/* Timer alerts and sound controls */
+.timer-notification-controls h3, .garden-sound-controls h3 { margin: 0 0 5px; color: var(--surface-ink); font-size: 14px; }
+.timer-notification-controls p { margin: 4px 0 9px; }
+.timer-notification-controls .text-button { margin-top: 4px; }
+#music-panel:not(.music-hidden) { width: min(410px,calc(100vw - 28px)); }
+#music-player-wrap iframe { width: 100%; min-height: 152px; border: 0; border-radius: 10px; margin-top: 10px; }
+.spotify-embed-placeholder { margin-top: 10px; color: var(--surface-muted); font-size: 12px; }
+.garden-sound-controls { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--surface-line); }
+.garden-sound-switches { display: grid; gap: 5px; margin: 9px 0 11px; }
+.garden-sound-switches label { display: flex; align-items: center; gap: 6px; color: var(--surface-muted); font-size: 12px; }
+.garden-sound-controls :is(input[type="checkbox"],input[type="range"]) { accent-color: var(--surface-accent); }
+.garden-sound-controls h4 { margin: 9px 0 3px; color: var(--surface-ink); font-size: 12px; }
+.garden-sound-mix { display: flex; align-items: center; justify-content: space-between; }
+.garden-sound-mix h4 { margin: 0; }
+.garden-sound-row { display: grid; grid-template-columns: 103px minmax(0,1fr) 34px; align-items: center; gap: 7px; min-height: 24px; color: var(--surface-muted); font-size: 11px; }
+.panel .garden-sound-row input[type="range"] { min-width: 0; padding: 0; margin: 0; border: 0; background: transparent; }
+.garden-sound-row output { text-align: right; font-variant-numeric: tabular-nums; }
+
+#undo-toast { position: fixed; z-index: 25; left: 50%; bottom: 88px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 28px); padding: 7px 8px 7px 14px; border: 1px solid var(--surface-line); border-radius: 12px; background: var(--surface-paper); color: var(--surface-ink); font-size: 12px; box-shadow: 0 8px 26px #15253f5c; }
+#undo-toast button { padding: 5px 8px; border-radius: 7px; background: var(--surface-button); color: var(--surface-field); font-weight: 650; }
+#undo-toast button:hover { background: var(--surface-button-hover); }
+#app:has(#undo-toast:not([hidden])) #toast { bottom: 145px; }

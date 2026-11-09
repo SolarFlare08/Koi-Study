@@ -1,7 +1,8 @@
 import {calendarBlocks,calendarDragType,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
-import {recordTaskCompletion,dayKey,taskPriority,taskStatus} from './state.js';
+import {dayKey,taskPriority,taskStatus} from './state.js';
+import {captureTaskChange} from './task-undo.js';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
-import {activityLabels,reportCsv,reportEvents,reportMetrics} from './planner-report.js';
+import {activityLabels,estimateAccuracy,estimateCsv,reportCsv,reportEvents,reportMetrics} from './planner-report.js';
 
 const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',filters:'Filters & Labels',reporting:'Reporting'};
 const calendarLayouts={day:1,'3days':3,calendar:7,month:0};
@@ -26,7 +27,7 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,notify,hasPanel}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,notify,completeTask,hasPanel}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
@@ -303,21 +304,32 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   function selectedReportEvents() {
     return reportEvents(state(),{...report,type:report.mode==='metrics'?'all':report.type});
   }
+  function reportEstimates(){
+    const rows=estimateAccuracy(state(),report);
+    const taskIds=new Set(state().tasks.map(task=>task.id));
+    const average=(ms,samples)=>Math.round(ms/samples/6000)/10;
+    return `<section class="planner-estimates"><h3>Estimate accuracy</h3><p>Compares the estimate saved when you mark a task done with its logged, completed focus time. Recurring tasks count each completed occurrence separately.</p>
+      ${rows.length?`<div class="planner-estimates-scroll"><table><thead><tr><th scope="col">Task</th><th scope="col">Avg. estimate</th><th scope="col">Avg. focus</th><th scope="col">Over estimate</th></tr></thead><tbody>
+      ${rows.map(row=>`<tr><th scope="row">${taskIds.has(row.taskId)?`<button type="button" data-report-task="${escape(row.taskId)}">${escape(row.text)}</button>`:escape(row.text)}</th><td>${average(row.estimatedMs,row.samples)} min</td><td>${average(row.actualMs,row.samples)} min</td><td>${row.over}/${row.samples}${row.consistent?' <span class="planner-estimate-over">Consistently over</span>':''}</td></tr>`).join('')}
+      </tbody></table></div>`:'<p class="planner-empty">Set a task estimate, finish a focus session with that task selected, then mark the task done to start comparing.</p>'}</section>`;
+  }
 
   function reportingMarkup() {
-    const events=selectedReportEvents();
+    const events=report.mode==='accuracy'?[]:selectedReportEvents();
     return `<div class="planner-report"><div class="planner-report-controls">
-      ${reportControl('mode','Report view',[['activity','Activity log'],['metrics','Metrics']])}
+      ${reportControl('mode','Report view',[['activity','Activity log'],['metrics','Metrics'],['accuracy','Estimate accuracy']])}
       ${reportControl('project','Report project',[['all','All projects'],['inbox','Inbox'],...state().projects.map(project=>[project.id,project.name]),['unassigned','Unassigned focus']])}
       ${report.mode==='activity'?reportControl('type','Activity type',[['all','All activity'],...Object.entries(activityLabels)]):''}
       ${reportControl('period','Date range',[['all','Any date'],['1','Today'],['7','Last 7 days'],['30','Last 30 days']])}
-      </div>${report.mode==='metrics'?reportStatistics(events):reportActivity(events)||'<p class="planner-empty">No matching activity yet.</p>'}</div>`;
+      </div>${report.mode==='accuracy'?reportEstimates():report.mode==='metrics'?reportStatistics(events):reportActivity(events)||'<p class="planner-empty">No matching activity yet.</p>'}</div>`;
   }
 
   function exportReport() {
-    const url=URL.createObjectURL(new Blob([reportCsv(selectedReportEvents(),reportProjectName)],{type:'text/csv;charset=utf-8'}));
+    const accuracy=report.mode==='accuracy';
+    const csv=accuracy?estimateCsv(estimateAccuracy(state(),report)):reportCsv(selectedReportEvents(),reportProjectName);
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
     const link=document.createElement('a');
-    link.href=url; link.download=`yin-and-yang-activity-${dayKey()}.csv`;
+    link.href=url; link.download=`yin-and-yang-${accuracy?'estimates':'activity'}-${dayKey()}.csv`;
     root.append(link); link.click(); link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
@@ -517,6 +529,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       const input=form.elements.name;
       input.setCustomValidity('Enter a name.'); input.reportValidity(); return;
     }
+    const rescheduleUndos=[];
     if (type==='project') {
       const project=projects.find(item=>item.id===id);
       if (action==='archive'&&project) {
@@ -555,12 +568,17 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     } else {
       const now=new Date(), target=fields.get('date');
       for (const task of activeTasks()) {
-        if (overdueDate(task,now)) task.date=target;
+        if (!overdueDate(task,now)) continue;
+        const finishUndo=captureTaskChange(task,['date']);
+        task.date=target;
+        const undo=finishUndo();
+        if (undo) rescheduleUndos.push(undo);
       }
     }
     dialog.close();
     commit();
     $('#planner-heading').focus({preventScroll:true});
+    if (rescheduleUndos.length) notify('Overdue tasks rescheduled.',latest=>rescheduleUndos.map(undo=>undo(latest)).some(Boolean));
   }
 
   root.addEventListener('click',event=>{
@@ -611,11 +629,11 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if ('taskMenu' in data) return taskMenu(task.id,button);
     if ('completeTask' in data) {
       const day=parseDay(card.dataset.occurrence), done=taskStatus(task,day)!=='done';
-      recordTaskCompletion(state(),task,done,day);
-      if (done&&state().activeTask===task.id&&taskStatus(task)==='done') state().activeTask=null;
-      commit(); notify(done?'Task completed.':'Task reopened.');
+      const undo=completeTask(task,done,day);
+      commit();
       const next=content.querySelector(`[data-task="${CSS.escape(task.id)}"] [data-complete-task]`);
       (next||$('#planner-heading')).focus({preventScroll:true});
+      notify(done?'Task completed.':'Task reopened.',undo);
     }
   });
 
@@ -682,6 +700,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     try { id=JSON.parse(event.dataTransfer.getData(calendarDragType)).task; } catch { return; }
     const task=state().tasks.find(item=>item.id===id);
     if (!task) return;
+    const finishUndo=captureTaskChange(task,['date','projectId','sectionId']);
     if (column.dataset.boardDay) {
       const target=parseDay(column.dataset.boardDay);
       if (task.repeat==='weekdays'&&[0,6].includes(target.getDay())) { notify('Choose a weekday for this repeating task.'); return; }
@@ -689,7 +708,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     } else {
       task.projectId=selection; task.sectionId=column.dataset.boardSection;
     }
-    commit(); notify('Task moved.');
+    const undo=finishUndo();
+    if (undo) { commit(); notify('Task moved.',undo); }
   });
 
   document.addEventListener('keydown',event=>{

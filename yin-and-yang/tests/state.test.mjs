@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {freshState,startPause,startBlockFocus,skipPhase,remaining,settle,record,reset,todayProgress,loadState,STORAGE_KEY,dayKey,taskStatus,completeTask} from '../dist/state.js';
+import {freshState,startPause,startBlockFocus,skipPhase,remaining,settle,record,reset,consumeTimerWarning,parseDuration,formatTypedDuration,todayProgress,loadState,STORAGE_KEY,dayKey,taskStatus,completeTask} from '../dist/state.js';
 test('running timer recovers from storage and completes once after inactive deadline',()=>{
   const s=freshState();startPause(s,1000000);
   const recovered=loadState({getItem:key=>key===STORAGE_KEY?JSON.stringify(s):null});
@@ -93,4 +93,29 @@ test('short blocks preserve their exact countdown and skipping rest advances a l
   assert.equal(s.timer.endAt,101*minute);
   reset(s);
   assert.equal(s.timer.block,undefined);
+});
+test('timer digits fill the seconds side first',()=>{
+  for(const [digits,display,seconds] of [['1','00:01',1],['10','00:10',10],['100','01:00',60],['2500','25:00',1500],['18000','180:00',10800]]){
+    assert.equal(formatTypedDuration(digits),display);
+    assert.equal(parseDuration(digits),seconds*1000);
+    assert.equal(parseDuration(display),seconds*1000);
+  }
+  assert.equal(parseDuration('00:00'),null);
+  assert.equal(parseDuration('18001'),null);
+});
+
+test('each running phase warns once at its own threshold, including after reload',()=>{
+  const state=freshState(),start=100000;
+  startPause(state,start);
+  const warnAt=start+20*60000;
+  assert.equal(consumeTimerWarning(state,warnAt-1),null);
+  assert.equal(consumeTimerWarning(state,warnAt).left,5*60000);
+  const saved=loadState({getItem:()=>JSON.stringify(state)});
+  assert.equal(consumeTimerWarning(saved,warnAt+1000),null);
+  settle(saved,start+25*60000);
+  const breakStart=start+25*60000;
+  startPause(saved,breakStart);
+  assert.equal(consumeTimerWarning(saved,breakStart+149999),null);
+  assert.equal(consumeTimerWarning(saved,breakStart+150000).mode,'break');
+  assert.equal(consumeTimerWarning(saved,breakStart+151000),null);
 });

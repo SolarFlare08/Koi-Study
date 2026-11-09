@@ -23,7 +23,8 @@
         <div class="local-clock"><time id="wall-clock"></time></div>
         <button id="edit-duration" type="button" title="Type a duration and press Enter" aria-label="Edit countdown duration"><span id="countdown" role="timer" aria-label="Focus time remaining">25<span>:</span>00</span></button>
         <form id="duration-form" hidden>
-          <input id="typed-duration" aria-label="Duration in minutes or minutes and seconds" placeholder="25:00" enterkeyhint="done" required maxlength="6">
+          <input id="typed-duration" aria-label="Duration, minutes and seconds" inputmode="numeric" aria-describedby="duration-hint" placeholder="00:00" enterkeyhint="done" required maxlength="6">
+          <span id="duration-hint" class="sr-only">Type digits from right to left. For one minute type 100.</span>
           <div class="duration-actions">
             <button type="submit" title="Save duration (Enter)">Set</button>
             <button type="button" id="cancel-duration">Cancel</button>
@@ -139,6 +140,7 @@
     <div id="panel-root"></div>
     <div id="task-menu" role="menu" aria-label="Task actions" hidden></div>
     <div id="toast" role="status" aria-live="polite"></div>
+    <div id="undo-toast" hidden><span id="undo-message"></span><button id="undo-action" type="button">Undo</button></div>
     <div id="announcer" class="sr-only" aria-live="polite"></div>
   </main>
   <script type="module" src="./app.js"></script>

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from '../dist/planner-data.js';
 import {calendarBlocks} from '../dist/calendar.js';
 import {completeTask,freshState,loadState,recordTaskCompletion,settle,skipPhase,startPause,taskStatus} from '../dist/state.js';
-import {reportCsv,reportEvents,reportMetrics} from '../dist/planner-report.js';
+import {estimateAccuracy,reportCsv,reportEvents,reportMetrics} from '../dist/planner-report.js';
+import {captureTaskChange,restoreDeletedTask} from '../dist/task-undo.js';
 
 test('Quick Add creates a timed project task that shows in the shared calendar and saved filters',()=>{
   const now=new Date(2026,10,8), tomorrow=new Date(2026,10,9);
@@ -84,4 +85,45 @@ test('focus metrics keep project attribution after reload and exclude skips from
   assert.deepEqual(events.map(event=>[event.type,event.text]),[['skipped','Review drawings'],['focus','Review drawings']]);
   assert.deepEqual(reportMetrics(events).total,{task:0,focus:1,skipped:1,ms:25*60000,days:1,average:25*60000,rate:0.5});
   assert.match(reportCsv(events,()=> 'Studio, "Design"'),/"Review drawings","Studio, ""Design""","25"/);
+});
+test('estimate accuracy assigns completed focus to separate occurrences and flags repeated overruns',()=>{
+  const state=freshState();
+  const task=quickTask('Review notes every day',{projectId:'study'},[],new Date(2026,10,8));
+  task.estimate=20;
+  state.tasks.push(task);
+  for(let day=8;day<=10;day++){
+    const date=new Date(2026,10,day,10);
+    state.history.push({id:`focus-${day}`,mode:'focus',outcome:'completed',taskId:task.id,projectId:'study',finishedAt:date.getTime(),focusMs:(day===10?15:30)*60000});
+    state.history.push({id:`skip-${day}`,mode:'focus',outcome:'skipped',taskId:task.id,finishedAt:date.getTime(),focusMs:25*60000});
+    recordTaskCompletion(state,task,true,date,date.getTime()+1);
+  }
+  task.estimate=90;
+  const [row]=estimateAccuracy(state,{project:'study'},new Date(2026,10,10));
+  assert.equal(row.estimatedMs,60*60000);
+  assert.equal(row.actualMs,75*60000);
+  assert.equal(row.over,2);
+  assert.equal(row.samples,3);
+  assert.equal(row.consistent,true);
+});
+
+test('undo restores a task completion, a move, or a deleted task without replacing unrelated edits',()=>{
+  const state=freshState();
+  const date=new Date(2026,10,8);
+  const task=quickTask('Review notes',{},[],date);
+  state.tasks.push(task);
+  const undoComplete=recordTaskCompletion(state,task,true,date,date.getTime());
+  assert.equal(undoComplete(state),true);
+  assert.equal(state.taskActivity.length,0);
+  assert.equal(task.done,false);
+  const finishMove=captureTaskChange(task,['date','projectId']);
+  task.date='2026-11-09';
+  const undoMove=finishMove();
+  task.text='Revised title';
+  assert.equal(undoMove(state),true);
+  assert.equal(task.date,'');
+  assert.equal(task.text,'Revised title');
+  const undoDelete=restoreDeletedTask(state.tasks.pop(),0);
+  assert.equal(undoDelete(state),true);
+  assert.equal(state.tasks[0].text,'Revised title');
+  assert.equal(undoDelete(state),false);
 });

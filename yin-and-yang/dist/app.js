@@ -1,10 +1,13 @@
-import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,todayProgress,duration,formatDuration,parseDuration,dayKey,taskOccursOn,taskStatus,recordTaskCompletion,taskFrequencies,taskPriority} from './state.js';
+import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,recordTaskCompletion,taskFrequencies,taskPriority} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
 import {addTaskBlock, blockFocusTiming, calendarBlocks, calendarDragType, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue} from './calendar.js';
 import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
 import {installPlanner} from './planner.js';
 import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearance} from './garden-appearance.js';
 import {installCrochet} from './crochet.js';
+import {createGardenAudio,soundChannels} from './garden-audio.js';
+import {createSpotifyEmbed} from './spotify-embed.js';
+import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
 
 const $=s=>document.querySelector(s);
 const icons={
@@ -51,13 +54,59 @@ let plannerDays=[],plannerColumnWidth=0,plannerOffset=0,plannerVisibleRange='',p
 let dragOffset=0,workspace='focus';
 let capturePointer=null,nativeNotes=[],captureApiAvailable=true,syncingCaptures=false;
 let reopenTasksAfterCalendar=false;
+const gardenAudio=createGardenAudio();
+let spotifyPlayback='idle';
+const spotifyEmbed=createSpotifyEmbed(playback=>{spotifyPlayback=playback;syncSound();});
+const undoToast=$('#undo-toast'),undoButton=$('#undo-action');
+let pendingUndo,undoTimeout,undoReturn;
 function persist(){try{storage.setItem(STORAGE_KEY,JSON.stringify(state));$('#saved-status').innerHTML='<span class="tiny-dot"></span>Saved on this device';}catch{$('#saved-status').textContent='Storage unavailable — keep this tab open';toast('Your browser could not save changes. Keep this tab open.');}}
 function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4200);}
 function announce(text){$('#announcer').textContent=text;}
+function syncSound(unlock=false){
+  gardenAudio.sync(state.sounds,spotifyPlayback!=='idle');
+  if(unlock)gardenAudio.unlock();
+  const status=$('#garden-sound-status');
+  if(status)status.textContent=state.sounds.muted?'App sounds muted.':state.sounds.musicMode?'App sounds paused for outside music.':
+    spotifyPlayback==='unknown'?'App sounds paused while Spotify playback is unconfirmed.':spotifyPlayback==='playing'?'App sounds paused while Spotify plays.':'Set any slider to zero to turn that sound off.';
+}
+function dismissUndo(){
+  pendingUndo=null;clearTimeout(undoTimeout);undoToast.hidden=true;
+}
+function queueUndoExpiry(){
+  clearTimeout(undoTimeout);
+  if(pendingUndo&&!undoToast.matches(':hover, :focus-within'))undoTimeout=setTimeout(dismissUndo,12000);
+}
+function confirmChange(message,undo){
+  if(!undo){toast(message);announce(message);return;}
+  undoReturn=document.activeElement;
+  pendingUndo=undo;
+  undoToast.hidden=false;
+  $('#undo-message').textContent=message;
+  announce(`${message} Undo available.`);
+  queueUndoExpiry();
+}
+undoToast.addEventListener('pointerenter',()=>clearTimeout(undoTimeout));
+undoToast.addEventListener('pointerleave',queueUndoExpiry);
+undoToast.addEventListener('focusin',()=>clearTimeout(undoTimeout));
+undoToast.addEventListener('focusout',()=>setTimeout(queueUndoExpiry,0));
+undoButton.onclick=()=>{
+  const undo=pendingUndo;
+  if(!undo)return;
+  dismissUndo();
+  const reverted=undo(state);
+  if(reverted){
+    persist();refreshTasks();
+    if(activePanel==='task-editor')updateTaskCompletionButton();
+  }
+  const target=undoReturn?.isConnected&&undoReturn.getClientRects().length?undoReturn:inSchedule()?$('#planner-heading'):currentTaskButton;
+  target.focus({preventScroll:true});
+  const message=reverted?'Change undone.':'This item changed before it could be undone.';
+  toast(message);announce(message);
+};
 const planner=installPlanner({
   root:calendarPanel,getState:()=>state,commit:()=>{persist();refreshTasks();},
   editTask:openTaskEditor,openBlock:openCalendarBlock,taskMenu:openTaskMenu,
-  calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,notify:message=>{toast(message);announce(message);},hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden
+  calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,notify:confirmChange,completeTask:markTask,hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden
 });
 const penguinThoughts=[
   'Small steps still carry you forward.',
@@ -183,14 +232,46 @@ function checkCompletion(){
     completed=phase;
     if(phase.mode==='focus')focused=true;
   }
-  if(!completed)return;
+  const warning=completed?null:consumeTimerWarning(state,now);
+  if(!completed&&!warning)return;
+  if(!completed){
+    const label=warning.mode==='focus'?'Focus':'Break';
+    const message=`${formatDuration(warning.left)} left in your ${warning.mode==='focus'?'focus session':'break'}.`;
+    persist();toast(message);announce(message);
+    notifyTimer(`${label} ending soon`,message,`${warning.id}-warning`);
+    gardenAudio.cue(warning.mode,true);
+    return;
+  }
   if(focused)nextPenguinThought();
   const message=wasBlock
     ? state.timer.block ? (state.timer.mode==='break'?'Focus complete. A short rest has started.':'Rest complete. Focus has resumed.') : 'Calendar block finished.'
     : completed.mode==='focus'?'Focus session complete. Your break is ready.':'Break complete. Your focus timer is ready.';
   persist();render();planner.refreshReporting();toast(message);announce(message);
+  notifyTimer(completed.mode==='focus'?'Focus finished':'Break finished',message,`${completed.id}-complete`);
+  gardenAudio.cue(completed.mode);
   if(activePanel==='progress'||activePanel==='focus-task')refreshPanel();
   wake();
+}
+const notificationsSupported=()=>globalThis.isSecureContext&&typeof Notification!=='undefined';
+function notificationStatus(){
+  if(!notificationsSupported())return 'Browser notifications are unavailable here. In-app warnings are active.';
+  if(Notification.permission==='denied')return 'Allow notifications in this site’s browser settings to enable them.';
+  return state.notifications&&Notification.permission==='granted'?'Browser notifications are on.':'In-app warnings are active. Enable browser notifications for background alerts.';
+}
+function notifyTimer(title,body,tag){
+  if(!state.notifications||!notificationsSupported()||Notification.permission!=='granted')return;
+  try{new Notification(`Yin and Yang · ${title}`,{body,tag,silent:true});}
+  catch{ /* Some browsers only support notifications from an installed app. */ }
+}
+async function toggleNotifications(){
+  if(!notificationsSupported())return;
+  if(state.notifications&&Notification.permission==='granted')state.notifications=false;
+  else{
+    try{state.notifications=await Notification.requestPermission()==='granted';}
+    catch{state.notifications=false;}
+  }
+  persist();
+  if(activePanel==='pagoda')refreshPanel();
 }
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
 timerButton.onclick=()=>action(()=>{startPause(state);announce(state.timer.status==='running'?`${state.timer.mode} timer started.`:'Timer paused.');});
@@ -448,9 +529,18 @@ function taskEditor(){
       <footer class="panel-actions task-detail-footer">${task?'<button type="button" class="text-button" id="delete-task">Delete task</button>':''}<button class="panel-primary" type="submit">Save task</button></footer>
     </form>`;
 }
-function taskEditorOccurrence(){
-  const key=lastAnchor?.closest('[data-occurrence]')?.dataset.occurrence;
+function taskOccurrence(anchor){
+  const key=anchor?.closest('[data-occurrence]')?.dataset.occurrence;
   return key?new Date(`${key}T00:00:00`):new Date();
+}
+function taskEditorOccurrence(){return taskOccurrence(lastAnchor);}
+function updateTaskCompletionButton(){
+  const button=$('#task-detail-complete'),task=state.tasks.find(item=>item.id===editingTaskId);
+  if(!button||!task)return;
+  const done=taskStatus(task,taskEditorOccurrence())==='done';
+  button.setAttribute('aria-pressed',String(done));
+  button.setAttribute('aria-label',done?'Reopen task':'Complete task');
+  button.textContent=done?'✓':'';
 }
 
 function taskSectionOptions(projectId,current){
@@ -506,6 +596,26 @@ function gardenWeatherOptions(){
   return [['auto','Rotate every 8 minutes'],...Object.entries(weatherBySeason[season])]
     .map(([value,label])=>`<option value="${value}" ${value===weather?'selected':''}>${label}</option>`).join('');
 }
+function soundControls(){
+  if(!gardenAudio.supported)return '<p class="panel-subtle">This browser does not support ambient audio. Text warnings remain available.</p>';
+  const slider=key=>`<label class="garden-sound-row" for="sound-${key}"><span>${soundChannels[key]}</span><input type="range" id="sound-${key}" data-sound-level="${key}" min="0" max="100" value="${state.sounds[key]}"><output for="sound-${key}">${state.sounds[key]}%</output></label>`;
+  return `<section class="garden-sound-controls" aria-labelledby="garden-sound-heading"><h3 id="garden-sound-heading">Garden sounds</h3>
+    <div class="garden-sound-switches"><label><input type="checkbox" id="mute-garden" ${state.sounds.muted?'checked':''}> Mute all app sounds</label>
+    <label><input type="checkbox" id="outside-music" ${state.sounds.musicMode?'checked':''}> Music playing elsewhere</label></div>
+    <div class="garden-sound-mix"><h4>Ambience mix</h4><button type="button" class="text-button" id="silence-ambience">Silence</button></div>
+    ${['rain','water','wind'].map(slider).join('')}
+    <h4>Timer sounds</h4>${['focus','break'].map(slider).join('')}
+    <p id="garden-sound-status" class="panel-subtle"></p>
+  </section>`;
+}
+function timerNotificationControls(){
+  const enabled=state.notifications&&notificationsSupported()&&Notification.permission==='granted';
+  return `<div class="panel-rule"></div><section class="timer-notification-controls"><h3>Timer warnings</h3>
+    <p>Focus warns at 5:00 left. Breaks warn at 2:30 left.</p>
+    <button type="button" class="panel-primary" id="timer-notifications" ${!notificationsSupported()||Notification.permission==='denied'?'disabled':''}>${enabled?'Turn off browser notifications':'Enable browser notifications'}</button>
+    <p class="panel-subtle">${notificationStatus()}</p>
+    <button type="button" class="text-button" id="timer-open-sounds">Adjust chimes and ambience</button></section>`;
+}
 function panelContent(id){
   if(id==='appearance'){
     const {lighting,season}=state.appearance;
@@ -523,7 +633,7 @@ function panelContent(id){
   }
   if(id==='focus-task')return focusTaskPicker();
   if(id==='calendar-block')return calendarBlockPreview();
-  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerRoutines()}<div class="panel-rule"></div><p class="panel-subtle">Sessions finish when time runs out. Rest starts when you’re ready. Resetting or changing an unfinished session marks it as skipped.</p>`;
+  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}${timerRoutines()}`;
   if(id==='task-editor')return taskEditor();
   if(id==='block-editor')return blockEditor();
   if(id==='capture')return `${header('QUICK CAPTURE','Leave a thought here.')}
@@ -546,7 +656,7 @@ function panelContent(id){
   if(id==='progress'){
     const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time></span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p>`;
   }
-  return `${header('BY THE LAKE','Your own soundtrack.')}<p>Bring a favorite Spotify playlist into the garden.</p><label class="field-label" for="spotify-link">Spotify playlist, album, or track link</label><form id="spotify-form" class="music-link"><input id="spotify-link" type="url" value="${escape(state.spotify)}" placeholder="https://open.spotify.com/playlist/…" required><button class="panel-primary" type="submit">Load</button></form><div id="music-player-wrap"></div><p id="spotify-error" role="status" class="panel-subtle"></p><div class="panel-actions"><a class="panel-primary" href="https://open.spotify.com/" target="_blank" rel="noopener noreferrer">Open Spotify ${icon('external')}</a><button class="text-button" id="remove-player" ${state.spotify?'':'hidden'}>Remove player</button></div><p class="music-tip">Spotify controls playback and volume in the player or its app. Playback may require sign-in. Closing this panel keeps an embedded player loaded.</p><p class="panel-subtle">This garden is silent. Music playing elsewhere stays in your hands.</p>`;
+  return `${header('BY THE LAKE','Your own soundtrack.')}<label class="field-label" for="spotify-link">Spotify playlist, album, or track link</label><form id="spotify-form" class="music-link"><input id="spotify-link" type="url" value="${escape(state.spotify)}" placeholder="https://open.spotify.com/playlist/…" required><button class="panel-primary" type="submit">Load</button></form><div id="music-player-wrap"></div><p id="spotify-error" role="status" class="panel-subtle"></p><div class="panel-actions"><a class="panel-primary" id="open-spotify-external" href="https://open.spotify.com/" target="_blank" rel="noopener noreferrer">Open Spotify ${icon('external')}</a><button class="text-button" id="remove-player" ${state.spotify?'':'hidden'}>Remove player</button></div><p class="music-tip">The embedded player pauses app sounds automatically. Open Spotify enables the outside music switch below.</p>${soundControls()}`;
 }
 function positionPanel(panel,anchor){
   if(!anchor)return;
@@ -576,6 +686,7 @@ function openPanel(id,anchor){
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
   else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  if(id==='music')syncSound();
   positionPanel(panel,anchor);wake();
   const firstControl=panel.querySelector(id==='appearance'?'input:checked':'input,textarea')||panel.querySelector('button');
   const initialFocus=id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
@@ -866,12 +977,12 @@ function openTaskMenu(id,anchor,x,y){
   closeTaskMenu(false);
   menuTaskId=id;
   menuAnchor=anchor;
-  const status=taskStatus(task);
+  const status=taskStatus(task,taskOccurrence(anchor));
   const actions=[['edit','Edit task'],['priority',task.priority?'Remove priority':'Prioritize'],['schedule','Add a block…']];
   actions.push(['duplicate','Duplicate task']);
   if(anchor.classList.contains('calendar-block'))actions.unshift(['block-focus','Start focus…']);
   if(anchor.dataset.block)actions.push(['edit-block','Edit block'],['remove-block','Remove block']);
-  if(status==='todo')actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
+  if(taskStatus(task)==='todo')actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
   if(status!=='upcoming')actions.push(['complete',status==='done'?'Reopen task':'Mark done']);
   if(task.date&&task.time&&!anchor.dataset.block)actions.push(['unschedule','Remove scheduled time']);
   actions.push(['delete','Delete task']);
@@ -896,12 +1007,21 @@ function closeTaskMenu(restore=true){
 }
 
 function deleteTask(id){
+  const index=state.tasks.findIndex(task=>task.id===id);
+  if(index<0)return;
+  const undo=restoreDeletedTask(state.tasks[index],index),before=state.activeTask;
   state.tasks=state.tasks.filter(task=>task.id!==id);
   if(state.activeTask===id)state.activeTask=availableTaskId();
   persist();refreshTasks();
   const focus=state.focusMode?currentTaskButton:inSchedule()?$('#planner-heading'):taskSidebar.hidden?taskToggle:$('#sidebar-add-task');
   focus.focus({preventScroll:true});
-  announce('Task deleted.');
+  confirmChange('Task deleted.',restoreActiveTask(undo,before,state.activeTask));
+}
+function markTask(task,done,day=new Date()){
+  const before=state.activeTask;
+  const undo=recordTaskCompletion(state,task,done,day);
+  if(done&&state.activeTask===task.id&&taskStatus(task)==='done')state.activeTask=availableTaskId();
+  return restoreActiveTask(undo,before,state.activeTask);
 }
 
 taskMenu.addEventListener('click',event=>{
@@ -928,16 +1048,24 @@ taskMenu.addEventListener('click',event=>{
     task.priority=task.priorityLevel!==4;
   }
   if(action==='focus')state.activeTask=state.activeTask===task.id?null:task.id;
+  let undo,message;
   if(action==='complete'){
-    recordTaskCompletion(state,task,taskStatus(task)!=='done');
-    if(state.activeTask===task.id&&taskStatus(task)==='done')state.activeTask=availableTaskId();
+    const day=taskOccurrence(anchor);
+    const done=taskStatus(task,day)!=='done';
+    undo=markTask(task,done,day);
+    message=done?'Task completed.':'Task reopened.';
   }
-  if(action==='unschedule')task.time='';
-  if(action==='remove-block')task.blocks=task.blocks.filter(block=>block.id!==anchor.dataset.block);
+  if(action==='unschedule'||action==='remove-block'){
+    const scheduleUndo=captureTaskChange(task,['time','blocks']);
+    if(action==='unschedule')task.time='';
+    else task.blocks=task.blocks.filter(block=>block.id!==anchor.dataset.block);
+    undo=scheduleUndo();message=action==='unschedule'?'Task unscheduled.':'Block deleted.';
+  }
   persist();refreshTasks();
   const block=blockSurface.querySelector(`[data-task="${CSS.escape(task.id)}"]`);
   const next=anchor.classList.contains('calendar-block')?block||$(blockSurface===miniCalendar?'#sidebar-calendar':'#close-calendar'):taskButton(task.id);
   (next||(inSchedule()?$('#planner-heading'):taskToggle)).focus({preventScroll:true});
+  if(message)confirmChange(message,undo);
 });
 
 taskMenu.addEventListener('keydown',event=>{
@@ -1010,6 +1138,8 @@ function onCalendarDrop(event){
     toast('This task repeats on weekdays. Choose a weekday.');return;
   }
   const minute=Number(column.dataset.from||0)+dropMinute(event,column);
+  const finishUndo=captureTaskChange(task,drag.block||!drag.move?['blocks']:['date','time']);
+  const before=state.activeTask;
   dragOffset=0;
   if(drag.block){
     const block=task.blocks?.find(item=>item.id===drag.block);
@@ -1020,7 +1150,7 @@ function onCalendarDrop(event){
   else addTaskBlock(task,column.dataset.date,timeValue(minute));
   if(state.activeTask===task.id&&taskStatus(task)!=='todo')state.activeTask=availableTaskId();
   persist();refreshTasks();
-  announce(`Task scheduled for ${timeLabel(minute)}.`);
+  confirmChange(`Task scheduled for ${timeLabel(minute)}.`,restoreActiveTask(finishUndo(),before,state.activeTask));
 }
 for(const calendar of [calendarPanel,miniCalendar]){
   calendar.addEventListener('dragover',onCalendarDragOver);
@@ -1095,16 +1225,30 @@ taskSidebar.addEventListener('change',event=>{
   if(!checkbox.classList.contains('task-check'))return;
   const task=state.tasks.find(item=>item.id===checkbox.closest('[data-task]').dataset.task);
   if(!task || taskStatus(task)==='upcoming')return;
-  recordTaskCompletion(state,task,checkbox.checked);
-  if(checkbox.checked&&state.activeTask===task.id)state.activeTask=availableTaskId();
+  const undo=markTask(task,checkbox.checked);
   persist();refreshTasks();
   taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-check`)?.focus();
-  announce(checkbox.checked?'Task completed.':'Task reopened.');
+  confirmChange(checkbox.checked?'Task completed.':'Task reopened.',undo);
 });
 function spotifyPath(link){try{const u=new URL(link);if(u.protocol!=='https:'||u.hostname!=='open.spotify.com')return null;return u.pathname.match(/^\/(?:intl-[a-z]+\/)?(playlist|album|track)\/([a-zA-Z0-9]{10,40})\/?$/)?.slice(1).join('/')||null;}catch{return null;}}
-function mountSpotify(){const wrap=$('#music-player-wrap');if(!wrap)return;const p=spotifyPath(state.spotify);if(!p)return;wrap.innerHTML=`<iframe class="spotify-embed" title="Spotify player" src="https://open.spotify.com/embed/${p}?utm_source=generator&theme=0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;}
+function mountSpotify(){
+  const wrap=$('#music-player-wrap'),path=spotifyPath(state.spotify);
+  if(wrap&&path)spotifyEmbed.mount(wrap,path);
+}
+function changeSound(key,value){
+  state.sounds[key]=value;
+  const field=$(`[data-sound-level="${key}"]`);
+  if(field){field.value=value;field.nextElementSibling.value=`${value}%`;}
+  syncSound(true);
+}
 
 root.addEventListener('click',e=>{
+  if(e.target.closest('#open-spotify-external')){
+    changeSound('musicMode',true);
+    const field=$('#outside-music');
+    if(field)field.checked=true;
+    persist();
+  }
   const btn=e.target.closest('button');if(!btn)return;
   if(btn.classList.contains('close-panel'))closePanel();
   if(btn.id==='focus-task-add'||btn.id==='focus-task-edit'){
@@ -1141,6 +1285,12 @@ root.addEventListener('click',e=>{
     toast(message);announce(message);
   }
   if(btn.id==='panel-timer-toggle')$('#toggle-timer').click();
+  if(btn.id==='timer-notifications')toggleNotifications();
+  if(btn.id==='timer-open-sounds')openPanel('music',$('[data-panel="music"]'));
+  if(btn.id==='silence-ambience'){
+    for(const kind of ['rain','water','wind'])changeSound(kind,0);
+    persist();
+  }
   if(btn.id==='quick-capture')openPanel('capture',$('[data-panel="notes"]'));
   if(btn.id==='capture-window'){
     const left=Math.round(capturePointer?.screenX??window.screenX);
@@ -1164,7 +1314,7 @@ root.addEventListener('click',e=>{
     persist();refreshPanel();$('#routine-name')?.focus();
   }
   if(btn.id==='clear-notes'){const previous=state.notes;if(!previous)return;state.notes='';$('#notes-input').value='';persist();toast('Notes cleared.');$('#notes-input').focus();}
-  if(btn.id==='remove-player'){state.spotify='';$('#music-player-wrap').innerHTML='';$('#spotify-link').value='';btn.hidden=true;persist();toast('Spotify player removed.');}
+  if(btn.id==='remove-player'){state.spotify='';spotifyEmbed.clear($('#music-player-wrap'));$('#spotify-link').value='';btn.hidden=true;persist();toast('Spotify player removed.');}
   if(btn.id==='delete-task'){
     closePanel(false);deleteTask(editingTaskId);
   }
@@ -1173,30 +1323,35 @@ root.addEventListener('click',e=>{
     const day=taskEditorOccurrence();
     if(!task||task.repeat!=='none'&&!taskOccursOn(task,day))return;
     const done=taskStatus(task,day)!=='done';
-    recordTaskCompletion(state,task,done,day);
-    if(state.activeTask===task.id&&taskStatus(task)==='done')state.activeTask=availableTaskId();
+    const undo=markTask(task,done,day);
     persist();refreshTasks();
-    btn.setAttribute('aria-pressed',String(done));
-    btn.setAttribute('aria-label',done?'Reopen task':'Complete task');
-    btn.textContent=done?'✓':'';
-    announce(done?'Task completed.':'Task reopened.');
+    updateTaskCompletionButton();
+    confirmChange(done?'Task completed.':'Task reopened.',undo);
   }
   if(btn.id==='delete-block'){
     const task=state.tasks.find(item=>item.id===editingTaskId);
     if(!task)return;
+    const finishUndo=captureTaskChange(task,['blocks']);
     task.blocks=task.blocks.filter(block=>block.id!==editingBlockId);
     closePanel(false);persist();refreshTasks();
     (inSchedule()?$('#planner-heading'):$('#sidebar-calendar')).focus({preventScroll:true});
+    confirmChange('Block deleted.',finishUndo());
   }
 });
 root.addEventListener('input',e=>{
-  if(e.target.id==='focus-minutes'||e.target.id==='break-minutes')e.target.setCustomValidity('');
+  if(e.target.id==='focus-minutes'||e.target.id==='break-minutes')formatDurationInput(e);
+  if(e.target.dataset.soundLevel)changeSound(e.target.dataset.soundLevel,Number(e.target.value));
   if(e.target.id==='notes-input'){state.notes=e.target.value;persist();}
   if(e.target.id==='intention'){state.intention=e.target.value;persist();render();}
   if(e.target.id==='task-title')e.target.setCustomValidity('');
   if(e.target.id==='task-date'||e.target.id==='task-repeat')$('#task-date').setCustomValidity('');
 });
 root.addEventListener('change',event=>{
+  if(event.target.dataset.soundLevel)persist();
+  if(event.target.id==='mute-garden'||event.target.id==='outside-music'){
+    changeSound(event.target.id==='mute-garden'?'muted':'musicMode',event.target.checked);
+    persist();
+  }
   const appearanceField={'garden-lighting':'lighting','garden-season':'season','garden-weather':'weather'}[event.target.name];
   if(appearanceField){
     const value=event.target.value;
@@ -1249,6 +1404,8 @@ root.addEventListener('submit',e=>{
     const text=fields.get('title').replace(/\s*\n\s*/g,' ').trim();
     if(!text){const title=$('#task-title');title.setCustomValidity('Enter a task name.');title.reportValidity();return;}
     const existing=state.tasks.find(task=>task.id===editingTaskId);
+    const finishMove=existing&&captureTaskChange(existing,['date','time','projectId','sectionId']);
+    const before=state.activeTask;
     const repeat=fields.get('repeat');
     const sameRepeatType=existing&&(existing.repeat==='none')===(repeat==='none');
     const priorityLevel=Number(fields.get('priorityLevel'));
@@ -1287,7 +1444,9 @@ root.addEventListener('submit',e=>{
     if(fromCurrentTask)currentTaskButton.focus({preventScroll:true});
     else if(inSchedule())$('#planner-heading').focus({preventScroll:true});
     else taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus();
-    announce(existing?'Task updated.':'Task added.');
+    const move=finishMove?.();
+    if(move)confirmChange('Task moved.',restoreActiveTask(move,before,state.activeTask));
+    else announce(existing?'Task updated.':'Task added.');
   }
   if(e.target.id==='block-editor-form'){
     const task=state.tasks.find(item=>item.id===editingTaskId);
@@ -1295,16 +1454,18 @@ root.addEventListener('submit',e=>{
     const fields=new FormData(e.target);
     const date=fields.get('date'),time=fields.get('time'),minutes=Number(fields.get('minutes'));
     const existing=task.blocks?.find(item=>item.id===editingBlockId);
+    const finishUndo=captureTaskChange(task,['blocks']);
     if(existing)Object.assign(existing,{date,time,minutes});else addTaskBlock(task,date,time,minutes);
     closePanel(false);persist();refreshTasks();
     openSchedule('calendar',calendarToggle,new Date(`${date}T00:00:00`),Math.max(0,timeMinutes(time)-60));
-    announce('Block saved.');
+    confirmChange(existing?'Block updated.':'Block scheduled.',finishUndo());
   }
   if(e.target.id==='spotify-form'){const link=$('#spotify-link').value.trim();if(!spotifyPath(link)){$('#spotify-error').textContent='Use a Spotify playlist, album, or track link from open.spotify.com.';return;}state.spotify=link;persist();mountSpotify();$('#spotify-error').textContent='Use the Spotify player to start your music.';$('#remove-player').hidden=false;positionPanel(visiblePanel(),lastAnchor);}
 });
+document.addEventListener('click',()=>syncSound(true),{capture:true});
 document.addEventListener('pointerdown',e=>{
   if(!taskMenu.hidden&&!e.target.closest('#task-menu'))closeTaskMenu(false);
-  if(activePanel&&!e.target.closest('.panel')&&!e.target.closest('[data-panel]')&&!e.target.closest('#music-shortcut')&&!e.target.closest('#current-task'))closePanel(false);
+  if(activePanel&&!e.target.closest('.panel, #undo-toast')&&!e.target.closest('[data-panel]')&&!e.target.closest('#music-shortcut')&&!e.target.closest('#current-task'))closePanel(false);
 });
 document.addEventListener('click',async event=>{
   const dismiss=event.target.closest('[data-dismiss-capture]');
@@ -1341,6 +1502,11 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Tab'&&p){
     const controls=[...p.querySelectorAll('button,input,textarea,select,a[href],iframe')].filter(el=>!el.disabled&&el.offsetParent!==null&&(el.type!=='radio'||el.checked));
     const focused=document.activeElement, first=controls[0], last=controls.at(-1);
+    if(pendingUndo&&(focused===undoButton||!e.shiftKey&&focused===last||e.shiftKey&&focused===first)){
+      e.preventDefault();
+      (focused===undoButton?(e.shiftKey?last:first):undoButton)?.focus();
+      return;
+    }
     if(e.shiftKey&&(focused===first||focused.id==='panel-title')){e.preventDefault();last?.focus();}
     else if(!e.shiftKey&&focused===last){e.preventDefault();first?.focus();}
   }
@@ -1353,7 +1519,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkComp
 window.addEventListener('focus',syncNativeCaptures);
 window.addEventListener('pageshow',()=>{checkCompletion();render();});
 window.addEventListener('storage',e=>{
-  if(e.key===STORAGE_KEY){state=loadState(storage);checkCompletion();refreshTasks();if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();}
+  if(e.key===STORAGE_KEY){state=loadState(storage);syncSound();checkCompletion();refreshTasks();if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();}
   if(e.key===null||e.key?.startsWith(CAPTURE_PREFIX))renderCaptures();
 });
 renderCaptures();
@@ -1366,15 +1532,29 @@ const editDuration=$('#edit-duration'),durationForm=$('#duration-form'),typed=$(
 function readDuration(input){
   const ms=parseDuration(input.value);
   if(ms===null){
-    input.setCustomValidity('Enter 0:01 to 180:00, or whole minutes.');
+    input.setCustomValidity('Enter a duration from 0:01 to 180:00. For example, type 2500 for 25:00.');
     input.reportValidity();
   }
   return ms;
 }
+function formatDurationInput(event){
+  const input=event.target;
+  const raw=input.value;
+  const trailing=raw.slice(input.selectionEnd??raw.length).replace(/\D/g,'').length;
+  const pasted=event.inputType==='insertFromPaste'&&raw.includes(':')?parseDuration(raw):null;
+  const formatted=pasted?formatDuration(pasted):formatTypedDuration(raw);
+  input.value=formatted;
+  input.setCustomValidity('');
+  let caret=formatted.length;
+  for(let count=0;count<trailing&&caret>0;){
+    if(/\d/.test(formatted[--caret]))count++;
+  }
+  input.setSelectionRange(caret,caret);
+}
 function finishEdit(focusTarget=editDuration){durationForm.hidden=true;editDuration.hidden=false;focusTarget.focus({preventScroll:true});}
 editDuration.onclick=()=>{typed.value=formatDuration(duration(state));typed.setCustomValidity('');editDuration.hidden=true;durationForm.hidden=false;typed.focus();typed.select();};
 $('#cancel-duration').onclick=()=>finishEdit();
-typed.oninput=()=>typed.setCustomValidity('');
+typed.oninput=formatDurationInput;
 typed.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();finishEdit();}};
 durationForm.onsubmit=e=>{
   e.preventDefault();

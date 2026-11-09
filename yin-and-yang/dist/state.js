@@ -1,4 +1,6 @@
 import {loadAppearance} from './garden-appearance.js';
+import {loadSoundSettings} from './garden-audio.js';
+import {captureTaskChange} from './task-undo.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -49,9 +51,19 @@ export function completeTask(task, checked, date = new Date()) {
 export function recordTaskCompletion(state, task, checked, occurrence = new Date(), now = Date.now()) {
   const recurring = task.repeat && task.repeat !== 'none';
   const id = `${task.id}:${recurring ? dayKey(occurrence) : 'once'}`;
+  const finishUndo=captureTaskChange(task,['done','completedOn','completions']);
+  const prior=state.taskActivity.find(event=>event.id===id);
   completeTask(task, checked, recurring ? occurrence : new Date(now));
   state.taskActivity = state.taskActivity.filter(event => event.id !== id);
-  if (checked) state.taskActivity.push({id, taskId:task.id, text:task.text, projectId:task.projectId||'', at:now});
+  if (checked) state.taskActivity.push({id, taskId:task.id, text:task.text, projectId:task.projectId||'', estimate:task.estimate||null, at:now});
+  const undo=finishUndo();
+  return latest=>{
+    if ((latest.taskActivity.find(event=>event.id===id)?.at??null)!==(checked?now:null)) return false;
+    if (!undo?.(latest)) return false;
+    latest.taskActivity=latest.taskActivity.filter(event=>event.id!==id);
+    if (prior) latest.taskActivity.push(prior);
+    return true;
+  };
 }
 
 export function taskPriority(task) { return task.priorityLevel || (task.priority ? 1 : 4); }
@@ -82,8 +94,13 @@ function loadTask(task) {
   };
 }
 export const duration = (state, mode = state.timer.mode) => Math.round(state.settings[mode] * 60) * 1000;
+export function formatTypedDuration(text) {
+  const digits=text.replace(/\D/g,'').replace(/^0+(?=\d)/,'').slice(0,5).padStart(4,'0');
+  return `${digits.slice(0,-2)}:${digits.slice(-2)}`;
+}
 export function parseDuration(text) {
-  const match = /^(\d{1,3})(?::([0-5]\d))?$/.exec(text.trim());
+  const value=text.trim();
+  const match = /^(\d{1,3}):(\d{1,2})$/.exec(/^\d{1,5}$/.test(value)?formatTypedDuration(value):value);
   if (!match) return null;
   const seconds = Number(match[1]) * 60 + Number(match[2] || 0);
   return seconds >= 1 && seconds <= 10800 ? seconds * 1000 : null;
@@ -93,7 +110,7 @@ export function formatDuration(ms) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -102,6 +119,8 @@ export function loadState(storage) {
     const raw = JSON.parse(storage.getItem(STORAGE_KEY));
     if (!raw || typeof raw !== 'object') return base;
     base.appearance=loadAppearance(raw.appearance);
+    base.sounds=loadSoundSettings(raw.sounds);
+    base.notifications=raw.notifications===true;
     if (Array.isArray(raw.routines)) base.routines=raw.routines.filter(routine=>routine && typeof routine.id==='string' && typeof routine.name==='string' && ['focus','rest'].every(key=>Number.isInteger(routine[key])&&routine[key]>=1000&&routine[key]<=10800000));
     for (const key of ['intention','notes','spotify']) if (typeof raw[key] === 'string') base[key] = raw[key];
     for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
@@ -132,6 +151,15 @@ export function loadState(storage) {
   } catch { return base; }
 }
 export function remaining(state, now=Date.now()) { return state.timer.status==='running' ? Math.max(0,state.timer.endAt-now) : state.timer.remaining; }
+export function consumeTimerWarning(state,now=Date.now()) {
+  const timer=state.timer;
+  if (timer.status!=='running'||timer.warningSent) return null;
+  const limit=timer.mode==='focus'?5*60000:150000;
+  const left=remaining(state,now);
+  if (timer.total<limit||left>limit||left===0) return null;
+  timer.warningSent=true;
+  return {id:timer.id,mode:timer.mode,left};
+}
 export function startPause(state, now=Date.now()) {
   const t=state.timer;
   if(t.status==='running') { t.remaining=remaining(state,now); t.endAt=null; t.status='paused'; }

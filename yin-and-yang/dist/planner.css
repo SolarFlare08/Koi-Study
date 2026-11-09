@@ -281,6 +281,14 @@
 .planner-report-bar { max-width: 34rem; }
 .planner-report-bar > span { max-width: calc(100% - 32px); }
 .planner-report table td { width: 62%; }
+.planner-estimates p { margin: 5px 0 14px; color: var(--planner-muted); font-size: 12px; }
+.planner-estimates-scroll { overflow: auto; }
+.planner-estimates table { min-width: 480px; }
+.planner-estimates table td { width: auto; }
+.planner-estimates th:first-child { width: 44%; }
+.planner-estimates tbody button { padding: 0; text-align: left; font-weight: 650; }
+.planner-estimates tbody button:hover { text-decoration: underline; }
+.planner-estimate-over { display: inline-block; margin-left: 4px; padding: 2px 5px; border-radius: 6px; background: var(--planner-tint); color: var(--surface-danger); white-space: nowrap; font-size: 10px; }
 
 #planner-calendar-view .calendar-block { border: 1px solid #466e71; border-left: 3px solid var(--priority-ink,#83b7a5); background: #294e50; color: var(--planner-ink); }
 #planner-calendar-view .calendar-block:hover { background: #365e5e; }
