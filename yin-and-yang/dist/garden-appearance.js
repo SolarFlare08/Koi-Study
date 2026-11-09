@@ -27,6 +27,26 @@ export function gardenWeather({season,weather,weatherSince},now=Date.now()) {
   return weather==='auto'?cycle[slot%cycle.length]:weather;
 }
 
+export function loadGardenSchedule(value){
+  const presets=new Map();
+  for(const item of Array.isArray(value?.presets)?value.presets:[]){
+    if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(item?.time))continue;
+    const {lighting,season,weather}=loadAppearance(item);
+    presets.set(item.time,{time:item.time,lighting,season,weather});
+  }
+  return {enabled:value?.enabled===true,presets:[...presets.values()].sort((a,b)=>a.time.localeCompare(b.time))};
+}
+
+export function scheduledAppearance(base,schedule,now=new Date()){
+  if(!schedule.enabled||!schedule.presets.length)return base;
+  const clock=now.toTimeString().slice(0,5);
+  const current=schedule.presets.findLast(item=>item.time<=clock);
+  const chosen=current||schedule.presets.at(-1);
+  const [hours,minutes]=chosen.time.split(':').map(Number);
+  const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(current?0:1),hours,minutes);
+  return {...chosen,weatherSince:start.getTime()};
+}
+
 export function sceneProgress(progress,lighting,reduced) {
   if (lighting==='day') return .43;
   if (lighting==='night') return 1;

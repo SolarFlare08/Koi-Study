@@ -52,7 +52,12 @@ export function blockFocusTiming(task, blockId, occurrence, now = Date.now()) {
   return {available: Math.max(0, end - Math.max(start, now)), split: minutes > 60, early: now < start};
 }
 
-export function calendarBlocks(tasks, date) {
+export function allDayEvents(events,date){
+  const day=dayKey(date);
+  return events.filter(event=>event.day&&event.day<=day&&day<event.endDay);
+}
+
+export function calendarBlocks(tasks, date, events=[]) {
   const previous = shiftDay(date, -1);
   const blocks = [];
   const today = dayKey(date);
@@ -68,6 +73,18 @@ export function calendarBlocks(tasks, date) {
       if (occursToday) blocks.push({task, blockId:entry.id, start, end:Math.min(end, minutesPerDay), occurrence:today, continues:false});
       if (end > minutesPerDay && occursYesterday) blocks.push({task, blockId:entry.id, start:0, end:end-minutesPerDay, occurrence:yesterday, continues:true});
     }
+  }
+  const dayStart=new Date(date.getFullYear(),date.getMonth(),date.getDate()).getTime();
+  const dayEnd=shiftDay(date,1).getTime();
+  const clockMinute=timestamp=>{
+    const local=new Date(timestamp);
+    return local.getHours()*60+local.getMinutes();
+  };
+  for(const event of events){
+    if(event.day||event.start>=dayEnd||Math.max(event.end,event.start+60000)<=dayStart)continue;
+    const start=event.start<=dayStart?0:clockMinute(event.start);
+    const end=event.end>=dayEnd?1440:Math.max(start+1,clockMinute(event.end));
+    blocks.push({event,start,end,continues:event.start<dayStart});
   }
   return layoutBlocks(blocks);
 }

@@ -1,12 +1,15 @@
 import {loadAppearance} from './garden-appearance.js';
 import {loadSoundSettings} from './garden-audio.js';
 import {captureTaskChange} from './task-undo.js';
+import {loadGardenSchedule} from './garden-appearance.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 export const taskFrequencies = { none:'Does not repeat', daily:'Every day', weekdays:'Weekdays', weekly:'Every week', monthly:'Every month', yearly:'Every year', interval:'Every N days' };
 const isDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value);
 const dateNumber = date => Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())/86400000;
+const loadCalendarEvents=value=>Array.isArray(value)?value.filter(item=>typeof item?.id==='string'&&typeof item.title==='string'&&
+  (isDay(item.day)&&isDay(item.endDay)&&item.endDay>item.day||Number.isFinite(item.start)&&Number.isFinite(item.end)&&item.end>=item.start)):[];
 
 export function taskOccursOn(task, date) {
   const day = dayKey(date);
@@ -73,6 +76,7 @@ function loadTask(task) {
   return {
     id:task.id, text:task.text, done:task.done,
     description:typeof task.description === 'string' ? task.description : '',
+    resumeNote:typeof task.resumeNote==='string'?task.resumeNote.slice(0,500):'',
     date:/^\d{4}-\d{2}-\d{2}$/.test(task.date) ? task.date : repeat === 'none' ? '' : dayKey(),
     time:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(task.time) ? task.time : '',
     estimate:Number.isInteger(task.estimate) && task.estimate > 0 && task.estimate <= 1440 ? task.estimate : null,
@@ -110,7 +114,7 @@ export function formatDuration(ms) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -119,6 +123,10 @@ export function loadState(storage) {
     const raw = JSON.parse(storage.getItem(STORAGE_KEY));
     if (!raw || typeof raw !== 'object') return base;
     base.appearance=loadAppearance(raw.appearance);
+    base.gardenSchedule=loadGardenSchedule(raw.gardenSchedule);
+    base.calendarEvents=loadCalendarEvents(raw.calendarEvents);
+    if(Number.isInteger(raw.studyCapacity)&&raw.studyCapacity>=15&&raw.studyCapacity<=1440)base.studyCapacity=raw.studyCapacity;
+    if(Array.isArray(raw.processedCaptures))base.processedCaptures=raw.processedCaptures.filter(key=>typeof key==='string');
     base.sounds=loadSoundSettings(raw.sounds);
     base.notifications=raw.notifications===true;
     if (Array.isArray(raw.routines)) base.routines=raw.routines.filter(routine=>routine && typeof routine.id==='string' && typeof routine.name==='string' && ['focus','rest'].every(key=>Number.isInteger(routine[key])&&routine[key]>=1000&&routine[key]<=10800000));
@@ -127,7 +135,8 @@ export function loadState(storage) {
     if (Array.isArray(raw.tasks)) base.tasks=raw.tasks.filter(t=>t && typeof t.id==='string' && typeof t.text==='string' && typeof t.done==='boolean').map(loadTask);
     if (Array.isArray(raw.projects)) base.projects=raw.projects.filter(project=>project&&typeof project.id==='string'&&typeof project.name==='string').map(project=>({
       id:project.id,name:project.name,color:/^#[\da-f]{6}$/i.test(project.color)?project.color:'#d94b49',favorite:project.favorite===true,archived:project.archived===true,
-      sections:Array.isArray(project.sections)?project.sections.filter(section=>section&&typeof section.id==='string'&&typeof section.name==='string'):[]
+      sections:Array.isArray(project.sections)?project.sections.filter(section=>section&&typeof section.id==='string'&&typeof section.name==='string'):[],
+      thoughts:Array.isArray(project.thoughts)?project.thoughts.filter(note=>typeof note?.key==='string'&&typeof note.text==='string'&&Number.isFinite(note.createdAt)):[]
     }));
     if (Array.isArray(raw.plannerFilters)) base.plannerFilters=raw.plannerFilters.filter(filter=>filter&&typeof filter.id==='string'&&typeof filter.name==='string'&&typeof filter.query==='string');
     if (Array.isArray(raw.plannerLabels)) base.plannerLabels=raw.plannerLabels.filter(label=>typeof label==='string'&&label.length>0&&label.length<=40);

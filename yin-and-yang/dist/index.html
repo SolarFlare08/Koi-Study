@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./planner.css">
   <link rel="stylesheet" href="./garden-appearance.css">
   <link rel="stylesheet" href="./crochet.css">
+  <link rel="stylesheet" href="./planning-extras.css">
 </head>
 <body>
   <main id="app" aria-label="Yin and Yang study garden">
@@ -40,6 +41,7 @@
           <span data-icon="down" class="current-task-chevron"></span>
         </button>
       </div>
+      <button id="resume-task" class="resume-task" type="button" aria-haspopup="dialog" hidden></button>
     </section>
     <aside id="penguin" class="secondary" aria-label="Penguin companion">
       <button id="penguin-next" type="button" aria-label="Ask the penguin for another thought" aria-describedby="penguin-thought" title="Another thought">
@@ -130,11 +132,13 @@
       <dialog id="planner-dialog"></dialog>
     </section>
     <section id="crochet-workspace" aria-labelledby="crochet-heading" hidden></section>
+    <section id="journal-workspace" aria-labelledby="journal-heading" hidden></section>
     <nav id="workspace-tabs" aria-label="App workspace">
       <button type="button" data-workspace="focus" aria-pressed="true"><span data-icon="sprout"></span>Garden</button>
       <button type="button" data-workspace="planner" aria-controls="calendar-panel" aria-pressed="false"><span data-icon="list"></span>Planner</button>
       <button type="button" data-workspace="calendar" aria-controls="calendar-panel" aria-pressed="false"><span data-icon="calendar"></span>Calendar</button>
       <button type="button" data-workspace="crochet" aria-controls="crochet-workspace" aria-pressed="false"><span data-icon="yarn"></span>Crochet</button>
+      <button type="button" data-workspace="journal" aria-controls="journal-workspace" aria-pressed="false"><span data-icon="journal"></span>Journal</button>
     </nav>
     <footer class="sr-only"><span id="saved-status">Saved on this device</span></footer>
     <div id="panel-root"></div>
