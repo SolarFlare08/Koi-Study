@@ -349,8 +349,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       return `<section class="planner-month-cell${day.getMonth()!==month?' other-month':''}" data-board-day="${key}">
         <button type="button" data-month-day="${key}" aria-label="Open ${escape(day.toLocaleDateString([],{dateStyle:'full'}))}" ${key===today?'aria-current="date"':''}>${day.getDate()}</button>
         ${allDay.map(task=>`<button type="button" class="planner-month-task" data-month-task data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}
-        ${allDayEvents(state().calendarEvents,day).map(event=>`<p class="planner-month-event" title="${escape(event.title)}">${escape(event.title)}</p>`).join('')}
-        ${calendarBlocks([],day,state().calendarEvents).map(block=>`<p class="planner-month-event" title="${escape(block.event.title)}">${timeLabel(block.start)} · ${escape(block.event.title)}</p>`).join('')}
+        ${allDayEvents(state().calendarEvents,day).map(event=>`<button type="button" class="planner-month-event" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}
+        ${calendarBlocks([],day,state().calendarEvents).map(block=>`<button type="button" class="planner-month-event" data-calendar-event="${escape(block.event.id)}" title="${escape(block.event.title)}">${timeLabel(block.start)} · ${escape(block.event.title)}</button>`).join('')}
         ${timeStack(tasks,key)}</section>`;
     }).join('');
     return `<div class="planner-month-grid">${headings}${cells}</div>`;
@@ -366,7 +366,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       return header+`<form id="study-capacity-form" class="week-capacity"><label>Daily study capacity (minutes) <input name="minutes" type="number" min="15" max="1440" value="${capacity}" required></label><button class="planner-primary">Save capacity</button></form>
         <p class="planner-empty">Planned work includes timed tasks and estimates for dated tasks with no blocks. Overlapping study blocks count separately. Imported commitments are shown beside study time.</p>
         <div class="week-workload">${week.timeline.map(item=>`<article><div><strong>${item.day.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})}</strong><span>${hours(item.planned)} planned${item.planned>capacity?` · <b>${hours(item.planned-capacity)} over</b>`:''}</span></div>
-          <progress max="${capacity}" value="${Math.min(item.planned,capacity)}" aria-label="Planned study minutes against capacity"></progress><small>${hours(item.busy)} imported commitments${item.allDay?` · ${item.allDay} all-day`:''}</small></article>`).join('')}</div>`;
+          <progress max="${capacity}" value="${Math.min(item.planned,capacity)}" aria-label="Planned study minutes against capacity"></progress><small>${hours(item.busy)} calendar commitments${item.allDay?` · ${item.allDay} all-day`:''}</small></article>`).join('')}</div>`;
     }
     const completions=reportEvents(state(),{type:'task'}).filter(event=>event.day>=week.first&&event.day<=week.last).length;
     const rows=(items,canCarry=false)=>items.map(({task,key})=>`<div class="week-task"><div>${card(task,key)}</div>${canCarry?`<button type="button" data-review-carry="${escape(task.id)}">Move to today</button>`:''}</div>`).join('')||'<p class="planner-empty">Nothing here.</p>';
@@ -416,7 +416,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     $('#planner-breadcrumb').textContent=standalone?'Schedule':project?.archived?'Archived project':'Task workspace';
     const addTask=`<button class="planner-heading-add${standalone?'':' planner-mobile-add'}" type="button" ${standalone?'data-calendar-new':'data-planner-add'}>${icon('plus')} New task</button>`;
     const settings=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:view==='reporting'?`<button type="button" data-report-export>${icon('download')} Export CSV</button>`:'';
-    $('#planner-heading-actions').innerHTML=addTask+settings+(standalone?'<button type="button" data-manage="calendar-import">Import .ics</button>':'');
+    $('#planner-heading-actions').innerHTML=addTask+settings+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button>`:'');
     if(project?.thoughts?.length)$('#planner-heading-actions').insertAdjacentHTML('beforeend',`<button type="button" data-manage="project-thoughts">Thoughts (${project.thoughts.length})</button>`);
     $('#planner-layout-label').hidden=sectionView||standalone;
     $('#planner-toggle-sidebar').hidden=standalone;
@@ -519,7 +519,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       fields='<label>Todoist project CSV<input type="file" name="csv" accept=".csv,text/csv" required></label><label>Project name (optional)<input name="name" maxlength="80" placeholder="Use the filename"></label><p>Imports a new project. Unsupported schedule text is kept in the task description.</p><p role="alert" id="planner-import-error" hidden></p>';
     } else if (type==='calendar-import') {
       title='Import calendar';
-      const sources=[...new Set(state().calendarEvents.map(event=>event.source||'Imported calendar'))];
+      const sources=[...new Set(state().calendarEvents.filter(event=>!event.manual).map(event=>event.source||'Imported calendar'))];
       fields=`<label>iCalendar file<input type="file" name="calendar" accept=".ics,text/calendar" required></label><p>Imports calendar commitments from a file. Daily and weekly repeats are expanded from 30 days ago to one year ahead.</p><p role="alert" id="planner-import-error" hidden></p>${sources.map(source=>`<p class="import-source">${escape(source)} <button type="button" data-remove-calendar="${escape(source)}">Remove</button></p>`).join('')}`;
     } else if (type==='project-thoughts') {
       if(!currentProject)return;
@@ -650,8 +650,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const data=button.dataset;
     if(data.removeCalendar){
       const source=data.removeCalendar;
-      const removed=state().calendarEvents.filter(event=>(event.source||'Imported calendar')===source);
-      state().calendarEvents=state().calendarEvents.filter(event=>(event.source||'Imported calendar')!==source);
+      const removed=state().calendarEvents.filter(event=>!event.manual&&(event.source||'Imported calendar')===source);
+      state().calendarEvents=state().calendarEvents.filter(event=>event.manual||(event.source||'Imported calendar')!==source);
       dialog.close();commit();$('#planner-heading').focus({preventScroll:true});
       return notify('Imported calendar removed.',latest=>{
         const ids=new Set(latest.calendarEvents.map(event=>event.id));
@@ -704,6 +704,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       $('#calendar-scroll').focus({preventScroll:true});
       return;
     }
+    if (data.calendarEvent && button.classList.contains('planner-month-event')) return openBlock(button);
     if ('monthTask' in data) return editTask(data.task,button);
     const card=button.closest('.planner-task');
     if ('openTime' in data) return openBlock(button);
@@ -714,7 +715,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if ('taskMenu' in data) return taskMenu(task.id,button);
     if ('completeTask' in data) {
       const day=parseDay(card.dataset.occurrence), done=taskStatus(task,day)!=='done';
-      const undo=completeTask(task,done,day);
+      const undo=completeTask(task,done,day,button);
       commit();
       const next=content.querySelector(`[data-task="${CSS.escape(task.id)}"] [data-complete-task]`);
       (next||$('#planner-heading')).focus({preventScroll:true});

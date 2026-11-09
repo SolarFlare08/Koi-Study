@@ -1,6 +1,6 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,recordTaskCompletion,taskFrequencies,taskPriority} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
-import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarDragType, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue} from './calendar.js';
+import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarDragType, calendarEventFromFields, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue} from './calendar.js';
 import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
 import {installPlanner} from './planner.js';
 import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
@@ -670,8 +670,9 @@ function panelContent(id){
       <ul>${state.gardenSchedule.presets.map(item=>`<li><span>${timeLabel(timeMinutes(item.time))} · ${seasonOptions[item.season].name} · ${lightingOptions[item.lighting]}</span><button type="button" data-remove-garden-preset="${item.time}" aria-label="Remove preset at ${timeLabel(timeMinutes(item.time))}">×</button></li>`).join('')}</ul></section>`;
   }
   if(id==='focus-task')return focusTaskPicker();
+  if(id==='event-editor')return calendarEventEditor();
   if(id==='imported-event'){
-    const event=state.calendarEvents.find(item=>item.id===lastAnchor?.dataset.importedEvent);
+    const event=state.calendarEvents.find(item=>item.id===lastAnchor?.dataset.calendarEvent);
     return event?`${header('IMPORTED CALENDAR',escape(event.title))}<p>${event.day?`All day · ${escape(event.day)}`:escape(new Date(event.start).toLocaleString())}${event.source?` · ${escape(event.source)}`:''}</p><p class="imported-description">${escape(event.description)}</p>`:header('CALENDAR','Event unavailable');
   }
   if(id==='resume'){
@@ -731,7 +732,7 @@ function openPanel(id,anchor){
   closePanel(false);activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':id==='event-editor'?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
   if(id==='music')syncSound();
   positionPanel(panel,anchor);wake();
   const firstControl=panel.querySelector(id==='appearance'?'input:checked':'input,textarea,select')||panel.querySelector('button');
@@ -795,7 +796,7 @@ function renderAgenda(now=new Date()){
 function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=block.end){
   const {task,blockId,start,end,lane,lanes,continues,occurrence}=block;
   const time=`${timeLabel(start)} – ${timeLabel(end)}`;
-  if(block.event)return `<button type="button" class="calendar-block imported-block" data-imported-event="${escape(block.event.id)}" aria-haspopup="dialog" aria-label="${escape(block.event.title)}, ${time}, imported event" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(block.event.title)}</strong><span>${time}</span></button>`;
+  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" data-calendar-event="${escape(block.event.id)}" aria-haspopup="dialog" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(block.event.title)}</strong><span>${time}</span></button>`;
   const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
   const done=taskStatus(task,new Date(`${occurrence}T00:00:00`))==='done';
   return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-priority="${taskPriority(task)}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" aria-label="Open ${escape(title)}${done?', done':''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span></button>`;
@@ -870,7 +871,7 @@ function renderPlannerDays(){
     const stamp=`<span>${current?'Today':date.toLocaleDateString([],{weekday:'short'})}</span><strong>${date.getDate()}</strong>`;
     const dayLabel=escape(date.toLocaleDateString([],{dateStyle:'full'}));
     const heading=workspace==='calendar'?`<button class="calendar-day-heading" type="button" data-calendar-day="${key}" aria-label="Open day view for ${dayLabel}">${stamp}</button>`:`<div class="calendar-day-heading">${stamp}</div>`;
-    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${allDay.length||imports.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task imported-block" data-imported-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
+    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${allDay.length||imports.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
   }).join('');
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
   const columns=plannerDays.map(date=>{
@@ -1065,9 +1066,24 @@ function deleteTask(id){
   focus.focus({preventScroll:true});
   confirmChange('Task deleted.',restoreActiveTask(undo,before,state.activeTask));
 }
-function markTask(task,done,day=new Date()){
+function animateTaskCompletion(anchor){
+  if(motionPreference.matches||!anchor?.getClientRects().length)return;
+  const check=anchor.closest('.planner-task,.task-row')?.querySelector('[data-complete-task],.task-check')||anchor;
+  const rect=check.getBoundingClientRect();
+  const effect=document.createElement('span');
+  effect.className='task-completion-bloom';
+  effect.setAttribute('aria-hidden','true');
+  effect.style.left=`${rect.left+rect.width/2}px`;
+  effect.style.top=`${rect.top+rect.height/2}px`;
+  effect.innerHTML='<svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="12"/><path d="m19.5 24 3 3 6-6"/><path class="completion-rays" d="M24 5v4m0 30v4M5 24h4m30 0h4M11 11l3 3m20 20 3 3m0-26-3 3M14 34l-3 3"/></svg>';
+  document.body.append(effect);
+  effect.addEventListener('animationend',()=>effect.remove(),{once:true});
+  setTimeout(()=>effect.remove(),720);
+}
+function markTask(task,done,day=new Date(),anchor){
   const before=state.activeTask;
   const undo=recordTaskCompletion(state,task,done,day);
+  if(done&&undo)animateTaskCompletion(anchor);
   if(done&&state.activeTask===task.id&&taskStatus(task)==='done')state.activeTask=availableTaskId();
   return restoreActiveTask(undo,before,state.activeTask);
 }
@@ -1100,7 +1116,7 @@ taskMenu.addEventListener('click',event=>{
   if(action==='complete'){
     const day=taskOccurrence(anchor);
     const done=taskStatus(task,day)!=='done';
-    undo=markTask(task,done,day);
+    undo=markTask(task,done,day,anchor);
     message=done?'Task completed.':'Task reopened.';
   }
   if(action==='unschedule'||action==='remove-block'){
@@ -1206,7 +1222,10 @@ for(const calendar of [calendarPanel,miniCalendar]){
   calendar.addEventListener('drop',onCalendarDrop);
 }
 function openCalendarBlock(block){
-  if(block.dataset.importedEvent){openPanel('imported-event',block);return;}
+  if(block.dataset.calendarEvent){
+    const event=state.calendarEvents.find(item=>item.id===block.dataset.calendarEvent);
+    openPanel(event?.manual?'event-editor':'imported-event',block);return;
+  }
   openPanel('calendar-block',block);
   updateBlockPreview(Date.now());
   $('#start-block-focus:not(:disabled)')?.focus({preventScroll:true});
@@ -1216,6 +1235,39 @@ function calendarDraft(){
   const now=new Date(), key=dayKey(date);
   const minute=key===dayKey(now)?Math.min(23*60+45,Math.ceil((now.getHours()*60+now.getMinutes())/15)*15):9*60;
   return {date:key,time:timeValue(minute)};
+}
+function calendarEventEditor(){
+  const event=state.calendarEvents.find(item=>item.manual&&item.id===lastAnchor?.dataset.calendarEvent);
+  const draft=calendarDraft();
+  const start=event?.start!==undefined?new Date(event.start):new Date(`${draft.date}T${draft.time}:00`);
+  const end=event?.end!==undefined?new Date(event.end):new Date(+start+3600000);
+  const allDay=Boolean(event?.day);
+  const time=date=>timeValue(date.getHours()*60+date.getMinutes());
+  const timeField=(name,value,label)=>`<label class="event-field" data-event-time ${allDay?'hidden':''}>${label}<input name="${name}" type="time" value="${value}" required ${allDay?'disabled':''}></label>`;
+  return `${header('CALENDAR',event?'Edit event':'Add event')}
+    <form id="calendar-event-form" data-event-id="${escape(event?.id)}">
+      <label class="event-field">Title<input name="title" value="${escape(event?.title)}" maxlength="160" placeholder="Class, appointment, or anything else" required></label>
+      <label class="event-all-day"><input type="checkbox" name="allDay" ${allDay?'checked':''}> All day</label>
+      <div class="event-date-grid">
+        <label class="event-field"><span data-event-start-label>${allDay?'First day':'Start date'}</span><input name="startDay" type="date" value="${event?.day||dayKey(start)}" required></label>
+        ${timeField('startTime',time(start),'Start time')}
+        <label class="event-field"><span data-event-end-label>${allDay?'Last day':'End date'}</span><input name="endDay" type="date" value="${allDay?dayKey(shiftDay(new Date(event.endDay+'T00:00:00'),-1)):dayKey(end)}" required></label>
+        ${timeField('endTime',time(end),'End time')}
+      </div>
+      <label class="event-field">Notes <textarea name="description" rows="3" maxlength="3000" placeholder="Optional">${escape(event?.description)}</textarea></label>
+      <p class="event-error" role="alert" hidden></p>
+      <div class="panel-actions">${event?'<button type="button" class="text-button event-delete" id="delete-calendar-event">Delete event</button>':''}<button class="panel-primary">Save event</button></div>
+    </form>`;
+}
+function finishCalendarEventChange(event){
+  const anchor=lastAnchor;
+  closePanel(false);refreshTasks();
+  if(event&&workspace==='calendar'){
+    const date=event.day?new Date(event.day+'T00:00:00'):new Date(event.start);
+    if(planner.calendarVisible())scrollCalendarTo(date,event.day?undefined:Math.max(0,date.getHours()*60+date.getMinutes()-30));
+    else planner.jumpMonth(date);
+  }
+  (anchor?.isConnected?anchor:inSchedule()?$('#planner-heading'):$('#sidebar-calendar'))?.focus({preventScroll:true});
 }
 $('#calendar-jump-date').addEventListener('change',event=>{
   if(!event.target.value)return;
@@ -1231,6 +1283,8 @@ calendarPanel.addEventListener('click',event=>{
     calendarScroll.focus({preventScroll:true});
     return;
   }
+  const addEvent=event.target.closest('[data-calendar-add-event]');
+  if(addEvent){openPanel('event-editor',addEvent);return;}
   const add=event.target.closest('[data-calendar-new]');
   if(add){
     const project=$('#calendar-project').value;
@@ -1247,7 +1301,7 @@ calendarPanel.addEventListener('click',event=>{
   const block=event.target.closest('.calendar-block');
   if(block){openCalendarBlock(block);return;}
   const allDay=event.target.closest('.calendar-all-day-task');
-  if(allDay){if(allDay.dataset.importedEvent)openPanel('imported-event',allDay);else openTaskEditor(allDay.dataset.task,allDay);return;}
+  if(allDay){if(allDay.dataset.calendarEvent)openCalendarBlock(allDay);else openTaskEditor(allDay.dataset.task,allDay);return;}
   const trayTask=event.target.closest('.calendar-tray-task');
   if(trayTask)openBlockEditor(trayTask.dataset.task,trayTask,null,workspace==='calendar'?calendarDraft():null);
 });
@@ -1274,7 +1328,7 @@ taskSidebar.addEventListener('change',event=>{
   if(!checkbox.classList.contains('task-check'))return;
   const task=state.tasks.find(item=>item.id===checkbox.closest('[data-task]').dataset.task);
   if(!task || taskStatus(task)==='upcoming')return;
-  const undo=markTask(task,checkbox.checked);
+  const undo=markTask(task,checkbox.checked,undefined,checkbox);
   persist();refreshTasks();
   taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-check`)?.focus();
   confirmChange(checkbox.checked?'Task completed.':'Task reopened.',undo);
@@ -1300,6 +1354,19 @@ root.addEventListener('click',e=>{
   }
   const btn=e.target.closest('button');if(!btn)return;
   if(btn.classList.contains('close-panel'))closePanel();
+  if(btn.id==='delete-calendar-event'){
+    const id=btn.form.dataset.eventId, prior=state.calendarEvents;
+    const event=prior.find(item=>item.id===id&&item.manual);
+    if(!event)return;
+    state.calendarEvents=prior.filter(item=>item!==event);
+    if(!persist()){state.calendarEvents=prior;return;}
+    finishCalendarEventChange();
+    confirmChange('Event deleted.',latest=>{
+      if(latest.calendarEvents.some(item=>item.id===id))return false;
+      latest.calendarEvents.push(event);return true;
+    });
+    return;
+  }
   if(btn.id==='focus-task-add'||btn.id==='focus-task-edit'){
     openTaskEditor(btn.id==='focus-task-edit'?focusedTask()?.id:null,currentTaskButton);
     return;
@@ -1376,7 +1443,7 @@ root.addEventListener('click',e=>{
     const day=taskEditorOccurrence();
     if(!task||task.repeat!=='none'&&!taskOccursOn(task,day))return;
     const done=taskStatus(task,day)!=='done';
-    const undo=markTask(task,done,day);
+    const undo=markTask(task,done,day,btn);
     persist();refreshTasks();
     updateTaskCompletionButton();
     confirmChange(done?'Task completed.':'Task reopened.',undo);
@@ -1400,6 +1467,16 @@ root.addEventListener('input',e=>{
   if(e.target.id==='task-date'||e.target.id==='task-repeat')$('#task-date').setCustomValidity('');
 });
 root.addEventListener('change',event=>{
+  const form=event.target.form;
+  if(form?.id==='calendar-event-form'){
+    const fields=form.elements, allDay=fields.allDay.checked;
+    if(event.target===fields.startDay&&fields.endDay.value<fields.startDay.value)fields.endDay.value=fields.startDay.value;
+    if(event.target===fields.allDay){
+      form.querySelectorAll('[data-event-time]').forEach(label=>{label.hidden=allDay;label.querySelector('input').disabled=allDay;});
+      form.querySelector('[data-event-start-label]').textContent=allDay?'First day':'Start date';
+      form.querySelector('[data-event-end-label]').textContent=allDay?'Last day':'End date';
+    }
+  }
   if(event.target.id==='garden-schedule-enabled'){
     state.gardenSchedule.enabled=event.target.checked;
     persist();render();
@@ -1431,6 +1508,20 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='calendar-event-form'){
+    const form=e.target, fields=new FormData(form), editing=form.dataset.eventId, prior=state.calendarEvents;
+    if(editing&&!prior.some(item=>item.id===editing&&item.manual))return;
+    const error=form.querySelector('.event-error');
+    let event;
+    try{
+      event=calendarEventFromFields({...Object.fromEntries(fields),allDay:fields.has('allDay')},editing||`manual:${crypto.randomUUID()}`);
+    }catch(err){error.textContent=err.message;error.hidden=false;return;}
+    state.calendarEvents=editing?prior.map(item=>item.id===editing?event:item):[...prior,event];
+    if(!persist()){state.calendarEvents=prior;return;}
+    finishCalendarEventChange(event);
+    confirmChange(editing?'Event updated.':'Event added.');
+    return;
+  }
   if(e.target.id==='garden-preset-form'){
     const time=new FormData(e.target).get('time');
     state.gardenSchedule=loadGardenSchedule({enabled:true,presets:[...state.gardenSchedule.presets,{...state.appearance,time}]});

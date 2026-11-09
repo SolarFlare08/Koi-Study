@@ -1,7 +1,32 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {addTaskBlock, blockFocusTiming, calendarBlocks, scheduleTask, weekDays} from '../dist/calendar.js';
+import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarEventFromFields, scheduleTask, weekDays} from '../dist/calendar.js';
 import {freshState, loadState} from '../dist/state.js';
+
+test('a manual overnight event survives reload and appears on both calendar days',()=>{
+  const event=calendarEventFromFields({
+    title:'  Observing night  ',description:'  Bring a coat  ',
+    startDay:'2026-11-09',startTime:'23:30',endDay:'2026-11-10',endTime:'00:30'
+  },'manual:1');
+  const state=freshState();
+  state.calendarEvents.push(event);
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  assert.deepEqual(restored.calendarEvents,[event]);
+  assert.equal(event.title,'Observing night');
+  assert.equal(event.description,'Bring a coat');
+  assert.equal(calendarBlocks([],new Date(2026,10,9),restored.calendarEvents)[0].start,23*60+30);
+  assert.equal(calendarBlocks([],new Date(2026,10,10),restored.calendarEvents)[0].end,30);
+});
+
+test('manual all-day events include the last date and reject invalid ranges',()=>{
+  const fields={title:'Conference',description:'',allDay:true,startDay:'2026-11-09',endDay:'2026-11-10'};
+  const event=calendarEventFromFields(fields,'manual:2');
+  assert.equal(allDayEvents([event],new Date(2026,10,10)).length,1);
+  assert.equal(allDayEvents([event],new Date(2026,10,11)).length,0);
+  assert.throws(()=>calendarEventFromFields({...fields,endDay:'2026-11-08'},'manual:2'),/last day/);
+  assert.throws(()=>calendarEventFromFields({...fields,endDay:'2026-11-31'},'manual:2'),/valid start and end dates/);
+  assert.throws(()=>calendarEventFromFields({...fields,allDay:false,endDay:fields.startDay,startTime:'10:00',endTime:'09:00'},'manual:2'),/after the start/);
+});
 
 test('overlapping tasks get different lanes and an unsized task occupies one hour',()=>{
   const date=new Date(2026,10,9);
