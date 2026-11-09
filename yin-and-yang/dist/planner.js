@@ -1,6 +1,7 @@
 import {calendarBlocks,calendarDragType,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
-import {completeTask,dayKey,taskPriority,taskStatus} from './state.js';
+import {recordTaskCompletion,dayKey,taskPriority,taskStatus} from './state.js';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
+import {activityLabels,reportCsv,reportEvents,reportMetrics} from './planner-report.js';
 
 const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',filters:'Filters & Labels',reporting:'Reporting'};
 const paths={
@@ -11,7 +12,9 @@ const paths={
   filters:'<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
   reporting:'<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M7 13h3l2-4 2 6 2-3h2"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',project:'<path d="m10 4-4 16m12-16-4 16M5 9h15M3 15h15"/>',
-  mark:'<path d="m5 8 3 3 6-6m-9 9 3 3 10-10m-8 12 3 2 6-6"/>'
+  mark:'<path d="m5 8 3 3 6-6m-9 9 3 3 10-10m-8 12 3 2 6-6"/>',
+  label:'<path d="M4 13 13 4h7v7l-9 9z"/><circle cx="16.5" cy="7.5" r=".7"/>',
+  check:'<path d="m6 12 4 4 8-8"/>',down:'<path d="m6 9 6 6 6-6"/>',download:'<path d="M12 3v12m-4-4 4 4 4-4M5 17v3h14v-3"/>'
 };
 const icon=name=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]}</svg>`;
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -28,9 +31,20 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   const state=()=>getState();
   let view='upcoming', selection='', layout='board', query='', date=new Date(), quick=null, expanded=new Set(), dialogAnchor=null;
   let reminderMinute=-1;
+  const layouts=new Map(), collapsed=new Set();
+  const report={mode:'activity',period:'all',project:'all',type:'task',metric:'ms'};
+  const layoutKey=()=>`${view}:${selection}`;
+  const defaultLayout=()=>['upcoming','project'].includes(view)?'board':'list';
+
+  function selectLayout(next,remember=true) {
+    layout=next;
+    layoutSelect.value=next;
+    if (remember) layouts.set(layoutKey(),next);
+  }
 
   function setView(next,value='') {
     view=next; selection=value; query=''; quick=null;
+    selectLayout(layouts.get(layoutKey())||defaultLayout(),false);
     if (view==='today'||view==='upcoming') date=new Date();
     root.classList.remove('planner-sidebar-open');
     $('#planner-toggle-sidebar').setAttribute('aria-expanded','false');
@@ -44,13 +58,18 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   function projectFor(task) { return state().projects.find(project=>project.id===task.projectId); }
   function activeTasks() { return state().tasks.filter(task=>!projectFor(task)?.archived); }
   function todayDate(task,now) { return nextTaskDate(task,now,true)===dayKey(now)||calendarBlocks([task],now).length>0; }
+  function overdueDate(task,now) {
+    if (task.repeat!=='none'||task.done) return '';
+    const due=nextTaskDate(task,now);
+    return due<dayKey(now)?due:'';
+  }
   function timeLayout() { return layout==='calendar'||layout==='3days'; }
 
   function matchingTasks(now=new Date()) {
     const tasks=view==='project'?state().tasks.filter(task=>task.projectId===selection):activeTasks();
     switch (view) {
       case 'inbox': return tasks.filter(task=>!projectFor(task));
-      case 'today': return tasks.filter(task=>todayDate(task,now)||(task.repeat==='none'&&nextTaskDate(task,now)&&nextTaskDate(task,now)<dayKey(now)));
+      case 'today': return tasks.filter(task=>todayDate(task,now)||overdueDate(task,now));
       case 'label': return tasks.filter(task=>task.labels?.includes(selection));
       case 'filter': return tasks.filter(task=>matchesPlannerQuery(task,state().plannerFilters.find(item=>item.id===selection)?.query||'',state().projects,now));
       case 'search': return query?tasks.filter(task=>matchesPlannerQuery(task,query,state().projects,now)):[];
@@ -70,7 +89,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   function renderSidebar() {
     const now=new Date(), tasks=activeTasks().filter(task=>taskStatus(task,now)!=='done');
     const projects=state().projects.filter(project=>!project.archived).sort((a,b)=>Number(b.favorite)-Number(a.favorite));
-    const primary=Object.entries(views).map(([key,label])=>navItem(key,label,key==='inbox'?tasks.filter(task=>!projectFor(task)).length:key==='today'?tasks.filter(task=>todayDate(task,now)).length:''));
+    const primary=Object.entries(views).map(([key,label])=>navItem(key,label,key==='inbox'?tasks.filter(task=>!projectFor(task)).length:key==='today'?tasks.filter(task=>todayDate(task,now)||overdueDate(task,now)).length:''));
     sidebar.innerHTML=`<div class="planner-brand"><span>${icon('mark')}</span><div><strong>Yin and Yang</strong><small>Personal workspace</small></div></div>
       <button class="planner-add" type="button" data-planner-add>${icon('plus')} Add task <kbd>Q</kbd></button>
       <nav aria-label="Planner views">${primary.join('')}</nav>
@@ -100,8 +119,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         <button type="button" class="planner-task-title" data-edit-task>${title}</button>
         ${task.description?`<p>${escape(task.description)}</p>`:''}
         <div class="planner-task-meta">
-          ${dateLabel?`<span class="planner-task-date${dateLabel<dayKey()&&!complete?' is-overdue':''}">${icon('today')} ${task.time&&dateLabel>=dayKey()?scheduledTime(task.time):plainDate(dateLabel)}${recurring?' ↻':''}</span>`:''}
-          <span>${project?icon('project'):icon('inbox')} ${escape(project?.name||'Inbox')}</span>
+          ${dateLabel?`<span class="planner-task-date${dateLabel<dayKey()&&!complete?' is-overdue':''}">${icon('today')} ${dateLabel===dayKey()?'Today':dateLabel===dayKey(shiftDay(new Date(),1))?'Tomorrow':plainDate(dateLabel)}${task.time&&dateLabel>=dayKey()?` ${scheduledTime(task.time)}`:''}${recurring?' ↻':''}</span>`:''}
+          ${view==='inbox'?'':`<span class="planner-task-project">${project?icon('project'):icon('inbox')} ${escape(project?.name||'Inbox')}</span>`}
           ${priority<4?`<span class="planner-priority">P${priority}</span>`:''}
           ${task.deadline?`<span class="planner-deadline">Due ${plainDate(task.deadline)}</span>`:''}
           ${task.reminderAt?'<span title="Reminder scheduled">◷</span>':''}
@@ -121,12 +140,38 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       <small>Try “Read chapter tomorrow at 4pm p1 %reading”</small><div class="planner-quick-actions"><button type="button" data-quick-details>More details</button><button type="button" data-quick-cancel>Cancel</button><button class="planner-primary" type="submit">Add task</button></div></form>`;
   }
 
-  function timeStack(tasks,day) {
+  function timeStack(tasks,day,splitPast=false) {
     if (!day) return '';
     const blocks=calendarBlocks(tasks,parseDay(day)).filter(block=>completed.checked||taskStatus(block.task,parseDay(block.occurrence))!=='done');
     if (!blocks.length) return '';
-    const rows=blocks.map(block=>`<button type="button" class="planner-event" data-open-time data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-priority="${taskPriority(block.task)}"><time>${timeLabel(block.start)} – ${timeLabel(block.end)}</time><span>${escape(block.task.text)}</span></button>`);
-    return `<div class="planner-event-stack">${rows.slice(0,4).join('')}${rows.length>4?`<details><summary>${rows.length-4} more scheduled</summary>${rows.slice(4).join('')}</details>`:''}</div>`;
+    const row=block=>`<button type="button" class="planner-event" data-open-time data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-priority="${taskPriority(block.task)}"><time>${timeLabel(block.start)} – ${timeLabel(block.end)}</time><span>${escape(block.task.text)}</span></button>`;
+    const now=new Date(), minute=now.getHours()*60+now.getMinutes();
+    const past=splitPast?blocks.filter(block=>block.end<=minute):[];
+    const rows=blocks.filter(block=>!splitPast||block.end>minute).map(row);
+    return `<div class="planner-event-stack">${rows.slice(0,4).join('')}${rows.length>4?`<details><summary>${rows.length-4} more scheduled</summary>${rows.slice(4).join('')}</details>`:''}${past.length?`<details><summary>${past.length} past ${past.length===1?'event':'events'}</summary>${past.map(row).join('')}</details>`:''}</div>`;
+  }
+
+  function listGroup(key,title,body,{action='',count}={}) {
+    const open=!collapsed.has(key);
+    return `<section class="planner-list-group"><header><h3><button type="button" data-fold="${key}" aria-expanded="${open}" aria-controls="planner-group-${key}">${icon('down')} ${escape(title)}${count===undefined?'':`<small>${count}</small>`}</button></h3>${action}</header>
+      <div id="planner-group-${key}" ${open?'':'hidden'}>${body}</div></section>`;
+  }
+
+  function inboxMarkup(tasks) {
+    const visible=sortTasks(tasks.filter(task=>completed.checked||taskStatus(task)!=='done'));
+    return `<section class="planner-flat-inbox">${visible.map(task=>card(task,nextTaskDate(task,new Date(),completed.checked))).join('')||'<p class="planner-empty">Your Inbox is clear.</p>'}${quickForm('general',{})}</section>`;
+  }
+
+  function todayMarkup(tasks) {
+    const now=new Date(), today=dayKey(now);
+    const visible=tasks.filter(task=>completed.checked||taskStatus(task,now)!=='done');
+    const overdue=sortTasks(visible.filter(task=>overdueDate(task,now)));
+    const due=sortTasks(visible.filter(task=>nextTaskDate(task,now,completed.checked)===today));
+    const list=due.map(task=>card(task,today)).join('');
+    const schedule=timeStack(visible,today,true);
+    const dateTitle=`${shortDay(now)} · Today · ${now.toLocaleDateString([],{weekday:'long'})}`;
+    return `${overdue.length?listGroup('overdue','Overdue',overdue.map(task=>card(task,overdueDate(task,now))).join(''),{count:overdue.length,action:'<button class="planner-group-action" type="button" data-manage="reschedule">Reschedule</button>'}):''}
+      ${listGroup('today',dateTitle,schedule+list+(!schedule&&!list?'<p class="planner-empty">Nothing scheduled for today.</p>':'')+quickForm(today,{date:today}))}`;
   }
 
   function column({key,title,tasks,day='',sectionId='',overdue=false,allowAdd=true,scheduleTasks=tasks}) {
@@ -171,28 +216,89 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   }
 
   function filtersMarkup() {
-    const labels=[...new Set(activeTasks().flatMap(task=>task.labels||[]))].sort((a,b)=>a.localeCompare(b));
+    const labels=[...new Set([...state().plannerLabels,...state().tasks.flatMap(task=>task.labels||[])])].sort((a,b)=>a.localeCompare(b));
     const row=(name,view,id,manage,mark)=>`<div class="planner-collection-row">${navItem(view,name,'',id,mark)}<button type="button" data-manage="${manage}" data-value="${escape(id)}" aria-label="Edit ${escape(name)}">⋯</button></div>`;
+    const filters=state().plannerFilters;
+    const archived=state().projects.filter(project=>project.archived);
+    const add=(kind,label)=>`<button class="planner-group-action" type="button" data-manage="${kind}" aria-label="${label}" title="${label}">${icon('plus')}</button>`;
     return `<div class="planner-collection">
-      <section><header><h3>Filters</h3><button type="button" data-manage="filter">+ Add filter</button></header>
-        ${state().plannerFilters.map(item=>row(item.name,'filter',item.id,'filter',icon('filters'))).join('')||'<p class="planner-empty">Save a search to revisit it anytime.</p>'}</section>
-      <section><header><h3>Labels</h3></header>${labels.map(label=>row(label,'label',label,'label','<span>%</span>')).join('')||'<p class="planner-empty">Add a label to a task or type %label in Quick Add.</p>'}</section>
-      ${state().projects.some(project=>project.archived)?`<section><header><h3>Archived projects</h3></header>${state().projects.filter(project=>project.archived).map(project=>row(project.name,'project',project.id,'project',icon('project'))).join('')}</section>`:''}</div>`;
+      ${listGroup('filters','My filters',filters.map(item=>row(item.name,'filter',item.id,'filter',icon('filters'))).join('')||'<p class="planner-empty">Save a search to revisit it anytime.</p>',{action:add('filter','Add filter'),count:filters.length})}
+      ${listGroup('labels','Labels',labels.map(label=>row(label,'label',label,'label',icon('label'))).join('')||'<p class="planner-empty">Create a label to organize related tasks.</p>',{action:add('label','Add label'),count:labels.length})}
+      ${archived.length?listGroup('archived','Archived projects',archived.map(project=>row(project.name,'project',project.id,'project',icon('project'))).join('')):''}</div>`;
+  }
+
+  function reportProjectName(id) {
+    if (id===null) return 'Unassigned focus';
+    return id?state().projects.find(project=>project.id===id)?.name||'Former project':'Inbox';
+  }
+
+  function reportControl(key,label,options) {
+    const choices=options.map(([value,name])=>`<option value="${escape(value)}" ${report[key]===value?'selected':''}>${escape(name)}</option>`).join('');
+    return `<select id="planner-report-${key}" data-report-control="${key}" aria-label="${label}">${choices}</select>`;
+  }
+
+  function reportDate(key) {
+    if (!key) return 'Date unavailable';
+    const day=parseDay(key);
+    const relative=key===dayKey()?' · Today':'';
+    return `${shortDay(day)}${relative} · ${day.toLocaleDateString([],{weekday:'long'})}${day.getFullYear()!==new Date().getFullYear()?` · ${day.getFullYear()}`:''}`;
+  }
+
+  function reportActivity(events) {
+    const groups=new Map();
+    const existing=new Set(state().tasks.map(task=>task.id));
+    for (const event of events) {
+      if (!groups.has(event.day)) groups.set(event.day,[]);
+      groups.get(event.day).push(event);
+    }
+    const verbs={task:'You completed',focus:'You focused on',skipped:'You skipped focus for'};
+    const row=event=>{
+      const title=escape(event.text);
+      const task=existing.has(event.taskId)?`<button type="button" data-report-task="${escape(event.taskId)}">${title}</button>`:`<span>${title}</span>`;
+      const time=event.at?new Date(event.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'';
+      const details=[reportProjectName(event.projectId)];
+      if (event.type==='focus') details.push(`${Math.round((event.ms||0)/6000)/10} min`);
+      if (time) details.push(time);
+      const mark={task:'check',focus:'reporting',skipped:'today'}[event.type];
+      return `<li class="planner-activity-row" data-activity="${event.type}"><span class="planner-activity-icon">${icon(mark)}</span><div>${verbs[event.type]} ${task}</div><small>${escape(details.join(' · '))}</small></li>`;
+    };
+    return [...groups].map(([key,items])=>`<section class="planner-activity-group"><h3>${reportDate(key)} <small>${items.length}</small></h3><ul>${items.map(row).join('')}</ul></section>`).join('');
+  }
+
+  function reportStatistics(events) {
+    const {total,days}=reportMetrics(events);
+    const metricNames={ms:'Focus minutes',task:'Completed tasks',focus:'Completed focus sessions',skipped:'Skipped focus sessions'};
+    const mins=ms=>Math.round(ms/6000)/10;
+    const values=[[total.task,'Tasks completed'],[mins(total.ms),'Focus minutes'],[total.focus,'Focus sessions'],
+      [total.skipped,'Sessions skipped'],[total.days,'Active days'],[total.focus?`${mins(total.average)} min`:'—','Average focus session'],
+      [total.rate===null?'—':`${Math.round(total.rate*100)}%`,'Focus completion rate']];
+    const peak=days.reduce((highest,day)=>Math.max(highest,day[report.metric]),1);
+    const rows=days.map(day=>`<tr><th scope="row">${reportDate(day.day)}</th><td><div class="planner-report-bar"><span aria-hidden="true" style="--bar:${day[report.metric]/peak*100}%"></span><small>${report.metric==='ms'?mins(day.ms):day[report.metric]}</small></div></td></tr>`);
+    return `<dl class="planner-report-stats">${values.map(([value,label])=>`<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl>
+      <div class="planner-metric-heading"><h3>Daily activity</h3>${reportControl('metric','Daily metric',Object.entries(metricNames))}</div>
+      ${days.length?`<table><thead><tr><th scope="col">Day</th><th scope="col">${metricNames[report.metric]}</th></tr></thead><tbody>${rows.join('')}</tbody></table>`:'<p class="planner-empty">No dated activity in this range.</p>'}`;
+  }
+
+  function selectedReportEvents() {
+    return reportEvents(state(),{...report,type:report.mode==='metrics'?'all':report.type});
   }
 
   function reportingMarkup() {
-    const now=new Date();
-    const days=Array.from({length:7},(_,index)=>shiftDay(now,index-6));
-    const stats=days.map(date=>{
-      const key=dayKey(date);
-      const done=state().tasks.filter(task=>task.completedOn===key||task.completions?.includes(key)).length;
-      const sessions=state().history.filter(item=>item.day===key&&item.mode==='focus'&&item.outcome==='completed');
-      return {date,done,sessions:sessions.length,minutes:Math.round(sessions.reduce((sum,item)=>sum+item.focusMs,0)/60000)};
-    });
-    const total=key=>stats.reduce((sum,item)=>sum+item[key],0), peak=Math.max(1,...stats.map(item=>item.minutes));
-    return `<div class="planner-report"><p class="planner-empty">Last 7 days · ${shortDay(days[0])} – ${shortDay(now)}</p>
-      <div class="planner-report-stats"><div><strong>${total('done')}</strong><span>Tasks completed</span></div><div><strong>${total('sessions')}</strong><span>Focus sessions</span></div><div><strong>${total('minutes')}</strong><span>Focus minutes</span></div></div>
-      <h3>Daily activity</h3><table><thead><tr><th scope="col">Day</th><th scope="col">Focus minutes</th><th scope="col">Tasks</th></tr></thead><tbody>${stats.map(item=>`<tr><th scope="row">${shortDay(item.date)}</th><td><div class="planner-report-bar"><span style="--bar:${item.minutes/peak*100}%"></span><small>${item.minutes}</small></div></td><td>${item.done}</td></tr>`).join('')}</tbody></table></div>`;
+    const events=selectedReportEvents();
+    return `<div class="planner-report"><div class="planner-report-controls">
+      ${reportControl('mode','Report view',[['activity','Activity log'],['metrics','Metrics']])}
+      ${reportControl('project','Report project',[['all','All projects'],['inbox','Inbox'],...state().projects.map(project=>[project.id,project.name]),['unassigned','Unassigned focus']])}
+      ${report.mode==='activity'?reportControl('type','Activity type',[['all','All activity'],...Object.entries(activityLabels)]):''}
+      ${reportControl('period','Date range',[['all','Any date'],['1','Today'],['7','Last 7 days'],['30','Last 30 days']])}
+      </div>${report.mode==='metrics'?reportStatistics(events):reportActivity(events)||'<p class="planner-empty">No matching activity yet.</p>'}</div>`;
+  }
+
+  function exportReport() {
+    const url=URL.createObjectURL(new Blob([reportCsv(selectedReportEvents(),reportProjectName)],{type:'text/csv;charset=utf-8'}));
+    const link=document.createElement('a');
+    link.href=url; link.download=`yin-and-yang-activity-${dayKey()}.csv`;
+    root.append(link); link.click(); link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
 
   function monthMarkup(tasks) {
@@ -216,7 +322,12 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const tasks=matchingTasks();
     const month=layout==='month'&&!['filters','reporting','search'].includes(view);
     content.className=month?'planner-month':layout==='board'&&view!=='search'&&!['filters','reporting'].includes(view)?'planner-board':'planner-list';
-    content.innerHTML=view==='filters'?filtersMarkup():view==='reporting'?reportingMarkup():month?monthMarkup(calendarTasks()):boardMarkup(tasks);
+    if (view==='filters') content.innerHTML=filtersMarkup();
+    else if (view==='reporting') content.innerHTML=reportingMarkup();
+    else if (month) content.innerHTML=monthMarkup(calendarTasks());
+    else if (layout==='list'&&view==='inbox') content.innerHTML=inboxMarkup(tasks);
+    else if (layout==='list'&&view==='today') content.innerHTML=todayMarkup(tasks);
+    else content.innerHTML=boardMarkup(tasks);
     content.scrollLeft=left;
     content.scrollTop=top;
     content.querySelectorAll('.planner-column-body').forEach((column,index)=>{column.scrollTop=columns[index]||0;});
@@ -226,13 +337,21 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   function render() {
     const project=view==='project'?state().projects.find(item=>item.id===selection):null;
     const filter=view==='filter'?state().plannerFilters.find(item=>item.id===selection):null;
-    if (view==='project'&&!project||view==='filter'&&!filter) { view='upcoming'; selection=''; }
+    if (view==='project'&&!project||view==='filter'&&!filter) { view='upcoming'; selection=''; selectLayout(defaultLayout(),false); }
     renderSidebar();
     const sectionView=view==='filters'||view==='reporting'||view==='search';
     const calendar=timeLayout()&&!sectionView;
+    root.dataset.plannerView=view;
+    root.dataset.plannerLayout=layout;
     $('#planner-heading').textContent=project?.name||filter?.name||(view==='label'?`%${selection}`:views[view]);
+    const detail=$('#planner-heading-detail');
+    detail.hidden=view!=='today';
+    if (view==='today') {
+      const count=matchingTasks().filter(task=>taskStatus(task)!=='done').length;
+      detail.innerHTML=`${icon('check')} ${count} open ${count===1?'task':'tasks'}`;
+    }
     $('#planner-breadcrumb').textContent=project?.archived?'Archived project':'Personal planner';
-    $('#planner-heading-actions').innerHTML=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:'';
+    $('#planner-heading-actions').innerHTML=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:view==='reporting'?`<button type="button" data-report-export>${icon('download')} Export CSV</button>`:'';
     $('#planner-layout-label').hidden=sectionView;
     $('#planner-display').hidden=view==='reporting'||view==='filters';
     $('#planner-board-tools').hidden=sectionView||calendar||(view!=='upcoming'&&layout!=='month');
@@ -251,8 +370,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   function open(anchorDate,forceCalendar) {
     date=anchorDate;
     view='upcoming'; selection=''; query=''; quick=null;
-    layout=forceCalendar?'calendar':'board';
-    layoutSelect.value=layout;
+    selectLayout(forceCalendar?'calendar':'board',false);
     render();
     content.scrollLeft=0;
   }
@@ -272,7 +390,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     let title, fields, extra='';
     if (type==='project') {
       title=project?'Project settings':'Add project';
-      fields=`<label>Project name<input name="name" maxlength="80" required value="${escape(project?.name)}"></label><label>Color<input name="color" type="color" value="${escape(project?.color||'#d94b49')}"></label><label class="planner-check-label"><input type="checkbox" name="favorite" ${project?.favorite?'checked':''}> Add to favorites</label>`;
+      fields=`<label>Project name<input name="name" maxlength="80" required value="${escape(project?.name)}"></label><label>Color<input name="color" type="color" value="${escape(project?.color||'#8dbfab')}"></label><label class="planner-check-label"><input type="checkbox" name="favorite" ${project?.favorite?'checked':''}> Add to favorites</label>`;
       if (project) extra=`<button type="submit" value="archive">${project.archived?'Restore project':'Archive project'}</button>`;
     } else if (type==='section') {
       if (!currentProject) return;
@@ -288,8 +406,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       title='Import Todoist project';
       fields='<label>Todoist project CSV<input type="file" name="csv" accept=".csv,text/csv" required></label><label>Project name (optional)<input name="name" maxlength="80" placeholder="Use the filename"></label><p>Imports a new project. Unsupported schedule text is kept in the task description.</p><p role="alert" id="planner-import-error" hidden></p>';
     } else if (type==='label') {
-      title='Edit label'; fields=`<label>Label name<input name="name" maxlength="40" required value="${escape(id)}"></label>`;
-      extra='<button type="submit" value="remove" formnovalidate>Remove label</button>';
+      title=id?'Edit label':'Add label'; fields=`<label>Label name<input name="name" maxlength="40" required value="${escape(id)}"></label>`;
+      if (id) extra='<button type="submit" value="remove" formnovalidate>Remove label</button>';
     } else {
       title='Reschedule overdue tasks'; fields=`<label>New date<input name="date" type="date" required min="${dayKey()}" value="${dayKey()}"></label>`;
     }
@@ -310,7 +428,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       const result=importTodoistProject(csv,name);
       state().projects.push(result.project);
       state().tasks.push(...result.tasks);
-      view='project'; selection=result.project.id; layout='board'; layoutSelect.value=layout; quick=null;
+      view='project'; selection=result.project.id; selectLayout(defaultLayout(),false); quick=null;
       dialog.close(); commit();
       $('#planner-heading').focus({preventScroll:true});
       notify(`Imported ${result.tasks.length} tasks.${result.unmappedDates?` ${result.unmappedDates} schedules were saved as text.`:''}`);
@@ -339,7 +457,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         if (project) Object.assign(project,values);
         else {
           const created={id:blankId(),sections:[],...values};
-          projects.push(created); view='project'; selection=created.id;
+          projects.push(created); view='project'; selection=created.id; selectLayout(defaultLayout(),false);
         }
       }
     } else if (type==='section') {
@@ -358,13 +476,15 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       else if (existing) Object.assign(existing,{name,query:String(fields.get('query')).trim()});
       else filters.push({id:blankId(),name,query:String(fields.get('query')).trim()});
     } else if (type==='label') {
+      const labels=state().plannerLabels.filter(label=>label!==id);
+      if (action!=='remove') labels.push(name);
+      state().plannerLabels=[...new Set(labels)];
       for (const task of state().tasks.filter(item=>item.labels?.includes(id))) task.labels=[...new Set(task.labels.flatMap(label=>label===id?(action==='remove'?[]:[name]):[label]))];
-      if (view==='label') { view='filters'; selection=''; }
+      if (view==='label') { view='filters'; selection=''; selectLayout(defaultLayout(),false); }
     } else {
-      const now=new Date(), today=dayKey(now), target=fields.get('date');
+      const now=new Date(), target=fields.get('date');
       for (const task of activeTasks()) {
-        const scheduled=nextTaskDate(task,now);
-        if (task.repeat==='none'&&!task.done&&scheduled&&scheduled<today) task.date=target;
+        if (overdueDate(task,now)) task.date=target;
       }
     }
     dialog.close();
@@ -377,6 +497,15 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if (!button) return;
     const data=button.dataset;
     if (data.plannerView) return setView(data.plannerView,data.value);
+    if (data.fold) {
+      const open=collapsed.has(data.fold);
+      if (open) collapsed.delete(data.fold); else collapsed.add(data.fold);
+      button.setAttribute('aria-expanded',String(open));
+      $(`#planner-group-${data.fold}`).hidden=!open;
+      return;
+    }
+    if ('reportExport' in data) return exportReport();
+    if (data.reportTask) return editTask(data.reportTask,button);
     if (data.plannerStep) {
       if (data.plannerStep==='0') date=new Date();
       else if (layout==='month') date=new Date(date.getFullYear(),date.getMonth()+Math.sign(Number(data.plannerStep)),1);
@@ -396,7 +525,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if (data.manage) return showDialog(data.manage,data.value||'',button);
     if ('dialogClose' in data) return dialog.close();
     if (data.monthDay) {
-      date=parseDay(data.monthDay); layout='calendar'; layoutSelect.value=layout; render(); return;
+      date=parseDay(data.monthDay); selectLayout('calendar'); render(); return;
     }
     if ('monthTask' in data) return editTask(data.task,button);
     const card=button.closest('.planner-task');
@@ -408,7 +537,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if ('taskMenu' in data) return taskMenu(task.id,button);
     if ('completeTask' in data) {
       const day=parseDay(card.dataset.occurrence), done=taskStatus(task,day)!=='done';
-      completeTask(task,done,task.repeat==='none'?new Date():day);
+      recordTaskCompletion(state(),task,done,day);
       if (done&&state().activeTask===task.id&&taskStatus(task)==='done') state().activeTask=null;
       commit(); notify(done?'Task completed.':'Task reopened.');
       const next=content.querySelector(`[data-task="${CSS.escape(task.id)}"] [data-complete-task]`);
@@ -436,7 +565,11 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   });
   root.addEventListener('change',event=>{
     const input=event.target;
-    if (input===layoutSelect) { layout=input.value; quick=null; content.scrollLeft=0; return render(); }
+    if (input===layoutSelect) { selectLayout(input.value); quick=null; content.scrollLeft=0; return render(); }
+    if (input.dataset.reportControl) {
+      report[input.dataset.reportControl]=input.value;
+      renderContent(); $(`#${input.id}`)?.focus({preventScroll:true}); return;
+    }
     if (input===completed||input===sort) return render();
     if (input.id==='planner-jump-date'&&input.value) { date=parseDay(input.value); quick=null; content.scrollLeft=0; return render(); }
     if (!input.dataset.plannerSubtask) return;
@@ -489,7 +622,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if (event.key.toLowerCase()==='q') { event.preventDefault(); add(); }
     if (event.key==='/'&&view!=='search') { event.preventDefault(); setView('search'); }
     if (event.shiftKey&&event.key.toLowerCase()==='v'&&!['filters','reporting','search'].includes(view)) {
-      event.preventDefault(); layout={board:'list',list:'calendar',calendar:'3days','3days':'month',month:'board'}[layout]; layoutSelect.value=layout; render();
+      event.preventDefault(); selectLayout({board:'list',list:'calendar',calendar:'3days','3days':'month',month:'board'}[layout]); render();
     }
   });
 
@@ -505,5 +638,5 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     return true;
   }
 
-  return {open,render,calendarTasks,checkReminders,calendarVisible:()=>!$('#planner-calendar-view').hidden};
+  return {open,render,calendarTasks,checkReminders,refreshReporting:()=>{if (!root.hidden&&view==='reporting') renderContent();},calendarVisible:()=>!$('#planner-calendar-view').hidden};
 }

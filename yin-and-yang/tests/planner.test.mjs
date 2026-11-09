@@ -2,7 +2,8 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from '../dist/planner-data.js';
 import {calendarBlocks} from '../dist/calendar.js';
-import {completeTask,freshState,loadState,taskStatus} from '../dist/state.js';
+import {completeTask,freshState,loadState,recordTaskCompletion,settle,skipPhase,startPause,taskStatus} from '../dist/state.js';
+import {reportCsv,reportEvents,reportMetrics} from '../dist/planner-report.js';
 
 test('Quick Add creates a timed project task that shows in the shared calendar and saved filters',()=>{
   const now=new Date(2026,10,8), tomorrow=new Date(2026,10,9);
@@ -43,4 +44,44 @@ test('Todoist CSV import preserves quoted content and keeps unrecognized schedul
   assert.match(tasks[1].description,/every last working day/);
   assert.equal(unmappedDates,1);
   assert.throws(()=>importTodoistProject('random,file\nA,B','Course'),/TYPE and CONTENT/);
+});
+
+test('reporting records a recurring completion on the actual completion day and can reopen it',()=>{
+  const occurrence=new Date(2026,10,7);
+  const now=new Date(2026,10,8,10);
+  const state=freshState();
+  const repeating=quickTask('Review budget every day',{projectId:'studio'},[],occurrence);
+  const legacy=quickTask('Read notes',{},[],occurrence);
+  completeTask(legacy,true,occurrence);
+  state.tasks.push(repeating,legacy);
+  recordTaskCompletion(state,repeating,true,occurrence,now.getTime());
+  repeating.projectId='';
+  const saved=loadState({getItem:()=>JSON.stringify(state)});
+  const events=reportEvents(saved,{period:'1',project:'studio'},now);
+  assert.deepEqual(events.map(event=>[event.day,event.text,event.at]),[['2026-11-08','Review budget',now.getTime()]]);
+  assert.equal(reportEvents(saved).length,2);
+  assert.equal(reportEvents(saved,{project:'inbox'})[0].at,null);
+  recordTaskCompletion(saved,saved.tasks[0],false,occurrence,now.getTime());
+  assert.equal(reportEvents(saved).length,1);
+});
+
+test('focus metrics keep project attribution after reload and exclude skips from focus minutes',()=>{
+  const now=new Date(2026,10,8,10);
+  const state=freshState();
+  const task=quickTask('Review drawings',{projectId:'studio'},[],now);
+  state.tasks.push(task);
+  state.activeTask=task.id;
+  startPause(state,now.getTime());
+  task.projectId='';
+  const saved=loadState({getItem:()=>JSON.stringify(state)});
+  settle(saved,now.getTime()+25*60000);
+  startPause(saved,now.getTime()+25*60000);
+  settle(saved,now.getTime()+30*60000);
+  saved.tasks[0].projectId='studio';
+  startPause(saved,now.getTime()+30*60000);
+  skipPhase(saved,now.getTime()+31*60000);
+  const events=reportEvents(saved,{project:'studio',period:'1'},now);
+  assert.deepEqual(events.map(event=>[event.type,event.text]),[['skipped','Review drawings'],['focus','Review drawings']]);
+  assert.deepEqual(reportMetrics(events).total,{task:0,focus:1,skipped:1,ms:25*60000,days:1,average:25*60000,rate:0.5});
+  assert.match(reportCsv(events,()=> 'Studio, "Design"'),/"Review drawings","Studio, ""Design""","25"/);
 });

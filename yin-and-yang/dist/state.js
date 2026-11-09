@@ -44,6 +44,14 @@ export function completeTask(task, checked, date = new Date()) {
   }
 }
 
+export function recordTaskCompletion(state, task, checked, occurrence = new Date(), now = Date.now()) {
+  const recurring = task.repeat && task.repeat !== 'none';
+  const id = `${task.id}:${recurring ? dayKey(occurrence) : 'once'}`;
+  completeTask(task, checked, recurring ? occurrence : new Date(now));
+  state.taskActivity = state.taskActivity.filter(event => event.id !== id);
+  if (checked) state.taskActivity.push({id, taskId:task.id, text:task.text, projectId:task.projectId||'', at:now});
+}
+
 export function taskPriority(task) { return task.priorityLevel || (task.priority ? 1 : 4); }
 
 function loadTask(task) {
@@ -83,7 +91,7 @@ export function formatDuration(ms) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -100,6 +108,8 @@ export function loadState(storage) {
       sections:Array.isArray(project.sections)?project.sections.filter(section=>section&&typeof section.id==='string'&&typeof section.name==='string'):[]
     }));
     if (Array.isArray(raw.plannerFilters)) base.plannerFilters=raw.plannerFilters.filter(filter=>filter&&typeof filter.id==='string'&&typeof filter.name==='string'&&typeof filter.query==='string');
+    if (Array.isArray(raw.plannerLabels)) base.plannerLabels=raw.plannerLabels.filter(label=>typeof label==='string'&&label.length>0&&label.length<=40);
+    if (Array.isArray(raw.taskActivity)) base.taskActivity=raw.taskActivity.filter(event=>event&&typeof event.id==='string'&&typeof event.taskId==='string'&&typeof event.text==='string'&&Number.isFinite(event.at));
     base.activeTask=base.tasks.some(t=>t.id===raw.activeTask && taskStatus(t)==='todo')?raw.activeTask:null;
     if (Array.isArray(raw.history)) base.history=raw.history.filter(h=>h && typeof h.id==='string' && ['completed','skipped'].includes(h.outcome) && ['focus','break'].includes(h.mode) && Number.isFinite(h.finishedAt) && Number.isFinite(h.focusMs));
     base.focusMode=raw.focusMode===true;
@@ -122,7 +132,16 @@ export function remaining(state, now=Date.now()) { return state.timer.status==='
 export function startPause(state, now=Date.now()) {
   const t=state.timer;
   if(t.status==='running') { t.remaining=remaining(state,now); t.endAt=null; t.status='paused'; }
-  else { if (!t.id) { t.id=globalThis.crypto.randomUUID(); t.startedAt=now; } t.endAt=now+t.remaining; t.status='running'; }
+  else {
+    if (!t.id) {
+      t.id=globalThis.crypto.randomUUID();
+      t.startedAt=now;
+      const task=state.tasks.find(item=>item.id===(t.block?.taskId||state.activeTask));
+      if (task) t.taskSnapshot={id:task.id,text:task.text,projectId:task.projectId||''};
+    }
+    t.endAt=now+t.remaining;
+    t.status='running';
+  }
 }
 export function reset(state, mode=state.timer.mode) {
   state.timer={mode,status:'idle',remaining:duration(state,mode),total:duration(state,mode),endAt:null,startedAt:null,id:null};
@@ -157,8 +176,9 @@ export function record(state, outcome, now=Date.now()) {
   const t=state.timer;
   if(!t.id || state.history.some(h=>h.id===t.id)) return null;
   const finish=outcome==='completed' && t.endAt ? t.endAt : now;
-  const task=state.tasks.find(task=>task.id===t.block?.taskId);
-  const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention:task?.text??state.intention};
+  const task=t.taskSnapshot||state.tasks.find(task=>task.id===t.block?.taskId);
+  const intention=t.block?(task?.text||state.intention):(state.intention||task?.text||'');
+  const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention,taskTitle:task?.text||'',taskId:task?.id||'',projectId:task?task.projectId||'':null};
   state.history.push(h); return h;
 }
 export function settle(state, now=Date.now()) {

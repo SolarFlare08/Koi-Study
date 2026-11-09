@@ -1,4 +1,4 @@
-import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,todayProgress,duration,formatDuration,parseDuration,dayKey,taskOccursOn,taskStatus,completeTask,taskFrequencies,taskPriority} from './state.js';
+import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,todayProgress,duration,formatDuration,parseDuration,dayKey,taskOccursOn,taskStatus,recordTaskCompletion,taskFrequencies,taskPriority} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
 import {addTaskBlock, blockFocusTiming, calendarBlocks, calendarDragType, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue} from './calendar.js';
 import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
@@ -159,7 +159,7 @@ function checkCompletion(){
   const message=wasBlock
     ? state.timer.block ? (state.timer.mode==='break'?'Focus complete. A short rest has started.':'Rest complete. Focus has resumed.') : 'Calendar block finished.'
     : completed.mode==='focus'?'Focus session complete. Your break is ready.':'Break complete. Your focus timer is ready.';
-  persist();render();toast(message);announce(message);
+  persist();render();planner.refreshReporting();toast(message);announce(message);
   if(activePanel==='progress'||activePanel==='focus-task')refreshPanel();
   wake();
 }
@@ -348,39 +348,80 @@ function taskEditor(){
   const values=task||taskDraft||{};
   const options=Object.entries(taskFrequencies).map(([value,label])=>`<option value="${value}" ${values.repeat===value?'selected':''}>${label}</option>`).join('');
   const projects=state.projects.filter(project=>!project.archived||project.id===values.projectId);
+  const projectName=projects.find(project=>project.id===values.projectId)?.name||'Inbox';
   const projectOptions=projects.map(project=>`<option value="${escape(project.id)}" ${project.id===values.projectId?'selected':''}>${escape(project.name)}</option>`).join('');
   const subtasks=task?.subtasks||[];
   const reminder=task?.reminderAt?`${dayKey(new Date(task.reminderAt))}T${new Date(task.reminderAt).toTimeString().slice(0,5)}`:'';
-  return `${header('TASK DETAILS',task?'Edit task':'Add task')}
+  const day=taskEditorOccurrence();
+  const canComplete=task&&(task.repeat==='none'||taskOccursOn(task,day));
+  const done=canComplete&&taskStatus(task,day)==='done';
+  const labels=[...new Set([...state.plannerLabels,...state.tasks.flatMap(item=>item.labels||[])])];
+  return `${header(escape(projectName),task?'Edit task':'Add task')}
     <form id="task-editor-form">
-      <label class="field-label" for="task-title">Task name</label>
-      <input id="task-title" name="title" value="${escape(values.text)}" maxlength="160" required>
-      <label class="field-label" for="task-description">Description</label>
-      <textarea id="task-description" name="description" rows="3" maxlength="2000" placeholder="Anything you want to remember">${escape(task?.description)}</textarea>
-      <div class="task-editor-grid">
-        <div><label class="field-label" for="task-date">Date</label><input id="task-date" name="date" type="date" value="${escape(values.date)}"></div>
-        <div><label class="field-label" for="task-time">Time</label><input id="task-time" name="time" type="time" value="${escape(values.time)}"></div>
-        <div><label class="field-label" for="task-estimate">Estimate (min)</label><input id="task-estimate" name="estimate" type="number" min="1" max="1440" step="1" value="${values.estimate??''}" placeholder="60"></div>
-        <div><label class="field-label" for="task-repeat">Repeat</label><select id="task-repeat" name="repeat">${options}</select></div>
-        <div id="task-interval-field" ${values.repeat==='interval'?'':'hidden'}><label class="field-label" for="task-interval">Days between tasks</label><input id="task-interval" name="repeatEvery" type="number" min="2" max="365" value="${values.repeatEvery||2}" ${values.repeat==='interval'?'':'disabled'}></div>
-        <div><label class="field-label" for="task-project">Project</label><select id="task-project" name="projectId"><option value="">Inbox</option>${projectOptions}</select></div>
-        <div><label class="field-label" for="task-section">Section</label><select id="task-section" name="sectionId">${taskSectionOptions(values.projectId,values.sectionId)}</select></div>
-        <div><label class="field-label" for="task-priority">Priority</label><select id="task-priority" name="priorityLevel">${[1,2,3,4].map(level=>`<option value="${level}" ${level===taskPriority(values)?'selected':''}>${level===4?'P4 · Normal':`P${level}`}</option>`).join('')}</select></div>
-        <div><label class="field-label" for="task-deadline">Deadline</label><input id="task-deadline" name="deadline" type="date" value="${escape(values.deadline)}"></div>
+      <div class="task-detail-grid">
+        <div class="task-detail-main">
+          <div class="task-detail-title">
+            ${canComplete?`<button class="task-detail-check" id="task-detail-complete" type="button" aria-pressed="${done}" aria-label="${done?'Reopen task':'Complete task'}">${done?'✓':''}</button>`:''}
+            <label class="sr-only" for="task-title">Task name</label>
+            <textarea id="task-title" name="title" rows="2" maxlength="${Math.max(300,values.text?.length||0)}" placeholder="Task name" required>${escape(values.text)}</textarea>
+          </div>
+          <label class="field-label" for="task-description">Description</label>
+          <textarea id="task-description" name="description" rows="3" maxlength="2000" placeholder="Add a description…">${escape(values.description)}</textarea>
+          <section class="task-detail-section" aria-labelledby="task-subtask-heading">
+            <h3 id="task-subtask-heading">Subtasks ${subtasks.length?`<small>${subtasks.filter(sub=>sub.done).length}/${subtasks.length}</small>`:''}</h3>
+            ${subtasks.map(sub=>`<div class="task-editor-subtask"><input type="checkbox" name="done:${escape(sub.id)}" aria-label="Complete ${escape(sub.text)}" ${sub.done?'checked':''}><input name="sub:${escape(sub.id)}" aria-label="Edit subtask ${escape(sub.text)}" maxlength="160" value="${escape(sub.text)}"></div>`).join('')}
+            <label class="sr-only" for="task-subtasks">Add subtasks, one per line</label>
+            <textarea id="task-subtasks" name="subtasks" rows="2" maxlength="2000" placeholder="+ Add subtasks, one per line"></textarea>
+          </section>
+          <section class="task-detail-section" aria-labelledby="task-comment-heading">
+            <h3 id="task-comment-heading">Comments</h3>
+            ${(task?.comments||[]).map(comment=>`<div class="task-editor-comment"><time>${escape(new Date(comment.at).toLocaleString())}</time><p>${escape(comment.text)}</p></div>`).join('')}
+            <label class="sr-only" for="task-comment">Add a comment</label>
+            <textarea id="task-comment" name="comment" rows="2" maxlength="2000" placeholder="Leave a comment…"></textarea>
+          </section>
+        </div>
+        <div class="task-detail-properties" aria-label="Task properties">
+          <div class="task-detail-property task-editor-grid">
+            <div><label class="field-label" for="task-project">Project</label><select id="task-project" name="projectId"><option value="">Inbox</option>${projectOptions}</select></div>
+            <div><label class="field-label" for="task-section">Section</label><select id="task-section" name="sectionId">${taskSectionOptions(values.projectId,values.sectionId)}</select></div>
+          </div>
+          <fieldset class="task-detail-property task-detail-schedule">
+            <legend>Schedule</legend>
+            <div class="task-editor-grid">
+              <div><label class="field-label" for="task-date">Date</label><input id="task-date" name="date" type="date" value="${escape(values.date)}"></div>
+              <div><label class="field-label" for="task-time">Time</label><input id="task-time" name="time" type="time" value="${escape(values.time)}"></div>
+            </div>
+            <div class="task-editor-grid">
+              <div><label class="field-label" for="task-repeat">Repeat</label><select id="task-repeat" name="repeat" aria-describedby="task-repeat-hint">${options}</select></div>
+              <div><label class="field-label" for="task-estimate">Estimate (min)</label><input id="task-estimate" name="estimate" type="number" min="1" max="1440" step="1" value="${values.estimate??''}" placeholder="60"></div>
+            </div>
+            <p id="task-repeat-hint" ${values.repeat&&values.repeat!=='none'?'':'hidden'}>The date sets the first occurrence. Leave it blank to start today.</p>
+            <div id="task-interval-field" ${values.repeat==='interval'?'':'hidden'}><label class="field-label" for="task-interval">Days between occurrences</label><input id="task-interval" name="repeatEvery" type="number" min="2" max="365" value="${values.repeatEvery||2}" ${values.repeat==='interval'?'':'disabled'}></div>
+          </fieldset>
+          <div class="task-detail-property">
+            <label class="field-label" for="task-deadline">Deadline</label><input id="task-deadline" name="deadline" type="date" value="${escape(values.deadline)}">
+          </div>
+          <div class="task-detail-property">
+            <label class="field-label" for="task-priority">Priority</label><select id="task-priority" name="priorityLevel">${[1,2,3,4].map(level=>`<option value="${level}" ${level===taskPriority(values)?'selected':''}>${level===4?'P4 · Normal':`P${level}`}</option>`).join('')}</select>
+          </div>
+          <div class="task-detail-property">
+            <label class="field-label" for="task-labels">Labels</label><input id="task-labels" name="labels" list="task-label-options" maxlength="240" value="${escape(values.labels?.join(', '))}" placeholder="reading, homework">
+            <datalist id="task-label-options">${labels.map(label=>`<option value="${escape(label)}"></option>`).join('')}</datalist>
+          </div>
+          <div class="task-detail-property">
+            <label class="field-label" for="task-reminder">Reminder</label><input id="task-reminder" name="reminder" type="datetime-local" aria-describedby="task-reminder-hint" value="${escape(reminder)}">
+            <p id="task-reminder-hint">Shown while the app is open.</p>
+          </div>
+        </div>
       </div>
-      <label class="field-label" for="task-labels">Labels</label><input id="task-labels" name="labels" maxlength="240" value="${escape(values.labels?.join(', '))}" placeholder="reading, homework">
-      <label class="field-label" for="task-reminder">Reminder while the app is open</label><input id="task-reminder" name="reminder" type="datetime-local" value="${escape(reminder)}">
-      <details class="task-editor-details" ${subtasks.length?'open':''}><summary>Subtasks${subtasks.length?` (${subtasks.length})`:''}</summary>
-        ${subtasks.map(sub=>`<div class="task-editor-subtask"><input type="checkbox" name="done:${escape(sub.id)}" aria-label="Complete ${escape(sub.text)}" ${sub.done?'checked':''}><input name="sub:${escape(sub.id)}" aria-label="Edit subtask ${escape(sub.text)}" maxlength="160" value="${escape(sub.text)}"></div>`).join('')}
-        <label class="field-label" for="task-subtasks">Add subtasks, one per line</label><textarea id="task-subtasks" name="subtasks" rows="2" maxlength="2000"></textarea>
-      </details>
-      <details class="task-editor-details"><summary>Comments${task?.comments?.length?` (${task.comments.length})`:''}</summary>
-        ${(task?.comments||[]).map(comment=>`<div class="task-editor-comment"><time>${escape(new Date(comment.at).toLocaleString())}</time><p>${escape(comment.text)}</p></div>`).join('')}
-        <label class="field-label" for="task-comment">Add a comment</label><textarea id="task-comment" name="comment" rows="2" maxlength="2000"></textarea>
-      </details>
-      <div class="panel-actions"><button class="panel-primary" type="submit">Save task</button>${task?'<button type="button" class="text-button" id="delete-task">Delete task</button>':''}</div>
+      <footer class="panel-actions task-detail-footer">${task?'<button type="button" class="text-button" id="delete-task">Delete task</button>':''}<button class="panel-primary" type="submit">Save task</button></footer>
     </form>`;
 }
+function taskEditorOccurrence(){
+  const key=lastAnchor?.closest('[data-occurrence]')?.dataset.occurrence;
+  return key?new Date(`${key}T00:00:00`):new Date();
+}
+
 function taskSectionOptions(projectId,current){
   const sections=state.projects.find(project=>project.id===projectId)?.sections||[];
   return '<option value="">No section</option>'+sections.map(section=>`<option value="${escape(section.id)}" ${section.id===current?'selected':''}>${escape(section.name)}</option>`).join('');
@@ -484,9 +525,12 @@ function openPanel(id,anchor){
   closePanel(false);activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':['task-editor','block-editor'].includes(id)?'panel task-editor':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':id==='block-editor'?'panel task-editor':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
   positionPanel(panel,anchor);wake();
-  (panel.querySelector('input,textarea')||panel.querySelector('button')).focus({preventScroll:true});
+  const firstControl=panel.querySelector('input,textarea')||panel.querySelector('button');
+  const initialFocus=id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
+  if(initialFocus.id==='panel-title')initialFocus.tabIndex=-1;
+  initialFocus.focus({preventScroll:true});
 }
 function closePanel(restore=true){
   const p=visiblePanel();if(p){if(p.id==='music-panel'){p.classList.add('music-hidden');p.setAttribute('aria-hidden','true');p.inert=true;p.querySelector('h2').id='music-hidden-title';p.setAttribute('aria-labelledby','music-hidden-title');}else p.remove();}
@@ -796,7 +840,7 @@ taskMenu.addEventListener('click',event=>{
   }
   if(action==='focus')state.activeTask=state.activeTask===task.id?null:task.id;
   if(action==='complete'){
-    completeTask(task,taskStatus(task)!=='done');
+    recordTaskCompletion(state,task,taskStatus(task)!=='done');
     if(state.activeTask===task.id&&taskStatus(task)==='done')state.activeTask=availableTaskId();
   }
   if(action==='unschedule')task.time='';
@@ -936,7 +980,7 @@ taskSidebar.addEventListener('change',event=>{
   if(!checkbox.classList.contains('task-check'))return;
   const task=state.tasks.find(item=>item.id===checkbox.closest('[data-task]').dataset.task);
   if(!task || taskStatus(task)==='upcoming')return;
-  completeTask(task,checkbox.checked);
+  recordTaskCompletion(state,task,checkbox.checked);
   if(checkbox.checked&&state.activeTask===task.id)state.activeTask=availableTaskId();
   persist();refreshTasks();
   taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-check`)?.focus();
@@ -1009,6 +1053,19 @@ root.addEventListener('click',e=>{
   if(btn.id==='delete-task'){
     closePanel(false);deleteTask(editingTaskId);
   }
+  if(btn.id==='task-detail-complete'){
+    const task=state.tasks.find(item=>item.id===editingTaskId);
+    const day=taskEditorOccurrence();
+    if(!task||task.repeat!=='none'&&!taskOccursOn(task,day))return;
+    const done=taskStatus(task,day)!=='done';
+    recordTaskCompletion(state,task,done,day);
+    if(state.activeTask===task.id&&taskStatus(task)==='done')state.activeTask=availableTaskId();
+    persist();refreshTasks();
+    btn.setAttribute('aria-pressed',String(done));
+    btn.setAttribute('aria-label',done?'Reopen task':'Complete task');
+    btn.textContent=done?'✓':'';
+    announce(done?'Task completed.':'Task reopened.');
+  }
   if(btn.id==='delete-block'){
     const task=state.tasks.find(item=>item.id===editingTaskId);
     if(!task)return;
@@ -1030,6 +1087,7 @@ root.addEventListener('change',event=>{
     const hidden=event.target.value!=='interval';
     $('#task-interval-field').hidden=hidden;
     $('#task-interval').disabled=hidden;
+    $('#task-repeat-hint').hidden=event.target.value==='none';
   }
 });
 root.addEventListener('submit',e=>{
@@ -1063,7 +1121,7 @@ root.addEventListener('submit',e=>{
   }
   if(e.target.id==='task-editor-form'){
     const fields=new FormData(e.target);
-    const text=fields.get('title').trim();
+    const text=fields.get('title').replace(/\s*\n\s*/g,' ').trim();
     if(!text){const title=$('#task-title');title.setCustomValidity('Enter a task name.');title.reportValidity();return;}
     const existing=state.tasks.find(task=>task.id===editingTaskId);
     const repeat=fields.get('repeat');
@@ -1154,7 +1212,12 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&workspace==='planner'){e.preventDefault();closeCalendar();return;}
   if(e.key==='Escape'&&state.focusMode&&!e.defaultPrevented){e.preventDefault();toggleFocusMode();return;}
   const p=visiblePanel();
-  if(e.key==='Tab'&&p){const els=[...p.querySelectorAll('button:not(:disabled):not([hidden]),input,textarea,select,a[href],iframe')].filter(el=>el.offsetParent!==null);const first=els[0],last=els.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
+  if(e.key==='Tab'&&p){
+    const controls=[...p.querySelectorAll('button,input,textarea,select,a[href],iframe')].filter(el=>!el.disabled&&el.offsetParent!==null);
+    const focused=document.activeElement, first=controls[0], last=controls.at(-1);
+    if(e.shiftKey&&(focused===first||focused.id==='panel-title')){e.preventDefault();last?.focus();}
+    else if(!e.shiftKey&&focused===last){e.preventDefault();first?.focus();}
+  }
   if(e.code==='Space'&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&workspace==='focus'&&!activePanel&&taskMenu.hidden&&!e.target.closest('button,a,input,textarea,select,summary,[contenteditable]')){
     e.preventDefault();timerButton.click();
   }
