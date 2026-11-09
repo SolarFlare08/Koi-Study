@@ -1068,17 +1068,19 @@ function deleteTask(id){
 }
 function animateTaskCompletion(anchor){
   if(motionPreference.matches||!anchor?.getClientRects().length)return;
-  const check=anchor.closest('.planner-task,.task-row')?.querySelector('[data-complete-task],.task-check')||anchor;
-  const rect=check.getBoundingClientRect();
+  const title=anchor.closest('.planner-task,.task-card,.task-detail-panel')?.querySelector('.planner-task-title,.task-open,#panel-title')||anchor;
+  const rect=title.getBoundingClientRect();
+  const width=Math.min(rect.width,innerWidth-rect.left,190);
+  if(width<=0||rect.bottom<0||rect.bottom>innerHeight)return;
   const effect=document.createElement('span');
-  effect.className='task-completion-bloom';
+  effect.className='task-completion-ink';
   effect.setAttribute('aria-hidden','true');
-  effect.style.left=`${rect.left+rect.width/2}px`;
-  effect.style.top=`${rect.top+rect.height/2}px`;
-  effect.innerHTML='<svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="12"/><path d="m19.5 24 3 3 6-6"/><path class="completion-rays" d="M24 5v4m0 30v4M5 24h4m30 0h4M11 11l3 3m20 20 3 3m0-26-3 3M14 34l-3 3"/></svg>';
-  document.body.append(effect);
+  effect.style.left=`${rect.left}px`;
+  effect.style.top=`${rect.bottom}px`;
+  effect.style.width=`${width}px`;
+  app.append(effect);
   effect.addEventListener('animationend',()=>effect.remove(),{once:true});
-  setTimeout(()=>effect.remove(),720);
+  setTimeout(()=>effect.remove(),760);
 }
 function markTask(task,done,day=new Date(),anchor){
   const before=state.activeTask;

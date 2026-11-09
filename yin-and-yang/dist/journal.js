@@ -30,23 +30,27 @@ export function installJournal({root,storage,projects,notify}){
   let anchor;
   function open(item,trigger){
     anchor=trigger;
-    dialog.innerHTML=`<form data-entry-id="${esc(item?.id)}"><header><div><span class="journal-kicker">JOURNAL</span><h3 id="journal-editor-title">${item?'Edit entry':'New entry'}</h3></div><button type="button" data-journal-close aria-label="Close journal editor">×</button></header>
-      <label>Title<input class="journal-title" name="title" required maxlength="120" value="${esc(item?.title)}" placeholder="Give this moment a title"></label>
+    dialog.innerHTML=`<form data-entry-id="${esc(item?.id)}"><header>
+      <h3 id="journal-editor-title" class="sr-only">${item?'Edit entry':'New entry'}</h3>
+      <label class="journal-title-field"><span class="sr-only">Title</span><input class="journal-title" name="title" required maxlength="120" value="${esc(item?.title)}" placeholder="Entry title"></label>
+      <details class="journal-details"><summary>Details</summary>
       <div class="journal-fields"><label>Date<input name="date" type="date" required value="${item?.date||dayKey()}"></label>
       <label>Mood<select name="mood"><option value="">Optional</option>${moods.map(mood=>`<option ${item?.mood===mood?'selected':''}>${mood}</option>`).join('')}</select></label>
-      <label>Crochet project<select name="projectId"><option value="">General journal</option>${projects().map(project=>`<option value="${esc(project.id)}" ${project.id===item?.projectId?'selected':''}>${esc(project.name)}</option>`).join('')}</select></label></div>
-      <label>Entry<textarea name="body" rows="10" maxlength="15000" placeholder="What stayed with you today?" required>${esc(item?.body)}</textarea></label>
-      <p id="journal-error" role="alert" hidden></p><footer><span id="journal-word-count"></span>${item?'<button type="submit" value="delete" formnovalidate>Delete entry</button>':''}<button type="submit" value="save">Save entry</button></footer></form>`;
+      <label>Crochet project<select name="projectId"><option value="">General journal</option>${projects().map(project=>`<option value="${esc(project.id)}" ${project.id===item?.projectId?'selected':''}>${esc(project.name)}</option>`).join('')}</select></label></div></details>
+      <button type="button" data-journal-close aria-label="Close journal editor">×</button>
+      </header>
+      <label class="journal-writing"><span class="sr-only">Entry</span><textarea name="body" placeholder="What stayed with you today?" required>${esc(item?.body)}</textarea></label>
+      <div><p id="journal-error" role="alert" hidden></p><footer><span id="journal-word-count"></span>${item?'<button type="submit" value="delete" formnovalidate>Delete entry</button>':''}<button type="submit" value="save">Save entry</button></footer></div></form>`;
     const body=dialog.querySelector('[name="body"]');
     const updateWordCount=()=>{
-      const count=body.value.trim().match(/\S+/g)?.length||0;
+      const count=body.value.match(/\S+/g)?.length||0;
       $('#journal-word-count').textContent=`${count} ${count===1?'word':'words'}`;
     };
     body.addEventListener('input',updateWordCount);
     updateWordCount();
     dialog.setAttribute('aria-labelledby','journal-editor-title');
     dialog.showModal();
-    dialog.querySelector('[name="title"]').focus();
+    (item?body:dialog.querySelector('[name="title"]')).focus();
   }
   add.onclick=()=>open(null,add);
   $('#journal-search').oninput=event=>{query=event.target.value.trim().toLowerCase();render();};
@@ -55,6 +59,20 @@ export function installJournal({root,storage,projects,notify}){
     if(edit){const item=entries.find(entry=>entry.id===edit.dataset.journalEdit);if(item)open(item,edit);}
     if(event.target.closest('[data-journal-close]'))dialog.close();
   });
+  dialog.addEventListener('click',event=>{
+    const details=dialog.querySelector('.journal-details');
+    if(details?.open&&!details.contains(event.target))details.open=false;
+  });
+  dialog.addEventListener('keydown',event=>{
+    const details=dialog.querySelector('.journal-details');
+    if(event.key==='Escape'&&details?.open){
+      event.preventDefault();details.open=false;details.querySelector('summary').focus();
+    }
+  });
+  dialog.addEventListener('invalid',event=>{
+    const details=event.target.closest('.journal-details');
+    if(details)details.open=true;
+  },true);
   dialog.addEventListener('submit',event=>{
     event.preventDefault();
     const form=event.target,data=new FormData(form),id=form.dataset.entryId||crypto.randomUUID();

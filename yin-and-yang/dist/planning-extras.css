@@ -26,21 +26,21 @@
 .planner-month-event { display: block; width: 100%; margin: 2px 0; padding: 2px 4px; border-radius: 3px; background: var(--planner-tint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; text-align: left; }
 .planner-month-event:hover { text-decoration: underline; }
 
-.task-completion-bloom {
-  position: fixed; z-index: 100; display: grid; place-items: center; width: 44px; height: 44px;
-  pointer-events: none; color: #dcf5e3; transform: translate(-50%,-50%);
-  animation: completion-bloom 560ms ease-out both;
+.task-completion-ink {
+  position: fixed; z-index: 100; height: 3px; border-radius: 100% 40% 100% 30%;
+  background: linear-gradient(90deg,#a7d5be70,#a7d5be 36%,#d4e5c8 80%,transparent);
+  pointer-events: none; transform-origin: left center;
+  animation: completion-ink 620ms ease-out both;
 }
-.task-completion-bloom svg { width: 100%; height: 100%; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.task-completion-bloom circle { fill: #356e60; }
-.task-completion-bloom .completion-rays { stroke: #efc49d; }
-@keyframes completion-bloom {
-  0% { opacity: 0; scale: .6; }
-  20% { opacity: 1; scale: 1; }
-  55% { opacity: 1; }
-  100% { opacity: 0; scale: 1.16; }
+#app[data-lighting="day"] .task-completion-ink {
+  background: linear-gradient(90deg,#38755c70,#38755c 36%,#739478 80%,transparent);
 }
-@media (prefers-reduced-motion: reduce) { .task-completion-bloom { display: none; } }
+@keyframes completion-ink {
+  0% { opacity: .3; transform: scaleX(.08); }
+  42% { opacity: 1; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) { .task-completion-ink { display: none; } }
 
 .calendar-block.manual-event, #planner-calendar-view .calendar-block.manual-event, .calendar-all-day-task.manual-event {
   background: #423851; color: #f7eaf9; border-color: #a28ab0;
