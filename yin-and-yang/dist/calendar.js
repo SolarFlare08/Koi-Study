@@ -33,6 +33,35 @@ export function timeMinutes(time) {
   return hour * 60 + minute;
 }
 
+export function calendarEventFromFields(fields, id) {
+  const {startDay, endDay, startTime, endTime, allDay} = fields;
+  const title = fields.title.trim();
+  if (!title) throw new Error('Give the event a title.');
+  const localDay = value => {
+    const date = new Date(`${value}T00:00:00`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(+date) || dayKey(date) !== value) {
+      throw new Error('Choose valid start and end dates.');
+    }
+    return date;
+  };
+  localDay(startDay);
+  const last = localDay(endDay);
+  const event = {id, title, description: fields.description.trim(), manual: true};
+  if (allDay) {
+    if (endDay < startDay) throw new Error('The last day can’t be before the first day.');
+    return {...event, day: startDay, endDay: dayKey(shiftDay(last, 1))};
+  }
+  const localTime = (day, time) => {
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Choose valid start and end times.');
+    const date = new Date(`${day}T${time}:00`);
+    if (timeValue(date.getHours() * 60 + date.getMinutes()) !== time) throw new Error('That time is unavailable on this date.');
+    return +date;
+  };
+  const start = localTime(startDay, startTime), end = localTime(endDay, endTime);
+  if (end <= start) throw new Error('The end needs to be after the start.');
+  return {...event, start, end};
+}
+
 export function addTaskBlock(task, date, time, minutes = task.estimate || defaultBlockMinutes) {
   const block = {id: globalThis.crypto.randomUUID(), date, time, minutes};
   (task.blocks ??= []).push(block);
