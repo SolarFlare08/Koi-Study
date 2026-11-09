@@ -288,15 +288,11 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
   animation: task-sidebar-enter .24s ease-out;
 }
 #calendar-panel[inert] { pointer-events: none; }
-.calendar-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.calendar-header h2 { font-size: 16px; margin: 0; font-weight: 600; }
-#calendar-range { margin: 4px 0 0; font-size: 11px; color: var(--scene-muted); }
 .calendar-nav { display: flex; align-items: center; gap: 3px; }
 .calendar-nav button { min-width: 29px; min-height: 30px; border-radius: 7px; padding: 4px 7px; }
 .calendar-nav button:hover { background: color-mix(in srgb,currentColor 13%,transparent); }
 .calendar-nav [data-calendar-step="today"] { font-size: 11px; }
 .calendar-nav [data-calendar-step="previous"], .calendar-nav [data-calendar-step="next"] { font-size: 20px; }
-.calendar-help { margin: 11px 0 9px; font-size: 11px; line-height: 1.4; color: var(--scene-muted); }
 #calendar-scroll {
   min-height: 0;
   overflow: auto;
@@ -389,10 +385,8 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
 }
 @media(max-width:700px){
   #calendar-panel { inset: 61px 12px 68px; padding: 11px; }
-  .calendar-help { margin-top: 7px; }
 }
 @media(max-width:520px){
-  .calendar-header { gap: 5px; }
 }
 
 .calendar-done strong { text-decoration: line-through; opacity: .75; }
@@ -440,21 +434,29 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 10px;
-  padding: 1px 12px 3px;
+  gap: 3px;
+  max-width: calc(100% - 24px);
+  padding: 4px;
   border: 1px solid color-mix(in srgb,var(--surface-line) 66%,transparent);
   border-radius: 13px;
   background: color-mix(in srgb,var(--surface-paper) 87%,transparent);
 }
 #workspace-tabs button {
-  min-height: 35px;
-  padding: 5px 5px;
-  border-bottom: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 5px clamp(6px,1vw,12px);
+  border: 1px solid transparent;
+  border-radius: 8px;
   font-size: 12px;
   color: var(--surface-muted);
 }
+#workspace-tabs button svg { width: 14px; height: 14px; }
 #workspace-tabs button:hover, #workspace-tabs button[aria-pressed="true"] { color: var(--surface-ink); }
-#workspace-tabs button[aria-pressed="true"] { border-color: var(--surface-accent); }
+#workspace-tabs button[aria-pressed="true"] { background: #304b59; border-color: #47676e; }
+#workspace-tabs button[aria-pressed="true"] svg { color: #add8c6; }
 #objects {
   grid-column: 2;
   grid-row: 1;

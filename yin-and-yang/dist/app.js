@@ -7,6 +7,11 @@ import {installPlanner} from './planner.js';
 const $=s=>document.querySelector(s);
 const icons={
   down:'<path d="m6 9 6 6 6-6"/>',
+  left:'<path d="m14 6-6 6 6 6"/>',right:'<path d="m10 6 6 6-6 6"/>',
+  calendar:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4m8-4v4m-8 7h2m4 0h2"/>',
+  list:'<path d="m4 7 1 1 2-2m-3 6 1 1 2-2m-3 6 1 1 2-2M10 7h10m-10 5h10m-10 5h10"/>',
+  sprout:'<path d="M12 20v-8m0 2c-5 0-8-3-8-7 5 0 8 3 8 7Zm0-2c0-5 3-8 8-8 0 5-3 8-8 8Z"/>',
+  sliders:'<path d="M4 7h5m4 0h7M4 17h10m4 0h2"/><circle cx="11" cy="7" r="2"/><circle cx="16" cy="17" r="2"/>',
   play:'<path d="m8 5 11 7-11 7z"/>',pause:'<path d="M8 5v14M16 5v14"/>',reset:'<path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/>',skip:'<path d="m5 5 10 7-10 7zM19 5v14"/>',expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',collapse:'<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m13 5v-5h5"/>',focus:'<path d="M9 3H5a2 2 0 0 0-2 2v4m12-6h4a2 2 0 0 1 2 2v4M3 15v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4"/><circle cx="12" cy="12" r="3"/>',music:'<path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/>',spark:'<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/>',close:'<path d="m6 6 12 12M18 6 6 18"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',external:'<path d="M14 3h7v7m0-7L10 14M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/>'
 };
 const icon=name=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||''}</svg>`;
@@ -31,7 +36,7 @@ const taskMenu=$('#task-menu');
 const builtinRoutines=[{id:'classic',name:'Classic',focus:25*60000,rest:5*60000},{id:'deep',name:'Deep work',focus:50*60000,rest:10*60000}];
 const desktopTasks=matchMedia('(min-width: 981px)');
 let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1,agendaOffset=0;
-let taskDraft=null,calendarLayoutDay='',calendarOpenMinute;
+let taskDraft=null,blockDraft=null,calendarLayoutDay='',calendarOpenMinute;
 let calendarAnchor=null,calendarExit=null,menuTaskId=null,menuAnchor=null;
 const plannerDateCount=43;
 let plannerDays=[],plannerColumnWidth=0,plannerOffset=0,plannerVisibleRange='',plannerScrollEnd;
@@ -44,7 +49,7 @@ function announce(text){$('#announcer').textContent=text;}
 const planner=installPlanner({
   root:calendarPanel,getState:()=>state,commit:()=>{persist();refreshTasks();},
   editTask:openTaskEditor,openBlock:openCalendarBlock,taskMenu:openTaskMenu,
-  calendarChanged:showPlannerCalendar,notify:message=>{toast(message);announce(message);},hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden
+  calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,notify:message=>{toast(message);announce(message);},hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden
 });
 const penguinThoughts=[
   'Small steps still carry you forward.',
@@ -77,8 +82,8 @@ const taskToggle=$('[data-panel="tasks"]');
 taskToggle.removeAttribute('aria-haspopup');
 taskToggle.setAttribute('aria-controls','task-sidebar');
 taskToggle.setAttribute('aria-label','Show or hide tasks');
-const calendarToggle=$('#workspace-tabs [data-workspace="planner"]');
-calendarToggle.setAttribute('aria-controls','calendar-panel');
+const calendarToggle=$('#workspace-tabs [data-workspace="calendar"]');
+function inSchedule(){return workspace==='planner'||workspace==='calendar';}
 let sidebarBeforeFocus=desktopTasks.matches;
 setTaskSidebar(sidebarBeforeFocus);
 desktopTasks.addEventListener('change',()=>setTaskSidebar(workspace==='focus'&&desktopTasks.matches));
@@ -88,7 +93,7 @@ function showWorkspace(next){
   app.dataset.workspace=next;
   $('.sky').hidden=next!=='focus';
   $('#wip-workspace').hidden=next!=='wip';
-  $('#objects').hidden=next==='wip';
+  $('#objects').hidden=next!=='focus';
   $('#penguin').hidden=next!=='focus';
   document.querySelectorAll('[data-workspace]').forEach(button=>{
     if(button.tagName==='BUTTON')button.setAttribute('aria-pressed',String(button.dataset.workspace===next));
@@ -99,8 +104,11 @@ $('#workspace-tabs').addEventListener('click',event=>{
   if(!button||button.dataset.workspace===workspace)return;
   closePanel(false);closeTaskMenu(false);
   const next=button.dataset.workspace;
-  if(next==='planner'){openCalendar(button);return;}
-  if(workspace==='planner')closeCalendar();
+  if(next==='planner'||next==='calendar'){openSchedule(next,button);return;}
+  if(inSchedule()){
+    closeCalendar();
+    if(next==='focus'){button.focus({preventScroll:true});return;}
+  }
   showWorkspace(next);
   setTaskSidebar(next==='focus'&&desktopTasks.matches);
   button.focus({preventScroll:true});
@@ -128,14 +136,17 @@ function render(){
   if(currentTaskName.textContent!==taskName)currentTaskName.textContent=taskName;
   currentTaskButton.title=task?task.text:'Choose a task';
   if(renderedTaskDay!==dayKey(clock)){
-    const wasShowingToday=workspace==='planner'&&planner.calendarVisible()&&dayKey(leadingPlannerDay())===renderedTaskDay;
+    const wasShowingToday=inSchedule()&&planner.calendarVisible()&&dayKey(leadingPlannerDay())===renderedTaskDay;
     renderTasks(clock);
-    if(workspace==='planner'){
+    if(inSchedule()){
       renderCalendar();
       if(wasShowingToday)scrollCalendarTo(clock);
     }
   }
-  if(agendaMinute!==Math.floor(clock.getTime()/60000))renderAgenda(clock);
+  if(agendaMinute!==Math.floor(clock.getTime()/60000)){
+    renderAgenda(clock);
+    calendarGrid.querySelector('.calendar-now')?.style.setProperty('--now-minute',clock.getHours()*60+clock.getMinutes());
+  }
   if(activePanel==='calendar-block')updateBlockPreview(clock.getTime());
   const running=t.status==='running';
   timerButton.innerHTML=icon(running?'pause':'play')+`<span>${running?'Pause':t.status==='paused'?'Continue':t.mode==='focus'?'Begin focus':'Begin rest'}</span>`;
@@ -190,7 +201,7 @@ $('#close-calendar').onclick=()=>closeCalendar();
 $('#close-task-sidebar').onclick=()=>{setTaskSidebar(false);taskToggle.focus();};
 document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>{
   if(el===taskToggle){
-    if(!desktopTasks.matches&&workspace==='planner'){closeCalendar();setTaskSidebar(true);taskToggle.focus();}
+    if(!desktopTasks.matches&&inSchedule()){closeCalendar();setTaskSidebar(true);taskToggle.focus();}
     else setTaskSidebar(taskSidebar.hidden);
     return;
   }
@@ -201,11 +212,11 @@ function syncFocusMode(){
   if(app.classList.contains('focus-view')===enabled)return;
   if(enabled){
     if(renderedTaskDay){
-      sidebarBeforeFocus=workspace==='planner'?(!taskSidebar.hidden||reopenTasksAfterCalendar):workspace==='wip'?desktopTasks.matches:!taskSidebar.hidden;
+      sidebarBeforeFocus=inSchedule()?reopenTasksAfterCalendar:workspace==='wip'?desktopTasks.matches:!taskSidebar.hidden;
     }
     closePanel(false);
     closeTaskMenu(false);
-    if(workspace==='planner')closeCalendar();
+    if(inSchedule())closeCalendar();
     showWorkspace('focus');
     setTaskSidebar(false);
   }
@@ -283,12 +294,13 @@ function renderTasks(date=new Date()){
 function openTaskEditor(id,anchor,defaults=null){
   editingTaskId=id??null;
   taskDraft=defaults;
-  if(workspace!=='planner')setTaskSidebar(true);
+  if(!inSchedule())setTaskSidebar(true);
   openPanel('task-editor',anchor);
 }
-function openBlockEditor(id,anchor,blockId=null){
+function openBlockEditor(id,anchor,blockId=null,defaults=null){
   editingTaskId=id;
   editingBlockId=blockId;
+  blockDraft=defaults;
   openPanel('block-editor',anchor);
 }
 
@@ -300,8 +312,8 @@ function blockEditor(){
     <p>${escape(task.text)}</p>
     <form id="block-editor-form">
       <div class="task-editor-grid">
-        <div><label class="field-label" for="block-date">Date</label><input id="block-date" name="date" type="date" value="${escape(block?.date||task.date||dayKey())}" required></div>
-        <div><label class="field-label" for="block-time">Time</label><input id="block-time" name="time" type="time" value="${escape(block?.time||task.time||'09:00')}" required></div>
+        <div><label class="field-label" for="block-date">Date</label><input id="block-date" name="date" type="date" value="${escape(block?.date||blockDraft?.date||task.date||dayKey())}" required></div>
+        <div><label class="field-label" for="block-time">Time</label><input id="block-time" name="time" type="time" value="${escape(block?.time||blockDraft?.time||task.time||'09:00')}" required></div>
       </div>
       <label class="field-label" for="block-minutes">Duration (min)</label>
       <input id="block-minutes" name="minutes" type="number" min="1" max="1440" value="${block?.minutes||task.estimate||60}" required>
@@ -537,7 +549,7 @@ function closePanel(restore=true){
   if(lastAnchor){
     lastAnchor.setAttribute('aria-expanded','false');
     if(restore){
-      const anchor=lastAnchor.isConnected?lastAnchor:workspace==='planner'?$('#close-calendar'):$('#sidebar-calendar');
+      const anchor=lastAnchor.isConnected?lastAnchor:inSchedule()?$('#planner-heading'):$('#sidebar-calendar');
       anchor.focus({preventScroll:true});
     }
   }
@@ -554,7 +566,7 @@ function refreshPanel(){
   if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
   else if(activePanel==='focus-task')p.querySelector('button')?.focus({preventScroll:true});
 }
-function refreshTasks(){renderTasks();renderAgenda();if(workspace==='planner')renderCalendar();render();}
+function refreshTasks(){renderTasks();renderAgenda();if(inSchedule())renderCalendar();render();}
 
 function agendaStart(now){return (now.getHours()-1)*60+agendaOffset;}
 
@@ -590,7 +602,7 @@ function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=bloc
   const time=`${timeLabel(start)} – ${timeLabel(end)}`;
   const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
   const done=taskStatus(task,new Date(`${occurrence}T00:00:00`))==='done';
-  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" aria-label="Open ${escape(title)}${done?', done':''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span></button>`;
+  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-priority="${taskPriority(task)}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" aria-label="Open ${escape(title)}${done?', done':''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span></button>`;
 }
 function availableTaskId(){return gardenTasks().find(task=>taskStatus(task)==='todo')?.id??null;}
 
@@ -598,21 +610,34 @@ function renderCalendar(){
   planner.render();
 }
 
-function showPlannerCalendar(date,visibleDays){
+function calendarStartMinute(date,visibleDays){
+  const tasks=planner.calendarTasks();
+  let minute=8*60;
+  for(let offset=0;offset<visibleDays;offset++){
+    for(const block of calendarBlocks(tasks,shiftDay(date,offset))){
+      minute=Math.min(minute,Math.max(0,block.start-30));
+    }
+  }
+  return minute;
+}
+
+function showPlannerCalendar(date,visibleDays,enteringTimeline){
   calendarGrid.style.setProperty('--planner-visible-days',visibleDays);
   calendarPanel.dataset.visibleDays=visibleDays;
-  $('[data-calendar-step="previous"]').setAttribute('aria-label',visibleDays===3?'Previous three days':'Previous week');
-  $('[data-calendar-step="next"]').setAttribute('aria-label',visibleDays===3?'Next three days':'Next week');
+  const period={1:'day',3:'three days',7:'week'}[visibleDays];
+  $('[data-calendar-step="previous"]').setAttribute('aria-label',`Previous ${period}`);
+  $('[data-calendar-step="next"]').setAttribute('aria-label',`Next ${period}`);
   renderPlannerDays();
-  if(calendarLayoutDay!==dayKey(date)){
+  if(enteringTimeline||calendarLayoutDay!==dayKey(date)){
     calendarLayoutDay=dayKey(date);
-    scrollCalendarTo(date,calendarOpenMinute??Math.max(0,new Date().getHours()-1)*60);
+    scrollCalendarTo(date,calendarOpenMinute??calendarStartMinute(date,visibleDays));
     calendarOpenMinute=undefined;
   }
   updatePlannerViewport();
   const trayScroll=calendarTray.scrollLeft;
   const tasks=planner.calendarTasks().filter(task=>taskStatus(task)!=='done');
-  calendarTray.hidden=!tasks.length;
+  $('#calendar-queue').hidden=!tasks.length;
+  $('#calendar-queue-count').textContent=tasks.length;
   calendarTray.innerHTML=tasks.map(task=>`<button type="button" draggable="true" class="calendar-tray-task" data-task="${escape(task.id)}" aria-label="Schedule ${escape(task.text)}" aria-haspopup="dialog">${escape(task.text)}</button>`).join('');
   calendarTray.scrollLeft=trayScroll;
 }
@@ -623,13 +648,16 @@ function renderPlannerDays(){
   const headers=plannerDays.map(date=>{
     const key=dayKey(date),current=key===today;
     const allDay=tasks.filter(task=>!task.time&&(taskOccursOn(task,date)||!task.date&&task.deadline===key)&&(showCompleted||taskStatus(task,date)!=='done'));
-    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}><div><span>${current?'Today':date.toLocaleDateString([],{weekday:'short'})}</span> <strong>${date.getDate()}</strong></div>${allDay.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task" data-task="${escape(task.id)}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}</div>`:''}</div>`;
+    const stamp=`<span>${current?'Today':date.toLocaleDateString([],{weekday:'short'})}</span><strong>${date.getDate()}</strong>`;
+    const dayLabel=escape(date.toLocaleDateString([],{dateStyle:'full'}));
+    const heading=workspace==='calendar'?`<button class="calendar-day-heading" type="button" data-calendar-day="${key}" aria-label="Open day view for ${dayLabel}">${stamp}</button>`:`<div class="calendar-day-heading">${stamp}</div>`;
+    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${allDay.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}</div>`:''}</div>`;
   }).join('');
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
   const columns=plannerDays.map(date=>{
     const blocks=calendarBlocks(tasks,date).filter(block=>showCompleted||taskStatus(block.task,new Date(`${block.occurrence}T00:00:00`))!=='done').map(block=>calendarBlockMarkup(block,date)).join('');
     const nowLine=dayKey(date)===today?`<div class="mini-now calendar-now" style="--now-minute:${minute}" title="Current time"></div>`:'';
-    return `<div class="calendar-day" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${blocks}${nowLine}</div>`;
+    return `<div class="calendar-day${dayKey(date)===today?' calendar-day-current':''}" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${blocks}${nowLine}</div>`;
   }).join('');
   calendarGrid.style.setProperty('--planner-date-count',plannerDays.length);
   calendarGrid.innerHTML=`<div class="calendar-days"><div class="calendar-corner"></div>${headers}</div><div class="calendar-week"><div class="calendar-hours" aria-hidden="true">${hours}</div>${columns}</div>`;
@@ -662,7 +690,7 @@ function positionPlanner(index){
 }
 
 function updatePlannerViewport(){
-  if(workspace!=='planner'||!planner.calendarVisible()||!plannerDays.length)return;
+  if(!inSchedule()||!planner.calendarVisible()||!plannerDays.length)return;
   const width=plannerDayWidth();
   if(!width)return;
   // A responsive column width should not move the date under the hour labels.
@@ -671,23 +699,26 @@ function updatePlannerViewport(){
   plannerOffset=calendarScroll.scrollLeft/width;
   const first=leadingPlannerIndex();
   const gutter=calendarGrid.querySelector('.calendar-corner').offsetWidth;
-  const last=Math.min(plannerDays.length-1,Math.floor((calendarScroll.scrollLeft+calendarScroll.clientWidth-gutter)/width-.15));
+  const last=Math.min(plannerDays.length-1,Math.max(first,Math.ceil((calendarScroll.scrollLeft+calendarScroll.clientWidth-gutter)/width-.02)-1));
   const rangeKey=`${first}:${last}`;
   if(plannerVisibleRange===rangeKey)return;
   plannerVisibleRange=rangeKey;
   const dateLabel=date=>date.toLocaleDateString([],{month:'short',day:'numeric',...(date.getFullYear()!==plannerDays[last].getFullYear()?{year:'numeric'}:{})});
   const start=dateLabel(plannerDays[first]),end=dateLabel(plannerDays[last]);
-  $('#calendar-range').textContent=`${start} – ${end}, ${plannerDays[last].getFullYear()}`;
-  calendarGrid.querySelectorAll('.calendar-day').forEach((column,index)=>{
-    for(const block of column.querySelectorAll('.calendar-block'))block.tabIndex=index>=first&&index<=last?0:-1;
-  });
-  calendarGrid.querySelectorAll('.calendar-date').forEach((column,index)=>{
-    for(const button of column.querySelectorAll('button'))button.tabIndex=index>=first&&index<=last?0:-1;
-  });
+  $('#calendar-range').textContent=first===last?plannerDays[first].toLocaleDateString([],{dateStyle:'full'}):`${start} – ${end}, ${plannerDays[last].getFullYear()}`;
+  $('#calendar-jump-date').value=dayKey(plannerDays[first]);
+  for(const selector of ['.calendar-day','.calendar-date']){
+    calendarGrid.querySelectorAll(selector).forEach((column,index)=>{
+      const visible=index>=first&&index<=last;
+      if(visible)column.removeAttribute('aria-hidden');
+      else column.setAttribute('aria-hidden','true');
+      for(const button of column.querySelectorAll('button'))button.tabIndex=visible?0:-1;
+    });
+  }
 }
 
 function extendPlannerDates(){
-  if(workspace!=='planner'||!planner.calendarVisible()||!plannerColumnWidth||activePanel||!taskMenu.hidden||$('.task-dragging'))return;
+  if(!inSchedule()||!planner.calendarVisible()||!plannerColumnWidth||activePanel||!taskMenu.hidden||$('.task-dragging'))return;
   const first=leadingPlannerIndex();
   const nearEnd=calendarScroll.scrollWidth-calendarScroll.clientWidth-calendarScroll.scrollLeft<3*plannerColumnWidth;
   if(first>=3&&!nearEnd)return;
@@ -718,23 +749,23 @@ calendarScroll.addEventListener('keydown',event=>{
 });
 new ResizeObserver(updatePlannerViewport).observe(calendarScroll);
 
-function openCalendar(anchor,date=new Date(),minute){
+function openSchedule(destination,anchor,date=new Date(),minute){
   closePanel(false);
   closeTaskMenu(false);
-  if(workspace!=='planner')reopenTasksAfterCalendar=!taskSidebar.hidden;
+  if(!inSchedule()){
+    reopenTasksAfterCalendar=workspace==='focus'?!taskSidebar.hidden:desktopTasks.matches;
+    calendarAnchor=anchor;
+  }
   calendarExit?.cancel();
   calendarExit=null;
-  calendarAnchor=anchor;
   setTaskSidebar(false);
   calendarPanel.inert=false;
   calendarPanel.hidden=false;
-  showWorkspace('planner');
-  calendarToggle.setAttribute('aria-expanded','true');
-  $('#sidebar-calendar').setAttribute('aria-expanded','true');
-  $('#sidebar-calendar').textContent='Back to focus';
+  showWorkspace(destination);
+  $('#sidebar-calendar').setAttribute('aria-expanded',String(destination==='calendar'));
   calendarLayoutDay='';
   calendarOpenMinute=minute;
-  planner.open(date,minute!==undefined);
+  planner.open(destination,date,minute!==undefined);
   $('#planner-heading').focus({preventScroll:true});
   wake();
 }
@@ -743,9 +774,7 @@ function closeCalendar(){
   closeTaskMenu(false);
   showWorkspace('focus');
   setTaskSidebar(reopenTasksAfterCalendar);
-  calendarToggle.setAttribute('aria-expanded','false');
   $('#sidebar-calendar').setAttribute('aria-expanded','false');
-  $('#sidebar-calendar').textContent='Open planner';
   const anchor=calendarAnchor?.getClientRects().length?calendarAnchor:calendarToggle;
   anchor.focus({preventScroll:true});
   calendarPanel.inert=true;
@@ -764,7 +793,7 @@ function closeCalendar(){
 }
 
 function toggleCalendar(anchor){
-  if(workspace!=='planner')openCalendar(anchor);else closeCalendar();
+  if(workspace!=='calendar')openSchedule('calendar',anchor);else closeCalendar();
 }
 
 function taskButton(id){
@@ -810,7 +839,7 @@ function deleteTask(id){
   state.tasks=state.tasks.filter(task=>task.id!==id);
   if(state.activeTask===id)state.activeTask=availableTaskId();
   persist();refreshTasks();
-  const focus=state.focusMode?currentTaskButton:workspace==='planner'&&!desktopTasks.matches?$('#close-calendar'):taskSidebar.hidden?taskToggle:$('#sidebar-add-task');
+  const focus=state.focusMode?currentTaskButton:inSchedule()?$('#planner-heading'):taskSidebar.hidden?taskToggle:$('#sidebar-add-task');
   focus.focus({preventScroll:true});
   announce('Task deleted.');
 }
@@ -832,7 +861,7 @@ taskMenu.addEventListener('click',event=>{
     copy.subtasks?.forEach(subtask=>{subtask.id=crypto.randomUUID();subtask.done=false;});
     copy.blocks?.forEach(block=>{block.id=crypto.randomUUID();});
     state.tasks.push(copy);persist();refreshTasks();announce('Task duplicated.');
-    (workspace==='planner'?$('#planner-heading'):taskButton(copy.id))?.focus({preventScroll:true});return;
+    (inSchedule()?$('#planner-heading'):taskButton(copy.id))?.focus({preventScroll:true});return;
   }
   if(action==='priority'){
     task.priorityLevel=taskPriority(task)===4?1:4;
@@ -848,7 +877,7 @@ taskMenu.addEventListener('click',event=>{
   persist();refreshTasks();
   const block=blockSurface.querySelector(`[data-task="${CSS.escape(task.id)}"]`);
   const next=anchor.classList.contains('calendar-block')?block||$(blockSurface===miniCalendar?'#sidebar-calendar':'#close-calendar'):taskButton(task.id);
-  (next||taskToggle).focus({preventScroll:true});
+  (next||(inSchedule()?$('#planner-heading'):taskToggle)).focus({preventScroll:true});
 });
 
 taskMenu.addEventListener('keydown',event=>{
@@ -943,10 +972,36 @@ function openCalendarBlock(block){
   updateBlockPreview(Date.now());
   $('#start-block-focus:not(:disabled)')?.focus({preventScroll:true});
 }
+function calendarDraft(){
+  const date=planner.calendarVisible()?leadingPlannerDay():planner.calendarAnchor();
+  const now=new Date(), key=dayKey(date);
+  const minute=key===dayKey(now)?Math.min(23*60+45,Math.ceil((now.getHours()*60+now.getMinutes())/15)*15):9*60;
+  return {date:key,time:timeValue(minute)};
+}
+$('#calendar-jump-date').addEventListener('change',event=>{
+  if(!event.target.value)return;
+  const date=new Date(`${event.target.value}T00:00:00`);
+  if(!Number.isFinite(date.getTime()))return;
+  if(planner.calendarVisible())scrollCalendarTo(date);
+  else planner.jumpMonth(date);
+});
 calendarPanel.addEventListener('click',event=>{
+  const dayHeading=event.target.closest('[data-calendar-day]');
+  if(dayHeading){
+    planner.setCalendarLayout('day',new Date(`${dayHeading.dataset.calendarDay}T00:00:00`));
+    calendarScroll.focus({preventScroll:true});
+    return;
+  }
+  const add=event.target.closest('[data-calendar-new]');
+  if(add){
+    const project=$('#calendar-project').value;
+    openTaskEditor(null,add,{...calendarDraft(),projectId:project==='all'||project==='inbox'?'':project});
+    return;
+  }
   const step=event.target.closest('[data-calendar-step]')?.dataset.calendarStep;
   if(step){
-    if(step==='today')scrollCalendarTo();
+    if(!planner.calendarVisible())planner.jumpMonth(new Date(),step==='today'?0:step==='next'?1:-1);
+    else if(step==='today')scrollCalendarTo(new Date(),Math.max(0,new Date().getHours()-1)*60);
     else scrollCalendarTo(shiftDay(leadingPlannerDay(),Number(calendarPanel.dataset.visibleDays)*(step==='next'?1:-1)));
     return;
   }
@@ -955,7 +1010,7 @@ calendarPanel.addEventListener('click',event=>{
   const allDay=event.target.closest('.calendar-all-day-task');
   if(allDay){openTaskEditor(allDay.dataset.task,allDay);return;}
   const trayTask=event.target.closest('.calendar-tray-task');
-  if(trayTask)openBlockEditor(trayTask.dataset.task,trayTask);
+  if(trayTask)openBlockEditor(trayTask.dataset.task,trayTask,null,workspace==='calendar'?calendarDraft():null);
 });
 calendarScroll.addEventListener('dblclick',event=>{
   const day=event.target.closest('.calendar-day');
@@ -1018,7 +1073,7 @@ root.addEventListener('click',e=>{
     const skipped=record(state,'skipped',now);
     startBlockFocus(state,id,timing.available,timing.split,now);
     closePanel(false);
-    if(workspace==='planner')closeCalendar();
+    if(inSchedule())closeCalendar();
     if(!durationForm.hidden)finishEdit();
     persist();refreshTasks();wake();
     $('#toggle-timer').focus({preventScroll:true});
@@ -1071,7 +1126,7 @@ root.addEventListener('click',e=>{
     if(!task)return;
     task.blocks=task.blocks.filter(block=>block.id!==editingBlockId);
     closePanel(false);persist();refreshTasks();
-    (workspace==='planner'?$('#close-calendar'):$('#sidebar-calendar')).focus({preventScroll:true});
+    (inSchedule()?$('#planner-heading'):$('#sidebar-calendar')).focus({preventScroll:true});
   }
 });
 root.addEventListener('input',e=>{
@@ -1160,7 +1215,7 @@ root.addEventListener('submit',e=>{
     closePanel(false);persist();refreshTasks();
     if(status==='upcoming'&&workspace==='focus')$('.task-upcoming')?.setAttribute('open','');
     if(fromCurrentTask)currentTaskButton.focus({preventScroll:true});
-    else if(workspace==='planner')$('#planner-heading').focus({preventScroll:true});
+    else if(inSchedule())$('#planner-heading').focus({preventScroll:true});
     else taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus();
     announce(existing?'Task updated.':'Task added.');
   }
@@ -1172,7 +1227,7 @@ root.addEventListener('submit',e=>{
     const existing=task.blocks?.find(item=>item.id===editingBlockId);
     if(existing)Object.assign(existing,{date,time,minutes});else addTaskBlock(task,date,time,minutes);
     closePanel(false);persist();refreshTasks();
-    openCalendar(calendarToggle,new Date(`${date}T00:00:00`),Math.max(0,timeMinutes(time)-60));
+    openSchedule('calendar',calendarToggle,new Date(`${date}T00:00:00`),Math.max(0,timeMinutes(time)-60));
     announce('Block saved.');
   }
   if(e.target.id==='spotify-form'){const link=$('#spotify-link').value.trim();if(!spotifyPath(link)){$('#spotify-error').textContent='Use a Spotify playlist, album, or track link from open.spotify.com.';return;}state.spotify=link;persist();mountSpotify();$('#spotify-error').textContent='Use the Spotify player to start your music.';$('#remove-player').hidden=false;positionPanel(visiblePanel(),lastAnchor);}
@@ -1209,7 +1264,7 @@ document.addEventListener('keydown',e=>{
   }
   if(e.key==='Escape'&&!taskMenu.hidden){e.preventDefault();closeTaskMenu();return;}
   if(e.key==='Escape'&&activePanel){e.preventDefault();closePanel();return;}
-  if(e.key==='Escape'&&workspace==='planner'){e.preventDefault();closeCalendar();return;}
+  if(e.key==='Escape'&&inSchedule()){e.preventDefault();closeCalendar();return;}
   if(e.key==='Escape'&&state.focusMode&&!e.defaultPrevented){e.preventDefault();toggleFocusMode();return;}
   const p=visiblePanel();
   if(e.key==='Tab'&&p){

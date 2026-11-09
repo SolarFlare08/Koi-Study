@@ -4,6 +4,7 @@ import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from '.
 import {activityLabels,reportCsv,reportEvents,reportMetrics} from './planner-report.js';
 
 const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',filters:'Filters & Labels',reporting:'Reporting'};
+const calendarLayouts={day:1,'3days':3,calendar:7,month:0};
 const paths={
   search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',
   inbox:'<path d="M4 13 7 5h10l3 8v6H4zM4 13h5l1 3h4l1-3h5"/>',
@@ -24,12 +25,13 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,notify,hasPanel}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,notify,hasPanel}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const layoutSelect=$('#planner-layout'), completed=$('#planner-completed'), sort=$('#planner-sort');
   const state=()=>getState();
-  let view='upcoming', selection='', layout='board', query='', date=new Date(), quick=null, expanded=new Set(), dialogAnchor=null;
+  let view='today', selection='', layout='list', query='', date=new Date(), quick=null, expanded=new Set(), dialogAnchor=null;
+  let parkedPlanner=null, calendarLayout='calendar', calendarProject='all';
   let reminderMinute=-1;
   const layouts=new Map(), collapsed=new Set();
   const report={mode:'activity',period:'all',project:'all',type:'task',metric:'ms'};
@@ -38,7 +40,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
 
   function selectLayout(next,remember=true) {
     layout=next;
-    layoutSelect.value=next;
+    if (view==='calendar') calendarLayout=next;
+    else layoutSelect.value=next;
     if (remember) layouts.set(layoutKey(),next);
   }
 
@@ -63,11 +66,12 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const due=nextTaskDate(task,now);
     return due<dayKey(now)?due:'';
   }
-  function timeLayout() { return layout==='calendar'||layout==='3days'; }
+  function timeLayout() { return Boolean(calendarLayouts[layout]); }
 
   function matchingTasks(now=new Date()) {
     const tasks=view==='project'?state().tasks.filter(task=>task.projectId===selection):activeTasks();
     switch (view) {
+      case 'calendar': return calendarProject==='all'?tasks:tasks.filter(task=>(projectFor(task)?.id||'inbox')===calendarProject);
       case 'inbox': return tasks.filter(task=>!projectFor(task));
       case 'today': return tasks.filter(task=>todayDate(task,now)||overdueDate(task,now));
       case 'label': return tasks.filter(task=>task.labels?.includes(selection));
@@ -119,7 +123,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         <button type="button" class="planner-task-title" data-edit-task>${title}</button>
         ${task.description?`<p>${escape(task.description)}</p>`:''}
         <div class="planner-task-meta">
-          ${dateLabel?`<span class="planner-task-date${dateLabel<dayKey()&&!complete?' is-overdue':''}">${icon('today')} ${dateLabel===dayKey()?'Today':dateLabel===dayKey(shiftDay(new Date(),1))?'Tomorrow':plainDate(dateLabel)}${task.time&&dateLabel>=dayKey()?` ${scheduledTime(task.time)}`:''}${recurring?' ↻':''}</span>`:''}
+          ${dateLabel?`<span class="planner-task-date${dateLabel<dayKey()&&!complete?' is-overdue':''}">${icon('today')} ${dateLabel===dayKey()?'Today':dateLabel===dayKey(shiftDay(new Date(),1))?'Tomorrow':plainDate(dateLabel)}${task.time&&dateLabel>=dayKey()&&(recurring||task.date===dateLabel)?` ${scheduledTime(task.time)}`:''}${recurring?' ↻':''}</span>`:''}
           ${view==='inbox'?'':`<span class="planner-task-project">${project?icon('project'):icon('inbox')} ${escape(project?.name||'Inbox')}</span>`}
           ${priority<4?`<span class="planner-priority">P${priority}</span>`:''}
           ${task.deadline?`<span class="planner-deadline">Due ${plainDate(task.deadline)}</span>`:''}
@@ -166,7 +170,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const now=new Date(), today=dayKey(now);
     const visible=tasks.filter(task=>completed.checked||taskStatus(task,now)!=='done');
     const overdue=sortTasks(visible.filter(task=>overdueDate(task,now)));
-    const due=sortTasks(visible.filter(task=>nextTaskDate(task,now,completed.checked)===today));
+    const due=sortTasks(visible.filter(task=>!overdueDate(task,now)&&(task.repeat==='none'||nextTaskDate(task,now,completed.checked)===today)));
     const list=due.map(task=>card(task,today)).join('');
     const schedule=timeStack(visible,today,true);
     const dateTitle=`${shortDay(now)} · Today · ${now.toLocaleDateString([],{weekday:'long'})}`;
@@ -310,7 +314,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       const allDay=tasks.filter(task=>!task.time&&nextTaskDate(task,day,true)===key&&(completed.checked||taskStatus(task,day)!=='done'));
       return `<section class="planner-month-cell${day.getMonth()!==month?' other-month':''}" data-board-day="${key}">
         <button type="button" data-month-day="${key}" aria-label="Open ${escape(day.toLocaleDateString([],{dateStyle:'full'}))}" ${key===today?'aria-current="date"':''}>${day.getDate()}</button>
-        ${allDay.map(task=>`<button type="button" class="planner-month-task" data-month-task data-task="${escape(task.id)}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}
+        ${allDay.map(task=>`<button type="button" class="planner-month-task" data-month-task data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}
         ${timeStack(tasks,key)}</section>`;
     }).join('');
     return `<div class="planner-month-grid">${headings}${cells}</div>`;
@@ -338,41 +342,90 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const project=view==='project'?state().projects.find(item=>item.id===selection):null;
     const filter=view==='filter'?state().plannerFilters.find(item=>item.id===selection):null;
     if (view==='project'&&!project||view==='filter'&&!filter) { view='upcoming'; selection=''; selectLayout(defaultLayout(),false); }
-    renderSidebar();
+    const standalone=view==='calendar';
+    sidebar.hidden=standalone;
+    if (!standalone) renderSidebar();
     const sectionView=view==='filters'||view==='reporting'||view==='search';
     const calendar=timeLayout()&&!sectionView;
     root.dataset.plannerView=view;
     root.dataset.plannerLayout=layout;
-    $('#planner-heading').textContent=project?.name||filter?.name||(view==='label'?`%${selection}`:views[view]);
+    $('#planner-heading').textContent=standalone?'Calendar':project?.name||filter?.name||(view==='label'?`%${selection}`:views[view]);
     const detail=$('#planner-heading-detail');
-    detail.hidden=view!=='today';
-    if (view==='today') {
+    detail.hidden=view!=='today'&&view!=='inbox';
+    if (!detail.hidden) {
       const count=matchingTasks().filter(task=>taskStatus(task)!=='done').length;
-      detail.innerHTML=`${icon('check')} ${count} open ${count===1?'task':'tasks'}`;
+      detail.innerHTML=`${icon(view==='inbox'?'inbox':'check')} ${count} open ${count===1?'task':'tasks'}`;
     }
-    $('#planner-breadcrumb').textContent=project?.archived?'Archived project':'Personal planner';
-    $('#planner-heading-actions').innerHTML=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:view==='reporting'?`<button type="button" data-report-export>${icon('download')} Export CSV</button>`:'';
-    $('#planner-layout-label').hidden=sectionView;
+    $('#planner-breadcrumb').textContent=standalone?'Schedule':project?.archived?'Archived project':'Task workspace';
+    const addTask=`<button class="planner-heading-add${standalone?'':' planner-mobile-add'}" type="button" ${standalone?'data-calendar-new':'data-planner-add'}>${icon('plus')} New task</button>`;
+    const settings=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:view==='reporting'?`<button type="button" data-report-export>${icon('download')} Export CSV</button>`:'';
+    $('#planner-heading-actions').innerHTML=addTask+settings;
+    $('#planner-layout-label').hidden=sectionView||standalone;
+    $('#planner-toggle-sidebar').hidden=standalone;
+    $('#calendar-layout-controls').hidden=!standalone;
+    root.querySelectorAll('[data-calendar-layout]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.calendarLayout===layout)));
     $('#planner-display').hidden=view==='reporting'||view==='filters';
-    $('#planner-board-tools').hidden=sectionView||calendar||(view!=='upcoming'&&layout!=='month');
+    $('#planner-sort-label').hidden=standalone;
+    $('#calendar-project-label').hidden=!standalone;
+    if (standalone) {
+      const projectSelect=$('#calendar-project');
+      const options=[['all','All projects'],['inbox','Inbox'],...state().projects.filter(item=>!item.archived).map(item=>[item.id,item.name])];
+      if (!options.some(([value])=>value===calendarProject)) calendarProject='all';
+      projectSelect.innerHTML=options.map(([value,name])=>`<option value="${escape(value)}">${escape(name)}</option>`).join('');
+      projectSelect.value=calendarProject;
+    }
+    $('#planner-board-tools').hidden=sectionView||standalone||calendar||(view!=='upcoming'&&layout!=='month');
+    $('#calendar-toolbar').hidden=!standalone&&!calendar;
+    if (standalone&&layout==='month') {
+      $('#calendar-range').textContent=date.toLocaleDateString([],{month:'long',year:'numeric'});
+      $('#calendar-jump-date').value=dayKey(date);
+      root.querySelector('[data-calendar-step="previous"]').setAttribute('aria-label','Previous month');
+      root.querySelector('[data-calendar-step="next"]').setAttribute('aria-label','Next month');
+    }
     $('#planner-month').textContent=date.toLocaleDateString([],{month:'long',year:'numeric'});
     $('#planner-jump-date').value=dayKey(date);
     $('#planner-search-row').hidden=view!=='search';
     if ($('#planner-search').value!==query) $('#planner-search').value=query;
+    const enteringTimeline=calendar&&$('#planner-calendar-view').hidden;
     $('#planner-calendar-view').hidden=!calendar;
     content.hidden=calendar;
     $('#planner-quick-strip').hidden=quick?.key!=='top';
     $('#planner-quick-strip').innerHTML=quick?.key==='top'?quickForm('top',quick.defaults):'';
-    if (calendar) calendarChanged(date,layout==='3days'?3:7);
+    if (calendar) calendarChanged(date,calendarLayouts[layout],enteringTimeline);
     else renderContent();
   }
 
-  function open(anchorDate,forceCalendar) {
-    date=anchorDate;
-    view='upcoming'; selection=''; query=''; quick=null;
-    selectLayout(forceCalendar?'calendar':'board',false);
+  function open(destination,anchorDate,timeFocus=false) {
+    if (destination==='calendar') {
+      if (view!=='calendar') {
+        parkedPlanner={view,selection,query,date:timeLayout()?calendarDate():date,layout,quick,left:content.scrollLeft,top:content.scrollTop};
+      }
+      view='calendar'; selection=''; query=''; quick=null; date=anchorDate;
+      selectLayout(timeFocus&&calendarLayout==='month'?'day':calendarLayout,false);
+    } else if (parkedPlanner) {
+      ({view,selection,query,date,quick}=parkedPlanner);
+      selectLayout(parkedPlanner.layout,false);
+    } else {
+      selectLayout(layout,false);
+    }
+    root.classList.remove('planner-sidebar-open');
+    $('#planner-toggle-sidebar').setAttribute('aria-expanded','false');
     render();
-    content.scrollLeft=0;
+    if (destination==='planner'&&parkedPlanner) {
+      content.scrollLeft=parkedPlanner.left; content.scrollTop=parkedPlanner.top;
+      parkedPlanner=null;
+    }
+  }
+
+  function setCalendarLayout(next,target=timeLayout()?calendarDate():date) {
+    date=target; quick=null;
+    selectLayout(next);
+    render();
+  }
+
+  function jumpMonth(target,step=0) {
+    date=step?new Date(date.getFullYear(),date.getMonth()+step,1):target;
+    render();
   }
 
   function add(button) {
@@ -496,6 +549,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const button=event.target.closest('button');
     if (!button) return;
     const data=button.dataset;
+    if (data.calendarLayout&&data.calendarLayout!==layout) return setCalendarLayout(data.calendarLayout);
     if (data.plannerView) return setView(data.plannerView,data.value);
     if (data.fold) {
       const open=collapsed.has(data.fold);
@@ -525,7 +579,9 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if (data.manage) return showDialog(data.manage,data.value||'',button);
     if ('dialogClose' in data) return dialog.close();
     if (data.monthDay) {
-      date=parseDay(data.monthDay); selectLayout('calendar'); render(); return;
+      setCalendarLayout(view==='calendar'?'day':'calendar',parseDay(data.monthDay));
+      $('#calendar-scroll').focus({preventScroll:true});
+      return;
     }
     if ('monthTask' in data) return editTask(data.task,button);
     const card=button.closest('.planner-task');
@@ -571,6 +627,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       renderContent(); $(`#${input.id}`)?.focus({preventScroll:true}); return;
     }
     if (input===completed||input===sort) return render();
+    if (input.id==='calendar-project') { calendarProject=input.value; return render(); }
     if (input.id==='planner-jump-date'&&input.value) { date=parseDay(input.value); quick=null; content.scrollLeft=0; return render(); }
     if (!input.dataset.plannerSubtask) return;
     const card=input.closest('.planner-task');
@@ -619,7 +676,11 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
 
   document.addEventListener('keydown',event=>{
     if (root.hidden||root.inert||dialog.open||hasPanel()||event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey||event.target.closest('input,textarea,select,[contenteditable]')) return;
-    if (event.key.toLowerCase()==='q') { event.preventDefault(); add(); }
+    if (event.key.toLowerCase()==='q') {
+      event.preventDefault();
+      if (view==='calendar') $('#planner-heading-actions [data-calendar-new]').click(); else add();
+    }
+    if (view==='calendar') return;
     if (event.key==='/'&&view!=='search') { event.preventDefault(); setView('search'); }
     if (event.shiftKey&&event.key.toLowerCase()==='v'&&!['filters','reporting','search'].includes(view)) {
       event.preventDefault(); selectLayout({board:'list',list:'calendar',calendar:'3days','3days':'month',month:'board'}[layout]); render();
@@ -638,5 +699,6 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     return true;
   }
 
-  return {open,render,calendarTasks,checkReminders,refreshReporting:()=>{if (!root.hidden&&view==='reporting') renderContent();},calendarVisible:()=>!$('#planner-calendar-view').hidden};
+  return {open,render,calendarTasks,checkReminders,setCalendarLayout,jumpMonth,calendarAnchor:()=>date,
+    refreshReporting:()=>{if (!root.hidden&&view==='reporting') renderContent();},calendarVisible:()=>!$('#planner-calendar-view').hidden};
 }

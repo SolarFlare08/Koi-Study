@@ -62,7 +62,7 @@
       <div id="task-board"></div>
       </div>
       <section id="mini-calendar" class="sidebar-agenda" aria-labelledby="agenda-title">
-        <div class="sidebar-section-heading"><h3 id="agenda-title">5-hour calendar</h3><button id="sidebar-calendar" type="button" aria-controls="calendar-panel" aria-expanded="false">Open planner</button></div>
+        <div class="sidebar-section-heading"><h3 id="agenda-title">5-hour calendar</h3><button id="sidebar-calendar" type="button" aria-controls="calendar-panel" aria-expanded="false">Open calendar</button></div>
         <div class="mini-calendar-nav"><span id="agenda-range" aria-live="polite"></span><button type="button" data-agenda-shift="-300" aria-label="Previous five hours">‹</button><button type="button" data-agenda-shift="0">Now</button><button type="button" data-agenda-shift="300" aria-label="Next five hours">›</button></div>
         <div id="agenda-list" class="five-hour-grid"></div>
       </section>
@@ -75,16 +75,34 @@
       <aside id="planner-sidebar" aria-label="Planner navigation"></aside>
       <div class="planner-main">
         <header class="planner-top">
-          <button id="planner-toggle-sidebar" type="button" aria-label="Toggle planner sidebar" aria-controls="planner-sidebar" aria-expanded="false">☰</button>
+          <button id="planner-toggle-sidebar" type="button" aria-controls="planner-sidebar" aria-expanded="false"><span data-icon="list"></span> Views</button>
           <div id="planner-breadcrumb">Personal planner</div>
           <label id="planner-layout-label">Display <select id="planner-layout"><option value="board">Board</option><option value="list">List</option><option value="calendar">Calendar · Week</option><option value="3days">Calendar · 3 days</option><option value="month">Calendar · Month</option></select></label>
-          <details id="planner-display"><summary aria-label="Display options">⋯</summary><div class="planner-popover">
+          <div id="calendar-layout-controls" role="group" aria-label="Calendar view" hidden>
+            <button type="button" data-calendar-layout="day">Day</button>
+            <button type="button" data-calendar-layout="3days">3 days</button>
+            <button type="button" data-calendar-layout="calendar">Week</button>
+            <button type="button" data-calendar-layout="month">Month</button>
+          </div>
+          <details id="planner-display"><summary aria-label="Display options"><span data-icon="sliders"></span></summary><div class="planner-popover">
             <label><input id="planner-completed" type="checkbox"> Show completed</label>
-            <label>Sort by <select id="planner-sort"><option value="schedule">Schedule</option><option value="priority">Priority</option><option value="name">Name</option></select></label>
+            <label id="planner-sort-label">Sort by <select id="planner-sort"><option value="schedule">Schedule</option><option value="priority">Priority</option><option value="name">Name</option></select></label>
+            <label id="calendar-project-label" hidden>Project <select id="calendar-project"></select></label>
           </div></details>
           <button id="close-calendar" class="icon-button" type="button" aria-label="Return to Garden"><span data-icon="close"></span></button>
         </header>
-        <div class="planner-heading-row"><div><h2 id="planner-heading" tabindex="-1">Upcoming</h2><p id="planner-heading-detail" hidden></p></div><div id="planner-heading-actions"></div></div>
+        <div class="planner-heading-row"><div><h2 id="planner-heading" tabindex="-1">Today</h2><p id="planner-heading-detail" hidden></p></div><div id="planner-heading-actions"></div></div>
+        <div id="calendar-toolbar" hidden>
+          <div id="calendar-range" aria-live="polite"></div>
+          <div class="calendar-toolbar-actions">
+            <input id="calendar-jump-date" type="date" aria-label="Jump to calendar date">
+            <nav class="calendar-nav" aria-label="Calendar dates">
+              <button type="button" data-calendar-step="previous" aria-label="Previous week"><span data-icon="left"></span></button>
+              <button type="button" data-calendar-step="today">Today</button>
+              <button type="button" data-calendar-step="next" aria-label="Next week"><span data-icon="right"></span></button>
+            </nav>
+          </div>
+        </div>
         <div id="planner-board-tools">
           <input id="planner-jump-date" type="date" aria-label="Jump to date">
           <span id="planner-month"></span>
@@ -94,25 +112,22 @@
         <div id="planner-search-row" hidden><label class="sr-only" for="planner-search">Search tasks</label><input id="planner-search" type="search" placeholder="Find a task, project, or label…"><span id="planner-search-count" aria-live="polite"></span></div>
         <div id="planner-content"></div>
         <div id="planner-calendar-view" hidden>
-      <header class="calendar-header">
-        <div><h2 id="calendar-heading">Calendar</h2><p id="calendar-range" aria-live="polite"></p></div>
-        <nav class="calendar-nav" aria-label="Calendar controls">
-          <button type="button" data-calendar-step="previous" aria-label="Previous week">‹</button>
-          <button type="button" data-calendar-step="today">Today</button>
-          <button type="button" data-calendar-step="next" aria-label="Next week">›</button>
-        </nav>
-      </header>
-      <p class="calendar-help" id="calendar-help">Scroll sideways for more dates. Drag tasks to schedule them, or open a block to edit it or start focus.</p>
-      <div id="calendar-task-tray" aria-label="Tasks to schedule" hidden></div>
-      <div id="calendar-scroll" role="region" tabindex="0" aria-label="Schedule" aria-describedby="calendar-help"><div id="calendar-grid"></div></div>
+          <details id="calendar-queue">
+            <summary>Schedule a task <span id="calendar-queue-count"></span></summary>
+            <p>Choose a task to set a time, or drag it onto the calendar.</p>
+            <div id="calendar-task-tray" aria-label="Tasks to schedule"></div>
+          </details>
+          <p class="sr-only" id="calendar-help">Scroll sideways or press the left and right arrow keys for more dates. Open a block to edit it or start focus.</p>
+          <div id="calendar-scroll" role="region" tabindex="0" aria-label="Schedule" aria-describedby="calendar-help"><div id="calendar-grid"></div></div>
         </div>
       </div>
       <dialog id="planner-dialog"></dialog>
     </section>
     <section id="wip-workspace" hidden><h2>Work in progress</h2><p>A little space for what comes next.</p></section>
     <nav id="workspace-tabs" aria-label="App workspace">
-      <button type="button" data-workspace="focus" aria-pressed="true">Garden</button>
-      <button type="button" data-workspace="planner" aria-pressed="false">Planner</button>
+      <button type="button" data-workspace="focus" aria-pressed="true"><span data-icon="sprout"></span>Garden</button>
+      <button type="button" data-workspace="planner" aria-controls="calendar-panel" aria-pressed="false"><span data-icon="list"></span>Planner</button>
+      <button type="button" data-workspace="calendar" aria-controls="calendar-panel" aria-pressed="false"><span data-icon="calendar"></span>Calendar</button>
       <button type="button" data-workspace="wip" aria-pressed="false">WIP</button>
     </nav>
     <footer class="sr-only"><span id="saved-status">Saved on this device</span></footer>
