@@ -31,7 +31,7 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,notify,completeTask,hasPanel}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,notify,completeTask,hasPanel}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
@@ -198,7 +198,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const schedule=timeStack(visible,today,true);
     const dateTitle=`${shortDay(now)} · Today · ${now.toLocaleDateString([],{weekday:'long'})}`;
     return `${overdue.length?listGroup('overdue','Overdue',overdue.map(task=>card(task,overdueDate(task,now))).join(''),{count:overdue.length,action:'<button class="planner-group-action" type="button" data-manage="reschedule">Reschedule</button>'}):''}
-      ${listGroup('today',dateTitle,schedule+list+(!schedule&&!list?'<p class="planner-empty">Nothing scheduled for today.</p>':'')+quickForm(today,{date:today}))}`;
+      ${listGroup('today',dateTitle,dailyRituals(today)+schedule+list+quickForm(today,{date:today}))}`;
   }
 
   function column({key,title,tasks,day='',sectionId='',overdue=false,allowAdd=true,scheduleTasks=tasks}) {
@@ -206,7 +206,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const cards=sortTasks(tasks).map(task=>card(task,dateForTask(task))).join('');
     return `<section class="planner-column" ${day?`data-board-day="${day}"`:view==='project'?`data-board-section="${escape(sectionId)}"`:''}>
       <header><h3>${escape(title)} <small>${tasks.length}</small></h3>${overdue?'<button type="button" data-manage="reschedule">Reschedule</button>':''}${sectionId?`<button type="button" data-manage="section" data-value="${escape(sectionId)}" aria-label="Edit ${escape(title)} section">⋯</button>`:''}</header>
-      <div class="planner-column-body">${timeStack(scheduleTasks,day)}${cards}${allowAdd?quickForm(key,{date:day,sectionId}):''}${!cards&&!allowAdd?'<p class="planner-empty">No tasks here.</p>':''}</div>
+      <div class="planner-column-body">${day?dailyRituals(day):''}${timeStack(scheduleTasks,day)}${cards}${allowAdd?quickForm(key,{date:day,sectionId}):''}${!cards&&!allowAdd?'<p class="planner-empty">No tasks here.</p>':''}</div>
     </section>`;
   }
 
@@ -348,7 +348,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       const allDay=tasks.filter(task=>!task.time&&nextTaskDate(task,day,true)===key&&(completed.checked||taskStatus(task,day)!=='done'));
       return `<section class="planner-month-cell${day.getMonth()!==month?' other-month':''}" data-board-day="${key}">
         <button type="button" data-month-day="${key}" aria-label="Open ${escape(day.toLocaleDateString([],{dateStyle:'full'}))}" ${key===today?'aria-current="date"':''}>${day.getDate()}</button>
-        ${allDay.map(task=>`<button type="button" class="planner-month-task" data-month-task data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}
+        ${dailyRituals(key)}
+        ${allDay.map(task=>`<button type="button" class="planner-month-task${taskStatus(task,day)==='done'?' all-day-done':''}" data-month-task data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}
         ${allDayEvents(state().calendarEvents,day).map(event=>`<button type="button" class="planner-month-event" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}
         ${calendarBlocks([],day,state().calendarEvents).map(block=>`<button type="button" class="planner-month-event" data-calendar-event="${escape(block.event.id)}" title="${escape(block.event.title)}">${timeLabel(block.start)} · ${escape(block.event.title)}</button>`).join('')}
         ${timeStack(tasks,key)}</section>`;
@@ -520,7 +521,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     } else if (type==='calendar-import') {
       title='Import calendar';
       const sources=[...new Set(state().calendarEvents.filter(event=>!event.manual).map(event=>event.source||'Imported calendar'))];
-      fields=`<label>iCalendar file<input type="file" name="calendar" accept=".ics,text/calendar" required></label><p>Imports calendar commitments from a file. Daily and weekly repeats are expanded from 30 days ago to one year ahead.</p><p role="alert" id="planner-import-error" hidden></p>${sources.map(source=>`<p class="import-source">${escape(source)} <button type="button" data-remove-calendar="${escape(source)}">Remove</button></p>`).join('')}`;
+      fields=`<label>iCalendar file<input type="file" name="calendar" accept=".ics,text/calendar" required></label><p>For Canvas, open Calendar → Calendar Feed and download the .ics file. Import it here again to refresh your assignments and events.</p><p><a href="https://community.instructure.com/en/kb/articles/662804-how-do-i-view-the-calendar-ical-feed-to-subscribe-to-an-external-calendar" target="_blank" rel="noopener noreferrer">Canvas calendar instructions ↗</a></p><p role="alert" id="planner-import-error" hidden></p>${sources.map(source=>`<p class="import-source">${escape(source)} <button type="button" data-remove-calendar="${escape(source)}">Remove</button></p>`).join('')}`;
     } else if (type==='project-thoughts') {
       if(!currentProject)return;
       dialog.innerHTML=`<header><h3 id="planner-dialog-title">${escape(currentProject.name)} · Thoughts</h3><button type="button" data-dialog-close aria-label="Close dialog">×</button></header><div class="project-thoughts">${(currentProject.thoughts||[]).map(note=>`<article><time>${escape(new Date(note.createdAt).toLocaleDateString())}</time><p>${escape(note.text)}</p></article>`).join('')}</div>`;

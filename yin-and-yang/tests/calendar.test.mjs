@@ -2,6 +2,22 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarEventFromFields, scheduleTask, weekDays} from '../dist/calendar.js';
 import {freshState, loadState} from '../dist/state.js';
+import {ritualComplete} from '../dist/daily-rituals.js';
+
+test('daily ritual logs survive reload and a newer journal entry completes a reopened day',()=>{
+  const state=freshState(), date='2026-11-09';
+  state.dailyRituals[date]={
+    crochet:{done:true,projectId:'cardigan'},
+    annotate:{done:true,title:'Pride and Prejudice',author:'Jane Austen',chapters:'1\n2'},
+    journal:{done:false,stamp:1000}
+  };
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  assert.deepEqual(restored.dailyRituals[date],state.dailyRituals[date]);
+  assert.equal(restored.dailyRituals['2026-11-10'],undefined);
+  assert.equal(ritualComplete('journal',restored.dailyRituals[date].journal,1000),false);
+  assert.equal(ritualComplete('journal',restored.dailyRituals[date].journal,2000),true);
+  assert.equal(ritualComplete('journal',undefined,2000),true);
+});
 
 test('a manual overnight event survives reload and appears on both calendar days',()=>{
   const event=calendarEventFromFields({

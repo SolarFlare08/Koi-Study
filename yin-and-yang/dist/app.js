@@ -6,6 +6,7 @@ import {installPlanner} from './planner.js';
 import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal} from './journal.js';
+import {dailyRitualMarkup,ritualComplete,rituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed} from './spotify-embed.js';
 import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
@@ -109,7 +110,7 @@ undoButton.onclick=()=>{
 const planner=installPlanner({
   root:calendarPanel,getState:()=>state,commit:()=>{const saved=persist();refreshTasks();return saved;},
   editTask:openTaskEditor,openBlock:openCalendarBlock,taskMenu:openTaskMenu,
-  calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,notify:confirmChange,completeTask:markTask,hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden
+  calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,dailyRituals:renderDailyRituals,notify:confirmChange,completeTask:markTask,hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden
 });
 const penguinThoughts=[
   'Small steps still carry you forward.',
@@ -130,8 +131,10 @@ function nextPenguinThought(){
 $('#penguin-next').onclick=()=>announce(nextPenguinThought());
 $('#landscape').innerHTML=renderLandscape();
 $('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",music:"music",notes:"spark",progress:"target",appearance:"appearance"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",music:"Music",notes:"Notes",progress:"Today",appearance:"Appearance"})[o.id]}</span></button>`).join('');
-installCrochet({root:$('#crochet-workspace'),storage,notify:message=>{toast(message);announce(message);}});
-installJournal({root:$('#journal-workspace'),storage,projects:()=>loadCrochet(storage).projects,notify:confirmChange});
+const crochet=installCrochet({root:$('#crochet-workspace'),storage,notify:message=>{toast(message);announce(message);}});
+const journal=installJournal({root:$('#journal-workspace'),storage,projects:()=>loadCrochet(storage).projects,notify:confirmChange,
+  onChange:()=>{if(inSchedule())renderCalendar();}
+});
 applyIcons();
 
 function setTaskSidebar(open){
@@ -671,6 +674,7 @@ function panelContent(id){
   }
   if(id==='focus-task')return focusTaskPicker();
   if(id==='event-editor')return calendarEventEditor();
+  if(id==='daily-ritual')return ritualEditor();
   if(id==='imported-event'){
     const event=state.calendarEvents.find(item=>item.id===lastAnchor?.dataset.calendarEvent);
     return event?`${header('IMPORTED CALENDAR',escape(event.title))}<p>${event.day?`All day · ${escape(event.day)}`:escape(new Date(event.start).toLocaleString())}${event.source?` · ${escape(event.source)}`:''}</p><p class="imported-description">${escape(event.description)}</p>`:header('CALENDAR','Event unavailable');
@@ -861,6 +865,9 @@ calendarShelfToggle.onclick=()=>setCalendarShelf(calendarShelf.hidden);
 $('#calendar-queue-close').onclick=()=>setCalendarShelf(false);
 calendarShelfSearch.oninput=renderCalendarShelf;
 
+function renderDailyRituals(date){
+  return dailyRitualMarkup(date,state.dailyRituals[date],journal.completedAt(date));
+}
 function renderPlannerDays(){
   const now=new Date(),today=dayKey(now),minute=now.getHours()*60+now.getMinutes();
   const tasks=planner.calendarTasks(),showCompleted=$('#planner-completed').checked;
@@ -871,7 +878,7 @@ function renderPlannerDays(){
     const stamp=`<span>${current?'Today':date.toLocaleDateString([],{weekday:'short'})}</span><strong>${date.getDate()}</strong>`;
     const dayLabel=escape(date.toLocaleDateString([],{dateStyle:'full'}));
     const heading=workspace==='calendar'?`<button class="calendar-day-heading" type="button" data-calendar-day="${key}" aria-label="Open day view for ${dayLabel}">${stamp}</button>`:`<div class="calendar-day-heading">${stamp}</div>`;
-    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${allDay.length||imports.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
+    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${renderDailyRituals(key)}${allDay.length||imports.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task${taskStatus(task,date)==='done'?' all-day-done':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
   }).join('');
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
   const columns=plannerDays.map(date=>{
@@ -1066,18 +1073,24 @@ function deleteTask(id){
   focus.focus({preventScroll:true});
   confirmChange('Task deleted.',restoreActiveTask(undo,before,state.activeTask));
 }
+let nextCompletionRipple=false;
 function animateTaskCompletion(anchor){
   if(motionPreference.matches||!anchor?.getClientRects().length)return;
-  const title=anchor.closest('.planner-task,.task-card,.task-detail-panel')?.querySelector('.planner-task-title,.task-open,#panel-title')||anchor;
-  const rect=title.getBoundingClientRect();
+  const row=anchor.closest('.planner-task,.task-card,.task-detail-panel,.daily-ritual');
+  const ripple=nextCompletionRipple;
+  nextCompletionRipple=!nextCompletionRipple;
+  const target=ripple
+    ?row?.querySelector('.planner-check,.task-check,.task-detail-check,.ritual-check')
+    :row?.querySelector('.planner-task-title,.task-open,#panel-title,.ritual-open');
+  const rect=(target||anchor).getBoundingClientRect();
   const width=Math.min(rect.width,innerWidth-rect.left,190);
   if(width<=0||rect.bottom<0||rect.bottom>innerHeight)return;
   const effect=document.createElement('span');
-  effect.className='task-completion-ink';
+  effect.className=ripple?'task-completion-ripple':'task-completion-ink';
   effect.setAttribute('aria-hidden','true');
-  effect.style.left=`${rect.left}px`;
-  effect.style.top=`${rect.bottom}px`;
-  effect.style.width=`${width}px`;
+  effect.style.left=`${ripple?rect.left+rect.width/2:rect.left}px`;
+  effect.style.top=`${ripple?rect.top+rect.height/2:rect.bottom}px`;
+  if(!ripple)effect.style.width=`${width}px`;
   app.append(effect);
   effect.addEventListener('animationend',()=>effect.remove(),{once:true});
   setTimeout(()=>effect.remove(),760);
@@ -1238,6 +1251,84 @@ function calendarDraft(){
   const minute=key===dayKey(now)?Math.min(23*60+45,Math.ceil((now.getHours()*60+now.getMinutes())/15)*15):9*60;
   return {date:key,time:timeValue(minute)};
 }
+function ritualEditor(){
+  const {ritual:kind,ritualDate:date}=lastAnchor.closest('.daily-ritual').dataset;
+  const item=state.dailyRituals[date]?.[kind]||{};
+  const when=new Date(date+'T12:00:00').toLocaleDateString([],{dateStyle:'full'});
+  const heading=header(escape(when),rituals[kind].label);
+  if(kind==='crochet'){
+    const projects=loadCrochet(storage).projects;
+    return `${heading}<form id="daily-ritual-form" data-kind="${kind}" data-date="${date}">
+      <label class="field-label" for="ritual-project">Stitchbook project</label>
+      <select id="ritual-project" name="projectId"><option value="">No linked project</option>${projects.map(project=>`<option value="${escape(project.id)}" ${item.projectId===project.id?'selected':''}>${escape(project.name)}</option>`).join('')}</select>
+      <div class="panel-actions"><button type="submit" value="open" class="text-button">Open Stitchbook</button><button class="panel-primary">Save link</button></div></form>`;
+  }
+  const previous=Object.keys(state.dailyRituals).filter(day=>day<date&&state.dailyRituals[day].annotate?.title).sort().at(-1);
+  const book=item.title?item:state.dailyRituals[previous]?.annotate||{};
+  return `${heading}<form id="daily-ritual-form" data-kind="${kind}" data-date="${date}">
+    <label class="field-label" for="ritual-book">Book title</label><input id="ritual-book" name="title" maxlength="250" value="${escape(book.title)}" placeholder="Type a title or search Open Library">
+    <label class="field-label" for="ritual-author">Author</label><input id="ritual-author" name="author" maxlength="200" value="${escape(book.author)}" placeholder="Optional">
+    <button type="button" class="text-button ritual-lookup" id="ritual-book-search">Search Open Library</button>
+    <p class="ritual-search-status" role="status" hidden></p><div class="ritual-book-results" hidden></div>
+    <label class="field-label" for="ritual-chapters">Chapters annotated</label><textarea id="ritual-chapters" name="chapters" maxlength="3000" rows="4" placeholder="One per line or a range, e.g. Chapters 3–5">${escape(item.chapters)}</textarea>
+    <p class="ritual-error" role="alert" hidden></p><div class="panel-actions"><button class="panel-primary">Save annotation log</button></div></form>`;
+}
+function saveRitual(date,kind,item){
+  const previous=state.dailyRituals[date];
+  state.dailyRituals[date]={...previous,[kind]:item};
+  if(persist())return true;
+  if(previous)state.dailyRituals[date]=previous;
+  else delete state.dailyRituals[date];
+  return false;
+}
+function focusRitual(date,kind,action){
+  const selector=`[data-ritual="${kind}"][data-ritual-date="${date}"] [data-ritual-${action}]`;
+  const buttons=[...calendarPanel.querySelectorAll(selector)];
+  const target=buttons.find(button=>button.getClientRects().length&&button.tabIndex>=0)||$('#planner-heading');
+  target.focus({preventScroll:true});
+  return target;
+}
+async function searchRitualBooks(button){
+  const form=button.form;
+  const title=form.elements.title.value.trim(),author=form.elements.author.value.trim();
+  const status=form.querySelector('.ritual-search-status'),results=form.querySelector('.ritual-book-results');
+  results.hidden=true;results.replaceChildren();
+  status.hidden=false;
+  if(!title&&!author){status.textContent='Enter a title or author to search.';form.elements.title.focus();return;}
+  button.disabled=true;status.textContent='Searching Open Library…';
+  const params=new URLSearchParams({q:[title,author].filter(Boolean).join(' '),fields:'title,author_name',limit:'6'});
+  try{
+    const response=await fetch(`https://openlibrary.org/search.json?${params}`,{signal:AbortSignal.timeout(8000)});
+    if(!response.ok)throw new Error('Search unavailable');
+    const {docs}=await response.json();
+    if(!form.isConnected)return;
+    const seen=new Set();
+    for(const book of docs){
+      if(typeof book.title!=='string')continue;
+      const name=book.title.slice(0,250);
+      const writer=Array.isArray(book.author_name)?book.author_name.join(', ').slice(0,200):'';
+      const label=writer?`${name} · ${writer}`:name;
+      if(seen.has(label.toLowerCase()))continue;
+      seen.add(label.toLowerCase());
+      const choice=document.createElement('button');
+      choice.type='button';
+      choice.textContent=label;
+      choice.onclick=()=>{
+        form.elements.title.value=name;form.elements.author.value=writer;
+        results.hidden=true;status.hidden=true;form.elements.chapters.focus();
+        positionPanel(visiblePanel(),lastAnchor);
+      };
+      results.append(choice);
+    }
+    results.hidden=!results.childElementCount;
+    status.textContent=results.hidden?'No matches. You can still enter the book yourself.':'Choose a book';
+  }catch{
+    if(form.isConnected)status.textContent='Book search is unavailable. You can still enter the book yourself.';
+  }finally{
+    button.disabled=false;
+    if(form.isConnected)positionPanel(visiblePanel(),lastAnchor);
+  }
+}
 function calendarEventEditor(){
   const event=state.calendarEvents.find(item=>item.manual&&item.id===lastAnchor?.dataset.calendarEvent);
   const draft=calendarDraft();
@@ -1279,6 +1370,36 @@ $('#calendar-jump-date').addEventListener('change',event=>{
   else planner.jumpMonth(date);
 });
 calendarPanel.addEventListener('click',event=>{
+  const ritualButton=event.target.closest('[data-ritual-open],[data-ritual-check]');
+  if(ritualButton){
+    const {ritual:kind,ritualDate:date}=ritualButton.closest('.daily-ritual').dataset;
+    const previous=state.dailyRituals[date]?.[kind];
+    const stamp=kind==='journal'?journal.completedAt(date):0;
+    const wasComplete=ritualComplete(kind,previous,stamp);
+    if('ritualOpen' in ritualButton.dataset){
+      if(kind==='journal'){
+        journal.openDate(date,()=>{
+          const anchor=focusRitual(date,kind,'open');
+          if(!wasComplete&&anchor.matches('[data-ritual-open]')&&ritualComplete(kind,state.dailyRituals[date]?.[kind],journal.completedAt(date)))animateTaskCompletion(anchor);
+        });
+      }else openPanel('daily-ritual',ritualButton);
+      return;
+    }
+    const done=!wasComplete;
+    const next={...previous,done,...(kind==='journal'?{stamp}:{})};
+    if(!saveRitual(date,kind,next))return;
+    if(done)animateTaskCompletion(ritualButton);
+    renderCalendar();focusRitual(date,kind,'check');
+    confirmChange(`${rituals[kind].label} marked ${done?'complete':'incomplete'}.`,latest=>{
+      const day=latest.dailyRituals[date];
+      if(day?.[kind]!==next)return false;
+      if(previous)day[kind]=previous;
+      else delete day[kind];
+      if(!Object.keys(day).length)delete latest.dailyRituals[date];
+      return true;
+    });
+    return;
+  }
   const dayHeading=event.target.closest('[data-calendar-day]');
   if(dayHeading){
     planner.setCalendarLayout('day',new Date(`${dayHeading.dataset.calendarDay}T00:00:00`));
@@ -1355,6 +1476,7 @@ root.addEventListener('click',e=>{
     persist();
   }
   const btn=e.target.closest('button');if(!btn)return;
+  if(btn.id==='ritual-book-search'){searchRitualBooks(btn);return;}
   if(btn.classList.contains('close-panel'))closePanel();
   if(btn.id==='delete-calendar-event'){
     const id=btn.form.dataset.eventId, prior=state.calendarEvents;
@@ -1510,6 +1632,28 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='daily-ritual-form'){
+    const form=e.target,{kind,date}=form.dataset,fields=new FormData(form);
+    const item={...state.dailyRituals[date]?.[kind]};
+    if(kind==='annotate'){
+      for(const key of ['title','author','chapters'])item[key]=String(fields.get(key)).trim();
+      if(!item.title&&item.chapters){
+        const error=form.querySelector('.ritual-error');
+        error.textContent='Enter the book title for these chapters.';error.hidden=false;
+        form.elements.title.focus();return;
+      }
+    }else item.projectId=String(fields.get('projectId'));
+    if(!saveRitual(date,kind,item))return;
+    closePanel(false);
+    if(e.submitter?.value==='open'){
+      $('[data-workspace="crochet"]').click();
+      crochet.focusProject(item.projectId);
+      return;
+    }
+    renderCalendar();focusRitual(date,kind,'open');
+    confirmChange(kind==='annotate'?'Annotation log saved.':'Crochet link saved.');
+    return;
+  }
   if(e.target.id==='calendar-event-form'){
     const form=e.target, fields=new FormData(form), editing=form.dataset.eventId, prior=state.calendarEvents;
     if(editing&&!prior.some(item=>item.id===editing&&item.manual))return;

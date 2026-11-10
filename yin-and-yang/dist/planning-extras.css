@@ -41,6 +41,63 @@
   100% { opacity: 0; transform: scaleX(1); }
 }
 @media (prefers-reduced-motion: reduce) { .task-completion-ink { display: none; } }
+.task-completion-ripple {
+  position: fixed; z-index: 100; width: 24px; height: 24px; pointer-events: none;
+  border: 1px solid #f0cfad; border-radius: 50%;
+  box-shadow: inset 0 0 0 3px #f0cfad25,0 0 0 4px #f0cfad4d;
+  animation: completion-ripple 610ms ease-out both;
+}
+#app[data-lighting="day"] .task-completion-ripple { border-color: #976449; box-shadow: inset 0 0 0 3px #97644922,0 0 0 4px #97644942; }
+@keyframes completion-ripple {
+  0% { opacity: .88; transform: translate(-50%,-50%) scale(.48); }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(1.7); }
+}
+@media (prefers-reduced-motion: reduce) { .task-completion-ripple { display: none; } }
+
+.daily-rituals { display: grid; gap: 3px; margin: 0 2px 5px; }
+.daily-ritual {
+  --ritual-tint: #a7dbc7; --ritual-rgb: 167 219 199;
+  display: flex; min-width: 0; align-items: center; color: var(--ritual-tint);
+  border: 1px solid rgb(var(--ritual-rgb) / .32); border-radius: 6px;
+  background: linear-gradient(105deg,rgb(var(--ritual-rgb) / .16),rgb(var(--ritual-rgb) / .07));
+}
+.daily-ritual[data-ritual="crochet"] { --ritual-tint: #f1bbae; --ritual-rgb: 241 187 174; }
+.daily-ritual[data-ritual="annotate"] { --ritual-tint: #f0d295; --ritual-rgb: 240 210 149; }
+#app[data-lighting="day"] .daily-ritual { --ritual-tint: #215d52; --ritual-rgb: 49 116 93; }
+#app[data-lighting="day"] .daily-ritual[data-ritual="crochet"] { --ritual-tint: #844737; --ritual-rgb: 150 83 62; }
+#app[data-lighting="day"] .daily-ritual[data-ritual="annotate"] { --ritual-tint: #735121; --ritual-rgb: 129 90 38; }
+.ritual-open {
+  display: flex; flex: 1; align-items: center; gap: 4px; min-width: 0; padding: 3px 2px 3px 5px;
+  text-align: left; font-size: 11px; line-height: 1.2;
+}
+.ritual-open svg { width: 14px; height: 14px; flex: none; }
+.ritual-open span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ritual-check { flex: none; display: grid; place-items: center; width: 25px; height: 24px; }
+.ritual-check svg { width: 15px; height: 15px; padding: 1px; border: 1px solid currentColor; border-radius: 4px; }
+.ritual-check[aria-pressed="false"] path { opacity: 0; }
+.ritual-check[aria-pressed="false"]:hover path { opacity: .5; }
+.daily-ritual[data-done="true"] { background: rgb(var(--ritual-rgb) / .19); }
+.daily-ritual[data-done="true"] .ritual-open span, .all-day-done { text-decoration: line-through; }
+.daily-ritual button:hover { background: rgb(var(--ritual-rgb) / .12); }
+.daily-ritual button:focus-visible { outline-offset: -2px; }
+#calendar-panel[data-planner-layout="day"] .calendar-date .daily-rituals,
+.planner-list .daily-rituals { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.planner-month-cell .daily-rituals { margin-inline: 0; }
+.planner-month-cell .ritual-open { font-size: 10px; }
+.planner-month-cell .ritual-check { width: 22px; height: 22px; }
+.ritual-lookup { margin-top: 6px; }
+.ritual-search-status,.ritual-error { margin: 4px 0; }
+.ritual-error { color: var(--surface-danger); }
+.ritual-book-results { display: grid; gap: 4px; max-height: 130px; overflow: auto; }
+.ritual-book-results[hidden] { display: none; }
+.ritual-book-results button { padding: 5px 8px; border: 1px solid var(--surface-line); border-radius: 5px; text-align: left; font-size: 12px; }
+.ritual-book-results button:hover { background: var(--surface-raised); }
+@media(max-width:540px) {
+  .planner-month-cell .ritual-open { padding-left: 2px; }
+  .planner-month-cell .ritual-open svg { width: 12px; height: 12px; }
+  .planner-month-cell .ritual-check { width: 19px; }
+  .planner-month-cell .ritual-open span { display: none; }
+}
 
 .calendar-block.manual-event, #planner-calendar-view .calendar-block.manual-event, .calendar-all-day-task.manual-event {
   background: #423851; color: #f7eaf9; border-color: #a28ab0;

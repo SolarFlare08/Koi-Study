@@ -204,4 +204,12 @@ export function installCrochet({root,storage,notify}){
   dialog.addEventListener('close',()=>{(anchor?.isConnected?anchor:add).focus({preventScroll:true});editor=null;});
   window.addEventListener('storage',event=>{if (event.key===CROCHET_KEY||event.key===null) { data=loadCrochet(storage);render(); }});
   render();
+  return {
+    focusProject(id){
+      view='projects';statusFilter='all';render();
+      const project=id&&content.querySelector(`[data-crochet-id="${CSS.escape(id)}"]`);
+      project?.scrollIntoView({block:'center'});
+      (project?.querySelector('[data-crochet-edit]')||add).focus({preventScroll:true});
+    }
+  };
 }
