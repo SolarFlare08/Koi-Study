@@ -116,6 +116,11 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
   white-space: normal;
 }
 #current-task:hover, #current-task[aria-expanded="true"] { background: var(--scene-paper,#e7eadc); }
+#finish-current-task {
+  padding: 7px 9px; border: 1px solid var(--scene-line,var(--surface-line)); border-radius: 8px;
+  background: var(--scene-paper,var(--surface-paper)); color: var(--scene-ink,var(--surface-ink)); font-size: 11px;
+}
+#finish-current-task:hover,#finish-current-task[aria-expanded="true"] { background: var(--surface-raised); color: var(--surface-ink); }
 .current-task-copy { display: grid; gap: 1px; min-width: 0; }
 .current-task-label { font-size: 9px; letter-spacing: .035em; color: var(--scene-muted,#55726c); }
 #current-task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }

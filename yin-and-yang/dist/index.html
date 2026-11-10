@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="./crochet.css">
   <link rel="stylesheet" href="./planning-extras.css">
   <link rel="stylesheet" href="./journal.css">
+  <link rel="stylesheet" href="./sticky-notes.css">
 </head>
 <body>
   <main id="app" aria-label="Yin and Yang study garden">
@@ -41,6 +42,7 @@
           <span class="current-task-copy"><span class="current-task-label">Current task</span><span id="current-task-name">Choose a task</span></span>
           <span data-icon="down" class="current-task-chevron"></span>
         </button>
+        <button id="finish-current-task" type="button" aria-label="Finish current task early" aria-haspopup="dialog" aria-expanded="false" title="Finish current task early" hidden>Finish</button>
       </div>
       <button id="resume-task" class="resume-task" type="button" aria-haspopup="dialog" hidden></button>
     </section>
@@ -134,12 +136,14 @@
     </section>
     <section id="crochet-workspace" aria-labelledby="crochet-heading" hidden></section>
     <section id="journal-workspace" aria-labelledby="journal-heading" hidden></section>
+    <section id="notes-workspace" aria-labelledby="notes-heading" hidden></section>
     <nav id="workspace-tabs" aria-label="App workspace">
       <button type="button" data-workspace="focus" aria-pressed="true"><span data-icon="sprout"></span>Garden</button>
       <button type="button" data-workspace="planner" aria-controls="calendar-panel" aria-pressed="false"><span data-icon="list"></span>Planner</button>
       <button type="button" data-workspace="calendar" aria-controls="calendar-panel" aria-pressed="false"><span data-icon="calendar"></span>Calendar</button>
       <button type="button" data-workspace="crochet" aria-controls="crochet-workspace" aria-pressed="false"><span data-icon="yarn"></span>Crochet</button>
       <button type="button" data-workspace="journal" aria-controls="journal-workspace" aria-pressed="false"><span data-icon="journal"></span>Journal</button>
+      <button type="button" data-workspace="notes" aria-controls="notes-workspace" aria-pressed="false"><span data-icon="note"></span>Notes</button>
     </nav>
     <footer class="sr-only"><span id="saved-status">Saved on this device</span></footer>
     <div id="panel-root"></div>

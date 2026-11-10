@@ -3,6 +3,7 @@ import {loadSoundSettings} from './garden-audio.js';
 import {captureTaskChange} from './task-undo.js';
 import {loadGardenSchedule} from './garden-appearance.js';
 import {loadDailyRituals} from './daily-rituals.js';
+import {loadStickyNotes} from './sticky-notes.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -115,7 +116,7 @@ export function formatDuration(ms) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], activeTask:null, notes:'', history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], activeTask:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -133,6 +134,7 @@ export function loadState(storage) {
     base.notifications=raw.notifications===true;
     if (Array.isArray(raw.routines)) base.routines=raw.routines.filter(routine=>routine && typeof routine.id==='string' && typeof routine.name==='string' && ['focus','rest'].every(key=>Number.isInteger(routine[key])&&routine[key]>=1000&&routine[key]<=10800000));
     for (const key of ['intention','notes','spotify']) if (typeof raw[key] === 'string') base[key] = raw[key];
+    base.stickyNotes=loadStickyNotes(raw.stickyNotes,base.notes);
     for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
     if (Array.isArray(raw.tasks)) base.tasks=raw.tasks.filter(t=>t && typeof t.id==='string' && typeof t.text==='string' && typeof t.done==='boolean').map(loadTask);
     if (Array.isArray(raw.projects)) base.projects=raw.projects.filter(project=>project&&typeof project.id==='string'&&typeof project.name==='string').map(project=>({
@@ -143,7 +145,7 @@ export function loadState(storage) {
     if (Array.isArray(raw.plannerFilters)) base.plannerFilters=raw.plannerFilters.filter(filter=>filter&&typeof filter.id==='string'&&typeof filter.name==='string'&&typeof filter.query==='string');
     if (Array.isArray(raw.plannerLabels)) base.plannerLabels=raw.plannerLabels.filter(label=>typeof label==='string'&&label.length>0&&label.length<=40);
     if (Array.isArray(raw.taskActivity)) base.taskActivity=raw.taskActivity.filter(event=>event&&typeof event.id==='string'&&typeof event.taskId==='string'&&typeof event.text==='string'&&Number.isFinite(event.at));
-    base.activeTask=base.tasks.some(t=>t.id===raw.activeTask && taskStatus(t)==='todo')?raw.activeTask:null;
+    base.activeTask=base.tasks.some(t=>t.id===raw.activeTask&&!t.done)?raw.activeTask:null;
     if (Array.isArray(raw.history)) base.history=raw.history.filter(h=>h && typeof h.id==='string' && ['completed','skipped'].includes(h.outcome) && ['focus','break'].includes(h.mode) && Number.isFinite(h.finishedAt) && Number.isFinite(h.focusMs));
     base.focusMode=raw.focusMode===true;
     const t=raw.timer;
@@ -171,14 +173,14 @@ export function consumeTimerWarning(state,now=Date.now()) {
   timer.warningSent=true;
   return {id:timer.id,mode:timer.mode,left};
 }
-export function startPause(state, now=Date.now()) {
+export function startPause(state, now=Date.now(), taskId=state.activeTask) {
   const t=state.timer;
   if(t.status==='running') { t.remaining=remaining(state,now); t.endAt=null; t.status='paused'; }
   else {
     if (!t.id) {
       t.id=globalThis.crypto.randomUUID();
       t.startedAt=now;
-      const task=state.tasks.find(item=>item.id===(t.block?.taskId||state.activeTask));
+      const task=state.tasks.find(item=>item.id===(t.block?.taskId||taskId));
       if (task) t.taskSnapshot={id:task.id,text:task.text,projectId:task.projectId||''};
     }
     t.endAt=now+t.remaining;
@@ -190,22 +192,22 @@ export function reset(state, mode=state.timer.mode) {
 }
 const blockPhaseLength={focus:50*60000,break:10*60000};
 
-function startBlockPhase(state, mode, taskId, available, split, now) {
+function startBlockPhase(state, mode, taskId, available, split, now, occurrence) {
   const total=split ? Math.min(available,blockPhaseLength[mode]) : available;
   reset(state,mode);
-  Object.assign(state.timer,{remaining:total,total,block:{taskId,left:available-total}});
+  Object.assign(state.timer,{remaining:total,total,block:{taskId,left:available-total,occurrence}});
   startPause(state,now);
 }
 
-export function startBlockFocus(state, taskId, available, split, now=Date.now()) {
+export function startBlockFocus(state, taskId, available, split, now=Date.now(), occurrence) {
   state.activeTask=taskId;
-  startBlockPhase(state,'focus',taskId,available,split,now);
+  startBlockPhase(state,'focus',taskId,available,split,now,occurrence);
 }
 
 function advanceTimer(state, now) {
   const {mode,block}=state.timer;
   const next=mode==='focus'?'break':'focus';
-  if (block?.left>0) startBlockPhase(state,next,block.taskId,block.left,true,now);
+  if (block?.left>0) startBlockPhase(state,next,block.taskId,block.left,true,now,block.occurrence);
   else reset(state,block?'focus':next);
 }
 
@@ -214,10 +216,10 @@ export function skipPhase(state, now=Date.now()) {
   advanceTimer(state,now);
   return h;
 }
-export function record(state, outcome, now=Date.now()) {
+export function record(state, outcome, now=Date.now(), {early=false}={}) {
   const t=state.timer;
   if(!t.id || state.history.some(h=>h.id===t.id)) return null;
-  const finish=outcome==='completed' && t.endAt ? t.endAt : now;
+  const finish=outcome==='completed' && t.endAt && !early ? t.endAt : now;
   const task=t.taskSnapshot||state.tasks.find(task=>task.id===t.block?.taskId);
   const intention=t.block?(task?.text||state.intention):(state.intention||task?.text||'');
   const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention,taskTitle:task?.text||'',taskId:task?.id||'',projectId:task?task.projectId||'':null};

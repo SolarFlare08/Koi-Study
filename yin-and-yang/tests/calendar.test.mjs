@@ -1,8 +1,20 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarEventFromFields, scheduleTask, weekDays} from '../dist/calendar.js';
+import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarEventFromFields, focusTaskQueue, scheduleTask, weekDays} from '../dist/calendar.js';
 import {freshState, loadState} from '../dist/state.js';
 import {ritualComplete} from '../dist/daily-rituals.js';
+
+test('the focus queue follows calendar blocks before unscheduled priority',()=>{
+  const date=new Date(2026,10,10);
+  const dated={id:'later',date:'2026-11-10',time:'14:00',repeat:'none'};
+  const custom={id:'earlier',date:'2026-11-12',repeat:'none',blocks:[{id:'review',date:'2026-11-10',time:'09:00',minutes:60}]};
+  const unscheduled={id:'unscheduled',priorityLevel:1,repeat:'none'};
+  const done={id:'done',date:'2026-11-10',time:'08:00',done:true,repeat:'none'};
+  const tasks=[unscheduled,dated,custom,done];
+  assert.deepEqual(focusTaskQueue(tasks,date).map(task=>task.id),['earlier','later','unscheduled']);
+  custom.done=true;
+  assert.deepEqual(focusTaskQueue(tasks,date).map(task=>task.id),['later','unscheduled']);
+});
 
 test('daily ritual logs survive reload and a newer journal entry completes a reopened day',()=>{
   const state=freshState(), date='2026-11-09';

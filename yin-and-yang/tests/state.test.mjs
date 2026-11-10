@@ -1,6 +1,16 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {freshState,startPause,startBlockFocus,skipPhase,remaining,settle,record,reset,consumeTimerWarning,parseDuration,formatTypedDuration,todayProgress,loadState,STORAGE_KEY,dayKey,taskStatus,completeTask} from '../dist/state.js';
+test('finishing focus early credits elapsed time and the original task',()=>{
+  const state=freshState(), start=1000000, finish=start+90000;
+  state.tasks.push({id:'read',text:'Read the chapter'});
+  startPause(state,start,'read');
+  const session=record(state,'completed',finish,{early:true});
+  assert.equal(session.finishedAt,finish);
+  assert.equal(session.focusMs,90000);
+  assert.equal(session.taskId,'read');
+  assert.equal(record(state,'completed',finish,{early:true}),null);
+});
 test('running timer recovers from storage and completes once after inactive deadline',()=>{
   const s=freshState();startPause(s,1000000);
   const recovered=loadState({getItem:key=>key===STORAGE_KEY?JSON.stringify(s):null});

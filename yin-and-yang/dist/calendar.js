@@ -1,4 +1,4 @@
-import {dayKey, taskOccursOn} from './state.js';
+import {dayKey, taskOccursOn, taskPriority, taskStatus} from './state.js';
 
 const minutesPerDay = 24 * 60;
 export const defaultBlockMinutes = 60;
@@ -116,6 +116,21 @@ export function calendarBlocks(tasks, date, events=[]) {
     blocks.push({event,start,end,continues:event.start<dayStart});
   }
   return layoutBlocks(blocks);
+}
+
+function openFocusBlock({task,occurrence}){
+  return !task.done&&task.completedOn!==occurrence&&!task.completions?.includes(occurrence);
+}
+
+export function focusCalendarBlock(task,date=new Date()){
+  return calendarBlocks([task],date).find(openFocusBlock);
+}
+
+export function focusTaskQueue(tasks,date=new Date()){
+  const scheduled=[...new Set(calendarBlocks(tasks,date).filter(openFocusBlock).map(block=>block.task))];
+  const queued=new Set(scheduled);
+  const unscheduled=tasks.filter(task=>!queued.has(task)&&taskStatus(task,date)==='todo');
+  return [...scheduled,...unscheduled.sort((a,b)=>taskPriority(a)-taskPriority(b))];
 }
 
 function layoutBlocks(blocks) {
