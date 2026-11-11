@@ -138,6 +138,19 @@
 .replan-moves strong,.replan-moves small { display: block; overflow-wrap: anywhere; }
 .replan-moves small,.replan-unplaced li { color: var(--surface-muted); }
 .replan-unplaced h3 { margin-bottom: 5px; font-size: 13px; }
+#replan-cutoff-form { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 12px; }
+#replan-cutoff-form input { width: auto; }
+.calendar-block[data-block-status],.planner-event[data-block-status] { --block-status: var(--surface-muted); }
+#app [data-block-status="focused"] { --block-status: #a7e2c7; }
+#app [data-block-status="partial"] { --block-status: #f2d38f; }
+#app [data-block-status="missed"] { --block-status: #f3aa9d; }
+#app[data-lighting="day"] [data-block-status="focused"] { --block-status: #24644e; }
+#app[data-lighting="day"] [data-block-status="partial"] { --block-status: #795018; }
+#app[data-lighting="day"] [data-block-status="missed"] { --block-status: #913e34; }
+#app :is(.calendar-block,.planner-event)[data-block-status]:not([data-block-status=""]) { border-left-color: var(--block-status); }
+#app :is(.calendar-block,.planner-event) .calendar-block-state { color: var(--block-status); font-weight: 650; }
+.planner-event .calendar-block-state { margin-left: 4px; white-space: nowrap; }
+#block-actual-focus { font-weight: 650; color: var(--surface-accent); }
 .resume-task { max-width: min(320px,84vw); margin-top: 7px; padding: 4px 7px; border-radius: 6px; background: var(--scene-paper); color: var(--scene-ink); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resume-task:hover { text-decoration: underline; }
 .capture-card .capture-actions { grid-column: 1/-1; display: flex; flex-wrap: wrap; gap: 4px; }

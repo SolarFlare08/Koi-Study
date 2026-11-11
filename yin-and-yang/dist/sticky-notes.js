@@ -4,6 +4,16 @@ const bounds={minWidth:200,maxWidth:720,minHeight:150,maxHeight:680,maxOffset:60
 const clamp=(value,min,max)=>Number.isFinite(value)?Math.max(min,Math.min(max,Math.round(value))):min;
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
+export function noteTaskIds(note){
+  return [...new Set([note.taskId,...(note.taskIds||[])].filter(id=>typeof id==='string'&&id))];
+}
+
+export function selectedNoteText(value,start,end){
+  const first=value.lastIndexOf('\n',start-1)+1;
+  const next=value.indexOf('\n',start);
+  return (start!==end?value.slice(start,end):value.slice(first,next===-1?undefined:next)).trim();
+}
+
 export function loadStickyNotes(value,scratch=''){
   if(!Array.isArray(value))return scratch.trim()?[{
     id:scratchNoteId,title:'Quick Notes',body:scratch,x:24,y:24,width:280,height:235,color:'jade'
@@ -11,6 +21,7 @@ export function loadStickyNotes(value,scratch=''){
   return value.filter(note=>typeof note?.id==='string'&&typeof note.body==='string').map(note=>({
     id:note.id,title:typeof note.title==='string'?note.title.slice(0,100):'',body:note.body,
     taskId:typeof note.taskId==='string'?note.taskId:'',
+    taskIds:Array.isArray(note.taskIds)?[...new Set(note.taskIds.filter(id=>typeof id==='string'&&id))]:[],
     x:clamp(note.x||0,0,bounds.maxOffset),y:clamp(note.y||0,0,bounds.maxOffset),
     width:clamp(note.width||252,bounds.minWidth,bounds.maxWidth),
     height:clamp(note.height||216,bounds.minHeight,bounds.maxHeight),
@@ -24,26 +35,27 @@ const icons={
   front:'<path d="M4 14h10M9 11V4m-3 3 3-3 3 3"/>',
   delete:'<path d="m5 5 8 8m0-8-8 8"/>',
   link:'<path d="m7 11 4-4M8 5l1.5-1.5a3 3 0 0 1 4.2 4.2L12 9.3M10 13l-1.5 1.5a3 3 0 0 1-4.2-4.2L6 8.7"/>',
+  task:'<rect x="3" y="3" width="12" height="12" rx="2"/><path d="M6 9h6M9 6v6"/>',
   resize:'<path d="m5 13 8-8m-4 8 4-4"/>'
 };
 const control=(action,label)=>`<button type="button" data-note-action="${action}" title="${label}" aria-label="${label}" ${action==='move'||action==='resize'?'aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"':''}><svg viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">${icons[action]}</svg></button>`;
 
-export function installStickyNotes({root,getNotes,getTasks,saveNotes,notify}){
+export function installStickyNotes({root,getNotes,getTasks,saveNotes,createTask,notify}){
   root.innerHTML=`<header class="sticky-heading">
     <div><span class="sticky-kicker">GARDEN DESK</span><h2 id="notes-heading">Notes</h2><p>Drag to arrange, resize, or stack your notes.</p></div>
     <button type="button" id="sticky-add"><span aria-hidden="true">+</span> New note</button>
   </header><div class="sticky-viewport" role="region" aria-label="Sticky note board" tabindex="0"><div class="sticky-board"></div></div>
   <dialog id="sticky-link-dialog" class="workspace-dialog" aria-labelledby="sticky-link-title">
     <form><header><h2 id="sticky-link-title">Link sticky note</h2><button type="button" data-link-close aria-label="Close link editor">×</button></header>
-      <label for="sticky-link-task">Task</label><select id="sticky-link-task" name="task"></select>
-      <button class="workspace-primary" type="submit">Save link</button>
+      <fieldset class="sticky-link-choices"><legend>Tasks</legend><div id="sticky-link-tasks"></div></fieldset>
+      <button class="workspace-primary" type="submit">Save links</button>
     </form>
   </dialog>`;
   const board=root.querySelector('.sticky-board');
   const viewport=root.querySelector('.sticky-viewport');
   const add=root.querySelector('#sticky-add');
   const linkDialog=root.querySelector('#sticky-link-dialog');
-  const linkSelect=root.querySelector('#sticky-link-task');
+  const linkChoices=root.querySelector('#sticky-link-tasks');
   let linkingId='';
   let gesture=null;
 
@@ -60,14 +72,17 @@ export function installStickyNotes({root,getNotes,getTasks,saveNotes,notify}){
   function render(){
     if(gesture)return;
     const taskNames=new Map(getTasks().map(task=>[task.id,task.text]));
-    board.innerHTML=getNotes().map((note,layer)=>`<article class="sticky-note" data-sticky-id="${escape(note.id)}" data-color="${note.color}"
+    board.innerHTML=getNotes().map((note,layer)=>{
+      const links=noteTaskIds(note).map(id=>taskNames.get(id)||'Task unavailable').join(', ');
+      return `<article class="sticky-note" data-sticky-id="${escape(note.id)}" data-color="${note.color}"
         aria-label="${escape(note.title||'Untitled note')}" style="left:${note.x}px;top:${note.y}px;width:${note.width}px;height:${note.height}px;z-index:${layer+1}">
       <header>${control('move','Move note (arrow keys)')}<input type="text" aria-label="Note title" data-note-field="title" maxlength="100" placeholder="Untitled note" value="${escape(note.title)}">${control('delete','Delete note')}</header>
       <textarea aria-label="Note text" data-note-field="body" placeholder="Write something here…" spellcheck="true">
 ${escape(note.body)}</textarea>
-      <footer><div class="sticky-layer">${control('back','Send note to back')}${control('front','Bring note to front')}${control('link','Link note to task')}</div>
-      ${note.taskId?`<span class="sticky-task-badge" title="${escape(taskNames.get(note.taskId)||'Task unavailable')}">${escape(taskNames.get(note.taskId)||'Task unavailable')}</span>`:''}${control('resize','Resize note (arrow keys)')}</footer>
-    </article>`).join('')||'<div class="sticky-empty"><span aria-hidden="true">✧</span><p>Room for a thought</p><small>Add a note to start your board.</small></div>';
+      <footer><div class="sticky-layer">${control('back','Send note to back')}${control('front','Bring note to front')}${control('link','Link note to task')}${control('task','Create task from note text')}</div>
+      ${links?`<span class="sticky-task-badge" title="${escape(links)}">${escape(links)}</span>`:''}${control('resize','Resize note (arrow keys)')}</footer>
+    </article>`;
+    }).join('')||'<div class="sticky-empty"><span aria-hidden="true">✧</span><p>Room for a thought</p><small>Add a note to start your board.</small></div>';
     sizeBoard();
   }
   function newNote(body='',title=''){
@@ -114,18 +129,23 @@ ${escape(note.body)}</textarea>
   board.addEventListener('click',event=>{
     const button=event.target.closest('[data-note-action]');
     const action=button?.dataset.noteAction;
+    if(action==='task'){
+      const card=button.closest('.sticky-note');
+      const field=card.querySelector('textarea');
+      const text=selectedNoteText(field.value,field.selectionStart,field.selectionEnd);
+      if(!text){notify('Select note text or place the cursor on a line.');field.focus();return;}
+      createTask(card.dataset.stickyId,text,button);
+      return;
+    }
     if(action==='link'){
       const note=getNotes().find(item=>item.id===button.closest('.sticky-note').dataset.stickyId);
       if(!note)return;
       linkingId=note.id;
-      const tasks=getTasks();
-      linkSelect.innerHTML='<option value="">No linked task</option>'+tasks.map(task=>
-        `<option value="${escape(task.id)}">${escape(task.text)}</option>`).join('');
-      if(note.taskId&&!tasks.some(task=>task.id===note.taskId)){
-        const missing=new Option('Task unavailable',note.taskId);
-        linkSelect.add(missing);
-      }
-      linkSelect.value=note.taskId||'';
+      const linked=new Set(noteTaskIds(note));
+      const tasks=new Map(getTasks().map(task=>[task.id,task.text]));
+      for(const id of linked)if(!tasks.has(id))tasks.set(id,'Task unavailable');
+      linkChoices.innerHTML=[...tasks].map(([id,title])=>
+        `<label><input type="checkbox" name="task" value="${escape(id)}" ${linked.has(id)?'checked':''}> ${escape(title)}</label>`).join('')||'<p>No tasks available.</p>';
       linkDialog.showModal();
       return;
     }
@@ -152,10 +172,11 @@ ${escape(note.body)}</textarea>
   linkDialog.addEventListener('submit',event=>{
     event.preventDefault();
     if(!getNotes().some(note=>note.id===linkingId)){linkDialog.close();return;}
-    if(!update(linkingId,{taskId:linkSelect.value}))return;
+    const ids=new FormData(event.target).getAll('task');
+    if(!update(linkingId,{taskId:ids[0]||'',taskIds:ids.slice(1)}))return;
     linkDialog.close();
     render();
-    notify(linkSelect.value?'Sticky note linked.':'Sticky note unlinked.');
+    notify(ids.length?'Sticky note links saved.':'Sticky note unlinked.');
   });
   linkDialog.addEventListener('close',()=>{
     (cardFor(linkingId)?.querySelector('[data-note-action="link"]')||add).focus({preventScroll:true});
@@ -210,7 +231,7 @@ export function installFocusNotes({button,panel,getNotes,saveNotes,onEdit}){
   function sync(task,visible){
     const nextId=visible?task?.id||'':'';
     if(nextId!==taskId){taskId=nextId;shown=false;}
-    const notes=taskId?getNotes().filter(note=>note.taskId===taskId):[];
+    const notes=taskId?getNotes().filter(note=>noteTaskIds(note).includes(taskId)):[];
     button.hidden=!notes.length;
     if(!notes.length)shown=false;
     button.setAttribute('aria-expanded',String(shown));

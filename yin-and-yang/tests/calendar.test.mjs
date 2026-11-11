@@ -1,8 +1,51 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarEventFromFields, focusTaskQueue, replanToday, scheduleTask, weekDays} from '../dist/calendar.js';
-import {freshState, loadState} from '../dist/state.js';
+import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, calendarBlockProgress, calendarBlocks, calendarEventFromFields, calendarFocusTotals, focusTaskQueue, replanToday, scheduleTask, weekDays} from '../dist/calendar.js';
+import {freshState, loadState, record, reset, settle, startBlockFocus} from '../dist/state.js';
 import {ritualComplete} from '../dist/daily-rituals.js';
+
+test('a cutoff splits a missed block or offers tomorrow while preserving recurrence',()=>{
+  const now=new Date(2026,10,10,19), day='2026-11-10', tomorrow='2026-11-11';
+  const state=freshState();
+  const split={id:'read',text:'Read',done:false,repeat:'daily',date:day,time:'08:00',estimate:60};
+  const move={id:'write',text:'Write',done:false,repeat:'daily',date:day,time:'11:00',estimate:45};
+  state.tasks=[split,move];
+  const event={start:+new Date(2026,10,10,19,30),end:+new Date(2026,10,10,20,30)};
+  const plan=replanToday(state.tasks,[event],now,null,{cutoff:21*60});
+  assert.deepEqual(plan.moves.map(item=>[item.day,item.parts]),[
+    [day,[{to:1140,minutes:30},{to:1230,minutes:30}]],
+    [tomorrow,[{to:540,minutes:45}]]
+  ]);
+  applyCalendarReplan(split,day,plan.moves[0]);
+  applyCalendarReplan(move,day,plan.moves[1]);
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  assert.deepEqual(calendarBlocks(restored.tasks,now).map(block=>[block.task.id,block.start]),[['read',1140],['read',1230]]);
+  assert.deepEqual(calendarBlocks(restored.tasks,new Date(2026,10,11)).map(block=>[block.task.id,block.start,block.taskDay]),[
+    ['read',480,undefined],['write',540,day],['write',660,undefined]
+  ]);
+});
+
+test('recorded focus follows a specific block and keeps partially worked blocks out of Replan',()=>{
+  const day='2026-11-10', state=freshState();
+  const task={id:'study',text:'Study',done:false,blocks:[
+    {id:'a',date:day,time:'08:00',minutes:30},
+    {id:'b',date:day,time:'09:00',minutes:30},
+    {id:'c',date:day,time:'10:00',minutes:30}
+  ]};
+  state.tasks.push(task);
+  const start=+new Date(2026,10,10,8);
+  startBlockFocus(state,task.id,30*60000,false,start,day,'a');
+  record(state,'skipped',start+8*60000);
+  reset(state);
+  startBlockFocus(state,task.id,30*60000,false,start+3600000,day,'b');
+  settle(state,start+90*60000);
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  const totals=calendarFocusTotals(restored.history), now=new Date(2026,10,10,11);
+  assert.deepEqual(['a','b','c'].map(id=>calendarBlockProgress(task,id,day,totals,+now)),[
+    {status:'partial',focusMs:8*60000},{status:'focused',focusMs:30*60000},{status:'missed',focusMs:0}
+  ]);
+  assert.deepEqual(replanToday([task],[],now,null,{cutoff:21*60,focus:totals}).moves.map(move=>move.blockId),['c']);
+});
 
 test('the focus queue follows calendar blocks before unscheduled priority',()=>{
   const date=new Date(2026,10,10);

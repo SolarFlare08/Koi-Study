@@ -86,7 +86,7 @@ function loadTask(task) {
     resumeNote:typeof task.resumeNote==='string'?task.resumeNote.slice(0,500):'',
     date:/^\d{4}-\d{2}-\d{2}$/.test(task.date) ? task.date : repeat === 'none' ? '' : dayKey(),
     time:isTime(task.time) ? task.time : '',
-    occurrenceTimes:Object.fromEntries(Object.entries(task.occurrenceTimes||{}).filter(([day,time])=>isDay(day)&&isTime(time))),
+    occurrenceTimes:Object.fromEntries(Object.entries(task.occurrenceTimes||{}).filter(([day,time])=>isDay(day)&&(time===''||isTime(time)))),
     estimate:Number.isInteger(task.estimate) && task.estimate > 0 && task.estimate <= 1440 ? task.estimate : null,
     repeat,
     priority:task.priority === true,
@@ -123,6 +123,7 @@ export function formatDuration(ms) {
 }
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
+    replanCutoff:'21:00',
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -133,6 +134,7 @@ export function loadState(storage) {
     base.appearance=loadAppearance(raw.appearance);
     base.gardenSchedule=loadGardenSchedule(raw.gardenSchedule);
     base.calendarEvents=loadCalendarEvents(raw.calendarEvents);
+    if(isTime(raw.replanCutoff))base.replanCutoff=raw.replanCutoff;
     base.dailyRituals=loadDailyRituals(raw.dailyRituals);
     if(isDay(raw.focusPins?.day)&&Array.isArray(raw.focusPins.ids)){
       base.focusPins={day:raw.focusPins.day,ids:[...new Set(raw.focusPins.ids.filter(id=>typeof id==='string'))]};
@@ -204,22 +206,25 @@ export function reset(state, mode=state.timer.mode) {
 }
 const blockPhaseLength={focus:50*60000,break:10*60000};
 
-function startBlockPhase(state, mode, taskId, available, split, now, occurrence) {
+function startBlockPhase(state, mode, taskId, available, split, now, calendarBlock) {
   const total=split ? Math.min(available,blockPhaseLength[mode]) : available;
   reset(state,mode);
-  Object.assign(state.timer,{remaining:total,total,block:{taskId,left:available-total,occurrence}});
+  Object.assign(state.timer,{remaining:total,total,block:{taskId,left:available-total,...calendarBlock}});
   startPause(state,now);
 }
 
-export function startBlockFocus(state, taskId, available, split, now=Date.now(), occurrence) {
+export function startBlockFocus(state, taskId, available, split, now=Date.now(), occurrence, blockId=null, taskDay=occurrence) {
   state.activeTask=taskId;
-  startBlockPhase(state,'focus',taskId,available,split,now,occurrence);
+  startBlockPhase(state,'focus',taskId,available,split,now,{occurrence,blockId,taskDay});
 }
 
 function advanceTimer(state, now) {
   const {mode,block}=state.timer;
   const next=mode==='focus'?'break':'focus';
-  if (block?.left>0) startBlockPhase(state,next,block.taskId,block.left,true,now,block.occurrence);
+  if (block?.left>0) {
+    const {occurrence,blockId,taskDay}=block;
+    startBlockPhase(state,next,block.taskId,block.left,true,now,{occurrence,blockId,taskDay});
+  }
   else reset(state,block?'focus':next);
 }
 
@@ -235,6 +240,10 @@ export function record(state, outcome, now=Date.now(), {early=false}={}) {
   const task=t.taskSnapshot||state.tasks.find(task=>task.id===t.block?.taskId);
   const intention=t.block?(task?.text||state.intention):(state.intention||task?.text||'');
   const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention,taskTitle:task?.text||'',taskId:task?.id||'',projectId:task?task.projectId||'':null};
+  const block=t.block||t.calendarBlock;
+  if(t.mode==='focus'&&isDay(block?.occurrence)&&Object.hasOwn(block,'blockId')){
+    h.calendarBlock={occurrence:block.occurrence,blockId:block.blockId||null};
+  }
   state.history.push(h); return h;
 }
 export function settle(state, now=Date.now()) {

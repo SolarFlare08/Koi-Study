@@ -1,4 +1,4 @@
-import {calendarBlocks,allDayEvents,calendarDragType,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
+import {blockProgressLabels,calendarBlocks,allDayEvents,calendarDragType,openFocusBlock,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
 import {parseCalendarImport} from './calendar-import.js';
 import {summarizeWeek} from './weekly-planning.js';
 import {dayKey,taskPriority,taskStatus} from './state.js';
@@ -31,7 +31,7 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,notify,completeTask,hasPanel}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
@@ -169,9 +169,12 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
 
   function timeStack(tasks,day,splitPast=false) {
     if (!day) return '';
-    const blocks=calendarBlocks(tasks,parseDay(day)).filter(block=>completed.checked||taskStatus(block.task,parseDay(block.occurrence))!=='done');
+    const blocks=calendarBlocks(tasks,parseDay(day)).filter(block=>completed.checked||openFocusBlock(block)||blockProgress(block).focusMs);
     if (!blocks.length) return '';
-    const row=block=>`<button type="button" class="planner-event" data-open-time data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-priority="${taskPriority(block.task)}"><time>${timeLabel(block.start)} – ${timeLabel(block.end)}</time><span>${escape(block.task.text)}</span></button>`;
+    const row=block=>{
+      const {status}=blockProgress(block);
+      return `<button type="button" class="planner-event" data-open-time data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-priority="${taskPriority(block.task)}"><time>${timeLabel(block.start)} – ${timeLabel(block.end)}</time><span>${escape(block.task.text)}</span><small class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</small></button>`;
+    };
     const now=new Date(), minute=now.getHours()*60+now.getMinutes();
     const past=splitPast?blocks.filter(block=>block.end<=minute):[];
     const rows=blocks.filter(block=>!splitPast||block.end>minute).map(row);
@@ -195,7 +198,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const overdue=sortTasks(visible.filter(task=>overdueDate(task,now)));
     const due=sortTasks(visible.filter(task=>!overdueDate(task,now)&&(task.repeat==='none'||nextTaskDate(task,now,completed.checked)===today)));
     const list=due.map(task=>card(task,today)).join('');
-    const schedule=timeStack(visible,today,true);
+    const schedule=timeStack(tasks,today,true);
     const dateTitle=`${shortDay(now)} · Today · ${now.toLocaleDateString([],{weekday:'long'})}`;
     return `${overdue.length?listGroup('overdue','Overdue',overdue.map(task=>card(task,overdueDate(task,now))).join(''),{count:overdue.length,action:'<button class="planner-group-action" type="button" data-manage="reschedule">Reschedule</button>'}):''}
       ${listGroup('today',dateTitle,dailyRituals(today)+schedule+list+quickForm(today,{date:today}))}`;

@@ -69,10 +69,10 @@ export function addTaskBlock(task, date, time, minutes = task.estimate || defaul
 }
 
 export function scheduledTaskTime(task,occurrence){
-  return task.time ? task.occurrenceTimes?.[occurrence]||task.time : '';
+  return task.time ? task.occurrenceTimes?.[occurrence]??task.time : '';
 }
 
-export function blockFocusTiming(task, blockId, occurrence, now = Date.now()) {
+export function calendarTaskBlock(task,blockId,occurrence){
   const date = new Date(`${occurrence}T00:00:00`);
   const entry = blockId
     ? task.blocks?.find(block => block.id === blockId && block.date === occurrence)
@@ -83,7 +83,40 @@ export function blockFocusTiming(task, blockId, occurrence, now = Date.now()) {
   const start = new Date(`${occurrence}T${time}`);
   const end = new Date(date);
   end.setMinutes(timeMinutes(time) + minutes);
+  return {start,end,minutes,taskDay:entry.taskDay||occurrence};
+}
+
+export function blockFocusTiming(task, blockId, occurrence, now = Date.now()) {
+  const scheduled=calendarTaskBlock(task,blockId,occurrence);
+  if(!scheduled)return null;
+  const {start,end,minutes}=scheduled;
   return {available: Math.max(0, end - Math.max(start, now)), split: minutes > 60, early: now < start};
+}
+
+export function calendarFocusKey(taskId,occurrence,blockId){
+  return JSON.stringify([taskId,occurrence,blockId||null]);
+}
+export const blockProgressLabels={focused:'Focused',partial:'Partly done',missed:'Missed'};
+
+export function calendarFocusTotals(history){
+  const totals=new Map();
+  for(const session of history){
+    if(session.mode!=='focus'||!session.calendarBlock||session.focusMs<=0)continue;
+    const {occurrence,blockId}=session.calendarBlock;
+    const key=calendarFocusKey(session.taskId,occurrence,blockId);
+    totals.set(key,(totals.get(key)||0)+session.focusMs);
+  }
+  return totals;
+}
+
+export function calendarBlockProgress(task,blockId,occurrence,totals,now=Date.now()){
+  const scheduled=calendarTaskBlock(task,blockId,occurrence);
+  if(!scheduled)return {status:'',focusMs:0};
+  const focusMs=totals.get(calendarFocusKey(task.id,occurrence,blockId))||0;
+  const {minutes}=scheduled;
+  const target=minutes<=60?minutes:Math.floor(minutes/60)*50+Math.min(50,minutes%60);
+  const status=focusMs>=target*60000?'focused':focusMs>0?'partial':scheduled.end<=now?'missed':'';
+  return {status,focusMs};
 }
 
 export function allDayEvents(events,date){
@@ -103,8 +136,8 @@ export function calendarBlocks(tasks, date, events=[]) {
       if(time&&taskOccursOn(task,day===today?date:previous))schedules.push({time,minutes:task.estimate||defaultBlockMinutes});
       for(const entry of schedules){
         const start=timeMinutes(entry.time), end=start+entry.minutes;
-        if(day===today)blocks.push({task,blockId:entry.id,start,end:Math.min(end,minutesPerDay),occurrence:today,continues:false});
-        else if(end>minutesPerDay)blocks.push({task,blockId:entry.id,start:0,end:end-minutesPerDay,occurrence:yesterday,continues:true});
+        if(day===today)blocks.push({task,blockId:entry.id,taskDay:entry.taskDay,start,end:Math.min(end,minutesPerDay),occurrence:today,continues:false});
+        else if(end>minutesPerDay)blocks.push({task,blockId:entry.id,taskDay:entry.taskDay,start:0,end:end-minutesPerDay,occurrence:yesterday,continues:true});
       }
     }
   }
@@ -123,8 +156,8 @@ export function calendarBlocks(tasks, date, events=[]) {
   return layoutBlocks(blocks);
 }
 
-function openFocusBlock({task,occurrence}){
-  return !task.done&&task.completedOn!==occurrence&&!task.completions?.includes(occurrence);
+export function openFocusBlock({task,occurrence,taskDay=occurrence}){
+  return !task.done&&task.completedOn!==taskDay&&!task.completions?.includes(taskDay);
 }
 
 export function focusCalendarBlock(task,date=new Date()){
@@ -140,30 +173,86 @@ export function focusTaskQueue(tasks,date=new Date(),pinnedIds=[]){
   return pinnedIds.length?automatic.sort((a,b)=>(rank.get(a.id)??pinnedIds.length)-(rank.get(b.id)??pinnedIds.length)):automatic;
 }
 
-export function replanToday(tasks,events,now=new Date(),lockedTaskId){
+const replanStep=15;
+const roundUp=minute=>Math.ceil(minute/replanStep)*replanStep;
+function openSlots(busy,from,cutoff){
+  const slots=[];
+  let start=roundUp(from);
+  for(const block of busy){
+    if(start>=cutoff)break;
+    const end=Math.min(block.start,cutoff);
+    if(start<end)slots.push({start,end});
+    start=Math.max(start,roundUp(block.end));
+  }
+  if(start<cutoff)slots.push({start,end:cutoff});
+  return slots;
+}
+function twoSlots(slots,minutes){
+  if(minutes<2*replanStep)return null;
+  for(let index=0;index<slots.length;index++){
+    const first=slots[index];
+    const firstMinutes=Math.min(first.end-first.start,minutes-replanStep);
+    if(firstMinutes<replanStep)continue;
+    const second=slots.slice(index+1).find(slot=>slot.end-slot.start>=minutes-firstMinutes);
+    if(second)return [{to:first.start,minutes:firstMinutes},{to:second.start,minutes:minutes-firstMinutes}];
+  }
+  return null;
+}
+
+export function replanToday(tasks,events,now=new Date(),lockedTaskId,options){
+  const cutoff=options?.cutoff??minutesPerDay;
+  const focus=options?.focus??new Map();
   const day=dayKey(now);
+  const nextDate=shiftDay(now,1), tomorrow=dayKey(nextDate);
   const elapsed=now.getHours()*60+now.getMinutes()+now.getSeconds()/60+now.getMilliseconds()/60000;
-  const roundUp=minute=>Math.ceil(minute/15)*15;
   const blocks=calendarBlocks(tasks,now,events);
-  const busy=blocks.filter(block=>block.end>elapsed&&(block.event||openFocusBlock(block)));
-  const missed=blocks.filter(block=>block.task&&!block.continues&&block.end<=elapsed&&block.task.id!==lockedTaskId&&openFocusBlock(block));
+  const isBusy=block=>block.event||openFocusBlock(block);
+  const busy=blocks.filter(block=>block.end>elapsed&&isBusy(block));
+  const busyTomorrow=options?calendarBlocks(tasks,nextDate,events).filter(isBusy):[];
+  const missed=blocks.filter(block=>block.task&&!block.continues&&block.end<=elapsed&&block.task.id!==lockedTaskId&&openFocusBlock(block)&&
+    !focus.get(calendarFocusKey(block.task.id,block.occurrence,block.blockId)));
   const moves=[], unplaced=[];
   for(const block of missed){
     const {task,blockId,start}=block;
     const entry=task.blocks?.find(item=>item.id===blockId);
     const minutes=entry?.minutes||task.estimate||defaultBlockMinutes;
     const details={taskId:task.id,blockId:blockId||null,title:task.text,from:start,minutes};
-    let slot=roundUp(elapsed);
-    for(const interval of busy){
-      if(slot+minutes<=interval.start)break;
-      if(slot<interval.end)slot=roundUp(interval.end);
+    const slots=openSlots(busy,elapsed,cutoff);
+    const whole=slots.find(slot=>slot.end-slot.start>=minutes);
+    let parts=whole?[{to:whole.start,minutes}]:options?twoSlots(slots,minutes):null;
+    let targetDay=day, reserved=busy;
+    if(!parts&&options){
+      const next=openSlots(busyTomorrow,9*60,cutoff).find(slot=>slot.end-slot.start>=minutes);
+      if(next){parts=[{to:next.start,minutes}];targetDay=tomorrow;reserved=busyTomorrow;}
     }
-    if(slot+minutes>minutesPerDay){unplaced.push(details);continue;}
-    moves.push({...details,to:slot});
-    busy.push({start:slot,end:slot+minutes});
-    busy.sort((a,b)=>a.start-b.start);
+    if(!parts){unplaced.push(details);continue;}
+    moves.push({...details,to:parts[0].to,...(options?{day:targetDay,parts}:{})});
+    for(const part of parts)reserved.push({start:part.to,end:part.to+part.minutes});
+    reserved.sort((a,b)=>a.start-b.start);
   }
   return {day,moves,unplaced};
+}
+
+export function applyCalendarReplan(task,sourceDay,move){
+  const {day,parts,blockId}=move;
+  const recurring=task.repeat&&task.repeat!=='none';
+  const existing=task.blocks?.find(block=>block.id===blockId);
+  const taskDay=existing?.taskDay||(recurring?sourceDay:undefined);
+  const first=parts[0];
+  if(existing){
+    Object.assign(existing,{date:day,time:timeValue(first.to),minutes:first.minutes,taskDay});
+  }else if(parts.length===1&&!recurring){
+    scheduleTask(task,day,first.to);
+    task.occurrenceTimes={};
+    return;
+  }else if(parts.length===1&&day===sourceDay){
+    task.occurrenceTimes={...task.occurrenceTimes,[sourceDay]:timeValue(first.to)};
+    return;
+  }else task.occurrenceTimes={...task.occurrenceTimes,[sourceDay]:''};
+  for(const part of existing?parts.slice(1):parts){
+    const block=addTaskBlock(task,day,timeValue(part.to),part.minutes);
+    if(taskDay)block.taskDay=taskDay;
+  }
 }
 
 function layoutBlocks(blocks) {

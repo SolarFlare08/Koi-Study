@@ -21,6 +21,9 @@
 .backup-restore { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--surface-line); }
 #open-backup { padding: 5px 0; text-decoration: underline; }
 .sticky-task-badge { min-width: 0; margin-right: auto; padding-inline: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--note-muted); font-size: 10px; }
+.sticky-link-choices { min-width: 0; margin: 0; padding: 8px; border: 1px solid var(--surface-line); border-radius: 8px; }
+#sticky-link-tasks { display: grid; gap: 5px; max-height: 35vh; overflow: auto; }
+#sticky-link-tasks label { display: flex; align-items: baseline; gap: 5px; padding: 3px; overflow-wrap: anywhere; font-size: 13px; }
 
 #focus-notes-panel {
   position: absolute; z-index: 5; top: 16%; left: clamp(12px,3vw,45px);
