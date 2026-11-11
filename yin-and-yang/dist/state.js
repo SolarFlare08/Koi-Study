@@ -53,9 +53,13 @@ export function completeTask(task, checked, date = new Date()) {
   }
 }
 
+export function taskCompletionId(task, occurrence) {
+  return `${task.id}:${task.repeat && task.repeat !== 'none' ? dayKey(occurrence) : 'once'}`;
+}
+
 export function recordTaskCompletion(state, task, checked, occurrence = new Date(), now = Date.now()) {
   const recurring = task.repeat && task.repeat !== 'none';
-  const id = `${task.id}:${recurring ? dayKey(occurrence) : 'once'}`;
+  const id = taskCompletionId(task,occurrence);
   const finishUndo=captureTaskChange(task,['done','completedOn','completions']);
   const prior=state.taskActivity.find(event=>event.id===id);
   completeTask(task, checked, recurring ? occurrence : new Date(now));
@@ -116,7 +120,7 @@ export function formatDuration(ms) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], activeTask:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -128,6 +132,9 @@ export function loadState(storage) {
     base.gardenSchedule=loadGardenSchedule(raw.gardenSchedule);
     base.calendarEvents=loadCalendarEvents(raw.calendarEvents);
     base.dailyRituals=loadDailyRituals(raw.dailyRituals);
+    if(raw.gardenClearedDone&&typeof raw.gardenClearedDone==='object'&&!Array.isArray(raw.gardenClearedDone)){
+      base.gardenClearedDone=Object.fromEntries(Object.entries(raw.gardenClearedDone).filter(([,key])=>typeof key==='string'));
+    }
     if(Number.isInteger(raw.studyCapacity)&&raw.studyCapacity>=15&&raw.studyCapacity<=1440)base.studyCapacity=raw.studyCapacity;
     if(Array.isArray(raw.processedCaptures))base.processedCaptures=raw.processedCaptures.filter(key=>typeof key==='string');
     base.sounds=loadSoundSettings(raw.sounds);

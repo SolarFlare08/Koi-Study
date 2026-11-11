@@ -168,6 +168,10 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
   font-weight: 600;
 }
 .task-column h3 span, .task-upcoming summary span { margin-left: 3px; opacity: .75; }
+.task-done-heading { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 7px; min-height: 16px; }
+.task-done-heading h3 { margin: 0; }
+#garden-clear-done { padding: 1px 3px; border-radius: 4px; color: var(--scene-muted,#55726c); font-size: 10px; white-space: nowrap; }
+#garden-clear-done:hover { color: var(--scene-ink,#35565a); background: var(--scene-paper,#e7eadc); }
 #task-board ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
 .task-empty { margin: 5px 0; color: var(--scene-muted, #55726c); font-size: 11px; }
 .task-card {

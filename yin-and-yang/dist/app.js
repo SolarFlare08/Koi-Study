@@ -1,4 +1,4 @@
-import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,recordTaskCompletion,taskFrequencies,taskPriority} from './state.js';
+import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskFrequencies,taskPriority} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
 import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarDragType, calendarEventFromFields, focusCalendarBlock, focusTaskQueue, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue} from './calendar.js';
 import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
@@ -435,16 +435,48 @@ function renderTasks(date=new Date()){
   const queued=new Set(queue);
   const currentId=focusedTask(date)?.id;
   const ordered=[...queue,...tasks.filter(task=>!queued.has(task)).sort((a,b)=>taskPriority(a)-taskPriority(b))];
+  const activity=new Map(state.taskActivity.map(event=>[event.id,event.at]));
+  const visibleDone=[];
+  let hasClearedDone=false;
   for(const task of ordered){
     const status=queued.has(task)?'todo':taskStatus(task,date);
+    if(status==='done'){
+      const id=taskCompletionId(task,date);
+      const key=JSON.stringify([id,activity.get(id)??task.completedOn??'']);
+      if(state.gardenClearedDone[task.id]===key){hasClearedDone=true;continue;}
+      visibleDone.push([task.id,key]);
+    }
     groups[status].push(taskCard(task,status,date,currentId));
   }
   const list=group=>group.length?`<ul>${group.join('')}</ul>`:'';
   $('#task-board').innerHTML=`<div class="task-columns">
     <section class="task-column"><h3>To do <span>${groups.todo.length}</span></h3>${list(groups.todo)||'<p class="task-empty">Nothing due.</p>'}</section>
-    <section class="task-column"><h3>Done <span>${groups.done.length}</span></h3>${list(groups.done)||'<p class="task-empty">No completed tasks.</p>'}</section>
+    <section class="task-column"><div class="task-done-heading"><h3 id="garden-done-heading" tabindex="-1">Done <span>${groups.done.length}</span></h3>${visibleDone.length?'<button type="button" id="garden-clear-done">Clear done</button>':''}</div>
+      ${list(groups.done)||`<p class="task-empty">${hasClearedDone?'Cleared tasks are in Planner.':'No completed tasks.'}</p>`}</section>
   </div>${groups.upcoming.length?`<details class="task-upcoming" ${upcomingOpen?'open':''}><summary>Upcoming <span>${groups.upcoming.length}</span></summary>${list(groups.upcoming)}</details>`:''}`;
   renderedTaskDay=dayKey(date);
+  const clear=$('#garden-clear-done');
+  if(clear)clear.onclick=()=>clearGardenDone(visibleDone);
+}
+function clearGardenDone(entries){
+  const previous=state.gardenClearedDone;
+  state.gardenClearedDone={...previous,...Object.fromEntries(entries)};
+  if(!persist()){state.gardenClearedDone=previous;return;}
+  renderTasks();
+  $('#garden-done-heading').focus({preventScroll:true});
+  const label=entries.length===1?'1 completed task':`${entries.length} completed tasks`;
+  confirmChange(`Cleared ${label} from the Garden.`,latest=>{
+    const cleared=new Map(Object.entries(latest.gardenClearedDone));
+    let changed=false;
+    for(const [id,key] of entries){
+      if(cleared.get(id)!==key)continue;
+      if(Object.hasOwn(previous,id))cleared.set(id,previous[id]);
+      else cleared.delete(id);
+      changed=true;
+    }
+    if(changed)latest.gardenClearedDone=Object.fromEntries(cleared);
+    return changed;
+  });
 }
 function openTaskEditor(id,anchor,defaults=null){
   editingTaskId=id??null;
