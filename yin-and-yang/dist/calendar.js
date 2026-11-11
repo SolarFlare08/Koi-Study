@@ -187,6 +187,31 @@ function openSlots(busy,from,cutoff){
   if(start<cutoff)slots.push({start,end:cutoff});
   return slots;
 }
+function tomorrowBusy(tasks,events,date,previous){
+  const day=dayKey(date);
+  return calendarBlocks(tasks,date,events).filter(block=>(block.event||openFocusBlock(block))&&
+    !(previous?.ownsBlock&&previous.day===day&&block.occurrence===day&&block.task?.id===previous.taskId&&block.blockId===previous.blockId));
+}
+export function tomorrowFocusSlot(tasks,events,date,minutes,previous){
+  return openSlots(tomorrowBusy(tasks,events,date,previous),9*60,minutesPerDay)
+    .find(slot=>slot.end-slot.start>=minutes)?.start??null;
+}
+export function reserveTomorrowFocus(tasks,events,date,{taskId,start,minutes},previous){
+  const day=dayKey(date),task=tasks.find(item=>item.id===taskId);
+  if(!task||!Number.isInteger(start)||start<0||!Number.isInteger(minutes)||minutes<1||start+minutes>minutesPerDay){
+    throw new Error('Choose a task and a focus block that fits within tomorrow.');
+  }
+  const overlaps=tomorrowBusy(tasks,events,date,previous).filter(block=>block.start<start+minutes&&block.end>start);
+  const existing=overlaps.find(block=>block.task?.id===taskId&&!block.continues&&block.start===start&&block.end===start+minutes);
+  if(overlaps.some(block=>block!==existing))throw new Error('That time overlaps a calendar block. Pick another time.');
+  const changes=new Map();
+  const ownedTask=previous?.day===day&&previous.ownsBlock&&tasks.find(item=>item.id===previous.taskId);
+  const owned=ownedTask?.blocks?.find(block=>block.id===previous.blockId&&block.date===day);
+  if(owned)changes.set(ownedTask.id,ownedTask.blocks.filter(block=>block!==owned));
+  const block=existing?null:{...(ownedTask===task?owned:null),id:ownedTask===task&&owned?owned.id:globalThis.crypto.randomUUID(),date:day,time:timeValue(start),minutes};
+  if(block)changes.set(task.id,[...(changes.get(task.id)||task.blocks||[]),block]);
+  return {plan:{day,taskId,blockId:block?.id||existing?.blockId||null,ownsBlock:Boolean(block)},changes};
+}
 function twoSlots(slots,minutes){
   if(minutes<2*replanStep)return null;
   for(let index=0;index<slots.length;index++){

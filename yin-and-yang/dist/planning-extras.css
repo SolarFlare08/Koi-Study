@@ -63,6 +63,12 @@
 }
 .daily-ritual[data-ritual="crochet"] { --ritual-tint: #f1bbae; --ritual-rgb: 241 187 174; }
 .daily-ritual[data-ritual="annotate"] { --ritual-tint: #f0d295; --ritual-rgb: 240 210 149; }
+.daily-ritual:has(.ritual-reading-details) { flex-wrap: wrap; align-content: start; }
+.ritual-reading-details { flex: 0 0 100%; display: grid; gap: 2px; min-width: 0; padding: 0 6px 5px; }
+.ritual-reading-details small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.ritual-goal-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.5fr); gap: 10px; align-items: end; }
+.ritual-goal-fields :is(input,select) { display: block; min-width: 0; width: 100%; }
+.ritual-resume { color: var(--surface-muted); font-size: 12px; overflow-wrap: anywhere; }
 #app[data-lighting="day"] .daily-ritual { --ritual-tint: #215d52; --ritual-rgb: 49 116 93; }
 #app[data-lighting="day"] .daily-ritual[data-ritual="crochet"] { --ritual-tint: #844737; --ritual-rgb: 150 83 62; }
 #app[data-lighting="day"] .daily-ritual[data-ritual="annotate"] { --ritual-tint: #735121; --ritual-rgb: 129 90 38; }
@@ -138,6 +144,13 @@
 .replan-moves strong,.replan-moves small { display: block; overflow-wrap: anywhere; }
 .replan-moves small,.replan-unplaced li { color: var(--surface-muted); }
 .replan-unplaced h3 { margin-bottom: 5px; font-size: 13px; }
+.tomorrow-review { padding: 10px 12px; border-radius: 8px; background: var(--surface-field); border: 1px solid var(--surface-line); }
+.tomorrow-review h3 { display: flex; justify-content: space-between; gap: 10px; margin: 0; font-size: 13px; }
+.tomorrow-review h3 span,.tomorrow-review p { color: var(--surface-muted); }
+.tomorrow-review p { margin: 6px 0 0; font-size: 12px; }
+.tomorrow-review ul { max-height: 7.4em; overflow: auto; padding-left: 17px; margin: 6px 0 0; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+#plan-tomorrow-form .panel-actions { justify-content: flex-end; }
+#tomorrow-find-slot { justify-self: start; }
 #replan-cutoff-form { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 12px; }
 #replan-cutoff-form input { width: auto; }
 .calendar-block[data-block-status],.planner-event[data-block-status] { --block-status: var(--surface-muted); }

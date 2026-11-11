@@ -222,7 +222,14 @@ ${escape(note.body)}</textarea>
     if(update(note.id,rect)){setRect(card,rect);sizeBoard();card.scrollIntoView({block:'nearest',inline:'nearest'});}
   });
   render();
-  return {newNote,render};
+  return {newNote,render,focusNote(id){
+    const card=cardFor(id);
+    if(!card)return;
+    card.classList.add('sticky-search-focus');
+    card.addEventListener('focusout',event=>{if(!card.contains(event.relatedTarget))card.classList.remove('sticky-search-focus');});
+    card.scrollIntoView({block:'center',inline:'nearest'});
+    card.querySelector('[data-note-field="title"]').focus({preventScroll:true});
+  }};
 }
 
 export function installFocusNotes({button,panel,getNotes,saveNotes,onEdit}){

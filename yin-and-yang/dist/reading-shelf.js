@@ -1,6 +1,25 @@
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-const normalized=value=>value.normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
+const normalized=value=>String(value??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
 const formatDay=day=>new Date(day+'T12:00:00').toLocaleDateString([],{dateStyle:'medium'});
+const bookKey=(title='',author='')=>JSON.stringify([normalized(title),normalized(author)]);
+const chapterLines=value=>(value||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+const lastPosition=item=>item.position||chapterLines(item.chapters).at(-1)||'';
+
+export function annotationContext(rituals,date,book){
+  const entry=rituals[date]?.annotate;
+  const records=Object.entries(rituals).filter(([day,item])=>day<=date&&item.annotate?.title?.trim())
+    .sort(([a],[b])=>b.localeCompare(a));
+  const selected=book||records[0]?.[1].annotate;
+  const key=selected&&bookKey(selected.title,selected.author);
+  const matching=records.filter(([,item])=>bookKey(item.annotate.title,item.annotate.author)===key);
+  const last=matching.find(([,item])=>lastPosition(item.annotate));
+  const [recentDate,recentDay]=matching[0]||[];
+  const recent=recentDay?.annotate;
+  const checkedSince=recent?.goal&&Object.entries(rituals).some(([day,item])=>
+    day>recentDate&&day<=date&&item.annotate?.done&&!item.annotate.title);
+  const goal=entry?.title?entry:entry?.done||recent?.done||checkedSince?null:recent;
+  return {book:selected,last:last?lastPosition(last[1].annotate):'',goal:goal?.goal,goalType:goal?.goalType};
+}
 
 export function readingShelf(rituals){
   const books=new Map();
@@ -8,18 +27,18 @@ export function readingShelf(rituals){
     const entry=day.annotate;
     if(!entry?.title?.trim())continue;
     const title=entry.title.trim(),author=entry.author?.trim()||'';
-    const id=JSON.stringify([normalized(title),normalized(author)]);
+    const id=bookKey(title,author);
     if(!books.has(id))books.set(id,{id,title,author,entries:[]});
-    const chapters=(entry.chapters||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
-    books.get(id).entries.push({date,chapters});
+    const chapters=chapterLines(entry.chapters);
+    books.get(id).entries.push({date,chapters,...(entry.position?{position:entry.position}:{})});
   }
   return [...books.values()].map(book=>{
     const chapters=new Map();
     for(const entry of book.entries){
       for(const chapter of entry.chapters)if(!chapters.has(normalized(chapter)))chapters.set(normalized(chapter),chapter);
     }
-    const last=book.entries.find(entry=>entry.chapters.length);
-    return {...book,chapters:[...chapters.values()],last:last?{date:last.date,chapter:last.chapters.at(-1)}:null};
+    const last=book.entries.find(entry=>entry.position||entry.chapters.length);
+    return {...book,chapters:[...chapters.values()],last:last?{date:last.date,chapter:last.position||last.chapters.at(-1)}:null};
   });
 }
 
@@ -54,7 +73,8 @@ export function installReadingShelf({root,getRituals,openCalendar}){
       ${chips?`<h4>Chapters annotated</h4><ul class="reading-chapters">${chips}</ul>`:''}
       <h4>History</h4><ol class="reading-timeline">${current.entries.map(entry=>`<li>
         <time datetime="${entry.date}">${escape(formatDay(entry.date))}</time>
-        ${entry.chapters.length?`<ul>${entry.chapters.map(chapter=>`<li>${escape(chapter)}</li>`).join('')}</ul>`:'<p>No chapters logged.</p>'}
+        ${entry.chapters.length?`<ul>${entry.chapters.map(chapter=>`<li>${escape(chapter)}</li>`).join('')}</ul>`:''}
+        ${entry.position?`<p>Stopped at ${escape(entry.position)}</p>`:entry.chapters.length?'':'<p>No chapters logged.</p>'}
       </li>`).join('')}</ol>`;
   }
   search.addEventListener('input',render);
@@ -66,5 +86,5 @@ export function installReadingShelf({root,getRituals,openCalendar}){
     render();
     list.querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});
   });
-  return {render};
+  return {render,openBook(id){selected=id;search.value='';render();list.querySelector('[aria-pressed="true"]')?.focus();}};
 }

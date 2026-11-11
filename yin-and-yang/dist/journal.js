@@ -94,6 +94,10 @@ export function installJournal({root,storage,projects,notify,onChange}){
   new MutationObserver(()=>{if(!root.hidden)render();}).observe(root,{attributes:true,attributeFilter:['hidden']});
   render();
   return {
+    openEntry(id){
+      const item=entries.find(entry=>entry.id===id);
+      if(item)open(item,root.querySelector(`[data-journal-edit="${CSS.escape(id)}"]`)||add);
+    },
     completedAt(date){
       return entries.reduce((latest,item)=>item.date===date?Math.max(latest,item.updatedAt||1):latest,0);
     },

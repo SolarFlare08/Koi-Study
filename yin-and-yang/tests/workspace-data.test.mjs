@@ -2,10 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createBackup,readBackup,restoreBackup} from '../dist/backup.js';
 import {CAPTURE_PREFIX,readCaptures} from '../dist/capture.js';
-import {CROCHET_KEY,loadCrochet} from '../dist/crochet.js';
+import {CROCHET_KEY,loadCrochet,logCrochetTime} from '../dist/crochet.js';
 import {JOURNAL_KEY,loadJournal} from '../dist/journal.js';
-import {readingShelf} from '../dist/reading-shelf.js';
-import {STORAGE_KEY,freshState,loadState} from '../dist/state.js';
+import {annotationContext,readingShelf} from '../dist/reading-shelf.js';
+import {dayKey,STORAGE_KEY,freshState,loadState} from '../dist/state.js';
+import {matchCommands} from '../dist/command-palette.js';
 
 function memoryStorage(initial=[]){
   const values=new Map(initial);
@@ -25,7 +26,11 @@ test('a backup restores linked notes, journal, projects, settings and pending ca
   state.tasks.push({id:'read',text:'Read the book',done:false});
   state.stickyNotes.push({id:'quote',title:'Quote',body:'A passage',taskId:'read'});
   const journal=[{id:'journal',title:'Evening',body:'Read two chapters',date:'2026-11-10'}];
-  const crochet={projects:[{id:'socks',name:'Socks'}],yarn:[],usage:[]};
+  const crochet={projects:[{id:'socks',name:'Socks'}],yarn:[],usage:[],timeLog:[]};
+  const day=dayKey();
+  assert.equal(logCrochetTime(crochet,{projectId:'unknown',date:day,minutes:75}),false);
+  assert.equal(logCrochetTime(crochet,{projectId:'socks',date:'2026-02-30',minutes:75}),false);
+  assert.equal(logCrochetTime(crochet,{projectId:'socks',date:day,minutes:75}),true);
   const original=memoryStorage([[JOURNAL_KEY,JSON.stringify(journal)],[CROCHET_KEY,JSON.stringify(crochet)]]);
   const capture={key:'native:0123456789abcdef0123456789abcdef',text:'Read chapter 3',createdAt:10};
   const backup=JSON.stringify(createBackup(state,original,[capture]));
@@ -36,6 +41,7 @@ test('a backup restores linked notes, journal, projects, settings and pending ca
   assert.equal(restored.tasks[0].id,restored.stickyNotes[0].taskId);
   assert.deepEqual(loadJournal(target),journal);
   assert.equal(loadCrochet(target).projects[0].name,'Socks');
+  assert.deepEqual(loadCrochet(target).timeLog,crochet.timeLog);
   assert.deepEqual(readCaptures(target).map(note=>note.text),['Read chapter 3']);
   assert.equal(target.getItem(CAPTURE_PREFIX+'old'),null);
   assert.equal(target.getItem('unrelated'),'keep');
@@ -68,4 +74,32 @@ test('the reading shelf groups matching book logs and finds the last chapter rec
   assert.equal(book.entries.length,3);
   assert.equal(book.chapters.length,3);
   assert.deepEqual(book.last,{date:'2026-11-09',chapter:'Chapter 3'});
+});
+
+test('an unfinished page goal carries forward without mixing stopping points from different books',()=>{
+  const state=freshState();
+  state.dailyRituals={
+    '2026-11-08':{annotate:{title:'Tides',chapters:'Chapter 1',position:'Page 25',done:true}},
+    '2026-11-09':{annotate:{title:'Dunes',position:'Page 51',done:true}},
+    '2026-11-10':{annotate:{title:'tides',goal:'50',goalType:'page',done:false}},
+  };
+  const {dailyRituals}=loadState(memoryStorage([[STORAGE_KEY,JSON.stringify(state)]]));
+  const next=annotationContext(dailyRituals,'2026-11-11');
+  assert.deepEqual([next.goalType,next.goal,next.last],['page','50','Page 25']);
+  dailyRituals['2026-11-11']={annotate:{done:true}};
+  assert.equal(annotationContext(dailyRituals,'2026-11-12').goal,undefined);
+  dailyRituals['2026-11-10'].annotate.done=true;
+  assert.equal(annotationContext(dailyRituals,'2026-11-11').goal,undefined);
+  assert.equal(annotationContext(dailyRituals,'2026-11-10').goal,'50');
+});
+
+test('command search finds text inside records and ranks matching titles first',()=>{
+  const action={kind:'Action',title:'Start timer',search:'focus'},
+    note={kind:'Note',title:'Ideas',search:'A résumé for the garden'},
+    task={kind:'Task',title:'Resume for the garden'},
+    journal={kind:'Journal',title:'Tuesday',search:'A draft of the résumé'};
+  const entries=[action,note,task,journal];
+  assert.deepEqual(matchCommands(entries,''),[action]);
+  assert.deepEqual(matchCommands(entries,'resume'),[task,note,journal]);
+  assert.deepEqual(matchCommands(entries,'journal resume'),[journal]);
 });

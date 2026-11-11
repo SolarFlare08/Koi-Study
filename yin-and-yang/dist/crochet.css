@@ -99,3 +99,9 @@
   .crochet-swatch { width: 28px; height: 28px; }
   .crochet-yarn-actions { grid-column: 2 / -1; justify-self: end; }
 }
+.crochet-worked,.crochet-time-history li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.crochet-worked { padding: 7px 0; font-size: 12px; }
+.crochet-worked strong { margin-left: 5px; font-variant-numeric: tabular-nums; }
+.crochet-time-history h4 { margin: 0 0 5px; font-size: 13px; }
+.crochet-time-history ul { padding: 0; margin: 0; list-style: none; }
+.crochet-time-history li { padding-block: 3px; font-size: 12px; }

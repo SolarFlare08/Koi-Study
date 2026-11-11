@@ -123,7 +123,7 @@ export function formatDuration(ms) {
 }
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
-    replanCutoff:'21:00',
+    replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -160,6 +160,12 @@ export function loadState(storage) {
     if (Array.isArray(raw.plannerLabels)) base.plannerLabels=raw.plannerLabels.filter(label=>typeof label==='string'&&label.length>0&&label.length<=40);
     if (Array.isArray(raw.taskActivity)) base.taskActivity=raw.taskActivity.filter(event=>event&&typeof event.id==='string'&&typeof event.taskId==='string'&&typeof event.text==='string'&&Number.isFinite(event.at));
     base.activeTask=base.tasks.some(t=>t.id===raw.activeTask&&!t.done)?raw.activeTask:null;
+    if(base.activeTask&&isDay(raw.activeTaskDay))base.activeTaskDay=raw.activeTaskDay;
+    const plan=raw.tomorrowPlan;
+    if(isDay(plan?.day)&&base.tasks.some(task=>task.id===plan.taskId)&&
+        (plan.blockId===null||typeof plan.blockId==='string')){
+      base.tomorrowPlan={day:plan.day,taskId:plan.taskId,blockId:plan.blockId,ownsBlock:plan.ownsBlock===true&&Boolean(plan.blockId)};
+    }
     if (Array.isArray(raw.history)) base.history=raw.history.filter(h=>h && typeof h.id==='string' && ['completed','skipped'].includes(h.outcome) && ['focus','break'].includes(h.mode) && Number.isFinite(h.finishedAt) && Number.isFinite(h.focusMs));
     base.focusMode=raw.focusMode===true;
     const t=raw.timer;
@@ -215,6 +221,7 @@ function startBlockPhase(state, mode, taskId, available, split, now, calendarBlo
 
 export function startBlockFocus(state, taskId, available, split, now=Date.now(), occurrence, blockId=null, taskDay=occurrence) {
   state.activeTask=taskId;
+  state.activeTaskDay=dayKey(new Date(now));
   startBlockPhase(state,'focus',taskId,available,split,now,{occurrence,blockId,taskDay});
 }
 

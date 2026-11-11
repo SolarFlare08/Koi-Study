@@ -1,8 +1,35 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, calendarBlockProgress, calendarBlocks, calendarEventFromFields, calendarFocusTotals, focusTaskQueue, replanToday, scheduleTask, weekDays} from '../dist/calendar.js';
+import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, calendarBlockProgress, calendarBlocks, calendarEventFromFields, calendarFocusTotals, focusTaskQueue, replanToday, reserveTomorrowFocus, scheduleTask, tomorrowFocusSlot, weekDays} from '../dist/calendar.js';
 import {freshState, loadState, record, reset, settle, startBlockFocus} from '../dist/state.js';
 import {ritualComplete} from '../dist/daily-rituals.js';
+
+test('tomorrow’s reservation avoids commitments, persists, and replaces only its own block',()=>{
+  const date=new Date(2026,10,11),day='2026-11-11',state=freshState();
+  const read={id:'read',text:'Read',done:false,blocks:[{id:'manual',date:day,time:'10:30',minutes:45}]};
+  const review={id:'review',text:'Review',done:false,blocks:[]};
+  state.tasks=[read,review];
+  const events=[{start:+new Date(2026,10,11,8,30),end:+new Date(2026,10,11,9,45)}];
+  const start=tomorrowFocusSlot(state.tasks,events,date,30);
+  assert.equal(start,585);
+  assert.throws(()=>reserveTomorrowFocus(state.tasks,events,date,{taskId:'read',start:540,minutes:30}),/overlaps/);
+  const apply=({plan,changes})=>{
+    for(const task of state.tasks)if(changes.has(task.id))task.blocks=changes.get(task.id);
+    state.tomorrowPlan=plan;
+  };
+  apply(reserveTomorrowFocus(state.tasks,events,date,{taskId:'read',start,minutes:30}));
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  assert.deepEqual(restored.tomorrowPlan,state.tomorrowPlan);
+  assert.deepEqual(restored.tasks[0].blocks.map(block=>block.time),['10:30','09:45']);
+  apply(reserveTomorrowFocus(state.tasks,events,date,{taskId:'review',start,minutes:30},state.tomorrowPlan));
+  assert.deepEqual(read.blocks.map(block=>block.id),['manual']);
+  assert.equal(review.blocks[0].id,state.tomorrowPlan.blockId);
+  apply(reserveTomorrowFocus(state.tasks,events,date,{taskId:'read',start:630,minutes:45},state.tomorrowPlan));
+  assert.equal(state.tomorrowPlan.ownsBlock,false);
+  assert.equal(state.tomorrowPlan.blockId,'manual');
+  assert.equal(read.blocks.length,1);
+  assert.equal(review.blocks.length,0);
+});
 
 test('a cutoff splits a missed block or offers tomorrow while preserving recurrence',()=>{
   const now=new Date(2026,10,10,19), day='2026-11-10', tomorrow='2026-11-11';

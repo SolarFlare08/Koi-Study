@@ -20,7 +20,7 @@
     <div id="landscape" aria-hidden="true"></div>
     <header class="topbar">
       <nav id="objects" aria-label="Garden tools"></nav>
-      <div class="top-actions"><button id="focus-mode" class="quiet-button" aria-pressed="false" title="Hide tasks, the planner, and garden tools"><span class="icon" data-icon="focus"></span><span id="focus-mode-label">Focus mode</span></button><button id="fullscreen" class="icon-button" aria-label="Enter fullscreen" title="Enter fullscreen"><span data-icon="expand"></span></button></div>
+      <div class="top-actions"><button id="open-command-palette" data-command-launch class="icon-button" type="button" aria-label="Open command palette" title="Search and actions (Ctrl+K)" aria-keyshortcuts="Control+K Meta+K" aria-haspopup="dialog"><span data-icon="search"></span></button><button id="focus-mode" class="quiet-button" aria-pressed="false" title="Hide tasks, the planner, and garden tools"><span class="icon" data-icon="focus"></span><span id="focus-mode-label">Focus mode</span></button><button id="fullscreen" class="icon-button" aria-label="Enter fullscreen" title="Enter fullscreen"><span data-icon="expand"></span></button></div>
     </header>
     <section class="sky" aria-label="Study timer">
       <div class="timer-readout">
@@ -103,6 +103,7 @@
             <label id="planner-sort-label">Sort by <select id="planner-sort"><option value="schedule">Schedule</option><option value="priority">Priority</option><option value="name">Name</option></select></label>
             <label id="calendar-project-label" hidden>Project <select id="calendar-project"></select></label>
           </div></details>
+          <button data-command-launch class="icon-button" type="button" aria-label="Open command palette" title="Search and actions (Ctrl+K)" aria-keyshortcuts="Control+K Meta+K" aria-haspopup="dialog"><span data-icon="search"></span></button>
           <button id="planner-appearance" class="icon-button" type="button" aria-label="Appearance" title="Appearance" aria-haspopup="dialog"><span data-icon="appearance"></span></button>
           <button id="close-calendar" class="icon-button" type="button" aria-label="Return to Garden"><span data-icon="close"></span></button>
         </header>
@@ -154,6 +155,7 @@
       <button type="button" data-workspace="reading" aria-controls="reading-workspace" aria-pressed="false"><span data-icon="book"></span>Reading</button>
     </nav>
     <dialog id="backup-dialog" class="workspace-dialog" aria-labelledby="backup-title"></dialog>
+    <dialog id="command-palette" class="workspace-dialog" aria-labelledby="command-title"></dialog>
     <footer class="sr-only"><span id="saved-status">Saved on this device</span></footer>
     <div id="panel-root"></div>
     <div id="task-menu" role="menu" aria-label="Task actions" hidden></div>

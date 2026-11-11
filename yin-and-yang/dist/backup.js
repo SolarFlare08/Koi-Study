@@ -24,6 +24,7 @@ export function readBackup(text){
   if(!Array.isArray(data?.state?.tasks)||!data.state.settings||
     !Array.isArray(data.journal)||!Array.isArray(data.crochet?.projects)||
     !Array.isArray(data.crochet.yarn)||!Array.isArray(data.crochet.usage)||
+    (Object.hasOwn(data.crochet,'timeLog')&&!Array.isArray(data.crochet.timeLog))||
     !Array.isArray(data.captures)||!data.captures.every(validCapture)){
     throw new Error('This backup is missing data or contains an invalid record.');
   }
@@ -36,7 +37,7 @@ export function readBackup(text){
   const state=loadState(source),journal=loadJournal(source),crochet=loadCrochet(source);
   if(state.tasks.length!==data.state.tasks.length||journal.length!==data.journal.length||
     crochet.projects.length!==data.crochet.projects.length||crochet.yarn.length!==data.crochet.yarn.length||
-    crochet.usage.length!==data.crochet.usage.length){
+    crochet.usage.length!==data.crochet.usage.length||crochet.timeLog.length!==(data.crochet.timeLog?.length??0)){
     throw new Error('This backup contains a damaged record. Your current data is safe.');
   }
   reset(state,state.timer.mode);
