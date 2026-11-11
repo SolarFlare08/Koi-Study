@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="./planning-extras.css">
   <link rel="stylesheet" href="./journal.css">
   <link rel="stylesheet" href="./sticky-notes.css">
+  <link rel="stylesheet" href="./workspace-tools.css">
 </head>
 <body>
   <main id="app" aria-label="Yin and Yang study garden">
@@ -45,7 +46,12 @@
         <button id="finish-current-task" type="button" aria-label="Finish current task early" aria-haspopup="dialog" aria-expanded="false" title="Finish current task early" hidden>Finish</button>
       </div>
       <button id="resume-task" class="resume-task" type="button" aria-haspopup="dialog" hidden></button>
+      <button id="focus-linked-notes" class="resume-task" type="button" aria-controls="focus-notes-panel" aria-expanded="false" hidden>Task notes</button>
     </section>
+    <aside id="focus-notes-panel" aria-labelledby="focus-notes-title" hidden>
+      <header><h2 id="focus-notes-title">Task notes</h2><button type="button" data-focus-notes-close aria-label="Close task notes">×</button></header>
+      <div class="focus-notes-list"></div>
+    </aside>
     <aside id="penguin" class="secondary" aria-label="Penguin companion">
       <button id="penguin-next" type="button" aria-label="Ask the penguin for another thought" aria-describedby="penguin-thought" title="Another thought">
         <svg viewBox="0 0 56 59" aria-hidden="true">
@@ -137,6 +143,7 @@
     <section id="crochet-workspace" aria-labelledby="crochet-heading" hidden></section>
     <section id="journal-workspace" aria-labelledby="journal-heading" hidden></section>
     <section id="notes-workspace" aria-labelledby="notes-heading" hidden></section>
+    <section id="reading-workspace" aria-labelledby="reading-heading" hidden></section>
     <nav id="workspace-tabs" aria-label="App workspace">
       <button type="button" data-workspace="focus" aria-pressed="true"><span data-icon="sprout"></span>Garden</button>
       <button type="button" data-workspace="planner" aria-controls="calendar-panel" aria-pressed="false"><span data-icon="list"></span>Planner</button>
@@ -144,7 +151,9 @@
       <button type="button" data-workspace="crochet" aria-controls="crochet-workspace" aria-pressed="false"><span data-icon="yarn"></span>Crochet</button>
       <button type="button" data-workspace="journal" aria-controls="journal-workspace" aria-pressed="false"><span data-icon="journal"></span>Journal</button>
       <button type="button" data-workspace="notes" aria-controls="notes-workspace" aria-pressed="false"><span data-icon="note"></span>Notes</button>
+      <button type="button" data-workspace="reading" aria-controls="reading-workspace" aria-pressed="false"><span data-icon="book"></span>Reading</button>
     </nav>
+    <dialog id="backup-dialog" class="workspace-dialog" aria-labelledby="backup-title"></dialog>
     <footer class="sr-only"><span id="saved-status">Saved on this device</span></footer>
     <div id="panel-root"></div>
     <div id="task-menu" role="menu" aria-label="Task actions" hidden></div>

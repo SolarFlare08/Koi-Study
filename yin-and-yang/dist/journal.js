@@ -1,22 +1,22 @@
 import {dayKey} from './state.js';
-const key='yin-and-yang.journal.v1';
+export const JOURNAL_KEY='yin-and-yang.journal.v1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const moods=['Calm','Energized','Steady','Tired','Overwhelmed'];
-function read(storage){
+export function loadJournal(storage){
   try{
-    const items=JSON.parse(storage.getItem(key));
+    const items=JSON.parse(storage.getItem(JOURNAL_KEY));
     return Array.isArray(items)?items.filter(item=>typeof item?.id==='string'&&typeof item.title==='string'&&typeof item.body==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(item.date)):[];
   }catch{return [];}
 }
 export function installJournal({root,storage,projects,notify,onChange}){
-  let entries=read(storage),query='';
+  let entries=loadJournal(storage),query='';
   root.innerHTML=`<div class="journal-wrap"><header class="journal-hero"><div><span class="journal-kicker">THE QUIET COAST</span><h2 id="journal-heading">Journal</h2><p>Daily reflections, study notes, and crochet progress.</p></div><button id="journal-add" type="button"><span aria-hidden="true">+</span> New entry</button></header>
     <section class="journal-library" aria-labelledby="journal-library-title"><div class="journal-library-bar"><div><h3 id="journal-library-title">Your entries</h3><p id="journal-count"></p></div><label class="journal-search"><span class="sr-only">Search journal</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5"/></svg><input id="journal-search" type="search" placeholder="Search entries"></label></div><div id="journal-entries"></div></section></div><dialog id="journal-dialog"></dialog>`;
   const $=selector=>root.querySelector(selector);
   const dialog=$('#journal-dialog'), add=$('#journal-add');
   root.parentElement.append(dialog);
   function save(next){
-    try{storage.setItem(key,JSON.stringify(next));entries=next;}
+    try{storage.setItem(JOURNAL_KEY,JSON.stringify(next));entries=next;}
     catch{notify('Could not save this journal entry on this device.');return false;}
     onChange();
     return true;
@@ -81,7 +81,7 @@ export function installJournal({root,storage,projects,notify,onChange}){
     }
     dialog.close();render();
     notify(deleting?'Journal entry deleted.':'Journal entry saved.',deleting&&previous?()=>{
-      const latest=read(storage);
+      const latest=loadJournal(storage);
       if(latest.some(item=>item.id===id)||!save([...latest,previous]))return false;
       render();return true;
     }:null);
@@ -90,7 +90,7 @@ export function installJournal({root,storage,projects,notify,onChange}){
     if(returnFocus)returnFocus();
     else (anchor?.isConnected?anchor:add).focus({preventScroll:true});
   });
-  window.addEventListener('storage',event=>{if(event.key===key||event.key===null){entries=read(storage);render();onChange();}});
+  window.addEventListener('storage',event=>{if(event.key===JOURNAL_KEY||event.key===null){entries=loadJournal(storage);render();onChange();}});
   new MutationObserver(()=>{if(!root.hidden)render();}).observe(root,{attributes:true,attributeFilter:['hidden']});
   render();
   return {

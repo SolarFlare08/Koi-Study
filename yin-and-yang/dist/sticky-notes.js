@@ -10,6 +10,7 @@ export function loadStickyNotes(value,scratch=''){
   }]:[];
   return value.filter(note=>typeof note?.id==='string'&&typeof note.body==='string').map(note=>({
     id:note.id,title:typeof note.title==='string'?note.title.slice(0,100):'',body:note.body,
+    taskId:typeof note.taskId==='string'?note.taskId:'',
     x:clamp(note.x||0,0,bounds.maxOffset),y:clamp(note.y||0,0,bounds.maxOffset),
     width:clamp(note.width||252,bounds.minWidth,bounds.maxWidth),
     height:clamp(note.height||216,bounds.minHeight,bounds.maxHeight),
@@ -22,18 +23,28 @@ const icons={
   back:'<path d="M4 4h10M9 7v7m-3-3 3 3 3-3"/>',
   front:'<path d="M4 14h10M9 11V4m-3 3 3-3 3 3"/>',
   delete:'<path d="m5 5 8 8m0-8-8 8"/>',
+  link:'<path d="m7 11 4-4M8 5l1.5-1.5a3 3 0 0 1 4.2 4.2L12 9.3M10 13l-1.5 1.5a3 3 0 0 1-4.2-4.2L6 8.7"/>',
   resize:'<path d="m5 13 8-8m-4 8 4-4"/>'
 };
 const control=(action,label)=>`<button type="button" data-note-action="${action}" title="${label}" aria-label="${label}" ${action==='move'||action==='resize'?'aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"':''}><svg viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">${icons[action]}</svg></button>`;
 
-export function installStickyNotes({root,getNotes,saveNotes,notify}){
+export function installStickyNotes({root,getNotes,getTasks,saveNotes,notify}){
   root.innerHTML=`<header class="sticky-heading">
     <div><span class="sticky-kicker">GARDEN DESK</span><h2 id="notes-heading">Notes</h2><p>Drag to arrange, resize, or stack your notes.</p></div>
     <button type="button" id="sticky-add"><span aria-hidden="true">+</span> New note</button>
-  </header><div class="sticky-viewport" role="region" aria-label="Sticky note board" tabindex="0"><div class="sticky-board"></div></div>`;
+  </header><div class="sticky-viewport" role="region" aria-label="Sticky note board" tabindex="0"><div class="sticky-board"></div></div>
+  <dialog id="sticky-link-dialog" class="workspace-dialog" aria-labelledby="sticky-link-title">
+    <form><header><h2 id="sticky-link-title">Link sticky note</h2><button type="button" data-link-close aria-label="Close link editor">×</button></header>
+      <label for="sticky-link-task">Task</label><select id="sticky-link-task" name="task"></select>
+      <button class="workspace-primary" type="submit">Save link</button>
+    </form>
+  </dialog>`;
   const board=root.querySelector('.sticky-board');
   const viewport=root.querySelector('.sticky-viewport');
   const add=root.querySelector('#sticky-add');
+  const linkDialog=root.querySelector('#sticky-link-dialog');
+  const linkSelect=root.querySelector('#sticky-link-task');
+  let linkingId='';
   let gesture=null;
 
   function cardFor(id){
@@ -48,12 +59,14 @@ export function installStickyNotes({root,getNotes,saveNotes,notify}){
   }
   function render(){
     if(gesture)return;
+    const taskNames=new Map(getTasks().map(task=>[task.id,task.text]));
     board.innerHTML=getNotes().map((note,layer)=>`<article class="sticky-note" data-sticky-id="${escape(note.id)}" data-color="${note.color}"
         aria-label="${escape(note.title||'Untitled note')}" style="left:${note.x}px;top:${note.y}px;width:${note.width}px;height:${note.height}px;z-index:${layer+1}">
       <header>${control('move','Move note (arrow keys)')}<input type="text" aria-label="Note title" data-note-field="title" maxlength="100" placeholder="Untitled note" value="${escape(note.title)}">${control('delete','Delete note')}</header>
       <textarea aria-label="Note text" data-note-field="body" placeholder="Write something here…" spellcheck="true">
 ${escape(note.body)}</textarea>
-      <footer><div class="sticky-layer">${control('back','Send note to back')}${control('front','Bring note to front')}</div>${control('resize','Resize note (arrow keys)')}</footer>
+      <footer><div class="sticky-layer">${control('back','Send note to back')}${control('front','Bring note to front')}${control('link','Link note to task')}</div>
+      ${note.taskId?`<span class="sticky-task-badge" title="${escape(taskNames.get(note.taskId)||'Task unavailable')}">${escape(taskNames.get(note.taskId)||'Task unavailable')}</span>`:''}${control('resize','Resize note (arrow keys)')}</footer>
     </article>`).join('')||'<div class="sticky-empty"><span aria-hidden="true">✧</span><p>Room for a thought</p><small>Add a note to start your board.</small></div>';
     sizeBoard();
   }
@@ -70,7 +83,7 @@ ${escape(note.body)}</textarea>
       y=Math.min(bounds.maxOffset,18+Math.floor(index/columns)*(height+18));
       if(!notes.some(note=>x<note.x+note.width+8&&x+width+8>note.x&&y<note.y+note.height+8&&y+height+8>note.y))break;
     }
-    return {id:crypto.randomUUID(),title,body,x,y,width,height,color:colors[notes.length%colors.length]};
+    return {id:crypto.randomUUID(),title,body,taskId:'',x,y,width,height,color:colors[notes.length%colors.length]};
   }
   function update(id,changes){
     return saveNotes(getNotes().map(note=>note.id===id?{...note,...changes}:note));
@@ -101,6 +114,21 @@ ${escape(note.body)}</textarea>
   board.addEventListener('click',event=>{
     const button=event.target.closest('[data-note-action]');
     const action=button?.dataset.noteAction;
+    if(action==='link'){
+      const note=getNotes().find(item=>item.id===button.closest('.sticky-note').dataset.stickyId);
+      if(!note)return;
+      linkingId=note.id;
+      const tasks=getTasks();
+      linkSelect.innerHTML='<option value="">No linked task</option>'+tasks.map(task=>
+        `<option value="${escape(task.id)}">${escape(task.text)}</option>`).join('');
+      if(note.taskId&&!tasks.some(task=>task.id===note.taskId)){
+        const missing=new Option('Task unavailable',note.taskId);
+        linkSelect.add(missing);
+      }
+      linkSelect.value=note.taskId||'';
+      linkDialog.showModal();
+      return;
+    }
     if(!['back','front','delete'].includes(action))return;
     const notes=getNotes();
     const index=notes.findIndex(note=>note.id===button.closest('.sticky-note').dataset.stickyId);
@@ -119,6 +147,18 @@ ${escape(note.body)}</textarea>
       if(note.id===scratchNoteId)latest.notes=note.body;
       return true;
     });
+  });
+  linkDialog.querySelector('[data-link-close]').addEventListener('click',()=>linkDialog.close());
+  linkDialog.addEventListener('submit',event=>{
+    event.preventDefault();
+    if(!getNotes().some(note=>note.id===linkingId)){linkDialog.close();return;}
+    if(!update(linkingId,{taskId:linkSelect.value}))return;
+    linkDialog.close();
+    render();
+    notify(linkSelect.value?'Sticky note linked.':'Sticky note unlinked.');
+  });
+  linkDialog.addEventListener('close',()=>{
+    (cardFor(linkingId)?.querySelector('[data-note-action="link"]')||add).focus({preventScroll:true});
   });
   board.addEventListener('pointerdown',event=>{
     const handle=event.target.closest('[data-note-action]');
@@ -162,4 +202,51 @@ ${escape(note.body)}</textarea>
   });
   render();
   return {newNote,render};
+}
+
+export function installFocusNotes({button,panel,getNotes,saveNotes,onEdit}){
+  const list=panel.querySelector('.focus-notes-list');
+  let taskId='',shown=false,rowsKey='';
+  function sync(task,visible){
+    const nextId=visible?task?.id||'':'';
+    if(nextId!==taskId){taskId=nextId;shown=false;}
+    const notes=taskId?getNotes().filter(note=>note.taskId===taskId):[];
+    button.hidden=!notes.length;
+    if(!notes.length)shown=false;
+    button.setAttribute('aria-expanded',String(shown));
+    panel.hidden=!shown;
+    if(!shown)return;
+    const nextKey=JSON.stringify(notes.map(note=>[note.id,note.title]));
+    if(nextKey!==rowsKey){
+      rowsKey=nextKey;
+      list.innerHTML=notes.map(note=>`<label><span>${escape(note.title||'Untitled note')}</span>
+        <textarea data-focus-note="${escape(note.id)}" rows="4">
+${escape(note.body)}</textarea></label>`).join('');
+      return;
+    }
+    const bodies=new Map(notes.map(note=>[note.id,note.body]));
+    for(const field of list.querySelectorAll('textarea')){
+      const value=bodies.get(field.dataset.focusNote);
+      if(document.activeElement!==field&&field.value!==value)field.value=value;
+    }
+  }
+  let current;
+  function update(task,visible){current={task,visible};sync(task,visible);}
+  function toggle(){
+    shown=!shown;
+    sync(current?.task,current?.visible);
+    (shown?list.querySelector('textarea'):button)?.focus({preventScroll:true});
+  }
+  button.addEventListener('click',toggle);
+  panel.querySelector('[data-focus-notes-close]').addEventListener('click',toggle);
+  panel.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();toggle();}
+  });
+  list.addEventListener('input',event=>{
+    const field=event.target.closest('[data-focus-note]');
+    if(!field)return;
+    const notes=getNotes().map(note=>note.id===field.dataset.focusNote?{...note,body:field.value}:note);
+    if(saveNotes(notes))onEdit();
+  });
+  return {update};
 }

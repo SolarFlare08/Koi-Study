@@ -6,7 +6,9 @@ import {installPlanner} from './planner.js';
 import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal} from './journal.js';
-import {installStickyNotes,scratchNoteId} from './sticky-notes.js';
+import {installFocusNotes,installStickyNotes,scratchNoteId} from './sticky-notes.js';
+import {installReadingShelf} from './reading-shelf.js';
+import {installBackup} from './backup.js';
 import {dailyRitualMarkup,ritualComplete,rituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed} from './spotify-embed.js';
@@ -21,6 +23,7 @@ const icons={
   sidebar:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 5v14m-3-9h.1m-.1 4h.1"/>',
   journal:'<rect x="5" y="3" width="15" height="18" rx="2"/><path d="M8 3v18m3-12h6m-6 4h6"/>',
   note:'<path d="M7 4h10a2 2 0 0 1 2 2v8l-5 6H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M14 20v-4a2 2 0 0 1 2-2h3M8 8h8m-8 3h6"/>',
+  book:'<path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1v14M6 9h3m-3 4h3m6-4h3m-3 4h3"/>',
   sprout:'<path d="M12 20v-8m0 2c-5 0-8-3-8-7 5 0 8 3 8 7Zm0-2c0-5 3-8 8-8 0 5-3 8-8 8Z"/>',
   sliders:'<path d="M4 7h5m4 0h7M4 17h10m4 0h2"/><circle cx="11" cy="7" r="2"/><circle cx="16" cy="17" r="2"/>',
   appearance:'<path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/><circle cx="12" cy="12" r="4"/>',
@@ -139,7 +142,13 @@ const crochet=installCrochet({root:$('#crochet-workspace'),storage,notify:messag
 const journal=installJournal({root:$('#journal-workspace'),storage,projects:()=>loadCrochet(storage).projects,notify:confirmChange,
   onChange:()=>{if(inSchedule())renderCalendar();}
 });
-const stickyBoard=installStickyNotes({root:$('#notes-workspace'),getNotes:()=>state.stickyNotes,saveNotes:saveStickyNotes,notify:confirmChange});
+const stickyBoard=installStickyNotes({root:$('#notes-workspace'),getNotes:()=>state.stickyNotes,getTasks:gardenTasks,saveNotes:saveStickyNotes,notify:confirmChange});
+const focusNotes=installFocusNotes({
+  button:$('#focus-linked-notes'),panel:$('#focus-notes-panel'),getNotes:()=>state.stickyNotes,
+  saveNotes:saveStickyNotes,onEdit:()=>stickyBoard.render()
+});
+const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>state.dailyRituals,openCalendar:()=>calendarToggle.click()});
+const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast});
 applyIcons();
 
 function saveStickyNotes(notes){
@@ -184,6 +193,10 @@ function showWorkspace(next){
   $('#crochet-workspace').hidden=next!=='crochet';
   $('#journal-workspace').hidden=next!=='journal';
   $('#notes-workspace').hidden=next!=='notes';
+  $('#reading-workspace').hidden=next!=='reading';
+  if(next==='notes')stickyBoard.render();
+  if(next==='reading')reading.render();
+  focusNotes.update(next==='focus'?focusedTask():null,next==='focus');
   $('#objects').hidden=next!=='focus';
   $('#penguin').hidden=next!=='focus';
   document.querySelectorAll('[data-workspace]').forEach(button=>{
@@ -245,6 +258,7 @@ function render(){
   $('#wall-clock').dateTime=clock.toISOString();
   if(planner.checkReminders(clock))persist();
   const task=focusedTask(clock);
+  focusNotes.update(task,workspace==='focus');
   const taskName=task?.text||'Choose a task';
   if(currentTaskName.textContent!==taskName)currentTaskName.textContent=taskName;
   currentTaskButton.title=task?task.text:'Choose a task';
@@ -796,7 +810,7 @@ function panelContent(id){
     return task?`${header('PICK UP WHERE YOU LEFT OFF',escape(task.text))}<form id="resume-form" data-task-id="${escape(task.id)}"><label class="field-label" for="resume-text">Next step</label><textarea id="resume-text" maxlength="500" rows="3" placeholder="What should you do first next time?">${escape(task.resumeNote)}</textarea><div class="panel-actions"><button class="panel-primary" aria-keyshortcuts="Control+Enter" title="Save next step (Ctrl+Enter)">Save next step</button></div></form>`:header('NEXT STEP','Task unavailable');
   }
   if(id==='calendar-block')return calendarBlockPreview();
-  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}${timerRoutines()}`;
+  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><button type="button" class="text-button" id="open-backup">Backup and restore</button><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}${timerRoutines()}`;
   if(id==='task-editor')return taskEditor();
   if(id==='block-editor')return blockEditor();
   if(id==='capture')return `${header('QUICK CAPTURE','Leave a thought here.')}
@@ -1477,7 +1491,7 @@ function ritualEditor(){
     <button type="button" class="text-button ritual-lookup" id="ritual-book-search">Search Open Library</button>
     <p class="ritual-search-status" role="status" hidden></p><div class="ritual-book-results" hidden></div>
     <label class="field-label" for="ritual-chapters">Chapters annotated</label><textarea id="ritual-chapters" name="chapters" maxlength="3000" rows="4" placeholder="One per line or a range, e.g. Chapters 3–5">${escape(item.chapters)}</textarea>
-    <p class="ritual-error" role="alert" hidden></p><div class="panel-actions"><button class="panel-primary">Save annotation log</button></div></form>`;
+    <p class="ritual-error" role="alert" hidden></p><div class="panel-actions"><button type="button" class="text-button" id="open-reading-shelf">Reading shelf</button><button class="panel-primary">Save annotation log</button></div></form>`;
 }
 function saveRitual(date,kind,item){
   const previous=state.dailyRituals[date];
@@ -1688,6 +1702,15 @@ root.addEventListener('click',e=>{
     persist();
   }
   const btn=e.target.closest('button');if(!btn)return;
+  if(btn.id==='open-backup'){
+    closePanel();
+    backup.open();
+    return;
+  }
+  if(btn.id==='open-reading-shelf'){
+    $('#workspace-tabs [data-workspace="reading"]').click();
+    return;
+  }
   if(btn.dataset.finishTask){finishCurrentTask(btn);return;}
   if(btn.id==='ritual-book-search'){searchRitualBooks(btn);return;}
   if(btn.classList.contains('close-panel'))closePanel();
@@ -2085,7 +2108,7 @@ document.addEventListener('click',async event=>{
   }catch{toast('Could not dismiss the note.');}
 });
 document.addEventListener('keydown',e=>{
-  if(e.target.closest('#planner-dialog, #crochet-dialog, #journal-dialog'))return;
+  if(e.target.closest('dialog'))return;
   if(e.ctrlKey&&e.altKey&&e.code==='KeyN'&&!e.repeat){
     e.preventDefault();
     if(activePanel!=='capture'){
@@ -2124,7 +2147,11 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkComp
 window.addEventListener('focus',syncNativeCaptures);
 window.addEventListener('pageshow',()=>{checkCompletion();render();});
 window.addEventListener('storage',e=>{
-  if(e.key===STORAGE_KEY){state=loadState(storage);syncSound();checkCompletion();refreshTasks();stickyBoard.render();renderCaptures();if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();}
+  if(e.key===STORAGE_KEY){
+    state=loadState(storage);syncSound();checkCompletion();refreshTasks();stickyBoard.render();renderCaptures();
+    if(workspace==='reading')reading.render();
+    if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();
+  }
   if(e.key===null||e.key?.startsWith(CAPTURE_PREFIX))renderCaptures();
 });
 renderCaptures();
