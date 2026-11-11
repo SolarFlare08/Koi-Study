@@ -1,4 +1,4 @@
-import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskFrequencies,taskPriority} from './state.js';
+import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
@@ -15,6 +15,8 @@ import {createSpotifyEmbed} from './spotify-embed.js';
 import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
 import {installCommandPalette} from './command-palette.js';
 import {installHelp} from './help.js';
+import {canPlanDeadline,planDeadline,scheduleImpact} from './scheduling.js';
+import {nextTaskDate} from './planner-data.js';
 
 const $=s=>document.querySelector(s);
 const icons={
@@ -121,6 +123,7 @@ undoButton.onclick=()=>{
 const planner=installPlanner({
   root:calendarPanel,getState:()=>state,commit:()=>{const saved=persist();refreshTasks();return saved;},
   editTask:openTaskEditor,openBlock:openCalendarBlock,taskMenu:openTaskMenu,
+  previewSchedule:previewTaskSchedule,
   calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,dailyRituals:renderDailyRituals,blockProgress:progressForBlock,notify:confirmChange,completeTask:markTask,hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden||Boolean(document.querySelector('dialog[open]'))
 });
 const penguinThoughts=[
@@ -257,6 +260,9 @@ function commandEntries(){
   }));
   return [
     action('Help','Browse searchable instructions and keyboard shortcuts','guide how to tutorial features',()=>helpGuide.open()),
+    action('Plan to deadline','Suggest focus blocks before a task is due','backward schedule estimate capacity',()=>{
+      visitWorkspace('planner');$('[data-plan-deadline]')?.click();
+    }),
     action('Start timer','Start or resume the current countdown','focus rest pomodoro',()=>{
       visitWorkspace('focus');closePanel(false);closeTaskMenu(false);
       if(!durationForm.hidden)finishEdit(timerButton);
@@ -292,6 +298,9 @@ function runHelpAction(action){
   if(action==='tomorrow'){
     visitWorkspace('planner');$('[data-plan-tomorrow]')?.click();return;
   }
+  if(action==='deadline'){
+    visitWorkspace('planner');$('[data-plan-deadline]')?.click();return;
+  }
   if(action==='calendar-import'){
     visitWorkspace('calendar');$('[data-manage="calendar-import"]')?.click();return;
   }
@@ -307,11 +316,13 @@ function runHelpAction(action){
   }
 }
 
-function gardenFocusQueue(date=new Date(),tasks=gardenTasks()){
+function gardenFocusQueue(date=new Date(),tasks=gardenTasks(),tasksById=taskIndex()){
   const day=dayKey(date);
   const pins=state.focusPins?.day===day&&state.focusPins.ids.length?state.focusPins.ids:state.tomorrowPlan?.day===day?[state.tomorrowPlan.taskId]:[];
-  return focusTaskQueue(tasks,date,pins);
+  return focusTaskQueue(tasks,date,pins,tasksById);
 }
+function taskIndex(){return new Map(state.tasks.map(task=>[task.id,task]));}
+function waitingOn(task){return task?.prerequisiteIds?.length?unfinishedPrerequisites(task,taskIndex()):[];}
 function focusedTask(date=new Date()){
   if(state.timer.block)return state.tasks.find(task=>task.id===state.timer.block.taskId);
   const queue=gardenFocusQueue(date);
@@ -524,7 +535,7 @@ document.addEventListener('pointermove',event=>{
   capturePointer={x:event.clientX,y:event.clientY,screenX:event.screenX,screenY:event.screenY};
 },{passive:true});
 function header(eyebrow,title){return `<div class="panel-header"><div><span class="eyebrow">${eyebrow}</span><h2 id="panel-title">${title}</h2></div><button class="icon-button close-panel" aria-label="Close panel">${icon('close')}</button></div>`;}
-function taskCard(task,status,date,currentId){
+function taskCard(task,status,date,currentId,prerequisites){
   const details=[];
   if(task.date && (task.date>dayKey(date) || task.repeat==='none')){
     const day=new Date(`${task.date}T00:00:00`);
@@ -551,7 +562,8 @@ function taskCard(task,status,date,currentId){
     ${task.priority?'<span class="task-priority">Priority</span>':''}
     ${task.description?`<p class="task-description">${escape(task.description)}</p>`:''}
     ${details.length?`<p class="task-meta">${escape(details.join(' · '))}</p>`:''}
-    ${status==='todo'?`<button type="button" class="task-active" aria-label="Focus on ${name}" aria-pressed="${selected}">${icon('target')} ${selected?'In focus':'Focus on this'}</button>`:''}
+    ${prerequisites.length?`<p class="task-waiting">Waiting on ${escape(prerequisites.map(item=>item.text).join(', '))}</p>`:''}
+    ${status==='todo'&&!prerequisites.length?`<button type="button" class="task-active" aria-label="Focus on ${name}" aria-pressed="${selected}">${icon('target')} ${selected?'In focus':'Focus on this'}</button>`:''}
   </li>`;
 }
 function renderTasks(date=new Date()){
@@ -563,6 +575,7 @@ function renderTasks(date=new Date()){
   const currentId=focusedTask(date)?.id;
   const ordered=[...queue,...tasks.filter(task=>!queued.has(task)).sort((a,b)=>taskPriority(a)-taskPriority(b))];
   const activity=new Map(state.taskActivity.map(event=>[event.id,event.at]));
+  const tasksById=taskIndex();
   const visibleDone=[];
   let hasClearedDone=false;
   for(const task of ordered){
@@ -573,7 +586,7 @@ function renderTasks(date=new Date()){
       if(state.gardenClearedDone[task.id]===key){hasClearedDone=true;continue;}
       visibleDone.push([task.id,key]);
     }
-    groups[status].push(taskCard(task,status,date,currentId));
+    groups[status].push(taskCard(task,status,date,currentId,status==='done'?[]:unfinishedPrerequisites(task,tasksById)));
   }
   const list=group=>group.length?`<ul>${group.join('')}</ul>`:'';
   $('#task-board').innerHTML=`<div class="task-columns">
@@ -631,6 +644,7 @@ function blockEditor(){
       </div>
       <label class="field-label" for="block-minutes">Duration (min)</label>
       <input id="block-minutes" name="minutes" type="number" min="1" max="1440" value="${block?.minutes||task.estimate||60}" required>
+      ${schedulePreviewRegion()}
       <div class="panel-actions"><button class="panel-primary" type="submit">Save block</button>${block?'<button type="button" class="text-button" id="delete-block">Remove block</button>':''}</div>
     </form>`;
 }
@@ -679,6 +693,23 @@ async function syncNativeCaptures(){
     if(JSON.stringify(next)!==JSON.stringify(nativeNotes)){nativeNotes=next;renderCaptures();}
   }catch{ /* The app keeps working while the local server reconnects. */ }
   finally{syncingCaptures=false;}
+}
+function taskDependencies(values){
+  const selected=new Set(values.prerequisiteIds || []);
+  const tasks=state.tasks.filter(task=>task.id!==values.id);
+  tasks.sort((a,b)=>Number(selected.has(b.id))-Number(selected.has(a.id)) ||
+    Number(a.done)-Number(b.done) || a.text.localeCompare(b.text));
+  return `<details class="task-detail-property task-dependencies" ${selected.size?'open':''}>
+    <summary>Waiting on${selected.size?` <small>· ${selected.size}</small>`:''}</summary>
+    ${tasks.length?`<label class="sr-only" for="prerequisite-search">Find prerequisite tasks</label>
+      <input type="search" id="prerequisite-search" placeholder="Find a task…">
+      <div class="prerequisite-options">${tasks.map(task=>`<label data-prerequisite-name="${escape(task.text.toLowerCase())}">
+        <input type="checkbox" name="prerequisite" value="${escape(task.id)}" ${selected.has(task.id)?'checked':''}>
+        <span>${escape(task.text)}</span></label>`).join('')}</div>
+      <p id="prerequisite-no-results" hidden>No matching tasks.</p>`:'<p>Add another task to set a prerequisite.</p>'}
+    <p>Garden queues this task after its prerequisites are completed.</p>
+    <p class="event-error" id="prerequisite-error" role="alert" hidden></p>
+  </details>`;
 }
 function taskEditor(){
   const task=state.tasks.find(item=>item.id===editingTaskId);
@@ -735,10 +766,13 @@ function taskEditor(){
             </div>
             <p id="task-repeat-hint" ${values.repeat&&values.repeat!=='none'?'':'hidden'}>The date sets the first occurrence. Leave it blank to start today.</p>
             <div id="task-interval-field" ${values.repeat==='interval'?'':'hidden'}><label class="field-label" for="task-interval">Days between occurrences</label><input id="task-interval" name="repeatEvery" type="number" min="2" max="365" value="${values.repeatEvery||2}" ${values.repeat==='interval'?'':'disabled'}></div>
+            ${schedulePreviewRegion()}
           </fieldset>
           <div class="task-detail-property">
             <label class="field-label" for="task-deadline">Deadline</label><input id="task-deadline" name="deadline" type="date" value="${escape(values.deadline)}">
+            <button type="submit" value="plan-deadline" id="task-plan-deadline" class="text-button" hidden>Save and plan to deadline</button>
           </div>
+          ${taskDependencies(values)}
           <div class="task-detail-property">
             <label class="field-label" for="task-priority">Priority</label><select id="task-priority" name="priorityLevel">${[1,2,3,4].map(level=>`<option value="${level}" ${level===taskPriority(values)?'selected':''}>${level===4?'P4 · Normal':`P${level}`}</option>`).join('')}</select>
           </div>
@@ -779,6 +813,7 @@ function calendarBlockPreview(){
   return `${header('CALENDAR BLOCK',escape(task?.text||'Task unavailable'))}
     <p id="block-focus-time"></p>
     <p id="block-actual-focus"></p>
+    <p class="task-waiting" id="block-prerequisites" hidden></p>
     <div class="panel-actions">
       <button class="panel-primary" type="button" id="start-block-focus">${icon('play')} Start focus</button>
       <button type="button" class="text-button" id="edit-calendar-block">${lastAnchor.dataset.block?'Edit block':'Edit task'}</button>
@@ -794,13 +829,18 @@ function selectedBlockTiming(now){
 function updateBlockPreview(now){
   const timing=selectedBlockTiming(now);
   const start=$('#start-block-focus');
-  start.disabled=!timing?.available;
+  const {task:id,block,occurrence}=lastAnchor.dataset;
+  const task=state.tasks.find(item=>item.id===id);
+  const prerequisites=waitingOn(task);
+  start.disabled=!timing?.available||Boolean(prerequisites.length);
+  const waiting=$('#block-prerequisites');
+  waiting.hidden=!prerequisites.length;
+  const waitingText=prerequisites.length?`Waiting on ${prerequisites.map(item=>item.text).join(', ')}`:'';
+  if(waiting.textContent!==waitingText)waiting.textContent=waitingText;
   const message=!timing?.available?'This block has ended or is no longer scheduled.':
     `${formatDuration(timing.available)} ${timing.early?'if you start now':'left in this block'}.${timing.split&&timing.available>50*60000?' The timer alternates up to 50 minutes of focus with 10 minutes of rest.':''}`;
   const label=$('#block-focus-time');
   if(label.textContent!==message)label.textContent=message;
-  const {task:id,block,occurrence}=lastAnchor.dataset;
-  const task=state.tasks.find(item=>item.id===id);
   const actual=$('#block-actual-focus');
   if(!task){actual.hidden=true;return;}
   const progress=calendarBlockProgress(task,block,occurrence,focusTotals(),now);
@@ -911,7 +951,9 @@ function panelContent(id){
   if(id==='finish-task'){
     const task=focusedTask();
     if(!task)return header('CURRENT TASK','Nothing to finish');
-    const next=gardenFocusQueue().find(item=>item.id!==task.id);
+    const afterCompletion=taskIndex();
+    afterCompletion.set(task.id,{...task,done:true});
+    const next=gardenFocusQueue(new Date(),gardenTasks(),afterCompletion).find(item=>item.id!==task.id);
     return `${header('CURRENT TASK','Finish early?')}<p>Mark <strong>${escape(task.text)}</strong> complete.</p>
       <p>${next?`Up next · <strong>${escape(next.text)}</strong>`:'Your task queue is clear after this.'}</p>
       <div class="panel-actions"><button type="button" class="text-button" data-finish-task="break" data-task-id="${escape(task.id)}">Take a break</button><button type="button" class="panel-primary" data-finish-task="focus" data-task-id="${escape(task.id)}">Keep going</button></div>`;
@@ -919,6 +961,8 @@ function panelContent(id){
   if(id==='event-editor')return calendarEventEditor();
   if(id==='replan-today')return replanMarkup();
   if(id==='plan-tomorrow')return planTomorrowMarkup();
+  if(id==='plan-deadline')return deadlinePlannerMarkup();
+  if(id==='schedule-drop')return scheduleDropMarkup();
   if(id==='daily-ritual')return ritualEditor();
   if(id==='imported-event'){
     const event=state.calendarEvents.find(item=>item.id===lastAnchor?.dataset.calendarEvent);
@@ -981,11 +1025,13 @@ function openPanel(id,anchor){
   closePanel(false);activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','schedule-drop'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  const scheduleForm=panel.querySelector('#task-editor-form,#block-editor-form');
+  if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(id==='music')syncSound();
   positionPanel(panel,anchor);wake();
   const firstControl=panel.querySelector(id==='appearance'?'input:checked':'input,textarea,select')||panel.querySelector('button');
-  const initialFocus=['replan-today','plan-tomorrow'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
+  const initialFocus=['replan-today','plan-tomorrow','plan-deadline','schedule-drop'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
   if(initialFocus.id==='panel-title')initialFocus.tabIndex=-1;
   initialFocus.focus({preventScroll:true});
 }
@@ -1006,6 +1052,8 @@ function refreshPanel(){
   if(!p)return;
   const focusId=p.contains(document.activeElement)?document.activeElement.id:null;
   p.innerHTML=panelContent(activePanel);
+  const scheduleForm=p.querySelector('#task-editor-form,#block-editor-form');
+  if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(activePanel==='calendar-block')updateBlockPreview(Date.now());
   positionPanel(p,lastAnchor);
   if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
@@ -1313,7 +1361,8 @@ function openTaskMenu(id,anchor,x,y){
   actions.push(['duplicate','Duplicate task']);
   if(anchor.classList.contains('calendar-block'))actions.unshift(['block-focus','Start focus…']);
   if(anchor.dataset.block)actions.push(['edit-block','Edit block'],['remove-block','Remove block']);
-  if(taskStatus(task)==='todo')actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
+  if(taskStatus(task)==='todo'&&!waitingOn(task).length)actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
+  if(canPlanDeadline(task))actions.push(['plan-deadline','Plan to deadline…']);
   if(status!=='upcoming')actions.push(['complete',status==='done'?'Reopen task':'Mark done']);
   if(task.date&&task.time&&!anchor.dataset.block)actions.push(['unschedule','Remove scheduled time']);
   actions.push(['delete','Delete task']);
@@ -1417,6 +1466,7 @@ taskMenu.addEventListener('click',event=>{
   closeTaskMenu(false);
   if(action==='block-focus'){openCalendarBlock(anchor);return;}
   if(action==='edit'){openTaskEditor(task.id,anchor);return;}
+  if(action==='plan-deadline'){openDeadlinePlanner(task.id,anchor);return;}
   if(action==='schedule'||action==='edit-block'){openBlockEditor(task.id,anchor,action==='edit-block'?anchor.dataset.block:null);return;}
   if(action==='delete'){deleteTask(task.id);return;}
   if(action==='duplicate'){
@@ -1432,6 +1482,7 @@ taskMenu.addEventListener('click',event=>{
     task.priority=task.priorityLevel!==4;
   }
   if(action==='focus'){
+    if(waitingOn(task).length){announce('Finish the prerequisites before focusing on this task.');return;}
     state.activeTask=state.activeTask===task.id?null:task.id;
     if(state.activeTask)state.activeTaskDay=dayKey();
   }
@@ -1510,6 +1561,37 @@ function onCalendarDragLeave(event){
   if(column&&!column.contains(event.relatedTarget))clearDropTarget();
 }
 document.addEventListener('dragend',()=>{dragOffset=0;clearDropTarget();$('.task-dragging')?.classList.remove('task-dragging');});
+let pendingDrop;
+function dropPlacement(task,drag,date,start){
+  const block=drag.block&&task.blocks?.find(item=>item.id===drag.block);
+  if(drag.block&&!block)return null;
+  const replacing=drag.move||drag.block?{taskId:task.id,blockId:drag.block||null}:null;
+  return {date,start,minutes:block?.minutes||task.estimate||60,replacing};
+}
+function scheduleDropMarkup(){
+  const {drag,date,start}=pendingDrop;
+  const task=state.tasks.find(item=>item.id===drag.task);
+  const placement=task&&dropPlacement(task,drag,date,start);
+  const preview=placement&&schedulePreview(placement);
+  const heading=header('CALENDAR',drag.move?'Review this move':'Review this block');
+  if(!preview)return `${heading}<p>This task or block is unavailable.</p>`;
+  pendingDrop.overlaps=preview.overlaps;
+  pendingDrop.minutes=placement.minutes;
+  return `${heading}<p><strong>${escape(task.text)}</strong><br>${shortScheduleDate(date)} · ${timeLabel(start)} · ${minutesLabel(placement.minutes)}</p>
+    <div class="schedule-preview">${preview.markup}</div>
+    <form id="schedule-drop-form"><div class="panel-actions"><button type="button" class="text-button close-panel">Cancel</button>
+      <button type="submit" class="panel-primary">${preview.overlaps.length?'Save with overlap':drag.move?'Move block':'Schedule block'}</button></div></form>`;
+}
+function saveScheduleDrop(){
+  const {drag,date,start,minutes,overlaps}=pendingDrop;
+  const task=state.tasks.find(item=>item.id===drag.task);
+  const placement=task&&dropPlacement(task,drag,date,start);
+  const preview=placement&&schedulePreview(placement);
+  if(!preview||placement.minutes!==minutes||JSON.stringify(preview.overlaps)!==JSON.stringify(overlaps)){
+    refreshPanel();announce('The schedule changed. Review the updated placement.');return;
+  }
+  commitCalendarDrop(task,drag,date,start);
+}
 function onCalendarDrop(event){
   const column=event.target.closest('.calendar-day');
   if(!column||!event.dataTransfer?.types.includes(calendarDragType))return;
@@ -1525,26 +1607,41 @@ function onCalendarDrop(event){
     toast('This task repeats on weekdays. Choose a weekday.');return;
   }
   const minute=Number(column.dataset.from||0)+dropMinute(event,column);
+  const date=column.dataset.date;
+  dragOffset=0;
+  const placement=dropPlacement(task,drag,date,minute);
+  const preview=placement&&schedulePreview(placement);
+  if(!preview)return;
+  if(date===dayKey()||preview.overlaps.length){
+    pendingDrop={drag,date,start:minute};
+    openPanel('schedule-drop',column.closest('#mini-calendar')?$('#sidebar-calendar'):calendarScroll);
+    return;
+  }
+  commitCalendarDrop(task,drag,date,minute);
+}
+function commitCalendarDrop(task,drag,date,minute){
   const finishUndo=captureTaskChange(task,drag.block||!drag.move?['blocks']:['date','time','occurrenceTimes']);
   const before=state.activeTask;
-  dragOffset=0;
   if(drag.block){
     const block=task.blocks?.find(item=>item.id===drag.block);
     if(!block)return;
-    block.date=column.dataset.date;
+    block.date=date;
     block.time=timeValue(minute);
   }else if(drag.move){
-    if(drag.occurrence===column.dataset.date&&task.occurrenceTimes?.[column.dataset.date]){
-      task.occurrenceTimes={...task.occurrenceTimes,[column.dataset.date]:timeValue(minute)};
+    if(drag.occurrence===date&&task.occurrenceTimes?.[date]){
+      task.occurrenceTimes={...task.occurrenceTimes,[date]:timeValue(minute)};
     }else{
-      scheduleTask(task,column.dataset.date,minute);
+      scheduleTask(task,date,minute);
       task.occurrenceTimes={};
     }
   }
-  else addTaskBlock(task,column.dataset.date,timeValue(minute));
+  else addTaskBlock(task,date,timeValue(minute));
   if(state.activeTask===task.id&&taskStatus(task)!=='todo')state.activeTask=null;
-  persist();refreshTasks();
-  confirmChange(`Task scheduled for ${timeLabel(minute)}.`,restoreActiveTask(finishUndo(),before,state.activeTask));
+  const undo=restoreActiveTask(finishUndo(),before,state.activeTask);
+  if(!persist()){undo?.(state);return;}
+  if(activePanel==='schedule-drop')closePanel();
+  refreshTasks();
+  confirmChange(`Task scheduled for ${timeLabel(minute)}.`,undo);
 }
 for(const calendar of [calendarPanel,miniCalendar]){
   calendar.addEventListener('dragover',onCalendarDragOver);
@@ -1565,6 +1662,124 @@ function calendarDraft(){
   const now=new Date(), key=dayKey(date);
   const minute=key===dayKey(now)?Math.min(23*60+45,Math.ceil((now.getHours()*60+now.getMinutes())/15)*15):9*60;
   return {date:key,time:timeValue(minute)};
+}
+
+function schedulingCutoff(){return timeMinutes(state.replanCutoff)||24*60;}
+function minutesLabel(minutes){
+  const hours=Math.floor(minutes/60),rest=minutes%60;
+  if(!hours)return `${rest} min`;
+  return `${hours} h${rest?` ${rest} min`:''}`;
+}
+function shortScheduleDate(date){
+  return new Date(date+'T12:00:00').toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
+}
+function schedulePreviewRegion(){
+  return '<div class="schedule-preview" data-schedule-preview aria-live="polite" hidden></div>';
+}
+function schedulePreview(placement){
+  const cutoff=schedulingCutoff();
+  const impact=scheduleImpact(gardenTasks(),state.calendarEvents,placement,new Date(),cutoff);
+  if(!impact)return null;
+  const {isToday,freeAfter,usesFreeMinutes,overlaps}=impact;
+  const when=isToday?'today':`on ${shortScheduleDate(placement.date)}`;
+  const list=overlaps.map(item=>{
+    const date=item.date===placement.date?'':`${shortScheduleDate(item.date)} · `;
+    return `<li><span>${escape(item.title)}</span><small>${date}${timeLabel(item.start)}–${timeLabel(item.end)}</small></li>`;
+  }).join('');
+  const markup=`<p><strong>${minutesLabel(freeAfter)} free</strong> ${when} until ${timeLabel(cutoff)}.</p>
+    <p>${usesFreeMinutes?`Uses ${minutesLabel(usesFreeMinutes)} of open time.`:'Uses none of the remaining open time.'}</p>
+    ${list?`<p class="schedule-overlap-heading">Overlaps ${overlaps.length} ${overlaps.length===1?'commitment':'commitments'}</p><ul>${list}</ul><p>Saving keeps the overlap.</p>`:'<p>No timed overlaps.</p>'}`;
+  return {markup,overlaps};
+}
+function previewTaskSchedule(task,replacing){
+  if(!task.date||!task.time)return null;
+  const date=nextTaskDate(task,new Date(task.date+'T00:00:00'),true);
+  return date?schedulePreview({date,start:timeMinutes(task.time),minutes:task.estimate||60,replacing}):null;
+}
+function updateScheduleEditor(form){
+  const fields=form.elements;
+  const isTask=form.id==='task-editor-form';
+  const task=state.tasks.find(item=>item.id===editingTaskId);
+  const minutes=isTask?(fields.estimate.value?Number(fields.estimate.value):60):Number(fields.minutes.value);
+  const date=fields.date.value||(isTask?dayKey():'');
+  let preview=null;
+  if(fields.time.value&&date){
+    const replacing=task&&(isTask||editingBlockId)?{taskId:task.id,blockId:isTask?null:editingBlockId}:null;
+    preview=isTask
+      ?previewTaskSchedule({date,time:fields.time.value,estimate:minutes,repeat:fields.repeat.value,repeatEvery:Number(fields.repeatEvery.value)},replacing)
+      :schedulePreview({date,start:timeMinutes(fields.time.value),minutes,replacing});
+  }
+  const region=form.querySelector('[data-schedule-preview]');
+  region.hidden=!preview;
+  const markup=preview?.markup||'';
+  if(region.innerHTML!==markup)region.innerHTML=markup;
+  if(isTask){
+    $('#task-plan-deadline').hidden=!canPlanDeadline({done:task?.done,estimate:Number(fields.estimate.value),deadline:fields.deadline.value,repeat:fields.repeat.value});
+  }else{
+    form.querySelector('button[type="submit"]').textContent=preview?.overlaps.length?'Save with overlap':'Save block';
+  }
+}
+
+let deadlineTaskId=null,deadlinePreview=null;
+function openDeadlinePlanner(taskId,anchor){
+  deadlineTaskId=taskId;
+  openPanel('plan-deadline',anchor);
+}
+function deadlineSuggestion(task){
+  return planDeadline(task,gardenTasks(),state.calendarEvents,state.history,new Date(),schedulingCutoff(),state.studyCapacity);
+}
+function deadlinePlannerMarkup(){
+  const tasks=gardenTasks().filter(canPlanDeadline).sort((a,b)=>a.deadline.localeCompare(b.deadline)||a.text.localeCompare(b.text));
+  const selected=tasks.find(task=>task.id===deadlineTaskId)||tasks[0];
+  const heading=header('PLANNER','Plan to deadline');
+  deadlineTaskId=selected?.id||null;
+  deadlinePreview=selected?deadlineSuggestion(selected):null;
+  if(!selected)return `${heading}<p>Give an unfinished task a deadline and an estimate to get suggested blocks.</p>`;
+  const plan=deadlinePreview;
+  const options=tasks.map(task=>`<option value="${escape(task.id)}" ${task===selected?'selected':''}>${escape(task.text)} · ${shortScheduleDate(task.deadline)}</option>`).join('');
+  const selection=`<label class="field-label" for="deadline-plan-task">Task</label><select id="deadline-plan-task">${options}</select>`;
+  if(!plan)return `${heading}${selection}<p>Enter a valid deadline in the task editor.</p>`;
+  if(plan.noOccurrence)return `${heading}${selection}<p>${minutesLabel(plan.unplaced)} couldn’t be scheduled. There’s no unfinished occurrence between today and the deadline.</p>`;
+  const waiting=waitingOn(selected);
+  const suggestions=plan.slots.map((slot,index)=>`<li><label><input type="checkbox" name="slot" value="${index}" checked>
+    <span><strong>${shortScheduleDate(slot.date)}</strong><small>${timeLabel(slot.start)}–${timeLabel(slot.start+slot.minutes)} · ${slot.minutes} min</small></span></label></li>`).join('');
+  return `${heading}${selection}
+    <p class="deadline-plan-details">Due ${shortScheduleDate(selected.deadline)} · ${minutesLabel(selected.estimate)} estimated.
+      Suggestions use 9 AM to ${timeLabel(schedulingCutoff())} and your ${minutesLabel(state.studyCapacity)} daily study capacity.${plan.lastYearOnly?' Showing availability for up to one year before the deadline.':''}</p>
+    ${plan.occurrence?`<p>Planning the ${shortScheduleDate(plan.occurrence)} occurrence.</p>`:''}
+    ${plan.booked||plan.recorded?`<p>${minutesLabel(plan.booked)} already booked · ${minutesLabel(plan.recorded)} completed focus.</p>`:''}
+    ${waiting.length?`<p class="task-waiting">Waiting on ${escape(waiting.map(item=>item.text).join(', '))}. You can reserve time in advance.</p>`:''}
+    <form id="deadline-plan-form">
+      <p id="deadline-plan-status" aria-live="polite" ${plan.unplaced?'data-shortfall':''}>${plan.unplaced?`${minutesLabel(plan.unplaced)} couldn’t fit before the deadline.`:
+        plan.slots.length?'The suggestions cover the remaining estimate.':'Booked or completed focus already covers the estimate.'}</p>
+      ${suggestions?`<ul class="replan-moves deadline-plan-slots">${suggestions}</ul><div class="panel-actions"><button class="panel-primary" type="submit">Add selected blocks</button></div>`:''}
+    </form>`;
+}
+function selectedDeadlineSlots(form,plan){
+  return new FormData(form).getAll('slot').map(index=>plan.slots[Number(index)]).filter(Boolean);
+}
+function saveDeadlinePlan(form){
+  const task=gardenTasks().find(item=>item.id===deadlineTaskId);
+  if(!task)return;
+  const current=deadlineSuggestion(task);
+  if(!current||JSON.stringify(current)!==JSON.stringify(deadlinePreview)){
+    refreshPanel();announce('The schedule changed. Review the updated suggestions.');return;
+  }
+  const slots=selectedDeadlineSlots(form,current);
+  if(!slots.length)return;
+  const previous=task.blocks;
+  const finishUndo=captureTaskChange(task,['blocks']);
+  task.blocks=[...(previous||[])];
+  for(const slot of slots){
+    const block=addTaskBlock(task,slot.date,timeValue(slot.start),slot.minutes);
+    if(current.occurrence)block.taskDay=current.occurrence;
+  }
+  if(!persist()){task.blocks=previous;return;}
+  const first=slots[0];
+  openSchedule('calendar',calendarToggle,new Date(first.date+'T00:00:00'),Math.max(0,first.start-30));
+  refreshTasks();
+  const missing=current.unplaced+current.slots.filter(slot=>!slots.includes(slot)).reduce((total,slot)=>total+slot.minutes,0);
+  confirmChange(`${slots.length} focus ${slots.length===1?'block':'blocks'} added.${missing?` ${minutesLabel(missing)} still unscheduled.`:''}`,finishUndo());
 }
 
 let replanPreview;
@@ -1628,8 +1843,9 @@ function applyReplan(form){
   confirmChange(selected.length===1?'Moved 1 block.':`Moved ${selected.length} blocks.`,undo);
 }
 function tomorrowChoices(date){
-  const tasks=gardenTasks(),unfinished=focusTaskQueue(tasks);
-  const next=focusTaskQueue(tasks,date);
+  const tasks=gardenTasks(),tasksById=taskIndex();
+  const unfinished=focusTaskQueue(tasks,new Date(),[],tasksById);
+  const next=focusTaskQueue(tasks,date,[],tasksById);
   const available=new Set(next.map(task=>task.id));
   const carry=unfinished.filter(task=>!task.repeat||task.repeat==='none'||available.has(task.id));
   return {unfinished,choices:[...new Set([...carry,...next])]};
@@ -1827,6 +2043,8 @@ $('#calendar-jump-date').addEventListener('change',event=>{
   else planner.jumpMonth(date);
 });
 calendarPanel.addEventListener('click',event=>{
+  const deadline=event.target.closest('[data-plan-deadline]');
+  if(deadline){openDeadlinePlanner(null,deadline);return;}
   const plan=event.target.closest('[data-plan-tomorrow]');
   if(plan){openPanel('plan-tomorrow',plan);return;}
   const replan=event.target.closest('[data-replan-today]');
@@ -1906,6 +2124,8 @@ taskSidebar.addEventListener('click',event=>{
   if(button.classList.contains('task-more')){openTaskMenu(card.dataset.task,button);return;}
   if(button.classList.contains('task-open'))openTaskEditor(card.dataset.task,button);
   if(button.classList.contains('task-active')){
+    const task=state.tasks.find(item=>item.id===card.dataset.task);
+    if(!task||waitingOn(task).length)return;
     state.activeTask=card.dataset.task;
     state.activeTaskDay=dayKey();
     persist();refreshTasks();
@@ -1996,8 +2216,8 @@ root.addEventListener('click',e=>{
   if(btn.id==='start-block-focus'){
     checkCompletion();
     const now=Date.now(),timing=selectedBlockTiming(now);
-    if(!timing?.available){updateBlockPreview(now);return;}
     const id=lastAnchor.dataset.task;
+    if(!timing?.available||waitingOn(state.tasks.find(task=>task.id===id)).length){updateBlockPreview(now);return;}
     const skipped=record(state,'skipped',now);
     const {occurrence,block,taskDay}=lastAnchor.dataset;
     startBlockFocus(state,id,timing.available,timing.split,now,occurrence,block||null,taskDay||occurrence);
@@ -2074,6 +2294,17 @@ root.addEventListener('click',e=>{
   }
 });
 root.addEventListener('input',e=>{
+  if(e.target.id==='prerequisite-search'){
+    const query=e.target.value.trim().toLowerCase();
+    let matches=0;
+    for(const label of e.target.form.querySelectorAll('[data-prerequisite-name]')){
+      label.hidden=!label.dataset.prerequisiteName.includes(query);
+      if(!label.hidden)matches++;
+    }
+    $('#prerequisite-no-results').hidden=matches>0;
+  }
+  if(e.target.form?.matches('#task-editor-form,#block-editor-form')&&
+    ['date','time','estimate','minutes','deadline','repeat'].includes(e.target.name))updateScheduleEditor(e.target.form);
   if(e.target.id==='focus-minutes'||e.target.id==='break-minutes')formatDurationInput(e);
   if(e.target.dataset.soundLevel)changeSound(e.target.dataset.soundLevel,Number(e.target.value));
   if(e.target.id==='notes-input')saveScratchpad(e.target.value);
@@ -2112,8 +2343,22 @@ root.addEventListener('pointerup',event=>endFocusQueueDrag(event,true));
 root.addEventListener('pointercancel',event=>endFocusQueueDrag(event,false));
 root.addEventListener('lostpointercapture',event=>endFocusQueueDrag(event,false));
 root.addEventListener('change',event=>{
+  if(event.target.id==='deadline-plan-task'){
+    deadlineTaskId=event.target.value;refreshPanel();return;
+  }
   if(event.target.id==='tomorrow-task'){updateTomorrowSlot(event.target.form,true);return;}
   const form=event.target.form;
+  if(form?.id==='deadline-plan-form'){
+    const slots=selectedDeadlineSlots(form,deadlinePreview);
+    const unchecked=deadlinePreview.slots.filter(slot=>!slots.includes(slot)).reduce((total,slot)=>total+slot.minutes,0);
+    const missing=deadlinePreview.unplaced+unchecked,status=$('#deadline-plan-status');
+    status.toggleAttribute('data-shortfall',missing>0);
+    status.textContent=missing?`${minutesLabel(missing)} will still be unscheduled.`:'The selected blocks cover the remaining estimate.';
+    form.querySelector('[type="submit"]').disabled=!slots.length;
+  }
+  if(form?.matches('#task-editor-form,#block-editor-form')&&
+    ['date','time','estimate','minutes','deadline','repeat'].includes(event.target.name))updateScheduleEditor(form);
+  if(event.target.name==='prerequisite')$('#prerequisite-error').hidden=true;
   if(form?.id==='replan-form')form.querySelector('[type="submit"]').disabled=!form.querySelector('input:checked');
   if(form?.id==='calendar-event-form'){
     const fields=form.elements, allDay=fields.allDay.checked;
@@ -2155,6 +2400,8 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='deadline-plan-form'){saveDeadlinePlan(e.target);return;}
+  if(e.target.id==='schedule-drop-form'){saveScheduleDrop();return;}
   if(e.target.id==='plan-tomorrow-form'){saveTomorrowPlan(e.target);return;}
   if(e.target.id==='replan-cutoff-form'){
     const cutoff=new FormData(e.target).get('cutoff'), previous=state.replanCutoff;
@@ -2259,6 +2506,18 @@ root.addEventListener('submit',e=>{
     const text=fields.get('title').replace(/\s*\n\s*/g,' ').trim();
     if(!text){const title=$('#task-title');title.setCustomValidity('Enter a task name.');title.reportValidity();return;}
     const existing=state.tasks.find(task=>task.id===editingTaskId);
+    if(editingTaskId&&!existing){toast('This task was removed in another tab.');return;}
+    const id=existing?.id??crypto.randomUUID();
+    const tasksById=taskIndex();
+    const prerequisiteIds=[...new Set(fields.getAll('prerequisite').filter(id=>tasksById.has(id)))];
+    if(createsDependencyCycle(id,prerequisiteIds,tasksById)){
+      const error=$('#prerequisite-error');
+      error.hidden=false;
+      error.textContent='These tasks would wait on each other. Choose a different prerequisite.';
+      error.closest('details').open=true;
+      $('#prerequisite-search')?.focus();
+      return;
+    }
     const finishMove=existing&&captureTaskChange(existing,['date','time','occurrenceTimes','projectId','sectionId']);
     const before=state.activeTask;
     const repeat=fields.get('repeat');
@@ -2277,7 +2536,7 @@ root.addEventListener('submit',e=>{
     const comment=fields.get('comment').trim();
     if(comment)comments.push({id:crypto.randomUUID(),text:comment,at:Date.now()});
     const task={
-      id:existing?.id??crypto.randomUUID(), text,
+      id, text, prerequisiteIds,
       description:fields.get('description').trim(),
       resumeNote:String(fields.get('resumeNote')||'').trim(),
       date:fields.get('date')||(repeat!=='none'||fields.get('time')?dayKey():''),
@@ -2296,6 +2555,7 @@ root.addEventListener('submit',e=>{
     const linkedNote=noteId&&state.stickyNotes.find(note=>note.id===noteId);
     if(noteId&&!linkedNote){toast('The original note is unavailable.');return;}
     if(captureKey&&state.processedCaptures.includes(captureKey)){toast('This thought was already filed.');return;}
+    const prior=existing&&{...existing};
     if(existing)Object.assign(existing,task);else state.tasks.push(task);
     const status=taskStatus(task);
     if(state.activeTask===task.id && status!=='todo')state.activeTask=null;
@@ -2312,8 +2572,16 @@ root.addEventListener('submit',e=>{
         state.activeTask=before;
         return;
       }
-    }else persist();
+    }else if(!persist()){
+      state.tasks=existing?state.tasks.map(item=>item===existing?prior:item):state.tasks.filter(item=>item!==task);
+      state.activeTask=before;
+      return;
+    }
     closePanel(false);refreshTasks();
+    if(e.submitter?.value==='plan-deadline'&&canPlanDeadline(task)){
+      const anchor=inSchedule()?$('#planner-heading'):taskButton(task.id)||$('#sidebar-add-task');
+      openDeadlinePlanner(task.id,anchor);return;
+    }
     if(status==='upcoming'&&workspace==='focus')$('.task-upcoming')?.setAttribute('open','');
     if(fromCurrentTask)currentTaskButton.focus({preventScroll:true});
     else if(inSchedule())$('#planner-heading').focus({preventScroll:true});
@@ -2333,11 +2601,14 @@ root.addEventListener('submit',e=>{
     const fields=new FormData(e.target);
     const date=fields.get('date'),time=fields.get('time'),minutes=Number(fields.get('minutes'));
     const existing=task.blocks?.find(item=>item.id===editingBlockId);
+    if(editingBlockId&&!existing){toast('This block was removed in another tab.');return;}
     const finishUndo=captureTaskChange(task,['blocks']);
     if(existing)Object.assign(existing,{date,time,minutes});else addTaskBlock(task,date,time,minutes);
-    closePanel(false);persist();refreshTasks();
+    const undo=finishUndo();
+    if(!persist()){undo?.(state);return;}
+    closePanel(false);refreshTasks();
     openSchedule('calendar',calendarToggle,new Date(`${date}T00:00:00`),Math.max(0,timeMinutes(time)-60));
-    confirmChange(existing?'Block updated.':'Block scheduled.',finishUndo());
+    confirmChange(existing?'Block updated.':'Block scheduled.',undo);
   }
   if(e.target.id==='spotify-form'){const link=$('#spotify-link').value.trim();if(!spotifyPath(link)){$('#spotify-error').textContent='Use a Spotify playlist, album, or track link from open.spotify.com.';return;}state.spotify=link;persist();mountSpotify();$('#spotify-error').textContent='Use the Spotify player to start your music.';$('#remove-player').hidden=false;positionPanel(visiblePanel(),lastAnchor);}
 });

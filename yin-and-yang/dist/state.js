@@ -78,6 +78,29 @@ export function recordTaskCompletion(state, task, checked, occurrence = new Date
 
 export function taskPriority(task) { return task.priorityLevel || (task.priority ? 1 : 4); }
 
+export function unfinishedPrerequisites(task, tasksById) {
+  return (task.prerequisiteIds || []).flatMap(id => {
+    const prerequisite = tasksById.get(id);
+    if (!prerequisite || prerequisite.done) return [];
+    const recurring = prerequisite.repeat && prerequisite.repeat !== 'none';
+    if (recurring && (prerequisite.completedOn || prerequisite.completions?.length)) return [];
+    return [prerequisite];
+  });
+}
+
+export function createsDependencyCycle(taskId, prerequisiteIds, tasksById) {
+  const pending = [...prerequisiteIds];
+  const visited = new Set();
+  while (pending.length) {
+    const id = pending.pop();
+    if (id === taskId) return true;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    pending.push(...(tasksById.get(id)?.prerequisiteIds || []));
+  }
+  return false;
+}
+
 function loadTask(task) {
   const repeat = Object.hasOwn(taskFrequencies,task.repeat) ? task.repeat : 'none';
   return {
@@ -95,6 +118,9 @@ function loadTask(task) {
     sectionId:typeof task.sectionId==='string'?task.sectionId:'',
     labels:Array.isArray(task.labels)?task.labels.filter(label=>typeof label==='string'&&label.length<=40):[],
     deadline:isDay(task.deadline)?task.deadline:'',
+    prerequisiteIds:Array.isArray(task.prerequisiteIds)
+      ? [...new Set(task.prerequisiteIds.filter(id=>typeof id==='string'&&id!==task.id))]
+      : [],
     reminderAt:Number.isFinite(task.reminderAt)?task.reminderAt:null,
     reminderShown:task.reminderShown===true,
     repeatEvery:Number.isInteger(task.repeatEvery)&&task.repeatEvery>=2&&task.repeatEvery<=365?task.repeatEvery:2,
@@ -250,6 +276,7 @@ export function record(state, outcome, now=Date.now(), {early=false}={}) {
   const block=t.block||t.calendarBlock;
   if(t.mode==='focus'&&isDay(block?.occurrence)&&Object.hasOwn(block,'blockId')){
     h.calendarBlock={occurrence:block.occurrence,blockId:block.blockId||null};
+    if(isDay(block.taskDay)&&block.taskDay!==block.occurrence)h.calendarBlock.taskDay=block.taskDay;
   }
   state.history.push(h); return h;
 }

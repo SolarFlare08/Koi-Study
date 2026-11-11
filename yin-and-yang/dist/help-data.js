@@ -100,6 +100,16 @@ export const helpTopics = [
     action:'planner', actionLabel:'Open Planner', related:['repeat','quick-add','completion']
   },
   {
+    id:'task-dependencies', group:'Tasks & projects', title:'Set task prerequisites',
+    summary:'Keep a task out of the focus queue until the tasks it needs are finished.',
+    steps:['Open the task that needs to wait, such as “Write the report.”',
+      'Expand `Waiting on` in the task editor. Search for and check each prerequisite, such as “Finish the analysis.”',
+      'Choose `Save task`. Planner shows which tasks it’s waiting for. You can reserve time for it in Calendar.',
+      'Complete the prerequisites to make the task available in Garden. To remove a prerequisite, open the editor, uncheck it, and save.'],
+    tip:'A recurring prerequisite counts as finished after one completed occurrence. Planner prevents loops where tasks would wait on each other.',
+    action:'planner', actionLabel:'Open Planner', related:['tasks','focus-queue','deadline-plan'], keywords:'blocked dependency dependencies order unlock'
+  },
+  {
     id:'repeat', group:'Tasks & projects', title:'Make a task repeat',
     summary:'Schedule daily habits, weekdays, weekly work, or a custom interval.',
     steps:['Click the task title to open its editor.',
@@ -157,6 +167,24 @@ export const helpTopics = [
       'Garden’s separate 5-hour calendar shows the same schedule. Its arrows let you inspect earlier and later hours; `Open calendar` opens the full view.'],
     tip:'Overlapping blocks are supported. Planner and Calendar share your tasks and bookings.',
     action:'calendar', actionLabel:'Open Calendar', related:['multiple-blocks','events','block-focus']
+  },
+  {
+    id:'schedule-preview', group:'Calendar & planning', title:'Check free time and scheduling overlaps',
+    summary:'See what a timed task would overlap and how much open time would remain.',
+    steps:['Enter a time and estimate in the task editor or choose a task from Calendar’s `Task shelf` to set a block duration.',
+      'Read the preview for free time until your scheduling cutoff and the commitments the proposed time overlaps.',
+      'Change the start or duration to avoid a conflict, or save to keep the overlap. Calendar also asks you to review drops scheduled for today or drops that would overlap another commitment.'],
+    tip:'Today’s free time starts now. Future dates use a 9 AM start. The cutoff comes from Replan today.',
+    action:'calendar', actionLabel:'Open Calendar', related:['calendar','deadline-plan','replan'], keywords:'conflict collision remaining capacity double book'
+  },
+  {
+    id:'deadline-plan', group:'Calendar & planning', title:'Plan backward from a deadline',
+    summary:'Fit your remaining study time into calendar blocks before a task is due.',
+    steps:['Give a task an estimate and deadline. Choose `Save and plan to deadline` in the task editor or `Plan to deadline` in Planner.',
+      'Review the suggested blocks and how much time couldn’t fit. Suggestions credit booked time and completed focus for the task.',
+      'Choose the blocks you want, then select `Add selected blocks`. Calendar opens to the first booking.'],
+    tip:'Suggestions work backward from the deadline using 9 AM, your Replan cutoff, and the daily study capacity in Workload. For a repeating task, the plan targets the latest unfinished occurrence by the deadline.',
+    action:'deadline', actionLabel:'Open Plan to deadline', related:['workload','schedule-preview','task-dependencies']
   },
   {
     id:'multiple-blocks', group:'Calendar & planning', title:'Give one task multiple calendar blocks',

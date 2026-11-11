@@ -147,6 +147,43 @@
 .tomorrow-review { padding: 10px 12px; border-radius: 8px; background: var(--surface-field); border: 1px solid var(--surface-line); }
 .tomorrow-review h3 { display: flex; justify-content: space-between; gap: 10px; margin: 0; font-size: 13px; }
 .tomorrow-review h3 span,.tomorrow-review p { color: var(--surface-muted); }
+.task-waiting,
+#calendar-panel .planner-task-copy .task-waiting {
+  color: var(--surface-muted); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere;
+}
+.task-dependencies summary {
+  padding-block: 3px; color: var(--surface-ink); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.task-dependencies summary small { color: var(--surface-muted); font-weight: 400; }
+.task-dependencies input[type="search"] { margin: 6px 0; }
+.prerequisite-options {
+  display: grid; gap: 3px; max-height: 150px; overflow: auto;
+  padding: 4px; border: 1px solid var(--surface-line); border-radius: 7px; scrollbar-width: thin;
+}
+.prerequisite-options label {
+  display: flex; align-items: flex-start; gap: 7px; padding: 4px; border-radius: 4px;
+  font-size: 12px; line-height: 1.4; cursor: pointer; overflow-wrap: anywhere;
+}
+.prerequisite-options label[hidden] { display: none; }
+.prerequisite-options label:hover { background: var(--surface-raised); }
+#task-editor-form .prerequisite-options input { width: auto; margin: 2px 0 0; }
+#task-plan-deadline { padding-top: 6px; text-align: left; font-size: 11px; }
+.schedule-preview {
+  margin-block: 8px; padding: 8px 10px; border: 1px solid var(--surface-line); border-radius: 8px;
+  background: var(--surface-field); color: var(--surface-muted); font-size: 12px;
+}
+.schedule-preview p { margin: 0; font-size: inherit; line-height: 1.45; }
+.schedule-preview p+p { margin-top: 4px; }
+.schedule-preview strong,.schedule-overlap-heading { color: var(--surface-ink); }
+.schedule-overlap-heading { font-weight: 600; }
+.schedule-preview ul { display: grid; gap: 4px; max-height: 105px; overflow: auto; list-style: none; margin: 5px 0; padding: 0; }
+.schedule-preview li { display: flex; flex-wrap: wrap; gap: 2px 6px; justify-content: space-between; overflow-wrap: anywhere; }
+.schedule-preview small { color: var(--surface-muted); font-size: 10px; }
+.deadline-plan-details { color: var(--surface-muted); }
+#deadline-plan-status { margin-block: 10px; }
+#deadline-plan-status[data-shortfall] { color: var(--surface-danger); }
+.deadline-plan-slots { max-height: min(32dvh,290px); overflow: auto; scrollbar-width: thin; }
+#deadline-plan-form input[type="checkbox"] { width: auto; margin: 3px 0 0; }
 .tomorrow-review p { margin: 6px 0 0; font-size: 12px; }
 .tomorrow-review ul { max-height: 7.4em; overflow: auto; padding-left: 17px; margin: 6px 0 0; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
 #plan-tomorrow-form .panel-actions { justify-content: flex-end; }

@@ -1,4 +1,4 @@
-import {dayKey, taskOccursOn, taskPriority, taskStatus} from './state.js';
+import {dayKey, taskOccursOn, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
 
 const minutesPerDay = 24 * 60;
 export const defaultBlockMinutes = 60;
@@ -164,10 +164,11 @@ export function focusCalendarBlock(task,date=new Date()){
   return calendarBlocks([task],date).find(openFocusBlock);
 }
 
-export function focusTaskQueue(tasks,date=new Date(),pinnedIds=[]){
-  const scheduled=[...new Set(calendarBlocks(tasks,date).filter(openFocusBlock).map(block=>block.task))];
+export function focusTaskQueue(tasks,date=new Date(),pinnedIds=[],tasksById=new Map(tasks.map(task=>[task.id,task]))){
+  const ready=tasks.filter(task=>!unfinishedPrerequisites(task,tasksById).length);
+  const scheduled=[...new Set(calendarBlocks(ready,date).filter(openFocusBlock).map(block=>block.task))];
   const queued=new Set(scheduled);
-  const unscheduled=tasks.filter(task=>!queued.has(task)&&taskStatus(task,date)==='todo');
+  const unscheduled=ready.filter(task=>!queued.has(task)&&taskStatus(task,date)==='todo');
   const automatic=[...scheduled,...unscheduled.sort((a,b)=>taskPriority(a)-taskPriority(b))];
   const rank=new Map(pinnedIds.map((id,index)=>[id,index]));
   return pinnedIds.length?automatic.sort((a,b)=>(rank.get(a.id)??pinnedIds.length)-(rank.get(b.id)??pinnedIds.length)):automatic;

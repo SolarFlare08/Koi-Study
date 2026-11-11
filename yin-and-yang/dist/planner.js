@@ -1,7 +1,7 @@
 import {blockProgressLabels,calendarBlocks,allDayEvents,calendarDragType,openFocusBlock,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
 import {parseCalendarImport} from './calendar-import.js';
 import {summarizeWeek} from './weekly-planning.js';
-import {dayKey,taskPriority,taskStatus} from './state.js';
+import {dayKey,taskPriority,taskStatus,unfinishedPrerequisites} from './state.js';
 import {captureTaskChange} from './task-undo.js';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
 import {activityLabels,estimateAccuracy,estimateCsv,reportCsv,reportEvents,reportMetrics} from './planner-report.js';
@@ -31,7 +31,7 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
@@ -140,6 +140,9 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const title=escape(task.text), dateLabel=occurrence||task.date;
     const labels=(task.labels||[]).map(label=>`<button type="button" class="planner-label" data-planner-view="label" data-value="${escape(label)}">%${escape(label)}</button>`).join('');
     const subtasks=task.subtasks||[], done=subtasks.filter(sub=>sub.done).length;
+    const waiting=!complete&&task.prerequisiteIds?.length
+      ?unfinishedPrerequisites(task,new Map(state().tasks.map(item=>[item.id,item])))
+      :[];
     return `<article class="planner-task${complete?' planner-task-done':''}" data-task="${escape(task.id)}" data-occurrence="${escape(current)}" data-priority="${priority}" draggable="true">
       <button type="button" class="planner-check" data-complete-task aria-pressed="${complete}" aria-label="${complete?'Reopen':'Complete'} ${title}">${complete?'✓':''}</button>
       <div class="planner-task-copy">
@@ -154,17 +157,27 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
           ${task.comments?.length?`<span>${task.comments.length} ${task.comments.length===1?'comment':'comments'}</span>`:''}
           ${labels}
         </div>
+        ${waiting.length?`<p class="task-waiting">Waiting on ${escape(waiting.map(item=>item.text).join(', '))}</p>`:''}
         ${subtasks.length?`<details class="planner-subtasks" ${expanded.has(task.id)?'open':''}><summary>${done}/${subtasks.length} subtasks</summary>${subtasks.map(sub=>`<label><input type="checkbox" data-planner-subtask="${escape(sub.id)}" ${sub.done?'checked':''}> <span>${escape(sub.text)}</span></label>`).join('')}</details>`:''}
       </div>
       <button type="button" class="planner-task-more" data-task-menu aria-label="Actions for ${title}" aria-haspopup="menu">⋯</button>
     </article>`;
   }
 
+  function quickSchedulePreview() {
+    if (!quick?.draft) return null;
+    const task=quickTask(quick.draft,quick.defaults,state().projects);
+    return task ? previewSchedule?.(task) : null;
+  }
+
   function quickForm(key,defaults) {
     if (quick?.key!==key) return `<button class="planner-column-add" type="button" data-planner-add data-key="${escape(key)}" data-date="${escape(defaults.date)}" data-section="${escape(defaults.sectionId)}">${icon('plus')} Add task</button>`;
+    const preview=quickSchedulePreview();
     return `<form class="planner-quick-form" data-quick-form><label class="sr-only" for="planner-quick-name">Task name</label><input id="planner-quick-name" name="name" placeholder="Task name" maxlength="300" required value="${escape(quick.draft)}">
       <div class="planner-quick-meta">${escape(state().projects.find(project=>project.id===quick.defaults.projectId)?.name||'Inbox')}${quick.defaults.date?` · ${plainDate(quick.defaults.date)}`:''}</div>
-      <small>Try “Read chapter tomorrow at 4pm p1 %reading”</small><div class="planner-quick-actions"><button type="button" data-quick-details>More details</button><button type="button" data-quick-cancel>Cancel</button><button class="planner-primary" type="submit">Add task</button></div></form>`;
+      <small>Try “Read chapter tomorrow at 4pm p1 %reading”</small>
+      <div class="schedule-preview" aria-live="polite" ${preview?'':'hidden'}>${preview?.markup||''}</div>
+      <div class="planner-quick-actions"><button type="button" data-quick-details>More details</button><button type="button" data-quick-cancel>Cancel</button><button class="planner-primary" type="submit">${preview?.overlaps.length?'Add with overlap':'Add task'}</button></div></form>`;
   }
 
   function timeStack(tasks,day,splitPast=false) {
@@ -421,7 +434,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const addTask=`<button class="planner-heading-add${standalone?'':' planner-mobile-add'}" type="button" ${standalone?'data-calendar-new':'data-planner-add'}>${icon('plus')} New task</button>`;
     const settings=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:view==='reporting'?`<button type="button" data-report-export>${icon('download')} Export CSV</button>`:'';
     const replan=standalone||view==='today'?'<button type="button" data-replan-today aria-haspopup="dialog">Replan today</button>':'';
-    $('#planner-heading-actions').innerHTML=addTask+settings+replan+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button>`:'<button type="button" data-plan-tomorrow aria-haspopup="dialog">Plan tomorrow</button>');
+    $('#planner-heading-actions').innerHTML=addTask+settings+replan+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button>`:'<button type="button" data-plan-tomorrow aria-haspopup="dialog">Plan tomorrow</button><button type="button" data-plan-deadline aria-haspopup="dialog">Plan to deadline</button>');
     if(project?.thoughts?.length)$('#planner-heading-actions').insertAdjacentHTML('beforeend',`<button type="button" data-manage="project-thoughts">Thoughts (${project.thoughts.length})</button>`);
     $('#planner-layout-label').hidden=sectionView||standalone;
     $('#planner-toggle-sidebar').hidden=standalone;
@@ -748,7 +761,14 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   root.addEventListener('input',event=>{
     const input=event.target;
     if (input.id==='planner-search') { query=input.value.trim(); renderContent(); }
-    if (input.id==='planner-quick-name'&&quick) { quick.draft=input.value; input.setCustomValidity(''); }
+    if (input.id==='planner-quick-name'&&quick) {
+      quick.draft=input.value; input.setCustomValidity('');
+      const preview=quickSchedulePreview(), region=input.form.querySelector('.schedule-preview');
+      region.hidden=!preview;
+      const markup=preview?.markup||'';
+      if(region.innerHTML!==markup)region.innerHTML=markup;
+      input.form.querySelector('button[type="submit"]').textContent=preview?.overlaps.length?'Add with overlap':'Add task';
+    }
     if (input.closest('[data-manage-form]')) input.setCustomValidity?.('');
   });
   root.addEventListener('change',event=>{
