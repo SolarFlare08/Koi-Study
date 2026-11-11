@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="./journal.css">
   <link rel="stylesheet" href="./sticky-notes.css">
   <link rel="stylesheet" href="./workspace-tools.css">
+  <link rel="stylesheet" href="./help.css">
 </head>
 <body>
   <main id="app" aria-label="Yin and Yang study garden">
@@ -154,6 +155,8 @@
       <button type="button" data-workspace="notes" aria-controls="notes-workspace" aria-pressed="false"><span data-icon="note"></span>Notes</button>
       <button type="button" data-workspace="reading" aria-controls="reading-workspace" aria-pressed="false"><span data-icon="book"></span>Reading</button>
     </nav>
+    <button id="open-help" class="help-launch secondary" type="button" aria-label="Open Help" aria-haspopup="dialog" aria-controls="help-guide" aria-keyshortcuts="F1" title="Help and how-to guides (F1)"><span data-icon="help"></span><span>Help</span></button>
+    <dialog id="help-guide" aria-labelledby="help-title"></dialog>
     <dialog id="backup-dialog" class="workspace-dialog" aria-labelledby="backup-title"></dialog>
     <dialog id="command-palette" class="workspace-dialog" aria-labelledby="command-title"></dialog>
     <footer class="sr-only"><span id="saved-status">Saved on this device</span></footer>

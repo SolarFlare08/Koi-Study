@@ -14,9 +14,11 @@ import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed} from './spotify-embed.js';
 import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
 import {installCommandPalette} from './command-palette.js';
+import {installHelp} from './help.js';
 
 const $=s=>document.querySelector(s);
 const icons={
+  help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 4 2c-1 .5-1.5 1-1.5 2.5M12 17h.01"/>',
   search:'<circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5"/>',
   down:'<path d="m6 9 6 6 6-6"/>',
   left:'<path d="m14 6-6 6 6 6"/>',right:'<path d="m10 6 6 6-6 6"/>',
@@ -119,7 +121,7 @@ undoButton.onclick=()=>{
 const planner=installPlanner({
   root:calendarPanel,getState:()=>state,commit:()=>{const saved=persist();refreshTasks();return saved;},
   editTask:openTaskEditor,openBlock:openCalendarBlock,taskMenu:openTaskMenu,
-  calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,dailyRituals:renderDailyRituals,blockProgress:progressForBlock,notify:confirmChange,completeTask:markTask,hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden
+  calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,dailyRituals:renderDailyRituals,blockProgress:progressForBlock,notify:confirmChange,completeTask:markTask,hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden||Boolean(document.querySelector('dialog[open]'))
 });
 const penguinThoughts=[
   'Small steps still carry you forward.',
@@ -154,6 +156,8 @@ const focusNotes=installFocusNotes({
 const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>state.dailyRituals,openCalendar:()=>calendarToggle.click()});
 const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
+const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
+$('#open-help').onclick=()=>helpGuide.open();
 document.querySelectorAll('[data-command-launch]').forEach(button=>button.onclick=()=>commandPalette.open());
 applyIcons();
 
@@ -252,6 +256,7 @@ function commandEntries(){
     run:()=>{visitWorkspace('journal');journal.openEntry(entry.id);}
   }));
   return [
+    action('Help','Browse searchable instructions and keyboard shortcuts','guide how to tutorial features',()=>helpGuide.open()),
     action('Start timer','Start or resume the current countdown','focus rest pomodoro',()=>{
       visitWorkspace('focus');closePanel(false);closeTaskMenu(false);
       if(!durationForm.hidden)finishEdit(timerButton);
@@ -267,6 +272,39 @@ function commandEntries(){
     action('Add task','Create a task in Planner','new create inbox',()=>openTaskEditor(null,visitWorkspace('planner'))),
     ...tasks,...notes,...books,...entries
   ];
+}
+
+function runHelpAction(action){
+  closePanel(false);closeTaskMenu(false);
+  const workspaces=['focus','planner','calendar','crochet','journal','notes','reading'];
+  if(workspaces.includes(action)){visitWorkspace(action);return;}
+  if(action==='search'){commandPalette.open();return;}
+  if(action==='backup'){backup.open();return;}
+  const views={filters:'filters',review:'review',workload:'workload',reporting:'reporting'};
+  if(views[action]){
+    visitWorkspace('planner');
+    calendarPanel.querySelector(`[data-planner-view="${views[action]}"]`)?.click();
+    return;
+  }
+  if(action==='replan'){
+    visitWorkspace('calendar');$('[data-replan-today]')?.click();return;
+  }
+  if(action==='tomorrow'){
+    visitWorkspace('planner');$('[data-plan-tomorrow]')?.click();return;
+  }
+  if(action==='calendar-import'){
+    visitWorkspace('calendar');$('[data-manage="calendar-import"]')?.click();return;
+  }
+  if(action==='csv-import'){
+    visitWorkspace('planner');$('[data-manage="import"]')?.click();return;
+  }
+  const panels={settings:'pagoda',appearance:'appearance',music:'music',capture:'capture',progress:'progress'};
+  if(panels[action]){
+    if(state.focusMode)toggleFocusMode();
+    visitWorkspace('focus');
+    const panel=panels[action];
+    openPanel(panel,$(`[data-panel="${panel==='capture'?'notes':panel}"]`));
+  }
 }
 
 function gardenFocusQueue(date=new Date(),tasks=gardenTasks()){
@@ -2343,6 +2381,9 @@ document.addEventListener('click',async event=>{
   }catch{toast('Could not dismiss the note.');}
 });
 document.addEventListener('keydown',e=>{
+  if(e.key==='F1'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){
+    e.preventDefault();helpGuide.open();return;
+  }
   if((e.ctrlKey||e.metaKey)&&!e.altKey&&e.code==='KeyK'&&!e.repeat&&
     (!e.target.closest('dialog')||e.target.closest('#command-palette'))){
     e.preventDefault();commandPalette.open();return;
