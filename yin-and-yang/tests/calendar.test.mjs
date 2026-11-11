@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarEventFromFields, focusTaskQueue, scheduleTask, weekDays} from '../dist/calendar.js';
+import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarEventFromFields, focusTaskQueue, replanToday, scheduleTask, weekDays} from '../dist/calendar.js';
 import {freshState, loadState} from '../dist/state.js';
 import {ritualComplete} from '../dist/daily-rituals.js';
 
@@ -12,8 +12,33 @@ test('the focus queue follows calendar blocks before unscheduled priority',()=>{
   const done={id:'done',date:'2026-11-10',time:'08:00',done:true,repeat:'none'};
   const tasks=[unscheduled,dated,custom,done];
   assert.deepEqual(focusTaskQueue(tasks,date).map(task=>task.id),['earlier','later','unscheduled']);
+  assert.deepEqual(focusTaskQueue(tasks,date,['later','done','unscheduled']).map(task=>task.id),['later','unscheduled','earlier']);
   custom.done=true;
   assert.deepEqual(focusTaskQueue(tasks,date).map(task=>task.id),['later','unscheduled']);
+});
+
+test('replan fits unfinished past blocks around timed commitments and reports those with no room',()=>{
+  const date=new Date(2026,10,10,20,3), day='2026-11-10';
+  const first={id:'first',text:'First',date:day,time:'12:00',estimate:30};
+  const second={id:'second',text:'Second',blocks:[{id:'extra',date:day,time:'13:00',minutes:60}]};
+  const tooLong={id:'long',text:'Long',date:day,time:'14:00',estimate:120};
+  const locked={id:'locked',text:'Locked',date:day,time:'16:00',estimate:20};
+  const upcoming={id:'upcoming',date:day,time:'22:00',estimate:30};
+  const event={start:+new Date(2026,10,10,20,45),end:+new Date(2026,10,10,21,15)};
+  const plan=replanToday([first,second,tooLong,locked,upcoming],[event],date,'locked');
+  assert.deepEqual(plan.moves.map(move=>[move.taskId,move.to,move.minutes]),[['first',1215,30],['second',1350,60]]);
+  assert.deepEqual(plan.unplaced.map(move=>move.taskId),['long']);
+  assert.equal(second.blocks[0].time,'13:00');
+});
+
+test('moving a recurring occurrence changes its calendar and focus time only on that day',()=>{
+  const state=freshState();
+  state.tasks.push({id:'read',text:'Read',done:false,repeat:'daily',date:'2026-11-10',time:'09:00',
+    estimate:30,occurrenceTimes:{'2026-11-10':'14:00'}});
+  const task=loadState({getItem:()=>JSON.stringify(state)}).tasks[0];
+  assert.equal(calendarBlocks([task],new Date(2026,10,10))[0].start,14*60);
+  assert.equal(calendarBlocks([task],new Date(2026,10,11))[0].start,9*60);
+  assert.equal(blockFocusTiming(task,null,'2026-11-10',+new Date(2026,10,10,14,15)).available,15*60000);
 });
 
 test('daily ritual logs survive reload and a newer journal entry completes a reopened day',()=>{

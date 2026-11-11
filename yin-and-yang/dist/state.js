@@ -9,6 +9,7 @@ export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 export const taskFrequencies = { none:'Does not repeat', daily:'Every day', weekdays:'Weekdays', weekly:'Every week', monthly:'Every month', yearly:'Every year', interval:'Every N days' };
 const isDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value);
+const isTime = value => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
 const dateNumber = date => Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())/86400000;
 const loadCalendarEvents=value=>Array.isArray(value)?value.filter(item=>typeof item?.id==='string'&&typeof item.title==='string'&&
   (isDay(item.day)&&isDay(item.endDay)&&item.endDay>item.day||Number.isFinite(item.start)&&Number.isFinite(item.end)&&item.end>=item.start)):[];
@@ -84,7 +85,8 @@ function loadTask(task) {
     description:typeof task.description === 'string' ? task.description : '',
     resumeNote:typeof task.resumeNote==='string'?task.resumeNote.slice(0,500):'',
     date:/^\d{4}-\d{2}-\d{2}$/.test(task.date) ? task.date : repeat === 'none' ? '' : dayKey(),
-    time:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(task.time) ? task.time : '',
+    time:isTime(task.time) ? task.time : '',
+    occurrenceTimes:Object.fromEntries(Object.entries(task.occurrenceTimes||{}).filter(([day,time])=>isDay(day)&&isTime(time))),
     estimate:Number.isInteger(task.estimate) && task.estimate > 0 && task.estimate <= 1440 ? task.estimate : null,
     repeat,
     priority:task.priority === true,
@@ -120,7 +122,7 @@ export function formatDuration(ms) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function loadState(storage) {
@@ -132,6 +134,9 @@ export function loadState(storage) {
     base.gardenSchedule=loadGardenSchedule(raw.gardenSchedule);
     base.calendarEvents=loadCalendarEvents(raw.calendarEvents);
     base.dailyRituals=loadDailyRituals(raw.dailyRituals);
+    if(isDay(raw.focusPins?.day)&&Array.isArray(raw.focusPins.ids)){
+      base.focusPins={day:raw.focusPins.day,ids:[...new Set(raw.focusPins.ids.filter(id=>typeof id==='string'))]};
+    }
     if(raw.gardenClearedDone&&typeof raw.gardenClearedDone==='object'&&!Array.isArray(raw.gardenClearedDone)){
       base.gardenClearedDone=Object.fromEntries(Object.entries(raw.gardenClearedDone).filter(([,key])=>typeof key==='string'));
     }

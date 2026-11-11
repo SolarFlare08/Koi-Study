@@ -1,4 +1,4 @@
-import {calendarBlocks,allDayEvents,calendarDragType,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
+import {calendarBlocks,allDayEvents,calendarDragType,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
 import {parseCalendarImport} from './calendar-import.js';
 import {summarizeWeek} from './weekly-planning.js';
 import {dayKey,taskPriority,taskStatus} from './state.js';
@@ -146,7 +146,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         <button type="button" class="planner-task-title" data-edit-task>${title}</button>
         ${task.description?`<p>${escape(task.description)}</p>`:''}
         <div class="planner-task-meta">
-          ${dateLabel?`<span class="planner-task-date${dateLabel<dayKey()&&!complete?' is-overdue':''}">${icon('today')} ${dateLabel===dayKey()?'Today':dateLabel===dayKey(shiftDay(new Date(),1))?'Tomorrow':plainDate(dateLabel)}${task.time&&dateLabel>=dayKey()&&(recurring||task.date===dateLabel)?` ${scheduledTime(task.time)}`:''}${recurring?' ↻':''}</span>`:''}
+          ${dateLabel?`<span class="planner-task-date${dateLabel<dayKey()&&!complete?' is-overdue':''}">${icon('today')} ${dateLabel===dayKey()?'Today':dateLabel===dayKey(shiftDay(new Date(),1))?'Tomorrow':plainDate(dateLabel)}${task.time&&dateLabel>=dayKey()&&(recurring||task.date===dateLabel)?` ${scheduledTime(scheduledTaskTime(task,dateLabel))}`:''}${recurring?' ↻':''}</span>`:''}
           ${view==='inbox'?'':`<span class="planner-task-project">${project?icon('project'):icon('inbox')} ${escape(project?.name||'Inbox')}</span>`}
           ${priority<4?`<span class="planner-priority">P${priority}</span>`:''}
           ${task.deadline?`<span class="planner-deadline">Due ${plainDate(task.deadline)}</span>`:''}
@@ -417,7 +417,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     $('#planner-breadcrumb').textContent=standalone?'Schedule':project?.archived?'Archived project':'Task workspace';
     const addTask=`<button class="planner-heading-add${standalone?'':' planner-mobile-add'}" type="button" ${standalone?'data-calendar-new':'data-planner-add'}>${icon('plus')} New task</button>`;
     const settings=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:view==='reporting'?`<button type="button" data-report-export>${icon('download')} Export CSV</button>`:'';
-    $('#planner-heading-actions').innerHTML=addTask+settings+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button>`:'');
+    const replan=standalone||view==='today'?'<button type="button" data-replan-today aria-haspopup="dialog">Replan today</button>':'';
+    $('#planner-heading-actions').innerHTML=addTask+settings+replan+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button>`:'');
     if(project?.thoughts?.length)$('#planner-heading-actions').insertAdjacentHTML('beforeend',`<button type="button" data-manage="project-thoughts">Thoughts (${project.thoughts.length})</button>`);
     $('#planner-layout-label').hidden=sectionView||standalone;
     $('#planner-toggle-sidebar').hidden=standalone;

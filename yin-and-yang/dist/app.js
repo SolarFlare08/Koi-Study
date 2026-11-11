@@ -1,6 +1,6 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskFrequencies,taskPriority} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
-import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarDragType, calendarEventFromFields, focusCalendarBlock, focusTaskQueue, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue} from './calendar.js';
+import {addTaskBlock, allDayEvents, blockFocusTiming, calendarBlocks, calendarDragType, calendarEventFromFields, focusCalendarBlock, focusTaskQueue, replanToday, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue} from './calendar.js';
 import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
 import {installPlanner} from './planner.js';
 import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
@@ -205,9 +205,13 @@ $('#workspace-tabs').addEventListener('click',event=>{
   button.focus({preventScroll:true});
 });
 
+function gardenFocusQueue(date=new Date(),tasks=gardenTasks()){
+  const pins=state.focusPins?.day===dayKey(date)?state.focusPins.ids:[];
+  return focusTaskQueue(tasks,date,pins);
+}
 function focusedTask(date=new Date()){
   if(state.timer.block)return state.tasks.find(task=>task.id===state.timer.block.taskId);
-  const queue=focusTaskQueue(gardenTasks(),date);
+  const queue=gardenFocusQueue(date);
   const sessionId=state.timer.mode==='focus'?state.timer.taskSnapshot?.id:null;
   const selectedId=state.activeTask||sessionId;
   return queue.find(task=>task.id===selectedId)||queue[0];
@@ -254,6 +258,7 @@ function render(){
   if(renderedTaskDay!==dayKey(clock)){
     const wasShowingToday=inSchedule()&&planner.calendarVisible()&&dayKey(leadingPlannerDay())===renderedTaskDay;
     renderTasks(clock);
+    if(activePanel==='focus-task')refreshPanel();
     if(inSchedule()){
       renderCalendar();
       if(wasShowingToday)scrollCalendarTo(clock);
@@ -404,8 +409,9 @@ function taskCard(task,status,date,currentId){
     const day=new Date(`${task.date}T00:00:00`);
     if(!Number.isNaN(day.valueOf()))details.push(day.toLocaleDateString([],{month:'short',day:'numeric'}));
   }
-  if(task.time){
-    const [hours,minutes]=task.time.split(':').map(Number);
+  const scheduledTime=scheduledTaskTime(task,task.repeat==='none'?task.date:dayKey(date));
+  if(scheduledTime){
+    const [hours,minutes]=scheduledTime.split(':').map(Number);
     details.push(new Date(2000,0,1,hours,minutes).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}));
   }
   if(task.estimate)details.push(`${task.estimate} min`);
@@ -431,7 +437,7 @@ function renderTasks(date=new Date()){
   const upcomingOpen=$('.task-upcoming')?.open;
   const groups={todo:[],done:[],upcoming:[]};
   const tasks=gardenTasks();
-  const queue=focusTaskQueue(tasks,date);
+  const queue=gardenFocusQueue(date,tasks);
   const queued=new Set(queue);
   const currentId=focusedTask(date)?.id;
   const ordered=[...queue,...tasks.filter(task=>!queued.has(task)).sort((a,b)=>taskPriority(a)-taskPriority(b))];
@@ -675,19 +681,50 @@ function updateBlockPreview(now){
 function focusTaskPicker(){
   const current=focusedTask();
   const edit=current?'<button type="button" class="text-button" id="focus-task-edit">Edit current task</button>':'';
-  if(state.timer.block){
-    return `${header('CURRENT TASK','Calendar session')}
-      ${current?`<p class="block-task-name">${escape(current.text)}</p>`:''}
-      <p>This timer follows its scheduled task.</p><div class="panel-actions">${edit}</div>`;
-  }
-  const tasks=focusTaskQueue(gardenTasks());
-  const choices=tasks.map(task=>{
+  const tasks=gardenFocusQueue();
+  const pinned=state.focusPins?.day===dayKey()&&state.focusPins.ids.length>0;
+  const choices=tasks.map((task,index)=>{
     const selected=task.id===current?.id;
-    return `<li><button type="button" data-focus-task="${escape(task.id)}" aria-pressed="${selected}"><span>${escape(task.text)}</span>${selected?'<span class="task-current-indicator" aria-hidden="true">Current</span>':''}</button></li>`;
+    const id=escape(task.id), title=escape(task.text);
+    return `<li class="focus-queue-row" data-queue-id="${id}">
+      <span class="focus-queue-grip" aria-hidden="true" title="Drag to reorder">⠿</span>
+      <button type="button" data-focus-task="${id}" aria-pressed="${selected}" ${state.timer.block?'disabled':''}><span>${title}</span>${selected?'<span class="task-current-indicator" aria-hidden="true">Current</span>':''}</button>
+      <div class="focus-queue-arrows">
+        <button type="button" data-queue-step="-1" aria-label="Move ${title} up" title="Move up" ${index===0?'disabled':''}>↑</button>
+        <button type="button" data-queue-step="1" aria-label="Move ${title} down" title="Move down" ${index===tasks.length-1?'disabled':''}>↓</button>
+      </div>
+    </li>`;
   }).join('');
-  return `${header('CURRENT TASK','Choose what to work on')}
-    ${choices?`<ul class="focus-task-list">${choices}</ul>`:'<p>No unfinished tasks for today.</p>'}
-    <div class="panel-actions"><button type="button" class="panel-primary" id="focus-task-add">Add task</button>${edit}</div>`;
+  return `${header('CURRENT TASK','Today’s focus queue')}
+    ${state.timer.block?`<p class="block-task-name">Calendar session · ${escape(current?.text)}</p>`:''}
+    ${choices?`<p class="panel-subtle">${pinned?'Pinned for today.':'Using calendar order.'} Drag tasks or use the arrows to reorder.</p><ol class="focus-task-list" aria-label="Focus order">${choices}</ol>`:'<p>No unfinished tasks for today.</p>'}
+    <div class="panel-actions"><button type="button" class="panel-primary" id="focus-task-add">Add task</button>${edit}${pinned?'<button type="button" class="text-button" id="reset-focus-order">Use calendar order</button>':''}</div>`;
+}
+
+function saveFocusOrder(ids,focusId,step){
+  const previous=state.focusPins, activeTask=state.activeTask;
+  state.focusPins=ids.length?{day:dayKey(),ids}:null;
+  if(!state.timer.block&&(state.timer.status==='idle'||state.timer.mode==='break'))state.activeTask=null;
+  if(!persist()){state.focusPins=previous;state.activeTask=activeTask;return;}
+  refreshTasks();
+  const list=root.querySelector('.focus-task-list');
+  const scroll=list?.scrollTop||0;
+  refreshPanel();
+  const updated=root.querySelector('.focus-task-list');
+  if(updated)updated.scrollTop=scroll;
+  const row=focusId&&root.querySelector(`[data-queue-id="${CSS.escape(focusId)}"]`);
+  const arrow=row?.querySelector(`[data-queue-step="${step}"]:not(:disabled)`)||row?.querySelector('[data-queue-step]:not(:disabled)');
+  (arrow||root.querySelector('[data-focus-task]:not(:disabled), #focus-task-add'))?.focus({preventScroll:true});
+  announce(ids.length?'Focus order pinned for today.':'Calendar order restored.');
+}
+
+function moveFocusQueueTask(id,target,step){
+  const ids=gardenFocusQueue().map(task=>task.id);
+  const from=ids.indexOf(id), to=target?ids.indexOf(target):from+step;
+  if(from<0||to<0||to>=ids.length||from===to)return;
+  ids.splice(from,1);
+  ids.splice(to,0,id);
+  saveFocusOrder(ids,id,step);
 }
 
 function gardenWeatherOptions(){
@@ -742,12 +779,13 @@ function panelContent(id){
   if(id==='finish-task'){
     const task=focusedTask();
     if(!task)return header('CURRENT TASK','Nothing to finish');
-    const next=focusTaskQueue(gardenTasks()).find(item=>item.id!==task.id);
+    const next=gardenFocusQueue().find(item=>item.id!==task.id);
     return `${header('CURRENT TASK','Finish early?')}<p>Mark <strong>${escape(task.text)}</strong> complete.</p>
       <p>${next?`Up next · <strong>${escape(next.text)}</strong>`:'Your task queue is clear after this.'}</p>
       <div class="panel-actions"><button type="button" class="text-button" data-finish-task="break" data-task-id="${escape(task.id)}">Take a break</button><button type="button" class="panel-primary" data-finish-task="focus" data-task-id="${escape(task.id)}">Keep going</button></div>`;
   }
   if(id==='event-editor')return calendarEventEditor();
+  if(id==='replan-today')return replanMarkup();
   if(id==='daily-ritual')return ritualEditor();
   if(id==='imported-event'){
     const event=state.calendarEvents.find(item=>item.id===lastAnchor?.dataset.calendarEvent);
@@ -810,11 +848,11 @@ function openPanel(id,anchor){
   closePanel(false);activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':id==='event-editor'?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':id==='event-editor'||id==='replan-today'?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
   if(id==='music')syncSound();
   positionPanel(panel,anchor);wake();
   const firstControl=panel.querySelector(id==='appearance'?'input:checked':'input,textarea,select')||panel.querySelector('button');
-  const initialFocus=id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
+  const initialFocus=id==='replan-today'||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
   if(initialFocus.id==='panel-title')initialFocus.tabIndex=-1;
   initialFocus.focus({preventScroll:true});
 }
@@ -1217,7 +1255,7 @@ taskMenu.addEventListener('click',event=>{
   if(action==='delete'){deleteTask(task.id);return;}
   if(action==='duplicate'){
     const copy=structuredClone(task);
-    Object.assign(copy,{id:crypto.randomUUID(),done:false,completedOn:'',completions:[],reminderShown:false});
+    Object.assign(copy,{id:crypto.randomUUID(),done:false,completedOn:'',completions:[],occurrenceTimes:{},reminderShown:false});
     copy.subtasks?.forEach(subtask=>{subtask.id=crypto.randomUUID();subtask.done=false;});
     copy.blocks?.forEach(block=>{block.id=crypto.randomUUID();});
     state.tasks.push(copy);persist();refreshTasks();announce('Task duplicated.');
@@ -1236,8 +1274,8 @@ taskMenu.addEventListener('click',event=>{
     message=done?'Task completed.':'Task reopened.';
   }
   if(action==='unschedule'||action==='remove-block'){
-    const scheduleUndo=captureTaskChange(task,['time','blocks']);
-    if(action==='unschedule')task.time='';
+    const scheduleUndo=captureTaskChange(task,['time','blocks','occurrenceTimes']);
+    if(action==='unschedule'){task.time='';task.occurrenceTimes={};}
     else task.blocks=task.blocks.filter(block=>block.id!==anchor.dataset.block);
     undo=scheduleUndo();message=action==='unschedule'?'Task unscheduled.':'Block deleted.';
   }
@@ -1270,7 +1308,7 @@ for(const surface of [taskSidebar,calendarPanel]){
     const card=event.target.closest('[data-task][draggable]');
     if(!card||!event.dataTransfer)return;
     closeTaskMenu(false);
-    event.dataTransfer.setData(calendarDragType,JSON.stringify({task:card.dataset.task,move:card.classList.contains('calendar-block'),block:card.dataset.block||null}));
+    event.dataTransfer.setData(calendarDragType,JSON.stringify({task:card.dataset.task,move:card.classList.contains('calendar-block'),block:card.dataset.block||null,occurrence:card.dataset.occurrence}));
     event.dataTransfer.effectAllowed='move';
     const day=card.closest('.calendar-day');
     dragOffset=day?(event.clientY-card.getBoundingClientRect().top)*Number(day.dataset.span||1440)/day.offsetHeight:0;
@@ -1318,7 +1356,7 @@ function onCalendarDrop(event){
     toast('This task repeats on weekdays. Choose a weekday.');return;
   }
   const minute=Number(column.dataset.from||0)+dropMinute(event,column);
-  const finishUndo=captureTaskChange(task,drag.block||!drag.move?['blocks']:['date','time']);
+  const finishUndo=captureTaskChange(task,drag.block||!drag.move?['blocks']:['date','time','occurrenceTimes']);
   const before=state.activeTask;
   dragOffset=0;
   if(drag.block){
@@ -1326,7 +1364,14 @@ function onCalendarDrop(event){
     if(!block)return;
     block.date=column.dataset.date;
     block.time=timeValue(minute);
-  }else if(drag.move)scheduleTask(task,column.dataset.date,minute);
+  }else if(drag.move){
+    if(drag.occurrence===column.dataset.date&&task.occurrenceTimes?.[column.dataset.date]){
+      task.occurrenceTimes={...task.occurrenceTimes,[column.dataset.date]:timeValue(minute)};
+    }else{
+      scheduleTask(task,column.dataset.date,minute);
+      task.occurrenceTimes={};
+    }
+  }
   else addTaskBlock(task,column.dataset.date,timeValue(minute));
   if(state.activeTask===task.id&&taskStatus(task)!=='todo')state.activeTask=null;
   persist();refreshTasks();
@@ -1351,6 +1396,66 @@ function calendarDraft(){
   const now=new Date(), key=dayKey(date);
   const minute=key===dayKey(now)?Math.min(23*60+45,Math.ceil((now.getHours()*60+now.getMinutes())/15)*15):9*60;
   return {date:key,time:timeValue(minute)};
+}
+
+let replanPreview;
+function currentReplan(){
+  const locked=state.timer.block?.taskId||
+    (state.timer.mode==='focus'&&state.timer.status!=='idle'?state.timer.taskSnapshot?.id:null);
+  return replanToday(gardenTasks(),state.calendarEvents,new Date(),locked);
+}
+function replanMarkup(){
+  const {day,moves,unplaced}=replanPreview;
+  const date=new Date(day+'T12:00:00').toLocaleDateString([],{dateStyle:'long'});
+  const proposed=moves.map((move,index)=>`<li><label>
+    <input type="checkbox" name="move" value="${index}" checked>
+    <span><strong>${escape(move.title)}</strong><small>${timeLabel(move.from)} → ${timeLabel(move.to)}–${timeLabel(move.to+move.minutes)} · ${move.minutes} min</small></span>
+  </label></li>`).join('');
+  const noRoom=unplaced.map(move=>`<li>${escape(move.title)} · ${move.minutes} min</li>`).join('');
+  return `${header(escape(date),'Replan today')}
+    ${moves.length?'<p>Choose which missed blocks to move. Each keeps its original duration.</p>':''}
+    ${moves.length?`<form id="replan-form"><ul class="replan-moves">${proposed}</ul><div class="panel-actions"><button type="submit" class="panel-primary">Apply selected moves</button></div></form>`:''}
+    ${unplaced.length?`<div class="replan-unplaced"><h3>No open slot today</h3><ul>${noRoom}</ul></div>`:''}
+    ${!moves.length&&!unplaced.length?'<p>No missed blocks for unfinished tasks today.</p>':''}`;
+}
+function applyReplan(form){
+  const selected=new FormData(form).getAll('move').map(index=>replanPreview.moves[Number(index)]).filter(Boolean);
+  if(!selected.length)return;
+  const current=currentReplan();
+  const currentMoves=new Set(current.moves.map(move=>JSON.stringify(move)));
+  if(current.day!==replanPreview.day||selected.some(move=>!currentMoves.has(JSON.stringify(move)))){
+    replanPreview=current;
+    refreshPanel();
+    const title=$('#panel-title');
+    title.tabIndex=-1;
+    title.focus({preventScroll:true});
+    confirmChange('Today’s schedule changed. Review the updated suggestions.');
+    return;
+  }
+  const snapshots=new Map();
+  for(const move of selected){
+    const task=state.tasks.find(item=>item.id===move.taskId);
+    if(!snapshots.has(task.id))snapshots.set(task.id,captureTaskChange(task,['time','blocks','occurrenceTimes']));
+    const time=timeValue(move.to);
+    if(move.blockId)task.blocks.find(block=>block.id===move.blockId).time=time;
+    else if(task.repeat&&task.repeat!=='none')task.occurrenceTimes={...task.occurrenceTimes,[current.day]:time};
+    else task.time=time;
+  }
+  const changes=[...snapshots.values()].map(snapshot=>snapshot()).filter(Boolean);
+  const undo=latest=>{
+    let changed=false;
+    for(const revert of changes)changed=revert(latest)||changed;
+    return changed;
+  };
+  if(!persist()){undo(state);return;}
+  closePanel(false);refreshTasks();
+  if(workspace==='calendar'){
+    const date=new Date(current.day+'T12:00:00');
+    if(planner.calendarVisible())scrollCalendarTo(date,Math.max(0,Math.min(...selected.map(move=>move.to))-30));
+    else planner.jumpMonth(date);
+  }
+  ($('[data-replan-today]')||$('#planner-heading')).focus({preventScroll:true});
+  confirmChange(selected.length===1?'Moved 1 block.':`Moved ${selected.length} blocks.`,undo);
 }
 function ritualEditor(){
   const {ritual:kind,ritualDate:date}=lastAnchor.closest('.daily-ritual').dataset;
@@ -1471,6 +1576,12 @@ $('#calendar-jump-date').addEventListener('change',event=>{
   else planner.jumpMonth(date);
 });
 calendarPanel.addEventListener('click',event=>{
+  const replan=event.target.closest('[data-replan-today]');
+  if(replan){
+    replanPreview=currentReplan();
+    openPanel('replan-today',replan);
+    return;
+  }
   const ritualButton=event.target.closest('[data-ritual-open],[data-ritual-check]');
   if(ritualButton){
     const {ritual:kind,ritualDate:date}=ritualButton.closest('.daily-ritual').dataset;
@@ -1597,8 +1708,13 @@ root.addEventListener('click',e=>{
     openTaskEditor(btn.id==='focus-task-edit'?focusedTask()?.id:null,currentTaskButton);
     return;
   }
+  if(btn.dataset.queueStep){
+    moveFocusQueueTask(btn.closest('[data-queue-id]').dataset.queueId,null,Number(btn.dataset.queueStep));
+    return;
+  }
+  if(btn.id==='reset-focus-order'){saveFocusOrder([]);return;}
   if(btn.dataset.focusTask){
-    const task=focusTaskQueue(gardenTasks()).find(item=>item.id===btn.dataset.focusTask);
+    const task=gardenFocusQueue().find(item=>item.id===btn.dataset.focusTask);
     if(!task||state.timer.block)return;
     state.activeTask=task.id;
     closePanel(false);persist();refreshTasks();
@@ -1698,8 +1814,39 @@ root.addEventListener('input',e=>{
   if(e.target.id==='task-title')e.target.setCustomValidity('');
   if(e.target.id==='task-date'||e.target.id==='task-repeat')$('#task-date').setCustomValidity('');
 });
+let focusQueueDrag;
+root.addEventListener('pointerdown',event=>{
+  const grip=event.target.closest('.focus-queue-grip');
+  if(!grip||!event.isPrimary||event.button!==0||focusQueueDrag?.grip.isConnected)return;
+  const source=grip.closest('.focus-queue-row');
+  focusQueueDrag={grip,source,pointerId:event.pointerId,target:null};
+  grip.setPointerCapture(event.pointerId);
+  source.classList.add('focus-queue-source');
+});
+root.addEventListener('pointermove',event=>{
+  if(focusQueueDrag?.pointerId!==event.pointerId)return;
+  const list=focusQueueDrag.source.closest('.focus-task-list');
+  const row=document.elementFromPoint(event.clientX,event.clientY)?.closest('.focus-queue-row');
+  const target=row!==focusQueueDrag.source&&list?.contains(row)?row:null;
+  if(target===focusQueueDrag.target)return;
+  focusQueueDrag.target?.classList.remove('focus-queue-drop');
+  focusQueueDrag.target=target;
+  target?.classList.add('focus-queue-drop');
+});
+function endFocusQueueDrag(event,apply){
+  if(focusQueueDrag?.pointerId!==event.pointerId)return;
+  const {source,target}=focusQueueDrag;
+  focusQueueDrag=null;
+  source.classList.remove('focus-queue-source');
+  target?.classList.remove('focus-queue-drop');
+  if(apply&&target)moveFocusQueueTask(source.dataset.queueId,target.dataset.queueId);
+}
+root.addEventListener('pointerup',event=>endFocusQueueDrag(event,true));
+root.addEventListener('pointercancel',event=>endFocusQueueDrag(event,false));
+root.addEventListener('lostpointercapture',event=>endFocusQueueDrag(event,false));
 root.addEventListener('change',event=>{
   const form=event.target.form;
+  if(form?.id==='replan-form')form.querySelector('[type="submit"]').disabled=!form.querySelector('input:checked');
   if(form?.id==='calendar-event-form'){
     const fields=form.elements, allDay=fields.allDay.checked;
     if(event.target===fields.startDay&&fields.endDay.value<fields.startDay.value)fields.endDay.value=fields.startDay.value;
@@ -1740,6 +1887,7 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='replan-form'){applyReplan(e.target);return;}
   if(e.target.id==='daily-ritual-form'){
     const form=e.target,{kind,date}=form.dataset,fields=new FormData(form);
     const item={...state.dailyRituals[date]?.[kind]};
@@ -1831,7 +1979,7 @@ root.addEventListener('submit',e=>{
     const text=fields.get('title').replace(/\s*\n\s*/g,' ').trim();
     if(!text){const title=$('#task-title');title.setCustomValidity('Enter a task name.');title.reportValidity();return;}
     const existing=state.tasks.find(task=>task.id===editingTaskId);
-    const finishMove=existing&&captureTaskChange(existing,['date','time','projectId','sectionId']);
+    const finishMove=existing&&captureTaskChange(existing,['date','time','occurrenceTimes','projectId','sectionId']);
     const before=state.activeTask;
     const repeat=fields.get('repeat');
     const sameRepeatType=existing&&(existing.repeat==='none')===(repeat==='none');
@@ -1862,6 +2010,7 @@ root.addEventListener('submit',e=>{
       subtasks,comments,done:repeat==='none'&&existing?.done===true,
       completedOn:sameRepeatType?existing.completedOn||'':'',completions:sameRepeatType?existing.completions||[]:[]
     };
+    if(existing&&['date','time','repeat','repeatEvery'].some(key=>task[key]!==existing[key]))task.occurrenceTimes={};
     const captureKey=!existing&&taskDraft?.captureKey;
     if(captureKey&&state.processedCaptures.includes(captureKey)){toast('This thought was already filed.');return;}
     if(existing)Object.assign(existing,task);else state.tasks.push(task);
