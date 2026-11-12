@@ -12,6 +12,27 @@ import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail} from '../dist/garden-growth.js';
 import {gardenGrowthMarkup} from '../dist/scenery.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay} from '../dist/day-recap.js';
+import {reviewChapter} from '../dist/reading-progress.js';
+
+test('scheduled reviews space out and a reread stays separate through a Reading restore',()=>{
+  const state=freshState(), storage=memoryStorage(), date=new Date(2026,10,12,10);
+  const note=reviewChapter({id:'note',bookTitle:'The Waves',chapter:'1',text:'Think about the voices.',kind:'question'},'schedule',date);
+  assert.equal(note.reviewDue,'2026-11-15');
+  assert.equal(reviewChapter(note,'remembered',new Date(2026,10,15,10)).reviewDue,'2026-11-22');
+  assert.equal(reviewChapter(note,'again',new Date(2026,10,15,10)).reviewDue,'2026-11-16');
+  state.readingNotes=[note];
+  state.finishedBooks=[{id:'waves',title:'The Waves',finishedOn:'2026-11-01',review:'First reading'}];
+  state.readingCollections=[{id:'course',name:'Modernism',kind:'course',books:['["the waves",""]']}];
+  const edit=editFinishedBook(state,'waves',{rereads:[{id:'two',finishedOn:'2026-11-12',review:'A different impression',rating:5}]});
+  Object.assign(state,edit.changes);
+  const backup=readBackup(JSON.stringify(createBackup(state,storage,[])));
+  applyBackupRestore(storage,planBackupRestore(storage,freshState(),backup,new Set(['reading'])));
+  const restored=loadState(storage);
+  assert.equal(restored.finishedBooks[0].review,'First reading');
+  assert.equal(restored.finishedBooks[0].rereads[0].review,'A different impression');
+  assert.equal(restored.readingNotes[0].reviewDue,'2026-11-15');
+  assert.deepEqual(restored.readingCollections,state.readingCollections);
+});
 
 test('restore points retain the five newest snapshots and preserve optional capture context',()=>{
   const storage=memoryStorage(),state=freshState();

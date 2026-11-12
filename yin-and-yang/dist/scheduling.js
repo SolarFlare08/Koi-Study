@@ -1,4 +1,4 @@
-import {allDayEvents, calendarBlocks, calendarTaskBlock, openFocusBlock, shiftDay, withCooldown} from './calendar.js';
+import {allDayEvents, calendarBlocks, calendarTaskBlock, openFocusBlock, planningEventRanges, shiftDay, withCooldown} from './calendar.js';
 import {dayKey, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
 import {unavailableRanges} from './availability.js';
 
@@ -74,14 +74,15 @@ function freeRanges(busy, from, to) {
 }
 
 function studyDay(tasks,events,availability,day,from,end,capacity,cooldown){
-  const busy=commitments(tasks,events,day);
+  const busy=commitments(tasks,[],day);
+  const eventRanges=planningEventRanges(events,day,cooldown);
   const unavailable=unavailableRanges(availability,day);
   const allDay=allDayEvents(events,day);
   const booked=busy.reduce((total,block)=>total+(block.task?block.end-block.start:0),0);
-  const ranges=allDay.length?[]:freeRanges([...withCooldown(busy,cooldown),...unavailable].sort((a,b)=>a.start-b.start),from,end);
+  const ranges=allDay.length?[]:freeRanges([...withCooldown(busy,cooldown),...eventRanges,...unavailable].sort((a,b)=>a.start-b.start),from,end);
   const context={from,end,booked,free:ranges.reduce((total,range)=>total+range.end-range.start,0),
-    commitments:[...allDay.map(event=>({title:event.title,allDay:true})),...busy.map(block=>({title:block.event?.title||block.task.text,start:block.start,end:block.end})),
-      ...unavailable.map(block=>({title:block.name,start:block.start,end:block.end}))].filter(block=>block.allDay||block.end+cooldown>from&&block.start-cooldown<end)};
+    commitments:[...allDay.map(event=>({title:event.title,allDay:true})),...busy.map(block=>({title:block.task.text,start:block.start,end:block.end})),
+      ...eventRanges,...unavailable.map(block=>({title:block.name,start:block.start,end:block.end}))].filter(block=>block.allDay||block.end+cooldown>from&&block.start-cooldown<end)};
   return {date:dayKey(day),ranges,context,remaining:Math.max(0,capacity-booked),slots:[]};
 }
 

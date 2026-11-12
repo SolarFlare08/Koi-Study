@@ -60,7 +60,35 @@ export function calendarEventFromFields(fields, id) {
   };
   const start = localTime(startDay, startTime), end = localTime(endDay, endTime);
   if (end <= start) throw new Error('The end needs to be after the start.');
-  return {...event, start, end};
+  return {...event, start, end,...calendarPlanningBuffers(fields)};
+}
+
+export function calendarPlanningBuffers(fields){
+  const result={};
+  for(const key of ['bufferBefore','bufferAfter']){
+    const value=Number(fields[key]||0);
+    if(!Number.isInteger(value)||value<0||value>180)throw new Error('Use 0 to 180 minutes for each planning buffer.');
+    if(value)result[key]=value;
+  }
+  return result;
+}
+
+export function planningEventRanges(events,date,cooldown=0){
+  const first=+shiftDay(date,0),last=+shiftDay(date,1);
+  const minute=(timestamp,round)=>{
+    const local=new Date(timestamp);
+    return round(local.getHours()*60+local.getMinutes()+local.getSeconds()/60+local.getMilliseconds()/60000);
+  };
+  const duration=value=>Number.isInteger(value)&&value>0&&value<=180?value:0;
+  return events.flatMap(event=>{
+    if(event.day||!Number.isFinite(event.start)||!Number.isFinite(event.end))return [];
+    const before=duration(event.bufferBefore),after=duration(event.bufferAfter);
+    const start=event.start-Math.max(before,cooldown)*60000;
+    const end=Math.max(event.end,event.start+60000)+Math.max(after,cooldown)*60000;
+    if(start>=last||end<=first)return [];
+    const from=start<=first?0:minute(start,Math.floor);
+    return [{title:event.title,start:from,end:end>=last?1440:Math.min(1440,Math.max(from+1,minute(end,Math.ceil))),before,after}];
+  });
 }
 
 export function addTaskBlock(task, date, time, minutes = task.estimate || defaultBlockMinutes) {
@@ -176,8 +204,8 @@ export function focusTaskQueue(tasks,date=new Date(),pinnedIds=[],tasksById=new 
   return pinnedIds.length?automatic.sort((a,b)=>(rank.get(a.id)??pinnedIds.length)-(rank.get(b.id)??pinnedIds.length)):automatic;
 }
 
-export function tasksWithinTime(queue,minutes){
-  return queue.filter(task=>Number.isInteger(task.estimate)&&task.estimate>0&&task.estimate<=minutes)
+export function tasksWithinTime(queue,minutes,energy=''){
+  return queue.filter(task=>Number.isInteger(task.estimate)&&task.estimate>0&&task.estimate<=minutes&&(!energy||task.energy===energy))
     .sort((a,b)=>taskPriority(a)-taskPriority(b)||b.estimate-a.estimate).slice(0,5);
 }
 

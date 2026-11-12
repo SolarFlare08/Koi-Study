@@ -772,8 +772,13 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       if(!data.events.length)throw new Error(data.skipped?'No supported events were found in this file.':'No calendar events were found.');
       if(data.events.length>10000)throw new Error('This file expands to more than 10,000 events. Export a shorter range.');
       const source=file.name.slice(0,150);
+      const oldById=new Map(state().calendarEvents.map(event=>[event.id,event]));
       const events=new Map(state().calendarEvents.filter(event=>event.source!==source).map(event=>[event.id,event]));
-      for(const event of data.events)events.set(event.id,{...event,source});
+      for(const event of data.events){
+        const old=oldById.get(event.id),settings={};
+        for(const key of ['bufferBefore','bufferAfter'])if(!event.day&&old?.[key])settings[key]=old[key];
+        events.set(event.id,{...event,source,...settings});
+      }
       if(events.size>10000)throw new Error('Remove an existing calendar before exceeding 10,000 imported events.');
       const previous=state().calendarEvents;
       state().calendarEvents=[...events.values()];

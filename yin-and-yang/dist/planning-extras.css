@@ -247,6 +247,19 @@ button.project-context-item:hover { color: var(--planner-accent); }
 .panel .slot-explanation p { margin: 4px 0; }
 .slot-explanation li { padding: 2px 0; }
 .reading-sort { display: grid; gap: 4px; margin: 8px 0; font-size: 12px; }
+#reading-collections, .reading-rereads { margin: 12px 0; padding: 12px; border: 1px solid var(--surface-line); border-radius: 8px; background: var(--surface-raised); }
+#reading-collections h3, #reading-history .reading-rereads h4 { margin: 0 0 8px; }
+#reading-collections form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: end; }
+#reading-collections label, #reading-reread-form label { display: grid; gap: 4px; font-size: 12px; }
+#reading-collections :is(select,input), #reading-reread-form :is(input,textarea) { min-width: 0; max-width: 100%; padding: 6px; color: var(--surface-ink); background: var(--surface-field); border: 1px solid var(--surface-line); border-radius: 6px; }
+#reading-collections button, .reading-rereads button { padding: 5px 8px; border: 1px solid var(--surface-line); border-radius: 6px; }
+.reading-collection-order li { margin: 5px 0; }
+.reading-collection-order button { margin-right: 5px; }
+.reading-rereads article { margin: 8px 0; padding: 6px 0; border-bottom: 1px solid var(--surface-line); }
+#reading-reread-form { display: grid; gap: 7px; }
+.event-buffer-fields { margin: 10px 0; border: 1px solid var(--surface-line); border-radius: 7px; }
+.event-buffer-fields legend { font-size: 12px; }
+.panel .event-buffer-fields p { margin: 6px 0 0; }
 .reading-merge { margin: 9px 0; font-size: 12px; }
 #reading-merge-form { display: grid; gap: 6px; margin-top: 6px; }
 #reading-merge-form label { display: grid; gap: 4px; }

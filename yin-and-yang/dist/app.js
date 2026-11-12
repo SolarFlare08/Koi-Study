@@ -1,7 +1,7 @@
-import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites} from './state.js';
+import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape,gardenGrowthMarkup} from './scenery.js';
 import {earnGardenDetail,gardenReward} from './garden-growth.js';
-import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
+import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {CAPTURE_PREFIX, cleanCaptureContext, readCaptures, saveCapture, storeCapture} from './capture.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay} from './day-recap.js';
 import {installPlanner} from './planner.js';
@@ -234,6 +234,11 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
     return false;
   },openCalendar:()=>calendarToggle.click(),linkedNotes:id=>linkedStickyNotes('book',id),
   getFinished:()=>state.finishedBooks,bookReward:id=>gardenReward(state.gardenGrowth,'book',id),
+  getCollections:()=>state.readingCollections,saveCollections:collections=>{
+    const previous=state.readingCollections;state.readingCollections=collections;
+    if(persist())return true;
+    state.readingCollections=previous;return false;
+  },
   finishBook:finishReadingBook,saveBook:(id,values)=>saveReadingChanges(editFinishedBook(state,id,values)),
   mergeBooks:(source,target)=>saveReadingChanges(mergeShelfBooks(state,source,target))});
 const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast});
@@ -955,13 +960,18 @@ function focusReviewDetails(session){
   const result=session.review?.result==='reached'?'Reached':session.review?.result==='partial'?'Partial':'Ready to review';
   return `<small class="session-review-detail">${escape(session.goal)} · ${result}${session.review?.next?`<br>Next: ${escape(session.review.next)}`:''}</small>`;
 }
+let fitEnergy='';
+function energyOptions(value,emptyLabel){
+  return `<option value="">${emptyLabel}</option>${Object.entries(taskEnergyLevels).map(([key,label])=>
+    `<option value="${key}" ${key===value?'selected':''}>${label}</option>`).join('')}`;
+}
 function fitTaskResults(minutes){
   if(!Number.isInteger(minutes)||minutes<1||minutes>1440)return '<p>Enter the minutes you have available.</p>';
-  const tasks=tasksWithinTime(gardenFocusQueue(),minutes);
+  const tasks=tasksWithinTime(gardenFocusQueue(),minutes,fitEnergy);
   const locked=state.timer.block||state.timer.mode==='focus'&&state.timer.id;
-  if(!tasks.length)return '<p>No ready tasks with an estimate fit this window.</p>';
+  if(!tasks.length)return `<p>No ready tasks fit this window${fitEnergy?' and energy level':''}.</p>`;
   return `${locked?'<p>Finish or reset the current focus timer to choose a different task.</p>':''}
-    <ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-fit-task="${escape(task.id)}" ${locked?'disabled':''}><strong>${escape(task.text)}</strong><small>${task.estimate} min · P${taskPriority(task)}</small></button></li>`).join('')}</ul>`;
+    <ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-fit-task="${escape(task.id)}" ${locked?'disabled':''}><strong>${escape(task.text)}</strong><small>${task.estimate} min · P${taskPriority(task)}${task.energy?` · ${taskEnergyLevels[task.energy]}`:''}</small></button></li>`).join('')}</ul>`;
 }
 
 function availableCaptures(){
@@ -1219,6 +1229,7 @@ function taskEditor(){
             <div class="task-editor-grid">
               <div><label class="field-label" for="task-repeat">Repeat</label><select id="task-repeat" name="repeat" aria-describedby="task-repeat-hint">${options}</select></div>
               <div><label class="field-label" for="task-estimate">Estimate (min)</label><input id="task-estimate" name="estimate" type="number" min="1" max="1440" step="1" value="${values.estimate??''}" placeholder="60"></div>
+              <div><label class="field-label" for="task-energy">Energy</label><select id="task-energy" name="energy">${energyOptions(values.energy,'Not set')}</select></div>
             </div>
             <div class="estimate-suggestion" data-estimate-suggestion hidden></div>
             <p id="task-repeat-hint" ${values.repeat&&values.repeat!=='none'?'':'hidden'}>The date sets the first occurrence. Leave it blank to start today.</p>
@@ -1400,6 +1411,7 @@ function panelContent(id){
   if(id==='fit-task')return `${header('CURRENT TASK','Find a task by time')}
     <label class="field-label" for="fit-minutes">Minutes available</label>
     <input id="fit-minutes" type="number" min="1" max="1440" value="${fitMinutes}">
+    <label class="field-label" for="fit-energy">Energy level</label><select id="fit-energy">${energyOptions(fitEnergy,'Any energy level')}</select>
     <div id="fit-results" aria-live="polite">${fitTaskResults(fitMinutes)}</div>`;
   if(id==='capture-project'){
     const projects=state.projects.filter(project=>!project.archived);
@@ -1456,7 +1468,9 @@ function panelContent(id){
   if(id==='daily-ritual')return ritualEditor();
   if(id==='imported-event'){
     const event=state.calendarEvents.find(item=>item.id===lastAnchor?.dataset.calendarEvent);
-    return event?`${header('IMPORTED CALENDAR',escape(event.title))}<p>${event.day?`All day · ${escape(event.day)}`:escape(new Date(event.start).toLocaleString())}${event.source?` · ${escape(event.source)}`:''}</p><p class="imported-description">${escape(event.description)}</p>`:header('CALENDAR','Event unavailable');
+    return event?`${header('IMPORTED CALENDAR',escape(event.title))}<p>${event.day?`All day · ${escape(event.day)}`:escape(new Date(event.start).toLocaleString())}${event.source?` · ${escape(event.source)}`:''}</p><p class="imported-description">${escape(event.description)}</p>
+      ${event.day?'':`<form id="event-buffer-form" data-event-id="${escape(event.id)}">${eventBufferFields(event)}
+        <p class="event-error" role="alert" hidden></p><button class="panel-primary">Save buffers</button></form>`}`:header('CALENDAR','Event unavailable');
   }
   if(id==='resume'){
     const task=state.tasks.find(item=>item.id===lastAnchor?.dataset.resumeId);
@@ -2250,7 +2264,10 @@ function deadlineSuggestion(task){
 }
 function slotExplanation(context,deadline,cooldown,edited=false){
   if(!context)return '';
-  const commitments=context.commitments.map(block=>`<li>${escape(block.title)} · ${block.allDay?'All day':`${timeLabel(block.start)}–${timeLabel(block.end)}`}</li>`).join('');
+  const commitments=context.commitments.map(block=>{
+    const buffers=[block.before?`${block.before} min before`:'',block.after?`${block.after} min after`:''].filter(Boolean);
+    return `<li>${escape(block.title)} · ${block.allDay?'All day':`${timeLabel(block.start)}–${timeLabel(block.end)}`}${buffers.length?` reserved (event buffers: ${buffers.join(' · ')})`:''}</li>`;
+  }).join('');
   return `<details class="slot-explanation"><summary>${edited?'Schedule details':'Why this time?'}</summary>
     <p>Due ${shortScheduleDate(deadline)} · ${minutesLabel(context.free)} free between ${timeLabel(context.from)} and ${timeLabel(context.end)} around existing commitments.
     ${cooldown?`Free time allows for ${cooldown} min between calendar blocks.`:''}</p>
@@ -2720,6 +2737,13 @@ async function searchRitualBooks(button){
     if(form.isConnected)positionPanel(visiblePanel(),lastAnchor);
   }
 }
+function eventBufferFields(event,allDay=false){
+  const value=key=>Number.isInteger(event?.[key])?event[key]:'';
+  return `<fieldset class="event-buffer-fields" data-event-buffer ${allDay?'hidden disabled':''}><legend>Planning buffers</legend>
+    <div class="event-date-grid"><label class="event-field">Minutes before<input name="bufferBefore" type="number" min="0" max="180" placeholder="0" value="${value('bufferBefore')}"></label>
+    <label class="event-field">Minutes after<input name="bufferAfter" type="number" min="0" max="180" placeholder="0" value="${value('bufferAfter')}"></label></div>
+    <p>Reserve travel, setup, or recovery time in week drafts and deadline plans.</p></fieldset>`;
+}
 function calendarEventEditor(){
   const event=state.calendarEvents.find(item=>item.manual&&item.id===lastAnchor?.dataset.calendarEvent);
   const draft=calendarDraft();
@@ -2739,6 +2763,7 @@ function calendarEventEditor(){
         ${timeField('endTime',time(end),'End time')}
       </div>
       <label class="event-field">Notes <textarea name="description" rows="3" maxlength="3000" placeholder="Optional">${escape(event?.description)}</textarea></label>
+      ${eventBufferFields(event,allDay)}
       <p class="event-error" role="alert" hidden></p>
       <div class="panel-actions">${event?'<button type="button" class="text-button event-delete" id="delete-calendar-event">Delete event</button>':''}<button class="panel-primary">Save event</button></div>
     </form>`;
@@ -2923,7 +2948,7 @@ root.addEventListener('click',e=>{
   const fit=e.target.closest('[data-fit-task]');
   if(fit){
     const minutes=Number($('#fit-minutes').value);
-    const task=tasksWithinTime(gardenFocusQueue(),minutes).find(item=>item.id===fit.dataset.fitTask);
+    const task=tasksWithinTime(gardenFocusQueue(),minutes,fitEnergy).find(item=>item.id===fit.dataset.fitTask);
     if(!task||state.timer.block||state.timer.mode==='focus'&&state.timer.id)return;
     const previous=state.activeTask,previousDay=state.activeTaskDay;
     state.activeTask=task.id;state.activeTaskDay=dayKey();
@@ -3144,6 +3169,10 @@ root.addEventListener('pointerup',event=>endFocusQueueDrag(event,true));
 root.addEventListener('pointercancel',event=>endFocusQueueDrag(event,false));
 root.addEventListener('lostpointercapture',event=>endFocusQueueDrag(event,false));
 root.addEventListener('change',event=>{
+  if(event.target.id==='fit-energy'){
+    fitEnergy=event.target.value;
+    $('#fit-results').innerHTML=fitTaskResults(Number($('#fit-minutes').value));return;
+  }
   const id=event.target.dataset.shutdownStep;
   if(id){
     const day=dayKey(),previous=state.shutdownProgress;
@@ -3180,6 +3209,7 @@ root.addEventListener('change',event=>{
     if(event.target===fields.startDay&&fields.endDay.value<fields.startDay.value)fields.endDay.value=fields.startDay.value;
     if(event.target===fields.allDay){
       form.querySelectorAll('[data-event-time]').forEach(label=>{label.hidden=allDay;label.querySelector('input').disabled=allDay;});
+      const buffers=form.querySelector('[data-event-buffer]');buffers.hidden=allDay;buffers.disabled=allDay;
       form.querySelector('[data-event-start-label]').textContent=allDay?'First day':'Start date';
       form.querySelector('[data-event-end-label]').textContent=allDay?'Last day':'End date';
     }
@@ -3310,6 +3340,17 @@ root.addEventListener('submit',e=>{
     confirmChange(editing?'Event updated.':'Event added.');
     return;
   }
+  if(e.target.id==='event-buffer-form'){
+    const form=e.target,prior=state.calendarEvents;
+    const existing=prior.find(event=>event.id===form.dataset.eventId&&!event.day);
+    if(!existing)return;
+    const {bufferBefore,bufferAfter,...event}=existing;
+    try{Object.assign(event,calendarPlanningBuffers(Object.fromEntries(new FormData(form))));}
+    catch(error){const alert=form.querySelector('[role="alert"]');alert.hidden=false;alert.textContent=error.message;return;}
+    state.calendarEvents=prior.map(item=>item===existing?event:item);
+    if(!persist()){state.calendarEvents=prior;return;}
+    finishCalendarEventChange(event);confirmChange('Planning buffers saved.');return;
+  }
   if(e.target.id==='garden-preset-form'){
     const time=new FormData(e.target).get('time');
     state.gardenSchedule=loadGardenSchedule({enabled:true,presets:[...state.gardenSchedule.presets,{...state.appearance,time}]});
@@ -3415,7 +3456,8 @@ root.addEventListener('submit',e=>{
       description:fields.get('description').trim(),
       resumeNote:String(fields.get('resumeNote')||'').trim(),
       date:fields.get('date')||(repeat!=='none'||fields.get('time')?dayKey():''),
-      time:fields.get('time'), estimate:Number(fields.get('estimate'))||null, repeat,
+      time:fields.get('time'), estimate:Number(fields.get('estimate'))||null,
+      energy:Object.hasOwn(taskEnergyLevels,fields.get('energy'))?fields.get('energy'):'',repeat,
       repeatEvery:Number(fields.get('repeatEvery'))||2,
       priority:priorityLevel!==4, priorityLevel,
       projectId:fields.get('projectId'), sectionId:fields.get('sectionId'), deadline:fields.get('deadline'),

@@ -4,12 +4,14 @@ import {captureTaskChange} from './task-undo.js';
 import {loadGardenSchedule} from './garden-appearance.js';
 import {loadDailyRituals} from './daily-rituals.js';
 import {loadFinishedBooks,loadReadingNotes} from './reading-shelf.js';
+import {loadReadingCollections} from './reading-progress.js';
 import {loadAvailability} from './availability.js';
 import {loadStickyNotes} from './sticky-notes.js';
 import {projectDecision,projectMilestone,taskTemplate} from './project-planning.js';
 import {loadGardenGrowth} from './garden-growth.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
+export const taskEnergyLevels={light:'Light',moderate:'Moderate',demanding:'Demanding'};
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 export const taskFrequencies = { none:'Does not repeat', daily:'Every day', weekdays:'Weekdays', weekly:'Every week', monthly:'Every month', yearly:'Every year', interval:'Every N days' };
 const isDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -115,6 +117,7 @@ function loadTask(task) {
     time:isTime(task.time) ? task.time : '',
     occurrenceTimes:Object.fromEntries(Object.entries(task.occurrenceTimes||{}).filter(([day,time])=>isDay(day)&&(time===''||isTime(time)))),
     estimate:Number.isInteger(task.estimate) && task.estimate > 0 && task.estimate <= 1440 ? task.estimate : null,
+    energy:Object.hasOwn(taskEnergyLevels,task.energy)?task.energy:'',
     repeat,
     priority:task.priority === true,
     priorityLevel:[1,2,3,4].includes(task.priorityLevel)?task.priorityLevel:undefined,
@@ -155,7 +158,7 @@ export function formatDuration(ms) {
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
-    shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,
+    shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -182,6 +185,7 @@ export function loadState(storage) {
     if(Number.isInteger(raw.planningCooldown)&&raw.planningCooldown>=0&&raw.planningCooldown<=30)base.planningCooldown=raw.planningCooldown;
     base.dailyRituals=loadDailyRituals(raw.dailyRituals);
     base.readingNotes=loadReadingNotes(raw.readingNotes);
+    base.readingCollections=loadReadingCollections(raw.readingCollections);
     base.availability=loadAvailability(raw.availability);
     if(Array.isArray(raw.journalTemplates))base.journalTemplates=raw.journalTemplates.filter(item=>
       typeof item?.id==='string'&&typeof item.name==='string'&&item.name.trim()&&typeof item.body==='string'&&item.body.trim())

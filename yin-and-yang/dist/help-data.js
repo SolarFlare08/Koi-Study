@@ -57,7 +57,7 @@ export const helpTopics = [
       'Select a task to focus on. Drag rows or use their up/down arrows to pin a custom order for today.',
       'Choose `Use calendar order` to restore automatic ordering. Calendar blocks come first, followed by unscheduled tasks in priority order.',
       'Use the finish-current-task control beside the task to end early. Choose `Take a break` or `Keep going` to continue with the next task.',
-      'Choose `Find a task by time` and enter your available minutes. Garden suggests ready tasks that fit, with higher priorities first.'],
+      'Set a task’s estimate and optional `Energy` in the task editor. In Garden, choose `Find a task by time`, enter your available minutes, and pick Light, Moderate, Demanding, or Any energy level. Garden shows ready tasks that fit, with higher priorities first.'],
     tip:'Your pinned order is for today. A session started from a calendar block keeps that block’s task selected.',
     action:'focus', actionLabel:'Open Garden', related:['resume','tomorrow','block-focus']
   },
@@ -249,7 +249,7 @@ export const helpTopics = [
     summary:'Draft seven days of focus blocks and see which deadlines need attention.',
     steps:['Set deadlines and estimates on your tasks. In Planner, choose `Build my week` or find it with `Ctrl+K`.',
       'Choose the first day, available hours, daily study minutes, and cooldown between blocks. The cooldown defaults to five minutes and also applies to Plan to deadline, Plan tomorrow, and Replan today suggestions.',
-      'Choose `Draft week` and review deadlines at risk. Expand `Why this time?` to see the deadline, free time, and calendar commitments behind a suggestion.',
+      'Choose `Draft week` and review deadlines at risk. Expand `Why this time?` to see the deadline, free time, calendar commitments, and event buffers behind a suggestion.',
       'Use `Edit block` to change its day, start, or duration. Use `Skip block` to remove it from the draft. Choose `Approve day` to add only that date’s blocks to Calendar.'],
     action:'build-week', actionLabel:'Open Build my week', related:['deadline-plan','availability','workload']
   },
@@ -278,7 +278,8 @@ export const helpTopics = [
     steps:['Open Calendar and choose `Add event`.',
       'Enter a title, optional description, and start/end dates and times. Turn on All day for a date-only event.',
       'Save the event. Click a manually created event to edit or delete it.',
-      'Events appear beside task blocks and are considered when finding open time. Imported events can be viewed in their own details panel.'],
+      'For a timed event, set `Minutes before` and `Minutes after` under `Planning buffers` to reserve travel, setup, or recovery time. On an imported event, open its details and choose `Save buffers`.',
+      'Week drafts and deadline plans protect the longer of the event buffer and the regular cooldown on each side. The event retains its original calendar times.'],
     action:'calendar', actionLabel:'Open Calendar', related:['calendar-import','tomorrow','workload']
   },
   {
@@ -439,17 +440,34 @@ export const helpTopics = [
       'Search for a book or sort by last read, finish date, or rating.',
       'If a typo split a book, open the duplicate and choose `Merge duplicate book`. Pick the book you want to keep. Logs, chapter notes, and sticky links move there. If both are finished, their review text is combined and the kept book’s completion and lantern take priority.',
       'Read `Where you left off`, chapters annotated, and the dated history of your logs. Enter total pages and page numbers in your Annotate logs to get a pace forecast. When recent progress varies, Reading shows a range of sittings.',
-      'Use `Add chapter note` on a book to save a question, quote, or insight. Mark notes for the `Review queue`. Choose `Mark reviewed` after revisiting a note.',
+      'Use `Add chapter note` on a book to save a question, quote, or insight. Choose `Schedule review` on a note to see it again in three days.',
       'Use `Open Calendar` and the daily Annotate item to add your next log or goal. Ctrl+K can also find a book and open its history directly.'],
     tip:'Books are grouped by title and author. Keeping those consistent keeps your history together.',
-    action:'reading', actionLabel:'Open Reading', related:['finished-books','reading-goal','search']
+    action:'reading', actionLabel:'Open Reading', related:['reading-collections','chapter-reviews','finished-books','reading-goal','search']
+  },
+  {
+    id:'reading-collections', group:'Reading & journal', title:'Arrange books in collections',
+    summary:'Group and order books by series, course, or theme.',
+    steps:['Open Reading → `Collections`. Enter a name and type, then choose `Create collection`.',
+      'Choose a book from your shelf and select `Add book`. Use the up and down buttons to change the reading order.',
+      'Choose a book in the collection to open it. A book can belong to several collections.'],
+    action:'reading', actionLabel:'Open Reading', related:['reading-shelf','finished-books']
+  },
+  {
+    id:'chapter-reviews', group:'Reading & journal', title:'Schedule chapter reviews',
+    summary:'Review due notes and space them out as you remember them.',
+    steps:['Choose `Schedule review` on a chapter note. The first review is due in three days. Previously queued notes appear as due right away.',
+      'Open Reading → `Review queue` to see what is due now and what is coming up.',
+      'Choose `Remembered` for a longer interval, or `Again tomorrow` to revisit it the next day. Use `Remove from queue` to stop scheduling a note.'],
+    action:'reading', actionLabel:'Open Reading', related:['reading-shelf','reading-collections']
   },
   {
     id:'finished-books', group:'Reading & journal', title:'Edit finished books and write reviews',
     summary:'Correct book details and keep a final review, rating, and takeaway.',
     steps:['In Reading, choose `Finished books` to filter the shelf, then open a book. To finish a book, open it on the full shelf and choose `Mark book finished`.',
       'Choose `Edit book details` to correct the title, author, finish date, or page count. Annotation history and links follow a title or author change.',
-      'Choose `Write final review` or `Edit final review` to add your thoughts, an optional rating out of five, and a main takeaway. Choose `Save finished book`.'],
+      'Choose `Write final review` or `Edit final review` to add your thoughts, an optional rating out of five, and a main takeaway. Choose `Save finished book`.',
+      'Choose `Log a reread` to save a separate finish date, rating, and review. Use `Edit reread` to revise that entry.'],
     tip:'Reading backups include your finished books and reviews.',
     action:'reading', actionLabel:'Open Reading', related:['reading-shelf','garden-growth','backup']
   },

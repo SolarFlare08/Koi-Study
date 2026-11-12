@@ -1,11 +1,29 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {focusTaskQueue} from '../dist/calendar.js';
+import {focusTaskQueue,planningEventRanges,tasksWithinTime} from '../dist/calendar.js';
 import {draftStudyWeek,planDeadline,scheduleImpact} from '../dist/scheduling.js';
 import {createsDependencyCycle,freshState,loadState,recordTaskCompletion} from '../dist/state.js';
 
 const date = (day,hour=0,minute=0) => new Date(2026,10,day,hour,minute);
 const event = (title,start,end) => ({title,start:+start,end:+end});
+
+test('a travel buffer can reserve time on the day before its event',()=>{
+  const meeting={...event('Lab',date(13,0,15),date(13,1)),bufferBefore:45,bufferAfter:20};
+  assert.deepEqual(planningEventRanges([meeting],date(12),5),[{title:'Lab',start:1410,end:1440,before:45,after:20}]);
+  assert.equal(planningEventRanges([meeting],date(13),5)[0].end,80);
+  const task={id:'work',deadline:'2026-11-12',estimate:45};
+  const plan=draftStudyWeek({tasks:[task],events:[meeting],history:[],availability:[],tasksById:new Map([[task.id,task]])},
+    {date:'2026-11-12',start:1380,end:1440,capacity:60},date(12,20));
+  assert.equal(plan.days[0].slots[0].minutes,30);
+  assert.equal(plan.risks[0].unplaced,15);
+});
+
+test('energy and duration filter the ready task list before ranking suggestions',()=>{
+  const queue=[{id:'large',energy:'light',estimate:30},{id:'heavy',energy:'demanding',estimate:10},
+    {id:'short',energy:'light',estimate:15},{id:'unrated',estimate:10}];
+  assert.deepEqual(tasksWithinTime(queue,20,'light').map(task=>task.id),['short']);
+  assert.equal(tasksWithinTime(queue,20).length,3);
+});
 
 test('weekly edits keep the cooldown and report work left after shortening or skipping',()=>{
   const task={id:'paper',text:'Paper',deadline:'2026-11-13',estimate:70};
