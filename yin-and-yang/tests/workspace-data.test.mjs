@@ -7,6 +7,22 @@ import {JOURNAL_KEY,loadJournal} from '../dist/journal.js';
 import {annotationContext,readingShelf} from '../dist/reading-shelf.js';
 import {dayKey,STORAGE_KEY,freshState,loadState} from '../dist/state.js';
 import {matchCommands} from '../dist/command-palette.js';
+import {exportCalendar} from '../dist/calendar-export.js';
+import {parseCalendarImport} from '../dist/calendar-import.js';
+
+test('calendar export preserves short and instant events at midnight',()=>{
+  const day=new Date(2026,10,11);
+  const midnight=day.getTime();
+  const short={id:'short',title:'Quick check-in',start:midnight-10000,end:midnight+10000};
+  const instant={id:'point',title:'Midnight reminder',start:midnight,end:midnight};
+  const previous={id:'previous',title:'Previous day reminder',start:midnight-1000,end:midnight-1000};
+  const {content,count}=exportCalendar([],[short,instant,previous],{scope:'day',date:dayKey(day)},day);
+  assert.equal(count,2);
+  const {events,skipped}=parseCalendarImport(content,day);
+  assert.equal(skipped,0);
+  assert.deepEqual(events.map(({title,start,end})=>({title,start,end})),
+    [short,instant].map(({title,start,end})=>({title,start,end})));
+});
 
 function memoryStorage(initial=[]){
   const values=new Map(initial);

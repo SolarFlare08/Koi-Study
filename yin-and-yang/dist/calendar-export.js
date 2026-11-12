@@ -54,8 +54,10 @@ export function exportCalendar(tasks,events,{scope,date,endDate,projectId,includ
       if(event.day){
         if(event.day<=dayKey(last)&&event.endDay>dayKey(first))add(`event-${event.id}`,event.title,event.description,
           [`DTSTART;VALUE=DATE:${compact(event.day)}`,`DTEND;VALUE=DATE:${compact(event.endDay)}`]);
-      }else if(event.start<+after&&Math.max(event.end,event.start+60000)>+first){
-        add(`event-${event.id}`,event.title,event.description,[`DTSTART:${utc(event.start)}`,`DTEND:${utc(Math.max(event.end,event.start+60000))}`]);
+      }else if(event.start<+after&&(event.start>=+first||event.end>+first)){
+        const times=[`DTSTART:${utc(event.start)}`];
+        if(event.end>event.start)times.push(`DTEND:${utc(event.end)}`);
+        add(`event-${event.id}`,event.title,event.description,times);
       }
     }
   }
