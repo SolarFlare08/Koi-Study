@@ -113,17 +113,20 @@ export const helpTopics = [
     summary:'See what you finished or moved and what is lined up for tomorrow.',
     steps:['Open Garden → Today → `End-of-day recap`, use the button on Planner’s Today view, or find it with `Ctrl+K`.',
       'Review completed tasks and rituals, focus time, and the schedule changes recorded today.',
+      'Select a task, a moved or upcoming block, an event, or a captured thought to open it. Unsorted and archived thoughts captured today appear under Captured today.',
       'Check tomorrow’s events, focus blocks, and due tasks. Choose `Plan tomorrow` to reserve your first focus block.',
       'Use `Shutdown checklist` to check off your steps. Choose `Edit recurring steps` to add, remove, or reorder them, one per line. Checkmarks reset each day.'],
     action:'day-recap', actionLabel:'Open end-of-day recap', related:['progress','tomorrow','weekly-review']
   },
   {
     id:'garden-growth', group:'Focus & rest', title:'Grow the Garden and see its history',
-    summary:'Leave a permanent tree for a finished project or a floating lantern for a finished book.',
+    summary:'Explore trees for projects, lanterns for books, stars for tests, and cairns for milestones.',
     steps:['Open a project in Planner. In Project overview, choose `Mark project finished` to plant its tree.',
       'Open a book in Reading and choose `Mark book finished` to add its lantern to the lake. Lanterns glow after dark.',
-      'In Garden, open `Today` → `View Garden history`, or search for `Garden history` with `Ctrl+K`. Each entry shows what earned the detail and when.'],
-    tip:'Each project or book earns one detail. Garden history is included in backups.',
+      'In Garden, open `Today` → `View Garden history`, or search for `Garden history` with `Ctrl+K`. Filter by landmark type and choose an entry to highlight its place in the landscape.',
+      'Click or tab to a landmark in Garden to open its details. A book lantern shows the finish date, first logged reading date if available, and final rating. Choose `Open in Reading` for the full entry.',
+      'In Garden history, choose `Record a test or milestone`. Add a title and date, plus a result or note if you want one. Tests add stars and personal milestones add cairns.'],
+    tip:'Each project or book earns one landmark. Garden history is included in backups.',
     action:'garden-history', actionLabel:'Open Garden history', related:['progress','projects','reading-shelf','backup']
   },
   {
@@ -191,6 +194,7 @@ export const helpTopics = [
     id:'project-resume', group:'Tasks & projects', title:'Resume work on a project',
     summary:'See project context in Planner and bring your next task to Garden.',
     steps:['Select a project in Planner. Its overview shows the next milestone, upcoming blocks, linked sticky notes, and recent focus sessions.',
+      'Check estimated work left beside the milestone. Garden subtracts completed focus time from estimates for unfinished linked tasks and lists how many of those tasks still need an estimate.',
       'Choose `Resume project` to select the project’s first ready task in the Garden focus queue. Finish or reset any current focus session first.',
       'Read the task’s description and saved next step. Use linked notes for context or choose `Back to timer` when you are ready. The project name by the timer reopens this panel.'],
     action:'planner', actionLabel:'Open Planner', related:['projects','linked-notes','focus-queue']
@@ -250,7 +254,8 @@ export const helpTopics = [
     steps:['Set deadlines and estimates on your tasks. In Planner, choose `Build my week` or find it with `Ctrl+K`.',
       'Choose the first day, available hours, daily study minutes, and cooldown between blocks. The cooldown defaults to five minutes and also applies to Plan to deadline, Plan tomorrow, and Replan today suggestions.',
       'Choose `Draft week` and review deadlines at risk. Expand `Why this time?` to see the deadline, free time, calendar commitments, and event buffers behind a suggestion.',
-      'Use `Edit block` to change its day, start, or duration. Use `Skip block` to remove it from the draft. Choose `Approve day` to add only that date’s blocks to Calendar.'],
+      'Use `Edit block` to change its day, start, or duration. Use `Skip block` to set it aside, or `Restore block` under Skipped blocks to bring it back. The draft shows pending blocks and planned time.',
+      'Choose `Approve day` to add that date’s blocks to Calendar. Review or edit any remaining days separately.'],
     action:'build-week', actionLabel:'Open Build my week', related:['deadline-plan','availability','workload']
   },
   {
@@ -383,6 +388,7 @@ export const helpTopics = [
     summary:'Review unsorted captured thoughts and decide where they belong.',
     steps:['Open Notes → `Note inbox`, or find it with `Ctrl+K`.',
       'File a thought as a sticky note, make a task, attach it to a project, or link it to an existing task. Linking creates a sticky note you can open from that task.',
+      'Press `N` for the next thought or `P` for the previous one. With a thought focused in Unsorted, press `F` to file it as a sticky note, `L` to link it to a task, or `A` to archive it.',
       'Choose `Archive` to set a thought aside. Open the Archive view and choose `Return to inbox` whenever you want to sort it again.'],
     action:'capture-inbox', actionLabel:'Open note inbox', related:['capture','sticky-notes','linked-notes']
   },
@@ -566,7 +572,7 @@ export const helpTopics = [
     steps:['Saved work stays in this browser on this device when you close the tab. Reopen the app at the same address, browser, and profile to access it.',
       'Open Garden → Settings → `Backup and restore`, then choose `Download backup` to export one file with tasks, calendar, journal, notes, reading history, crochet projects/time, and settings.',
       'On another device or after a reset, open Backup and restore and choose the `.json` file.',
-      'Review the add and replace counts. Open `Show records` to inspect named changes. Check the sections you want and choose `Restore selected sections`. Matching records are replaced and new ones are added. Reading logs match by date.',
+      'Review the add and replace counts. Open `Show records`, then expand a `Replace` row to compare the current and incoming values for each changed field. Check the sections you want and choose `Restore selected sections`. Reading logs match by date.',
       'Choose `Save restore point` to keep a dated snapshot in this browser. The five newest points stay available. Choose `Preview` on a point and restore the sections you want through the same preview.'],
     tip:'There is no account sync. Clearing site data, using a different browser/profile/address or port, or ending a private session can make saved work unavailable. Keep a downloaded backup of work you want to preserve.',
     action:'backup', actionLabel:'Open Backup and restore', related:['journal','csv-import','calendar-import'], keywords:'save persist export import restore computer delete tab offline storage localstorage data lost'

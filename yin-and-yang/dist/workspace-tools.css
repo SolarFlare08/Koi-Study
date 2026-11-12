@@ -19,7 +19,7 @@
   background: var(--surface-button); color: var(--surface-field); font-size: 13px;
 }
 .backup-restore { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--surface-line); }
-#backup-dialog { width: min(580px,calc(100% - 26px)); }
+#backup-dialog { width: min(720px,calc(100% - 26px)); }
 #restore-points-heading { margin: 0; font-size: 15px; }
 #restore-points-list { list-style: none; padding: 0; margin: 0; }
 #restore-points-list button { padding: 5px 0; color: var(--surface-accent); text-decoration: underline; }
@@ -36,6 +36,12 @@
 .backup-preview-section ul { padding-left: 18px; margin: 4px 0; overflow-wrap: anywhere; }
 .backup-preview-section details { margin: 3px 0 5px; }
 .backup-preview-section summary { cursor: pointer; }
+.backup-conflict { padding: 6px; border: 1px solid var(--surface-line); border-radius: 7px; }
+.backup-conflict table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 6px; text-align: left; }
+.backup-conflict th:first-child { width: 21%; }
+.backup-conflict :is(th,td) { vertical-align: top; padding: 4px; border-top: 1px solid var(--surface-line); overflow-wrap: anywhere; }
+.backup-conflict td:last-child { background: var(--surface-raised); }
+.backup-conflict pre { margin: 0; max-height: 14em; overflow: auto; white-space: pre-wrap; font: inherit; }
 #open-backup { padding: 5px 0; text-decoration: underline; }
 #command-palette { width: min(510px,calc(100% - 26px)); }
 #command-palette header { margin-bottom: 12px; }

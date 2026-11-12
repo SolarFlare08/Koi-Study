@@ -107,6 +107,14 @@ function writeBackupChanges(storage,next,remove=[]){
 const comparable=value=>JSON.stringify(value,(_,item)=>item&&typeof item==='object'&&!Array.isArray(item)?
   Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
 const describe=item=>String(typeof item==='string'?item:item.title||item.name||item.taskTitle||item.text||item.date||item.day||'').slice(0,100);
+function backupConflict(title,local,incoming){
+  const record=value=>value&&typeof value==='object'&&!Array.isArray(value)?value:{value};
+  const current=record(local), backup=record(incoming);
+  const fields=[...new Set([...Object.keys(current),...Object.keys(backup)])]
+    .filter(field=>comparable(current[field])!==comparable(backup[field]))
+    .map(field=>({field,current:current[field],incoming:backup[field]}));
+  return {action:'Replace',title,fields};
+}
 
 export function planBackupRestore(storage,current,incoming,sections){
   const state={...current,dailyRituals:{...current.dailyRituals}};
@@ -127,7 +135,8 @@ export function planBackupRestore(storage,current,incoming,sections){
       let action;
       if(!items.has(id)){added++;action='Add';}
       else if(comparable(items.get(id))!==comparable(item)){replaced++;action='Replace';}
-      if(action&&changes.length<10){const title=describe(item);if(title)changes.push({action,title});}
+      if(action==='Replace')changes.push(backupConflict(describe(item)||describe(items.get(id))||String(id),items.get(id),item));
+      else if(action==='Add'&&added<=10)changes.push({action,title:describe(item)||String(id)});
       items.set(id,item);
     }
     if(unique.size)details.push({label,added,replaced,unchanged:unique.size-added-replaced,changes});
@@ -152,7 +161,8 @@ export function planBackupRestore(storage,current,incoming,sections){
       const local=current[key], backup=incoming.state[key];
       if(!backup||local?.day>backup.day)continue;
       const changed=comparable(local)!==comparable(backup);
-      details.push({label,added:!local?1:0,replaced:local&&changed?1:0,unchanged:changed?0:1});
+      details.push({label,added:!local?1:0,replaced:local&&changed?1:0,unchanged:changed?0:1,
+        changes:local&&changed?[backupConflict(label,local,backup)]:[]});
       if(apply)state[key]=backup;
     }
     if(apply)state.gardenClearedDone={...current.gardenClearedDone,...incoming.state.gardenClearedDone};
@@ -198,8 +208,9 @@ export function planBackupRestore(storage,current,incoming,sections){
     stateList(apply,'history','Focus and rest sessions');stateList(apply,'routines','Timer routines');
     stateList(apply,'gardenGrowth','Garden landmarks',item=>JSON.stringify([item.kind,item.sourceId]));
     const keys=['settings','appearance','gardenSchedule','sounds','notifications','intention','spotify','focusMode','replanCutoff','studyCapacity','planningCooldown','shutdownSteps','shutdownProgress'];
-    const replaced=keys.filter(key=>comparable(current[key])!==comparable(incoming.state[key])).length;
-    details.push({label:'Preferences',added:0,replaced,unchanged:keys.length-replaced});
+    const changes=keys.filter(key=>comparable(current[key])!==comparable(incoming.state[key]))
+      .map(key=>backupConflict(fieldLabel(key),current[key],incoming.state[key]));
+    details.push({label:'Preferences',added:0,replaced:changes.length,unchanged:keys.length-changes.length,changes});
     if(apply){for(const key of keys)state[key]=incoming.state[key];}
   });
   if(stateChanged)writes.set(STORAGE_KEY,JSON.stringify(state));
@@ -209,13 +220,28 @@ export function planBackupRestore(storage,current,incoming,sections){
 export function applyBackupRestore(storage,plan){writeBackupChanges(storage,plan.writes);}
 
 const escape=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
+const fieldLabel=field=>field.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^./,char=>char.toUpperCase());
+function conflictValue(value){
+  if(value===undefined)return 'Missing';
+  if(value===null||value==='')return 'Empty';
+  if(typeof value==='boolean')return value?'Yes':'No';
+  return escape(typeof value==='object'?JSON.stringify(value,null,2):value);
+}
+function backupRecordMarkup(change){
+  if(!change.fields)return `<li>${change.action} ${escape(change.title)}</li>`;
+  return `<li><details class="backup-conflict"><summary>Replace ${escape(change.title)}</summary>
+    <table aria-label="Changed fields"><thead><tr><th scope="col">Field</th><th scope="col">Current</th><th scope="col">Incoming</th></tr></thead>
+      <tbody>${change.fields.map(({field,current,incoming})=>`<tr><th scope="row">${escape(fieldLabel(field))}</th>
+        <td><pre>${conflictValue(current)}</pre></td><td><pre>${conflictValue(incoming)}</pre></td></tr>`).join('')}</tbody>
+    </table></details></li>`;
+}
 
 function previewMarkup(rows,selected){
   return rows.map(row=>`<section class="backup-preview-section">
     <label><input type="checkbox" name="section" value="${row.id}" ${selected.has(row.id)?'checked':''}><strong>${row.label}</strong></label>
     <p>${row.description}</p>
     ${row.details.length?`<ul>${row.details.map(detail=>`<li>${detail.label} · ${detail.added} added · ${detail.replaced} replaced${detail.unchanged?` · ${detail.unchanged} unchanged`:''}
-      ${detail.changes?.length?`<details><summary>Show records</summary><ul>${detail.changes.map(change=>`<li>${change.action} ${escape(change.title)}</li>`).join('')}
+      ${detail.changes?.length?`<details><summary>Show records</summary><ul>${detail.changes.map(backupRecordMarkup).join('')}
       ${detail.added+detail.replaced>detail.changes.length?'<li>Additional records are included in the counts.</li>':''}</ul></details>`:''}</li>`).join('')}</ul>`:
       '<p>No records in this backup section.</p>'}</section>`).join('');
 }
@@ -321,7 +347,7 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
       const chosen=rows=>rows.filter(row=>choices.has(row.id));
       if(comparable(chosen(shown))!==comparable(chosen(plan.preview))){
         shown=plan.preview;sectionList.innerHTML=previewMarkup(shown,choices);
-        report('Your data changed after the preview. Review the updated counts before restoring.');return;
+        report('Your data changed after the preview. Review the updated comparisons before restoring.');return;
       }
       applyBackupRestore(storage,plan);
     }

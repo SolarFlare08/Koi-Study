@@ -78,3 +78,20 @@ export function summarizeDay(state,tasks,now=new Date()) {
   const firstTask=state.tomorrowPlan?.day===tomorrow&&tasks.find(task=>task.id===state.tomorrowPlan.taskId&&!task.done);
   return {today,tomorrow,finished,moves,focus,blocks,due,firstTask,allDay:allDayEvents(state.calendarEvents,date),rituals:state.dailyRituals[today]||{}};
 }
+
+export function recapMoveTarget(move,tasks,events){
+  let source;
+  try{source=JSON.parse(JSON.parse(move.id)[1]);}catch{return null;}
+  if(!Array.isArray(source))return null;
+  const [id,type,key]=source;
+  if(type==='event')return events.some(event=>event.id===id)?{event:id}:null;
+  const task=tasks.get(id);
+  if(!task)return null;
+  const date=move.to.date;
+  const block=type==='block'?task.blocks?.find(item=>item.id===key):
+    type==='occurrence'&&!task.occurrenceTimes?.[key]?task.blocks?.find(item=>item.taskDay===key&&item.date===date&&item.time===move.to.time):null;
+  if(block)return {task:id,block:block.id,occurrence:block.date,taskDay:block.taskDay};
+  if(date&&move.to.time&&type!=='block'&&calendarBlocks([task],new Date(date+'T12:00:00'))
+    .some(item=>!item.blockId&&item.occurrence===date))return {task:id,occurrence:date};
+  return {task:id};
+}

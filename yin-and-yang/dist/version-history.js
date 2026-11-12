@@ -1,4 +1,15 @@
 export const releases = [
+  {version:'2.0.0',date:'2026-11-12',title:'Garden landmarks and a more connected workspace',changes:[
+    'Move or resize a weekly draft block, recover a skipped block, and see the hours awaiting approval.',
+    'See estimated work remaining and tasks without estimates beside the next project milestone.',
+    'Open tasks, calendar blocks, events, and captured thoughts directly from the daily recap.',
+    'Navigate the note inbox and file, link, or archive thoughts using the keyboard.',
+    'Compare changed fields side by side before restoring a backup or local restore point.',
+    'Explore Garden history with landmark filters and select a record to highlight it in the landscape.',
+    'Open a book’s lantern to see its logged reading dates, final rating, and Reading shelf entry.',
+    'Record tests as stars and personal milestones as stone cairns, with optional results and notes.',
+    'Existing saved data and version 1 backup files can still be opened.'
+  ]},
   {version:'1.2.0',date:'2026-11-12',title:'Reading progress and smarter study plans',changes:[
     'Organize books in ordered series, course lists, and themed collections.',
     'Schedule chapter reviews and space them out based on recall.',

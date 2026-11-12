@@ -5,7 +5,7 @@ import {dayKey,taskPriority,taskStatus,unfinishedPrerequisites} from './state.js
 import {captureTaskChange} from './task-undo.js';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
 import {activityLabels,estimateAccuracy,estimateCsv,estimateSummary,reportCsv,reportEvents,reportMetrics,suggestTaskEstimate} from './planner-report.js';
-import {milestoneProgress,projectDecision,projectMilestone} from './project-planning.js';
+import {milestoneProgress,projectDecision,projectMilestone,remainingProjectWork} from './project-planning.js';
 import {exportCalendar} from './calendar-export.js';
 import {cleanCaptureContext} from './capture.js';
 
@@ -473,6 +473,10 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const locked=projectTimerLocked();
     const milestones=milestonesFor(project);
     const next=milestones.find(item=>!item.complete);
+    const remaining=remainingProjectWork(next?.tasks||[],state().history);
+    const hours=new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
+    const effort=remaining.minutes<60?`${remaining.minutes} min`:`${hours.format(remaining.minutes/60)} h`;
+    const effortLabel=next?.tasks.some(item=>!item.done&&item.task?.estimate)?`${effort} estimated work left`:'No remaining work estimated';
     const blocks=upcomingProjectBlocks(project.id,now);
     const sessions=state().history.filter(item=>item.projectId===project.id&&item.mode==='focus')
       .sort((a,b)=>b.finishedAt-a.finishedAt).slice(0,5);
@@ -488,7 +492,9 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         '<button type="button" class="garden-growth-action" data-finish-project>Mark project finished</button>':''}</div></section>
       <div class="project-overview-sections">
         <section><h3>Next milestone</h3>${next?`<button type="button" class="project-context-item" data-manage="milestones"><strong>${escape(next.milestone.name)}</strong>
-          <span>${plainDate(next.milestone.date)} · ${next.done}/${next.tasks.length} tasks complete</span></button>`:
+          <span>${plainDate(next.milestone.date)} · ${next.done}/${next.tasks.length} tasks complete</span>
+          ${next.tasks.length?`<progress class="milestone-overview-progress" value="${next.done}" max="${next.tasks.length}" aria-label="Linked tasks completed"></progress>`:''}
+          <span><b>${effortLabel}</b>${remaining.unestimated?` · ${remaining.unestimated} without an estimate`:''}</span></button>`:
           `<p>${milestones.length?'All milestones complete.':'No milestones yet.'}</p>`}</section>
         <section><h3>Upcoming blocks</h3>${blocks.length?`<ul>${blocks.map(block=>`<li><button type="button" class="project-context-item" data-open-time
           data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-task-day="${escape(block.taskDay)}" aria-haspopup="dialog">

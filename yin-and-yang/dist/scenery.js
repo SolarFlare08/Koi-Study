@@ -27,10 +27,15 @@ const groveSlots = [
   [1370,836,.31],[1393,831,.24],[1423,829,.29],[1450,818,.23]
 ];
 const lanternSlots = [
-  [863,704,1],[892,692,.85],[924,710,.95],[962,680,.8],[995,702,.78],
+  [921,745,1],[892,734,.85],[956,747,.95],[992,692,.8],[1025,717,.78],
   [843,797,1.05],[891,784,1],[934,805,1.1],[977,757,.88],[1027,732,.87],
   [1081,700,.77],[1135,680,.7],[1189,667,.67],[1242,661,.64]
 ];
+const landmarkSlots = {
+  project:groveSlots,book:lanternSlots,
+  test:[[922,215,1],[674,191,.9],[949,153,.8],[704,105,.85],[893,100,.75],[625,240,.74],[1000,249,.84]],
+  milestone:[[792,681,.9],[689,689,.8],[1149,638,.88],[1295,626,1],[1353,837,1],[706,681,.76]]
+};
 
 function growthPosition(slots,index){
   const [x,y,scale]=slots[index%slots.length];
@@ -40,16 +45,24 @@ function growthPosition(slots,index){
   return [x+Math.cos(angle)*radius,y+Math.sin(angle)*radius/3,scale*Math.max(.32,.72-layer*.04)];
 }
 
+export function gardenLandmarkPositions(history){
+  const counts=new Map();
+  return history.map(item=>{
+    const index=counts.get(item.kind)||0;
+    counts.set(item.kind,index+1);
+    return {item,position:growthPosition(landmarkSlots[item.kind],index)};
+  });
+}
+
 export function gardenGrowthMarkup(history){
   const trees=[],lanterns=[],lights=[];
-  for(const item of history){
+  const stars=[],cairns=[];
+  for(const {item,position} of gardenLandmarkPositions(history)){
+    const [x,y,scale]=position;
+    const transform=`translate(${x} ${y}) scale(${scale})`;
     if(item.kind==='project'){
-      const [x,y,scale]=growthPosition(groveSlots,trees.length);
       trees.push({y,art:shoreTree(x,y,scale)});
     }else if(item.kind==='book'){
-      const position=growthPosition(lanternSlots,lanterns.length);
-      const [x,y,scale]=position;
-      const transform=`translate(${x} ${y}) scale(${scale})`;
       lanterns.push(`<g transform="${transform}">
         <ellipse rx="12" ry="3" fill="#385e5b" opacity=".35"/>
         <path d="M-8-1h16l-3 3H-5Z" fill="#795f53"/>
@@ -61,11 +74,20 @@ export function gardenGrowthMarkup(history){
         <path d="M-4-8h8l-1 6h-6Z" fill="#ffe0a1"/>
         <path d="M-5 5H5m-3 3h6" stroke="#ffd498" stroke-linecap="round" opacity=".43"/>
       </g>`);
+    }else if(item.kind==='test'){
+      stars.push(`<g transform="${transform}"><circle r="17" fill="url(#halo)" opacity=".6"/>
+        <path d="M0-8Q1-1 7 0Q1 1 0 8Q-1 1-7 0Q-1-1 0-8Z" fill="#fff1cb" stroke="#a7785d" stroke-width=".65"/></g>`);
+    }else if(item.kind==='milestone'){
+      cairns.push(`<g transform="${transform}"><ellipse cy="2" rx="14" ry="4" fill="#335653" opacity=".45"/>
+        <path d="M-13 0Q-11-6-3-6Q8-7 13-2L10 1H-9Z" fill="#6e8075"/>
+        <path d="M-9-6Q-10-10-3-13Q3-14 8-9L5-6Z" fill="#9aa389"/>
+        <path d="M-5-13Q-6-17-1-20Q4-20 6-15L4-13Z" fill="#c2a688"/></g>`);
     }
   }
   const island=trees.length?`<path d="M684 682q24-7 48-6t54 5q-19 7-51 7t-51-6Z" fill="var(--shore-lower,#527e70)" opacity=".76"/>
     <path d="M689 681q17-7 39-9t51 8q-32 3-52 2t-38-1Z" fill="url(#shore)"/>`:'';
-  return {trees:island+trees.sort((a,b)=>a.y-b.y).map(tree=>tree.art).join(''),lanterns:lanterns.join(''),lights:lights.join('')};
+  return {trees:island+trees.sort((a,b)=>a.y-b.y).map(tree=>tree.art).join(''),
+    lanterns:lanterns.join(''),lights:lights.join(''),stars:stars.join(''),cairns:cairns.join('')};
 }
 function rock(x,y,scale,flip=1){
   return `<g transform="translate(${x} ${y}) scale(${scale*flip} ${scale})">
@@ -188,6 +210,7 @@ ${rock(1514,844,1.05,-1)}${rock(1462,850,.49)}${rock(1418,854,.33,-1)}
 </g>
 ${shoreDetails()}
 <g id="garden-growth-trees"/>
+<g id="garden-growth-cairns"/>
 <rect id="night-shade" width="1600" height="900" fill="#071730" opacity="0"/>
 <g id="evening-lights" opacity="0">
   <g id="garden-growth-lights"/>
@@ -217,6 +240,7 @@ ${shoreDetails()}
   </g>
 </g>
 <g id="garden-moon" opacity="0"><circle r="64" fill="url(#moon-halo)"/><path d="M8-20A22 22 0 1 0 20 12A23 23 0 0 1 8-20Z" fill="#e4eef8"/></g>
+<g id="garden-growth-stars"/>
 ${weatherMarkup()}
 </svg>`;}
 let nodes,lastFrame;

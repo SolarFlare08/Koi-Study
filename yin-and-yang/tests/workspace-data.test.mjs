@@ -10,8 +10,9 @@ import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail} from '../dist/garden-growth.js';
-import {gardenGrowthMarkup} from '../dist/scenery.js';
-import {recordScheduleMoves,snapshotSchedule,summarizeDay} from '../dist/day-recap.js';
+import {gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
+import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from '../dist/day-recap.js';
+import {remainingProjectWork} from '../dist/project-planning.js';
 import {reviewChapter} from '../dist/reading-progress.js';
 
 test('scheduled reviews space out and a reread stays separate through a Reading restore',()=>{
@@ -101,6 +102,10 @@ test('a Reading-only restore previews conflicts and preserves local tasks, ritua
   const plan=planBackupRestore(storage,loadState(storage),incoming,new Set(['reading']));
   const [logs]=plan.preview.find(section=>section.id==='reading').details;
   assert.deepEqual([logs.added,logs.replaced],[1,1]);
+  const [conflict]=logs.changes.filter(change=>change.action==='Replace');
+  const entry=conflict.fields.find(field=>field.field==='entry');
+  assert.equal(entry.current.title,'Local book');
+  assert.equal(entry.incoming.title,'Incoming book');
   assert.equal(loadState(storage).dailyRituals[day].annotate.title,'Local book');
   applyBackupRestore(storage,plan);
   const restored=loadState(storage);
@@ -124,12 +129,13 @@ test('day recap combines completions and tomorrow’s blocks and drops an undone
   assert.equal(recap.finished[0].text,'Finish worksheet');
   assert.equal(recap.moves[0].to.date,tomorrow);
   assert.equal(recap.blocks[0].task.id,task.id);
+  assert.deepEqual(recapMoveTarget(recap.moves[0],new Map([[task.id,task]]),[]),{task:task.id,occurrence:tomorrow});
   assert.deepEqual(recordScheduleMoves(state.scheduleMoves,after,before,now),[]);
 });
 
 test('earned Garden details stay unique and survive a backup without the original project or book',()=>{
   const state=freshState();
-  assert.deepEqual(gardenGrowthMarkup(state.gardenGrowth),{trees:'',lanterns:'',lights:''});
+  assert.deepEqual(gardenGrowthMarkup(state.gardenGrowth),{trees:'',lanterns:'',lights:'',stars:'',cairns:''});
   const grove=earnGardenDetail(state.gardenGrowth,'project','studio','Studio portfolio','2026-11-12');
   const earned=earnGardenDetail(grove,'book','["the waves","virginia woolf"]','The Waves · Virginia Woolf','2026-11-19');
   assert.strictEqual(earnGardenDetail(earned,'project','studio','Renamed portfolio','2026-11-20'),earned);
@@ -142,8 +148,30 @@ test('earned Garden details stay unique and survive a backup without the origina
   const art=gardenGrowthMarkup(restored.gardenGrowth);
   assert.equal(art.trees,gardenGrowthMarkup(grove).trees);
   assert.match(art.trees,/winter-scene/);
-  assert.match(art.lanterns,/translate\(863 704\)/);
+  assert.match(art.lanterns,/translate\(921 745\)/);
   assert.match(art.lights,/lamp-halo/);
+});
+
+test('test stars and milestone cairns retain their details and stable positions through a backup',()=>{
+  const state=freshState(),day='2026-11-12';
+  const test=earnGardenDetail([],'test','exam','Calculus midterm',day,{result:'94%',detail:'Retake practice set 3'});
+  state.gardenGrowth=earnGardenDetail(test,'milestone','first','First public talk',day);
+  const before=gardenLandmarkPositions(state.gardenGrowth);
+  const restored=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state;
+  assert.deepEqual(gardenLandmarkPositions(restored.gardenGrowth),before);
+  assert.equal(restored.gardenGrowth[0].result,'94%');
+  assert.equal(restored.gardenGrowth[0].detail,'Retake practice set 3');
+  const art=gardenGrowthMarkup(restored.gardenGrowth);
+  assert.match(art.stars,/translate\(922 215\)/);
+  assert.match(art.cairns,/translate\(792 681\)/);
+});
+
+test('milestone work credits completed focus only and surfaces unknown estimates',()=>{
+  const tasks=[{task:{id:'reading',estimate:60}},{task:{id:'draft',estimate:20}},
+    {task:{id:'finished',estimate:90},done:true},{task:{id:'check'}}];
+  const session=(taskId,minutes,outcome='completed')=>({taskId,mode:'focus',outcome,focusMs:minutes*60000});
+  assert.deepEqual(remainingProjectWork(tasks,[session('reading',25),session('reading',10,'skipped'),session('draft',45)]),
+    {minutes:35,unestimated:1});
 });
 
 test('calendar export preserves short and instant events at midnight',()=>{
