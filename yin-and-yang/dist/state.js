@@ -3,6 +3,7 @@ import {loadSoundSettings} from './garden-audio.js';
 import {captureTaskChange} from './task-undo.js';
 import {loadGardenSchedule} from './garden-appearance.js';
 import {loadDailyRituals} from './daily-rituals.js';
+import {loadReadingNotes} from './reading-shelf.js';
 import {loadStickyNotes} from './sticky-notes.js';
 import {projectMilestone,taskTemplate} from './project-planning.js';
 
@@ -150,7 +151,7 @@ export function formatDuration(ms) {
 }
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
-    replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null,
+    replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null, readingNotes:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -175,6 +176,7 @@ export function loadState(storage) {
     base.calendarEvents=loadCalendarEvents(raw.calendarEvents);
     if(isTime(raw.replanCutoff))base.replanCutoff=raw.replanCutoff;
     base.dailyRituals=loadDailyRituals(raw.dailyRituals);
+    base.readingNotes=loadReadingNotes(raw.readingNotes);
     if(isDay(raw.focusPins?.day)&&Array.isArray(raw.focusPins.ids)){
       base.focusPins={day:raw.focusPins.day,ids:[...new Set(raw.focusPins.ids.filter(id=>typeof id==='string'))]};
     }
@@ -200,6 +202,9 @@ export function loadState(storage) {
       id:project.id,name:project.name,color:/^#[\da-f]{6}$/i.test(project.color)?project.color:'#d94b49',favorite:project.favorite===true,archived:project.archived===true,
       sections:Array.isArray(project.sections)?project.sections.filter(section=>section&&typeof section.id==='string'&&typeof section.name==='string'):[],
       milestones:Array.isArray(project.milestones)?project.milestones.map(projectMilestone).filter(Boolean):[],
+      weeklyGoals:Object.fromEntries(['focusMinutes','chapters'].filter(key=>
+        Number.isInteger(project.weeklyGoals?.[key])&&project.weeklyGoals[key]>0&&project.weeklyGoals[key]<=(key==='focusMinutes'?10080:1000))
+        .map(key=>[key,project.weeklyGoals[key]])),
       thoughts:Array.isArray(project.thoughts)?project.thoughts.filter(note=>typeof note?.key==='string'&&typeof note.text==='string'&&Number.isFinite(note.createdAt)):[]
     }));
     if (Array.isArray(raw.plannerFilters)) base.plannerFilters=raw.plannerFilters.filter(filter=>filter&&typeof filter.id==='string'&&typeof filter.name==='string'&&typeof filter.query==='string');

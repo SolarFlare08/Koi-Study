@@ -15,6 +15,7 @@ export function loadDailyRituals(value) {
       ...(typeof journal?.done==='boolean'?{journal:{done:journal.done,stamp:Number.isFinite(journal.stamp)?journal.stamp:0}}:{}),
       ...(crochet?{crochet:{done:crochet.done===true,projectId:str(crochet.projectId,200)}}:{}),
       ...(annotate?{annotate:{done:annotate.done===true,title:str(annotate.title,250),author:str(annotate.author,200),chapters:str(annotate.chapters,3000),
+        ...(typeof annotate.projectId==='string'?{projectId:str(annotate.projectId,200)}:{}),
         ...(typeof annotate.position==='string'?{position:str(annotate.position,100)}:{}),
         ...(typeof annotate.goal==='string'?{goalType:annotate.goalType==='page'?'page':'chapter',goal:str(annotate.goal,100)}:{})}}:{})
     };

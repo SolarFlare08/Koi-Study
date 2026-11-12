@@ -1,6 +1,6 @@
 import {blockProgressLabels,calendarBlocks,allDayEvents,calendarDragType,openFocusBlock,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
 import {parseCalendarImport} from './calendar-import.js';
-import {summarizeWeek} from './weekly-planning.js';
+import {summarizeWeek,weeklyProjectProgress} from './weekly-planning.js';
 import {dayKey,taskPriority,taskStatus,unfinishedPrerequisites} from './state.js';
 import {captureTaskChange} from './task-undo.js';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
@@ -377,6 +377,23 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     return `<div class="planner-month-grid">${headings}${cells}</div>`;
   }
 
+  function weeklyGoalsMarkup(week){
+    const projects=state().projects.filter(project=>!project.archived);
+    const metrics=[['focusMinutes','Focus','min'],['chapters','Reading','chapters']];
+    return `<section class="weekly-project-goals"><h3>Weekly project goals</h3>
+      ${projects.length?projects.map(project=>{
+        const goals=metrics.filter(([key])=>project.weeklyGoals?.[key]);
+        const progress=goals.length?weeklyProjectProgress(state(),project.id,week):{};
+        return `<article><header><strong>${escape(project.name)}</strong>
+          <button type="button" data-manage="weekly-goals" data-value="${escape(project.id)}" aria-label="Set weekly goals for ${escape(project.name)}">${goals.length?'Edit goals':'Set goals'}</button></header>
+          ${goals.map(([key,label,unit])=>{
+            const target=project.weeklyGoals[key],actual=progress[key];
+            return `<div class="weekly-goal-meter"><span>${label} · ${actual}/${target} ${unit}${actual>=target?' · Reached':''}</span>
+              <progress aria-label="${escape(project.name)} ${label.toLowerCase()} goal" max="${target}" value="${Math.min(actual,target)}"></progress></div>`;
+          }).join('')}</article>`;
+      }).join(''):'<p class="planner-empty">Add a project to set a weekly goal.</p>'}</section>`;
+  }
+
   function weekMarkup(){
     const week=summarizeWeek(state(),activeTasks(),reviewWeek);
     const hours=minutes=>`${Math.round(minutes/6)/10} h`;
@@ -392,6 +409,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const completions=reportEvents(state(),{type:'task'}).filter(event=>event.day>=week.first&&event.day<=week.last).length;
     const rows=(items,canCarry=false)=>items.map(({task,key})=>`<div class="week-task"><div>${card(task,key)}</div>${canCarry?`<button type="button" data-review-carry="${escape(task.id)}">Move to today</button>`:''}</div>`).join('')||'<p class="planner-empty">Nothing here.</p>';
     return header+`<dl class="planner-report-stats"><div><dt>Tasks completed</dt><dd>${completions}</dd></div><div><dt>Focus sessions</dt><dd>${week.focus.length}</dd></div><div><dt>Focus time</dt><dd>${hours(week.focus.reduce((sum,item)=>sum+item.focusMs,0)/60000)}</dd></div></dl>
+      ${weeklyGoalsMarkup(week)}
       ${listGroup('review-carried','Still open from earlier weeks',rows(week.carried.map(task=>({task,key:task.date||task.deadline})),true),{count:week.carried.length})}
       ${listGroup('review-unfinished','Open this week',rows(week.unfinished),{count:week.unfinished.length})}
       ${listGroup('review-next','Next week',rows(week.next),{count:week.next.length})}`;
@@ -578,6 +596,13 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         <fieldset class="milestone-links"><legend>Linked tasks</legend>${links.join('')||'<p>Add tasks to this project to link them here.</p>'}</fieldset>`;
       extra='<button type="button" data-manage="milestones">Back</button>';
       if(milestone)extra+='<button type="submit" value="remove" formnovalidate>Remove milestone</button>';
+    } else if(type==='weekly-goals'){
+      if(!project)return;
+      title='Weekly project goals';
+      fields=`<p>${escape(project.name)}</p>
+        <label>Focus minutes per week<input type="number" name="focusMinutes" min="1" max="10080" step="1" value="${project.weeklyGoals?.focusMinutes||''}"></label>
+        <label>Chapters per week<input type="number" name="chapters" min="1" max="1000" step="1" value="${project.weeklyGoals?.chapters||''}"></label>
+        <p>Leave a target blank to remove it. For reading progress, select this project when saving an Annotate log.</p>`;
     } else if (type==='project') {
       title=project?'Project settings':'Add project';
       fields=`<label>Project name<input name="name" maxlength="80" required value="${escape(project?.name)}"></label><label>Color<input name="color" type="color" value="${escape(project?.color||'#8dbfab')}"></label><label class="planner-check-label"><input type="checkbox" name="favorite" ${project?.favorite?'checked':''}> Add to favorites</label>`;
@@ -667,11 +692,23 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if (type==='calendar-import') return importCalendar(form,fields);
     const name=String(fields.get('name')||'').trim();
     const projects=state().projects, filters=state().plannerFilters;
-    if (action==='save'&&type!=='reschedule'&&!name) {
+    if (action==='save'&&!['reschedule','weekly-goals'].includes(type)&&!name) {
       const input=form.elements.name;
       input.setCustomValidity('Enter a name.'); input.reportValidity(); return;
     }
     const rescheduleUndos=[];
+    if(type==='weekly-goals'){
+      const project=projects.find(item=>item.id===id);
+      if(!project)return;
+      const previous=project.weeklyGoals;
+      project.weeklyGoals=Object.fromEntries(['focusMinutes','chapters'].filter(key=>fields.get(key))
+        .map(key=>[key,Number(fields.get(key))]));
+      if(!commit()){project.weeklyGoals=previous;render();return;}
+      dialog.close();
+      ($(`[data-manage="weekly-goals"][data-value="${CSS.escape(id)}"]`)||$('#planner-heading')).focus({preventScroll:true});
+      notify('Weekly goals saved.');
+      return;
+    }
     if(type==='milestone'){
       const project=projects.find(item=>item.id===selection);
       if(!project)return;

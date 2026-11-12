@@ -252,3 +252,32 @@
 .fit-task-results button { width: 100%; display: flex; justify-content: space-between; gap: 10px; text-align: left; border: 1px solid var(--surface-line); border-radius: 7px; padding: 7px; }
 .fit-task-results button:not(:disabled):hover { background: var(--surface-raised); }
 .fit-task-results small { flex: none; color: var(--surface-muted); }
+.weekly-project-goals { margin: 16px 0; }
+.weekly-project-goals h3 { margin: 0 0 8px; font-size: 15px; }
+.weekly-project-goals article { padding: 9px 0; border-top: 1px solid var(--planner-line); }
+.weekly-project-goals header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.weekly-project-goals header button { color: var(--planner-accent); flex: none; }
+.weekly-goal-meter { display: grid; gap: 4px; margin-top: 7px; font-size: 12px; }
+.weekly-goal-meter progress { width: min(100%,300px); height: 7px; accent-color: var(--planner-accent); }
+.reading-actions,.reading-note-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.reading-actions [aria-pressed="true"] { outline: 2px solid var(--surface-accent); outline-offset: 2px; }
+.reading-notes details { padding: 8px 0; }
+.reading-notes summary { cursor: pointer; color: var(--surface-accent); }
+#reading-note-form { display: grid; gap: 8px; margin-top: 8px; }
+#reading-note-form label { display: grid; gap: 3px; font-size: 12px; }
+#reading-note-form label.reading-note-check { display: flex; align-items: center; gap: 7px; }
+#reading-note-form :is(input:not([type="checkbox"]),select,textarea) { width: 100%; padding: 7px; border-radius: 6px; background: var(--surface-field); color: var(--surface-ink); border: 1px solid var(--surface-line); }
+.reading-note-list { list-style: none; margin: 6px 0 12px; padding: 0; }
+.reading-note-list li { border-top: 1px solid var(--surface-line); padding: 10px 0; }
+.reading-note-list p { margin: 0 0 5px; overflow-wrap: anywhere; }
+.reading-note-meta { font-size: 11px; color: var(--surface-muted); }
+.reading-note-text { white-space: pre-wrap; }
+.reading-note-actions button { padding: 4px 7px; border: 1px solid var(--surface-line); border-radius: 6px; font-size: 12px; }
+.reading-note-actions button:hover { background: var(--surface-raised); }
+.crochet-counters .crochet-counter { margin-top: 7px; }
+.crochet-counters .crochet-counter > div:first-child { flex: 1; overflow-wrap: anywhere; }
+.crochet-checkpoint-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.crochet-resume { margin: 8px 0; padding: 8px; border: 1px solid currentColor; border-radius: 7px; font-size: 12px; }
+.crochet-resume p,.crochet-checkpoint-history p { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.crochet-checkpoint-history { list-style: none; margin: 0; padding: 0; }
+.crochet-checkpoint-history li { padding: 7px 0; }

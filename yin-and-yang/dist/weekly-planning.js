@@ -1,5 +1,13 @@
 import {calendarBlocks,allDayEvents,shiftDay,weekDays} from './calendar.js';
 import {dayKey,taskOccursOn,taskStatus} from './state.js';
+import {countReadingChapters} from './reading-shelf.js';
+
+export function weeklyProjectProgress(state,projectId,week){
+  const rituals=Object.fromEntries(Object.entries(state.dailyRituals||{}).filter(([date,day])=>
+    date>=week.first&&date<=week.last&&day.annotate?.projectId===projectId));
+  const focusMs=week.focus.filter(session=>session.projectId===projectId).reduce((sum,session)=>sum+session.focusMs,0);
+  return {focusMinutes:Math.floor(focusMs/60000),chapters:countReadingChapters(rituals)};
+}
 
 export function summarizeWeek(state,tasks,date){
   const days=weekDays(date);

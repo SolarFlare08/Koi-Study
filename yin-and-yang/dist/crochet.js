@@ -18,9 +18,15 @@ const patternUrl=value=>{
   } catch { return ''; }
 };
 function cleanProject(item){
+  const counters=Array.isArray(item.counters)?item.counters.filter(counter=>typeof counter?.id==='string'&&clean(counter.name,60))
+    .map(counter=>({id:counter.id,name:clean(counter.name,60),count:whole(counter.count)})):[];
+  const checkpoints=Array.isArray(item.checkpoints)?item.checkpoints.filter(point=>typeof point?.id==='string'&&Number.isFinite(point.at)&&clean(point.note,1000))
+    .map(point=>({id:point.id,at:point.at,note:clean(point.note,1000),rows:whole(point.rows),
+      counters:Array.isArray(point.counters)?point.counters.filter(counter=>clean(counter?.name,60))
+        .map(counter=>({name:clean(counter.name,60),count:whole(counter.count)})):[]})):[];
   return {id:item.id,name:clean(item.name,100),status:Object.hasOwn(statuses,item.status)?item.status:'planned',
     rows:whole(item.rows),goal:whole(item.goal),hook:clean(item.hook,40),pattern:patternUrl(clean(item.pattern,1000)),
-    notes:clean(item.notes,3000),yarnIds:Array.isArray(item.yarnIds)?[...new Set(item.yarnIds.filter(id=>typeof id==='string'))]:[]};
+    notes:clean(item.notes,3000),counters,checkpoints,yarnIds:Array.isArray(item.yarnIds)?[...new Set(item.yarnIds.filter(id=>typeof id==='string'))]:[]};
 }
 function cleanYarn(item){
   return {id:item.id,name:clean(item.name,100),colorway:clean(item.colorway,75),color:color(item.color),
@@ -87,11 +93,20 @@ export function installCrochet({root,storage,notify}){
     const used=data.usage.filter(item=>item.projectId===project.id).reduce((sum,item)=>sum+item.grams,0);
     const worked=data.timeLog.filter(item=>item.projectId===project.id).reduce((sum,item)=>sum+item.minutes,0);
     const percent=project.goal?Math.min(100,Math.floor(project.rows/project.goal*100)):null;
+    const checkpoint=project.checkpoints.at(-1);
     return `<article class="crochet-project" data-crochet-id="${escape(project.id)}">
       <div class="crochet-card-heading"><div><span class="crochet-status" data-status="${project.status}">${statuses[project.status]}</span><h3>${escape(project.name)}</h3></div><button type="button" class="crochet-link" data-crochet-edit="projects" aria-label="Edit ${escape(project.name)}">Edit</button></div>
       <div class="crochet-project-meta">${[project.hook?`Hook ${escape(project.hook)}`:'',project.pattern?`<a href="${escape(project.pattern)}" target="_blank" rel="noopener noreferrer">Pattern ↗</a>`:'',used?`${number(used)} g used`:''].filter(Boolean).join('<span aria-hidden="true"> · </span>')||'Project details'}</div>
       <div class="crochet-counter"><div><span>Rows</span><output aria-label="Rows for ${escape(project.name)}">${number(project.rows)}${project.goal?` <small>/ ${number(project.goal)}</small>`:''}</output></div><div class="crochet-counter-buttons"><button type="button" data-row-step="-1" aria-label="Subtract a row from ${escape(project.name)}" ${project.rows?'':'disabled'}>−</button><button type="button" data-row-step="1" aria-label="Add a row to ${escape(project.name)}" ${project.rows>=100000?'disabled':''}>+</button></div></div>
       ${percent===null?'':`<progress aria-label="Row goal progress for ${escape(project.name)}" max="100" value="${percent}"></progress>`}
+      <div class="crochet-counters">${project.counters.map(counter=>`<div class="crochet-counter" data-counter-id="${escape(counter.id)}">
+        <div><span>${escape(counter.name)}</span><output aria-label="${escape(counter.name)} count">${number(counter.count)}</output></div>
+        <div class="crochet-counter-buttons"><button type="button" data-counter-step="-1" aria-label="Decrease ${escape(counter.name)}" ${counter.count?'':'disabled'}>−</button>
+        <button type="button" data-counter-step="1" aria-label="Increase ${escape(counter.name)}" ${counter.count>=100000?'disabled':''}>+</button></div>
+        <button type="button" class="crochet-link" data-crochet-counter aria-label="Edit ${escape(counter.name)} counter">Edit</button></div>`).join('')}</div>
+      <div class="crochet-checkpoint-actions"><button type="button" class="crochet-link" data-crochet-counter>Add counter</button>
+        <button type="button" class="crochet-link" data-crochet-checkpoint>${checkpoint?'Checkpoints':'Save checkpoint'}</button></div>
+      ${checkpoint?`<div class="crochet-resume"><strong>Resume here</strong><p>${escape(checkpoint.note)}</p><small>${escape(checkpointCounts(checkpoint))}</small></div>`:''}
       <div class="crochet-worked"><span>Time worked <strong>${formatTime(worked)}</strong></span><button type="button" class="crochet-link" data-crochet-time aria-label="Log time for ${escape(project.name)}">Log time</button></div>
       ${yarn.length?`<ul class="crochet-project-yarn">${yarn.map(item=>`<li><i style="--swatch:${item.color}"></i>${escape(item.colorway||item.name)}</li>`).join('')}</ul>`:''}
       ${project.notes?`<p class="crochet-project-notes">${escape(project.notes)}</p>`:''}
@@ -145,30 +160,61 @@ export function installCrochet({root,storage,notify}){
       <label>Minutes worked<input name="minutes" type="number" min="1" max="1440" step="1" required placeholder="e.g. 45"></label></div>
       ${sessions.length?`<div class="crochet-time-history"><h4>Recent sessions</h4><ul>${sessions.slice(0,5).map(item=>`<li><time datetime="${item.date}">${escape(new Date(item.date+'T12:00:00').toLocaleDateString([],{dateStyle:'medium'}))}</time><span>${formatTime(item.minutes)}</span></li>`).join('')}</ul></div>`:''}`;
   }
+  function checkpointCounts(point){
+    return [`Rows ${number(point.rows)}`,...point.counters.map(counter=>`${counter.name} ${number(counter.count)}`)].join(' · ');
+  }
+  function checkpointFields(project){
+    return `<p class="crochet-use-context">${escape(project.name)} · ${escape(checkpointCounts(project))}</p>
+      <label>Where to resume<textarea name="note" maxlength="1000" rows="4" required placeholder="Start the next sleeve at row 18"></textarea></label>
+      ${project.checkpoints.length?`<h4>Saved checkpoints</h4><ul class="crochet-checkpoint-history">${[...project.checkpoints].reverse().map(point=>`<li>
+        <small>${escape(new Date(point.at).toLocaleString())}</small><p>${escape(point.note)}</p><small>${escape(checkpointCounts(point))}</small></li>`).join('')}</ul>`:''}`;
+  }
   function openEditor(kind,id,trigger){
-    const item=data[kind==='projects'||kind==='time'?'projects':'yarn'].find(record=>record.id===id);
-    if((kind==='time'||kind==='use')&&!item)return;
-    editor={kind,id}; anchor=trigger;
-    const title=kind==='time'?'Log crochet time':kind==='use'?'Log yarn used':kind==='projects'?(item?'Edit project':'New project'):(item?'Edit yarn':'Add yarn');
+    const item=data[['projects','time','counter','checkpoint'].includes(kind)?'projects':'yarn'].find(record=>record.id===id);
+    if(!['projects','yarn'].includes(kind)&&!item)return;
+    const counterId=trigger.closest('[data-counter-id]')?.dataset.counterId;
+    const counter=item?.counters?.find(record=>record.id===counterId);
+    editor={kind,id,counterId}; anchor=trigger;
+    const title=kind==='counter'?(counter?'Edit counter':'Add counter'):kind==='checkpoint'?'Checkpoints':kind==='time'?'Log crochet time':kind==='use'?'Log yarn used':kind==='projects'?(item?'Edit project':'New project'):(item?'Edit yarn':'Add yarn');
     const linked=kind==='use'?data.projects.filter(project=>project.yarnIds.includes(id)):[];
-    const fields=kind==='time'?timeFields(item):kind==='projects'?projectFields(item):kind==='yarn'?yarnFields(item):
+    const fields=kind==='counter'?`<label>Counter name<input name="name" maxlength="60" value="${escape(counter?.name)}" required></label><label>Count<input name="count" type="number" min="0" max="100000" required value="${counter?.count??0}"></label>`:
+      kind==='checkpoint'?checkpointFields(item):kind==='time'?timeFields(item):kind==='projects'?projectFields(item):kind==='yarn'?yarnFields(item):
       `<p class="crochet-use-context">${escape(item.name)} · ${number(item.grams)} g on hand</p><label>Grams used<input name="grams" type="number" min="1" max="${item.grams}" required step="1"></label>
       <label>Project (optional)<select name="projectId"><option value="">Stash only</option>${linked.map(project=>`<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('')}</select></label>`;
-    const removable=item&&(kind==='projects'||kind==='yarn');
+    const removable=counter||item&&(kind==='projects'||kind==='yarn');
     dialog.innerHTML=`<form><header><h3 id="crochet-dialog-title">${title}</h3><button type="button" data-crochet-close aria-label="Close dialog">×</button></header><div class="crochet-dialog-fields">${fields}<p role="alert" id="crochet-form-error" hidden></p></div>
-      <footer>${removable?'<button type="button" class="crochet-delete" data-crochet-delete>Delete</button>':''}<button class="crochet-primary" type="submit" value="save">${kind==='time'?'Log time':kind==='use'?'Log use':'Save'}</button></footer></form>`;
+      <footer>${removable?'<button type="button" class="crochet-delete" data-crochet-delete>Delete</button>':''}<button class="crochet-primary" type="submit" value="save">${kind==='checkpoint'?'Save checkpoint':kind==='time'?'Log time':kind==='use'?'Log use':'Save'}</button></footer></form>`;
     dialog.setAttribute('aria-labelledby','crochet-dialog-title');
     dialog.showModal();
-    dialog.querySelector(kind==='time'?'[name="minutes"]':'input')?.focus();
+    dialog.querySelector(kind==='time'?'[name="minutes"]':'input,textarea')?.focus();
   }
 
   function saveEditor(form,remove){
-    const {kind,id}=editor;
+    const {kind,id,counterId}=editor;
     const fields=new FormData(form);
     const next=structuredClone(data);
     const error=$('#crochet-form-error');
     const fail=message=>{error.hidden=false;error.textContent=message;};
-    if(kind==='time'){
+    if(kind==='counter'||kind==='checkpoint'){
+      const project=next.projects.find(item=>item.id===id);
+      if(!project)return fail('This project was removed in another tab.');
+      if(kind==='checkpoint'){
+        const note=clean(fields.get('note'),1000);
+        if(!note)return fail('Enter a note about where to resume.');
+        project.checkpoints.push({id:crypto.randomUUID(),at:Date.now(),note,rows:project.rows,
+          counters:project.counters.map(({name,count})=>({name,count}))});
+      }else{
+        const index=project.counters.findIndex(item=>item.id===counterId);
+        if(counterId&&index<0)return fail('This counter was removed in another tab.');
+        if(remove)project.counters.splice(index,1);
+        else{
+          const name=clean(fields.get('name'),60);
+          if(!name)return fail('Enter a counter name.');
+          const counter={id:counterId||crypto.randomUUID(),name,count:whole(fields.get('count'))};
+          if(index<0)project.counters.push(counter);else project.counters[index]=counter;
+        }
+      }
+    }else if(kind==='time'){
       if(!logCrochetTime(next,{projectId:id,date:fields.get('date'),minutes:Number(fields.get('minutes'))}))return fail('Choose a past or current date and enter the minutes worked.');
     } else if (kind==='use') {
       if (!logYarnUse(next,{yarnId:id,projectId:fields.get('projectId'),grams:Number(fields.get('grams'))})) return fail('Check the amount remaining and the linked project.');
@@ -182,15 +228,20 @@ export function installCrochet({root,storage,notify}){
       const values={...Object.fromEntries(fields),id:id||crypto.randomUUID()};
       if (kind==='projects'&&values.pattern&&!patternUrl(values.pattern)) return fail('Use an http or https pattern link.');
       const yarnIds=fields.getAll('yarnIds').filter(yarnId=>next.yarn.some(item=>item.id===yarnId));
-      const item=kind==='projects'?cleanProject({...values,yarnIds}):cleanYarn(values);
       const index=next[kind].findIndex(record=>record.id===id);
       if (id&&index<0) return fail('This item was removed in another tab.');
+      const item=kind==='projects'?cleanProject({...next.projects[index],...values,yarnIds}):cleanYarn(values);
       if (index<0) next[kind].unshift(item); else next[kind][index]=item;
     }
     if (!commit(next)) return fail('Changes could not be saved on this device.');
     if (kind==='projects'&&!remove&&statusFilter!=='all'&&fields.get('status')!==statusFilter) statusFilter='all';
     render();
     if(kind==='time')anchor=content.querySelector(`[data-crochet-id="${CSS.escape(id)}"] [data-crochet-time]`);
+    if(kind==='counter'||kind==='checkpoint'){
+      const card=content.querySelector(`[data-crochet-id="${CSS.escape(id)}"]`);
+      anchor=kind==='checkpoint'?card?.querySelector('[data-crochet-checkpoint]'):
+        (counterId&&card?.querySelector(`[data-counter-id="${CSS.escape(counterId)}"] [data-crochet-counter]`))||card?.querySelector('.crochet-checkpoint-actions [data-crochet-counter]');
+    }
     dialog.close();
     notify(remove?'Removed from Stitchbook.':kind==='time'?'Crochet time logged.':kind==='use'?'Yarn use logged.':'Saved in Stitchbook.');
   }
@@ -205,12 +256,26 @@ export function installCrochet({root,storage,notify}){
     if (action.crochetEdit) openEditor(action.crochetEdit,id,button);
     if ('crochetUse' in action) openEditor('use',id,button);
     if ('crochetTime' in action) openEditor('time',id,button);
+    if ('crochetCounter' in action) openEditor('counter',id,button);
+    if ('crochetCheckpoint' in action) openEditor('checkpoint',id,button);
     if ('crochetClose' in action) dialog.close();
     if ('crochetDelete' in action) {
       if (button.dataset.confirm) return saveEditor(button.form,true);
       button.dataset.confirm='true';button.textContent='Confirm delete';
       const error=$('#crochet-form-error');
-      error.hidden=false;error.textContent=editor.kind==='yarn'?'This also unlinks the yarn from its projects.':'This removes the project, its row count, and its time log.';
+      error.hidden=false;error.textContent=editor.kind==='counter'?'Remove this counter? Saved checkpoints keep its recorded count.':
+        editor.kind==='yarn'?'This also unlinks the yarn from its projects.':'This removes the project, its counters, checkpoints, and time log.';
+    }
+    if(action.counterStep){
+      const row=button.closest('[data-counter-id]'),next=structuredClone(data);
+      const counter=next.projects.find(item=>item.id===id)?.counters.find(item=>item.id===row.dataset.counterId);
+      if(!counter)return;
+      counter.count=whole(counter.count+Number(action.counterStep));
+      if(!commit(next))return;
+      row.querySelector('output').textContent=number(counter.count);
+      row.querySelector('[data-counter-step="-1"]').disabled=counter.count===0;
+      row.querySelector('[data-counter-step="1"]').disabled=counter.count>=100000;
+      if(button.disabled)row.querySelector('[data-counter-step]:not(:disabled)')?.focus();
     }
     if (action.rowStep) {
       const next=structuredClone(data),project=next.projects.find(item=>item.id===id);

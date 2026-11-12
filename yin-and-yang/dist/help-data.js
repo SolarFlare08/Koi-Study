@@ -250,6 +250,7 @@ export const helpTopics = [
     summary:'See completed work, open work, and what is coming next.',
     steps:['Open Planner → `Weekly review` in the left sidebar.',
       'Use the week arrows or `This week` to choose the period.',
+      'Under Weekly project goals, choose `Set goals` on a project. Set focus minutes, chapters, or both. Select that project when you save a chapter log in Annotate.',
       'Review completed-task and focus totals, plus lists of still-open work from earlier weeks, open work this week, and next week’s tasks.',
       'Use `Move to today` on eligible carried-over tasks to bring them back into today’s plan.'],
     action:'review', actionLabel:'Open Weekly review', related:['workload','reporting','tomorrow']
@@ -356,6 +357,7 @@ export const helpTopics = [
     steps:['Open the Reading tab.',
       'Search for a book or select one from the book list.',
       'Read `Where you left off`, chapters annotated, and the dated history of your logs.',
+      'Use `Add chapter note` on a book to save a question, quote, or insight. Mark notes for the `Review queue`. Choose `Mark reviewed` after revisiting a note.',
       'Use `Open Calendar` and the daily Annotate item to add your next log or goal. Ctrl+K can also find a book and open its history directly.'],
     tip:'Books are grouped by title and author. Keeping those consistent keeps your history together.',
     action:'reading', actionLabel:'Open Reading', related:['reading-goal','search']
@@ -376,6 +378,7 @@ export const helpTopics = [
     steps:['Open Crochet → Projects → `New project`.',
       'Set a name, status, hook size, rows, optional row goal, pattern link, and notes. Link yarn already in your stash, then Save.',
       'Use the plus/minus row buttons as you work. Row goals show progress, and the status filter helps you find active or finished projects.',
+      'Choose `Add counter` for separate counts such as a sleeve or a stitch repeat. Save a checkpoint with a resume note to record the current row and counter values.',
       'Choose `Log time` on a project, enter the date and minutes worked, and save. The project shows its total hours and minutes and the time dialog shows recent sessions.'],
     tip:'Link a project from Calendar’s daily Crochet item for quick access. Time logs, row counts, and yarn use are separate, so you can update just what changed.',
     action:'crochet', actionLabel:'Open Stitchbook', related:['yarn','journal','daily-rituals'], keywords:'stitchbook crochet hours duration log time pattern hook rows'

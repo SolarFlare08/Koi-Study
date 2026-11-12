@@ -160,7 +160,14 @@ const focusNotes=installFocusNotes({
   button:$('#focus-linked-notes'),panel:$('#focus-notes-panel'),getNotes:()=>state.stickyNotes,
   saveNotes:saveStickyNotes,onEdit:()=>stickyBoard.render()
 });
-const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>state.dailyRituals,openCalendar:()=>calendarToggle.click()});
+const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>state.dailyRituals,getNotes:()=>state.readingNotes,
+  saveNotes:notes=>{
+    const previous=state.readingNotes;
+    state.readingNotes=notes;
+    if(persist())return true;
+    state.readingNotes=previous;
+    return false;
+  },openCalendar:()=>calendarToggle.click()});
 const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
@@ -254,7 +261,7 @@ function commandEntries(){
     detail:note.body.trim().replace(/\s+/g,' ').slice(0,100),search:note.body,
     run:()=>{visitWorkspace('notes');stickyBoard.focusNote(note.id);}
   }));
-  const books=readingShelf(state.dailyRituals).map(book=>({
+  const books=readingShelf(state.dailyRituals,state.readingNotes).map(book=>({
     kind:'Book',title:book.title,detail:book.author,search:book.chapters.join(' '),
     run:()=>{visitWorkspace('reading');reading.openBook(book.id);}
   }));
@@ -2154,6 +2161,9 @@ function ritualEditor(){
     </div>
     <label class="field-label" for="ritual-chapters">Chapters annotated</label><textarea id="ritual-chapters" name="chapters" maxlength="3000" rows="4" placeholder="One per line or a range, e.g. Chapters 3–5">${escape(item.chapters)}</textarea>
     <label class="field-label" for="ritual-position">Where you stopped (optional)</label><input id="ritual-position" name="position" maxlength="100" value="${escape(item.position)}" placeholder="e.g. Page 52">
+    <label class="field-label" for="ritual-reading-project">Project for weekly goal</label><select id="ritual-reading-project" name="projectId">
+      <option value="">No project</option>${state.projects.filter(project=>!project.archived||project.id===item.projectId).map(project=>
+        `<option value="${escape(project.id)}" ${project.id===(item.projectId??book.projectId)?'selected':''}>${escape(project.name)}</option>`).join('')}</select>
     <p class="ritual-error" role="alert" hidden></p><div class="panel-actions"><button type="button" class="text-button" id="open-reading-shelf">Reading shelf</button><button class="panel-primary">Save annotation log</button></div></form>`;
 }
 function saveRitual(date,kind,item){
@@ -2706,6 +2716,7 @@ root.addEventListener('submit',e=>{
     if(kind==='annotate'){
       for(const key of ['title','author','chapters','position','goal'])item[key]=String(fields.get(key)).trim();
       item.goalType=fields.get('goalType')==='page'?'page':'chapter';
+      item.projectId=String(fields.get('projectId')||'');
       if(!item.title&&(item.chapters||item.position||item.goal)){
         const error=form.querySelector('.ritual-error');
         error.textContent='Enter the book title for this reading log.';error.hidden=false;
