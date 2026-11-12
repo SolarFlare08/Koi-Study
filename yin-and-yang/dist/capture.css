@@ -57,3 +57,5 @@
 .capture-window textarea.note-field { resize: none; }
 .capture-window #capture-status:empty { display: none; }
 .capture-window .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+#mini-context-label { display: block; margin: 6px 0; font-size: 12px; }
+#mini-context-label[hidden] { display: none; }

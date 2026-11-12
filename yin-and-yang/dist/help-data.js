@@ -1,6 +1,14 @@
 // Keep feature instructions separate from the guide UI so they can be updated together with the app.
 export const helpTopics = [
   {
+    id:'versions', group:'Start here', title:'See version history',
+    summary:'Browse the current release and past updates.',
+    steps:['Open Help → `Version history`, or search for Version history with `Ctrl+K`.',
+      'Expand a release to read its changes. Version 1.0.0 groups earlier updates by date.'],
+    tip:'Patch versions cover fixes and documentation, minor versions add compatible features, and major versions mark intentionally incompatible changes.',
+    action:'versions', actionLabel:'Open version history', related:['workspaces','backup']
+  },
+  {
     id:'first-session', group:'Start here', title:'Your first focus session',
     summary:'Add a task, choose a duration, and start studying.',
     steps:['In Garden, choose `+ Add task` in the Tasks panel. Enter a task name and choose `Save task`.',
@@ -105,7 +113,8 @@ export const helpTopics = [
     summary:'See what you finished or moved and what is lined up for tomorrow.',
     steps:['Open Garden → Today → `End-of-day recap`, use the button on Planner’s Today view, or find it with `Ctrl+K`.',
       'Review completed tasks and rituals, focus time, and the schedule changes recorded today.',
-      'Check tomorrow’s events, focus blocks, and due tasks. Choose `Plan tomorrow` to reserve your first focus block.'],
+      'Check tomorrow’s events, focus blocks, and due tasks. Choose `Plan tomorrow` to reserve your first focus block.',
+      'Use `Shutdown checklist` to check off your steps. Choose `Edit recurring steps` to add, remove, or reorder them, one per line. Checkmarks reset each day.'],
     action:'day-recap', actionLabel:'Open end-of-day recap', related:['progress','tomorrow','weekly-review']
   },
   {
@@ -168,7 +177,15 @@ export const helpTopics = [
       'Use Inbox for ungrouped tasks, Today for due work and overdue tasks, and Upcoming to browse dates.',
       'Use Display to switch supported views between list, board, week calendar, three-day calendar, and month. Project settings let you edit, favorite, or archive a project.'],
     tip:'Archived projects are kept, but their tasks are left out of the Garden’s active focus queue.',
-    action:'planner', actionLabel:'Open Planner', related:['project-resume','filters','csv-import','calendar']
+    action:'planner', actionLabel:'Open Planner', related:['project-decisions','project-resume','filters','csv-import','calendar']
+  },
+  {
+    id:'project-decisions', group:'Tasks & projects', title:'Keep a project decision log',
+    summary:'Record what you decided, why, and what work it affects.',
+    steps:['Open a project in Planner and choose `Decision log` → `Add decision`.',
+      'Enter the decision, date, and reason. Choose an optional milestone and check the affected project tasks.',
+      'Save the decision. Reopen the log to edit a decision or open its linked work.'],
+    action:'planner', actionLabel:'Open Planner', related:['projects','project-resume']
   },
   {
     id:'project-resume', group:'Tasks & projects', title:'Resume work on a project',
@@ -354,6 +371,7 @@ export const helpTopics = [
     summary:'Get a thought out of your head without losing your place.',
     steps:['Press `Ctrl+Alt+N` while using the app, or open Garden’s top `Notes` tool and choose `Quick capture`.',
       'Write the thought and press `Ctrl+Enter` or choose `Save note`. Escape closes capture without submitting it.',
+      'When a task is selected in Garden, check `Remember` in the browser capture or its mini window to attach the task and any active calendar block.',
       'Open the `Note inbox` in Notes to sort your captured thoughts.',
       'Give a thought a destination: make a task, attach it to a project, or move it to Quick Notes. Attached thoughts are available from that project’s Thoughts button.'],
     tip:'The Quick Notes text area saves as you type. The quick-capture form has an explicit Save note action.',
@@ -456,7 +474,15 @@ export const helpTopics = [
       'Choose `Log time` on a project, enter the date and minutes worked, and save. The project shows its total hours and minutes and the time dialog shows recent sessions.',
       'Choose `Log pattern change` to record a date, row, and change. Open the same dialog to see earlier changes.'],
     tip:'Link a project from Calendar’s daily Crochet item for quick access. Time logs, row counts, and yarn use are separate, so you can update just what changed.',
-    action:'crochet', actionLabel:'Open Stitchbook', related:['yarn','journal','daily-rituals'], keywords:'stitchbook crochet hours duration log time pattern hook rows'
+    action:'crochet', actionLabel:'Open Stitchbook', related:['yarn','shopping-list','journal','daily-rituals'], keywords:'stitchbook crochet hours duration log time pattern hook rows'
+  },
+  {
+    id:'shopping-list', group:'Stitchbook', title:'Work out what yarn to buy',
+    summary:'See yarn shortages by colorway across planned and in-progress projects.',
+    steps:['In Stitchbook, add yarn to the stash. Enter zero grams on hand for a colorway you still need to buy.',
+      'Edit a planned or in-progress project. Link its yarn and enter the total grams needed for each yarn.',
+      'Open `Shopping list` to see what to buy. The list credits yarn already logged as used and combines on-hand grams for matching yarn names, colorways, and weights.'],
+    action:'crochet', actionLabel:'Open Stitchbook', related:['crochet-projects','yarn']
   },
   {
     id:'yarn', group:'Stitchbook', title:'Manage yarn stash and usage',
@@ -522,7 +548,8 @@ export const helpTopics = [
     steps:['Saved work stays in this browser on this device when you close the tab. Reopen the app at the same address, browser, and profile to access it.',
       'Open Garden → Settings → `Backup and restore`, then choose `Download backup` to export one file with tasks, calendar, journal, notes, reading history, crochet projects/time, and settings.',
       'On another device or after a reset, open Backup and restore and choose the `.json` file.',
-      'Review the add and replace counts. Open `Show records` to inspect named changes. Check the sections you want and choose `Restore selected sections`. Matching records are replaced and new ones are added. Reading logs match by date.'],
+      'Review the add and replace counts. Open `Show records` to inspect named changes. Check the sections you want and choose `Restore selected sections`. Matching records are replaced and new ones are added. Reading logs match by date.',
+      'Choose `Save restore point` to keep a dated snapshot in this browser. The five newest points stay available. Choose `Preview` on a point and restore the sections you want through the same preview.'],
     tip:'There is no account sync. Clearing site data, using a different browser/profile/address or port, or ending a private session can make saved work unavailable. Keep a downloaded backup of work you want to preserve.',
     action:'backup', actionLabel:'Open Backup and restore', related:['journal','csv-import','calendar-import'], keywords:'save persist export import restore computer delete tab offline storage localstorage data lost'
   }

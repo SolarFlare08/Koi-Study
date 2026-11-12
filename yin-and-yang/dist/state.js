@@ -6,7 +6,7 @@ import {loadDailyRituals} from './daily-rituals.js';
 import {loadFinishedBooks,loadReadingNotes} from './reading-shelf.js';
 import {loadAvailability} from './availability.js';
 import {loadStickyNotes} from './sticky-notes.js';
-import {projectMilestone,taskTemplate} from './project-planning.js';
+import {projectDecision,projectMilestone,taskTemplate} from './project-planning.js';
 import {loadGardenGrowth} from './garden-growth.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
@@ -155,6 +155,7 @@ export function formatDuration(ms) {
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
+    shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -195,6 +196,12 @@ export function loadState(storage) {
     if(Array.isArray(raw.processedCaptures))base.processedCaptures=raw.processedCaptures.filter(key=>typeof key==='string');
     if(Array.isArray(raw.captureArchive))base.captureArchive=raw.captureArchive.filter(item=>typeof item?.key==='string'&&
       typeof item.text==='string'&&Number.isFinite(item.createdAt)&&Number.isFinite(item.archivedAt));
+    if(Array.isArray(raw.shutdownSteps))base.shutdownSteps=[...new Map(raw.shutdownSteps.filter(item=>typeof item?.id==='string'&&
+      typeof item.text==='string'&&item.text.trim()).slice(0,20).map(item=>[item.id,{id:item.id,text:item.text.trim().slice(0,100)}])).values()];
+    if(isDay(raw.shutdownProgress?.day)&&Array.isArray(raw.shutdownProgress.ids)){
+      const valid=new Set(base.shutdownSteps.map(item=>item.id));
+      base.shutdownProgress={day:raw.shutdownProgress.day,ids:[...new Set(raw.shutdownProgress.ids.filter(id=>valid.has(id)))]};
+    }
     if(Array.isArray(raw.scheduleMoves))base.scheduleMoves=raw.scheduleMoves.filter(item=>typeof item?.id==='string'&&isDay(item.day)&&
       typeof item.title==='string'&&[item.from,item.to].every(place=>place&&typeof place.date==='string'&&typeof place.time==='string'));
     base.sounds=loadSoundSettings(raw.sounds);
@@ -216,6 +223,7 @@ export function loadState(storage) {
       id:project.id,name:project.name,color:/^#[\da-f]{6}$/i.test(project.color)?project.color:'#d94b49',favorite:project.favorite===true,archived:project.archived===true,
       sections:Array.isArray(project.sections)?project.sections.filter(section=>section&&typeof section.id==='string'&&typeof section.name==='string'):[],
       milestones:Array.isArray(project.milestones)?project.milestones.map(projectMilestone).filter(Boolean):[],
+      decisions:Array.isArray(project.decisions)?project.decisions.map(projectDecision).filter(Boolean):[],
       weeklyGoals:Object.fromEntries(['focusMinutes','chapters'].filter(key=>
         Number.isInteger(project.weeklyGoals?.[key])&&project.weeklyGoals[key]>0&&project.weeklyGoals[key]<=(key==='focusMinutes'?10080:1000))
         .map(key=>[key,project.weeklyGoals[key]])),

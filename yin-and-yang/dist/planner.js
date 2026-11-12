@@ -5,8 +5,9 @@ import {dayKey,taskPriority,taskStatus,unfinishedPrerequisites} from './state.js
 import {captureTaskChange} from './task-undo.js';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
 import {activityLabels,estimateAccuracy,estimateCsv,estimateSummary,reportCsv,reportEvents,reportMetrics,suggestTaskEstimate} from './planner-report.js';
-import {milestoneProgress,projectMilestone} from './project-planning.js';
+import {milestoneProgress,projectDecision,projectMilestone} from './project-planning.js';
 import {exportCalendar} from './calendar-export.js';
+import {cleanCaptureContext} from './capture.js';
 
 const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',review:'Weekly review',workload:'Workload',filters:'Filters & Labels',reporting:'Reporting'};
 const workViewPresets={
@@ -534,6 +535,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if(standalone||project)$('#planner-heading-actions').insertAdjacentHTML('beforeend',
       `<button type="button" data-manage="calendar-export" data-value="${escape(project?.id)}">Export .ics</button>`);
     if(project)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="milestones" aria-haspopup="dialog">Milestones</button>');
+    if(project)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="decisions" aria-haspopup="dialog">Decision log</button>');
     if(project?.thoughts?.length)$('#planner-heading-actions').insertAdjacentHTML('beforeend',`<button type="button" data-manage="project-thoughts">Thoughts (${project.thoughts.length})</button>`);
     $('#planner-layout-label').hidden=sectionView||standalone;
     $('#planner-toggle-sidebar').hidden=standalone;
@@ -644,15 +646,44 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const project=state().projects.find(item=>item.id===id), filter=state().plannerFilters.find(item=>item.id===id);
     const currentProject=state().projects.find(item=>item.id===selection);
     let title, fields, extra='';
-    if(type==='milestones'){
+    if(type==='decisions'){
+      if(!currentProject)return;
+      const records=[...(currentProject.decisions||[])].sort((a,b)=>b.date.localeCompare(a.date));
+      dialog.innerHTML=`<header><h3 id="planner-dialog-title">Decision log</h3><button type="button" data-dialog-close aria-label="Close dialog">×</button></header>
+        <p>${escape(currentProject.name)}</p><div class="project-thoughts decision-list">${records.map(item=>{
+          const tasks=item.taskIds.map(taskId=>state().tasks.find(task=>task.id===taskId)).filter(Boolean);
+          const milestone=currentProject.milestones?.find(record=>record.id===item.milestoneId);
+          return `<article><time datetime="${item.date}">${plainDate(item.date)}, ${item.date.slice(0,4)}</time><h4>${escape(item.name)}</h4><p>${escape(item.reason)}</p>
+            <div class="decision-links">${tasks.map(task=>`<button type="button" data-milestone-task="${escape(task.id)}">${escape(task.text)}</button>`).join('')}
+            ${milestone?`<button type="button" data-manage="milestone" data-value="${escape(milestone.id)}">${escape(milestone.name)}</button>`:''}</div>
+            <button type="button" data-manage="decision" data-value="${escape(item.id)}">Edit decision</button></article>`;
+        }).join('')||'<p>No decisions recorded yet.</p>'}</div><footer><button type="button" class="planner-primary" data-manage="decision">Add decision</button></footer>`;
+      dialog.setAttribute('aria-labelledby','planner-dialog-title');
+      if(!dialog.open)dialog.showModal();
+      dialog.querySelector('[data-manage="decision"]')?.focus();return;
+    }
+    if(type==='decision'){
+      if(!currentProject)return;
+      const item=currentProject.decisions?.find(decision=>decision.id===id);
+      title=item?'Edit decision':'Add decision';
+      const links=state().tasks.filter(task=>task.projectId===selection||item?.taskIds.includes(task.id));
+      fields=`<label>Decision<input name="name" maxlength="120" required value="${escape(item?.name)}"></label>
+        <label>Date<input name="date" type="date" required value="${item?.date||dayKey()}"></label>
+        <label>Why did you decide this?<textarea name="reason" rows="4" required maxlength="3000">${escape(item?.reason)}</textarea></label>
+        <label>Milestone<select name="milestoneId"><option value="">None</option>${(currentProject.milestones||[]).map(milestone=>
+          `<option value="${escape(milestone.id)}" ${item?.milestoneId===milestone.id?'selected':''}>${escape(milestone.name)}</option>`).join('')}</select></label>
+        <fieldset class="milestone-links"><legend>Affected tasks</legend>${links.map(task=>
+          `<label class="planner-check-label"><input type="checkbox" name="task" value="${escape(task.id)}" ${item?.taskIds.includes(task.id)?'checked':''}> ${escape(task.text)}</label>`).join('')||'<p>No tasks in this project yet.</p>'}</fieldset>
+        <p role="alert" id="decision-error" hidden></p>`;
+      extra='<button type="button" data-manage="decisions">Back to decision log</button>';
+    } else if(type==='milestones'){
       if(!currentProject)return;
       dialog.innerHTML=milestoneList(currentProject);
       dialog.setAttribute('aria-labelledby','planner-dialog-title');
       if(!dialog.open)dialog.showModal();
       dialog.querySelector('[data-manage="milestone"]')?.focus();
       return;
-    }
-    if(type==='milestone'){
+    } else if(type==='milestone'){
       if(!currentProject)return;
       const milestone=currentProject.milestones?.find(item=>item.id===id);
       const selected=new Set(milestone?.taskIds||[]);
@@ -710,7 +741,11 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       fields=`<label>iCalendar file<input type="file" name="calendar" accept=".ics,text/calendar" required></label><p>For Canvas, open Calendar → Calendar Feed and download the .ics file. Import it here again to refresh your assignments and events.</p><p><a href="https://community.instructure.com/en/kb/articles/662804-how-do-i-view-the-calendar-ical-feed-to-subscribe-to-an-external-calendar" target="_blank" rel="noopener noreferrer">Canvas calendar instructions ↗</a></p><p role="alert" id="planner-import-error" hidden></p>${sources.map(source=>`<p class="import-source">${escape(source)} <button type="button" data-remove-calendar="${escape(source)}">Remove</button></p>`).join('')}`;
     } else if (type==='project-thoughts') {
       if(!currentProject)return;
-      dialog.innerHTML=`<header><h3 id="planner-dialog-title">${escape(currentProject.name)} · Thoughts</h3><button type="button" data-dialog-close aria-label="Close dialog">×</button></header><div class="project-thoughts">${(currentProject.thoughts||[]).map(note=>`<article><time>${escape(new Date(note.createdAt).toLocaleDateString())}</time><p>${escape(note.text)}</p></article>`).join('')}</div>`;
+      dialog.innerHTML=`<header><h3 id="planner-dialog-title">${escape(currentProject.name)} · Thoughts</h3><button type="button" data-dialog-close aria-label="Close dialog">×</button></header><div class="project-thoughts">${(currentProject.thoughts||[]).map(note=>{
+        const context=cleanCaptureContext(note.context);
+        const captured=context?.block?`${context.title} · ${plainDate(context.block.occurrence)} at ${scheduledTime(context.block.time)}`:context?.title;
+        return `<article><time>${escape(new Date(note.createdAt).toLocaleDateString())}</time><p>${escape(note.text)}</p>${captured?`<small>Captured during ${escape(captured)}</small>`:''}</article>`;
+      }).join('')}</div>`;
       dialog.setAttribute('aria-labelledby','planner-dialog-title');
       dialog.showModal();
       return;
@@ -772,6 +807,19 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
 
   function saveDialog(form,action) {
     const type=form.dataset.manageForm,id=form.dataset.value, fields=new FormData(form);
+    if(type==='decision'){
+      const project=state().projects.find(item=>item.id===selection);
+      if(!project)return;
+      const item=projectDecision({id:id||blankId(),name:fields.get('name'),date:fields.get('date'),reason:fields.get('reason'),
+        milestoneId:fields.get('milestoneId'),taskIds:fields.getAll('task')});
+      const error=form.querySelector('#decision-error');
+      if(!item){error.hidden=false;error.textContent='Enter a decision, date, and reason.';return;}
+      const before=project.decisions||[];
+      if(id&&!before.some(record=>record.id===id)){error.hidden=false;error.textContent='This decision was removed.';return;}
+      project.decisions=[...before.filter(record=>record.id!==item.id),item];
+      if(!commit()){project.decisions=before;return;}
+      showDialog('decisions','',$('[data-manage="decisions"]'));notify('Decision saved.');return;
+    }
     if (type==='import') return importProject(form,fields);
     if (type==='calendar-import') return importCalendar(form,fields);
     if(type==='calendar-export'){

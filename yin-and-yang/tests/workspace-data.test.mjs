@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {applyBackupRestore,createBackup,planBackupRestore,readBackup,restoreBackup} from '../dist/backup.js';
+import {applyBackupRestore,createBackup,loadRestorePoints,planBackupRestore,readBackup,restoreBackup,saveRestorePoint} from '../dist/backup.js';
 import {CAPTURE_PREFIX,readCaptures} from '../dist/capture.js';
 import {CROCHET_KEY,loadCrochet,logCrochetTime} from '../dist/crochet.js';
 import {JOURNAL_KEY,loadJournal} from '../dist/journal.js';
@@ -12,6 +12,21 @@ import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail} from '../dist/garden-growth.js';
 import {gardenGrowthMarkup} from '../dist/scenery.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay} from '../dist/day-recap.js';
+
+test('restore points retain the five newest snapshots and preserve optional capture context',()=>{
+  const storage=memoryStorage(),state=freshState();
+  const context={taskId:'read',title:'Read chapter',block:{occurrence:'2026-11-12',time:'09:30',blockId:null}};
+  for(let day=1;day<=6;day++){
+    state.intention=`Day ${day}`;
+    saveRestorePoint(storage,createBackup(state,storage,[{key:CAPTURE_PREFIX+'test',text:'A thought',createdAt:1,context}],new Date(2026,10,day)));
+  }
+  const points=loadRestorePoints(storage);
+  assert.deepEqual(points.map(point=>point.snapshot.data.state.intention),['Day 6','Day 5','Day 4','Day 3','Day 2']);
+  const incoming=readBackup(JSON.stringify(points.at(-1).snapshot));
+  applyBackupRestore(storage,planBackupRestore(storage,freshState(),incoming,new Set(['notes'])));
+  assert.deepEqual(readCaptures(storage)[0].context,context);
+  assert.equal(loadState(storage).intention,'');
+});
 
 test('merged reading logs retain notes and give a range when session pace varies',()=>{
   const state=freshState(), target='["the waves",""]', source='["the wave",""]';

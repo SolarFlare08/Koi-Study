@@ -20,6 +20,13 @@
 }
 .backup-restore { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--surface-line); }
 #backup-dialog { width: min(580px,calc(100% - 26px)); }
+#restore-points-heading { margin: 0; font-size: 15px; }
+#restore-points-list { list-style: none; padding: 0; margin: 0; }
+#restore-points-list button { padding: 5px 0; color: var(--surface-accent); text-decoration: underline; }
+.version-release { margin-top: 12px; padding: 10px; border: 1px solid var(--surface-line); border-radius: 8px; }
+.version-release summary { cursor: pointer; font-weight: 650; }
+.version-release time { display: block; margin-top: 8px; color: var(--surface-muted); font-size: 12px; }
+.version-release ul { padding-left: 19px; margin: 6px 0; font-size: 13px; line-height: 1.5; }
 #backup-preview { min-width: 0; margin: 0; padding: 8px 0 0; border: 0; }
 #backup-preview legend { font-weight: 650; }
 #backup-preview-sections { display: grid; gap: 7px; margin-top: 9px; }

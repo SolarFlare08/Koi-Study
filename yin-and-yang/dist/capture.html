@@ -16,6 +16,7 @@
     <form>
       <label class="sr-only" for="thought">Quick note</label>
       <textarea class="note-field" id="thought" name="thought" rows="4" maxlength="1000" required autofocus placeholder="What’s on your mind?"></textarea>
+      <label id="mini-context-label" hidden><input type="checkbox" id="mini-context"> <span></span></label>
       <div class="note-actions"><button class="note-primary" type="submit">Save note</button><span class="note-caption"><kbd>Ctrl+Enter</kbd> to save</span><span id="capture-esc" class="note-caption" hidden><kbd>Esc</kbd> to close</span></div>
       <p role="status" id="capture-status"></p>
     </form>

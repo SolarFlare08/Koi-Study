@@ -84,6 +84,10 @@
 .crochet-dialog-fields fieldset small { color: var(--stitch-muted); }
 .crochet-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .crochet-yarn-choices { display: grid; gap: 4px; max-height: 140px; overflow: auto; }
+.crochet-yarn-need { display: grid; grid-template-columns: minmax(0,1fr) minmax(85px,110px); gap: 8px; align-items: center; }
+.shopping-shortages > li { padding: 12px; border-bottom: 1px solid var(--stitch-line); }
+.shopping-shortages h3, .shopping-shortages p { margin: 4px 0; }
+.shopping-shortages ul { margin: 6px 0 0; padding-left: 18px; }
 .crochet-yarn-choice { display: flex !important; align-items: center; overflow-wrap: anywhere; }
 .crochet-yarn-choice input { accent-color: var(--stitch-accent); }
 .crochet-use-context { margin: 0; color: var(--stitch-muted); font-size: 13px; }

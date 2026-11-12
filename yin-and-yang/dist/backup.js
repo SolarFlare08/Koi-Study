@@ -1,4 +1,4 @@
-import {CAPTURE_PREFIX} from './capture.js';
+import {CAPTURE_PREFIX,cleanCaptureContext} from './capture.js';
 import {CROCHET_KEY,loadCrochet} from './crochet.js';
 import {JOURNAL_KEY,loadJournal} from './journal.js';
 import {STORAGE_KEY,loadState,reset} from './state.js';
@@ -6,6 +6,8 @@ import {scratchNoteId} from './sticky-notes.js';
 
 const format='yin-and-yang-backup';
 const version=1;
+const RESTORE_POINTS_KEY='yin-and-yang.restore-points.v1';
+const restorePointLimit=5;
 const validCapture=note=>typeof note?.key==='string'&&
   (note.key.startsWith(CAPTURE_PREFIX)||/^native:[a-f0-9]{32}$/.test(note.key))&&
   typeof note.text==='string'&&Number.isFinite(note.createdAt);
@@ -15,6 +17,21 @@ export function createBackup(state,storage,captures,now=new Date()){
     format,version,exportedAt:now.toISOString(),
     data:{state,journal:loadJournal(storage),crochet:loadCrochet(storage),captures}
   };
+}
+
+export function loadRestorePoints(storage){
+  try{
+    const value=JSON.parse(storage.getItem(RESTORE_POINTS_KEY));
+    return Array.isArray(value)?value.filter(item=>typeof item?.id==='string'&&item.snapshot?.format===format&&
+      Number.isFinite(Date.parse(item.snapshot.exportedAt))).slice(0,restorePointLimit):[];
+  }catch{return [];}
+}
+
+export function saveRestorePoint(storage,snapshot){
+  const point={id:crypto.randomUUID(),snapshot};
+  const points=[point,...loadRestorePoints(storage)].slice(0,restorePointLimit);
+  storage.setItem(RESTORE_POINTS_KEY,JSON.stringify(points));
+  return point;
 }
 
 export function readBackup(text){
@@ -43,11 +60,14 @@ export function readBackup(text){
   }
   reset(state,state.timer.mode);
   const captures=new Map();
-  for(const {key,text,createdAt} of data.captures){
+  for(const {key,text,createdAt,context} of data.captures){
+    const note={text,createdAt};
+    const cleaned=cleanCaptureContext(context);
+    if(cleaned)note.context=cleaned;
     if(key.startsWith('native:')){
-      captures.set(CAPTURE_PREFIX+'portable-'+key.slice(7),{text,createdAt});
+      captures.set(CAPTURE_PREFIX+'portable-'+key.slice(7),note);
       if(!state.processedCaptures.includes(key))state.processedCaptures.push(key);
-    }else captures.set(key,{text,createdAt});
+    }else captures.set(key,note);
   }
   return {state,journal,crochet,captures,exportedAt:typeof backup.exportedAt==='string'?backup.exportedAt:''};
 }
@@ -146,7 +166,7 @@ export function planBackupRestore(storage,current,incoming,sections){
     const local=active.flatMap(({key})=>{
       const archived=current.captureArchive.find(note=>note.key===key);
       if(archived)return [archived];
-      try{const note=JSON.parse(storage.getItem(key));return note?[{key,text:note.text,createdAt:note.createdAt}]:[];}catch{return [];}
+      try{const note=JSON.parse(storage.getItem(key));return note?[{key,text:note.text,createdAt:note.createdAt,context:cleanCaptureContext(note.context)}]:[];}catch{return [];}
     });
     const captures=merge('Unsorted thoughts',local,active,item=>item.key);
     if(apply){
@@ -154,7 +174,7 @@ export function planBackupRestore(storage,current,incoming,sections){
       state.captureArchive=state.captureArchive.filter(note=>!incoming.captures.has(note.key));
       state.processedCaptures=[...new Set([...current.processedCaptures,...incoming.state.processedCaptures,...state.captureArchive.map(note=>note.key)])]
         .filter(key=>!incoming.captures.has(key));
-      for(const {key,text,createdAt} of captures)writes.set(key,JSON.stringify({text,createdAt}));
+      for(const {key,text,createdAt,context} of captures)writes.set(key,JSON.stringify({text,createdAt,context}));
     }
   });
   section('reading','Reading','Annotation logs match by calendar day.',apply=>{
@@ -176,7 +196,7 @@ export function planBackupRestore(storage,current,incoming,sections){
   section('garden','Garden & focus','Focus history, landscape, and preferences.',apply=>{
     stateList(apply,'history','Focus and rest sessions');stateList(apply,'routines','Timer routines');
     stateList(apply,'gardenGrowth','Garden landmarks',item=>JSON.stringify([item.kind,item.sourceId]));
-    const keys=['settings','appearance','gardenSchedule','sounds','notifications','intention','spotify','focusMode','replanCutoff','studyCapacity','planningCooldown'];
+    const keys=['settings','appearance','gardenSchedule','sounds','notifications','intention','spotify','focusMode','replanCutoff','studyCapacity','planningCooldown','shutdownSteps','shutdownProgress'];
     const replaced=keys.filter(key=>comparable(current[key])!==comparable(incoming.state[key])).length;
     details.push({label:'Preferences',added:0,replaced,unchanged:keys.length-replaced});
     if(apply){for(const key of keys)state[key]=incoming.state[key];}
@@ -204,6 +224,10 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
     <header><h2 id="backup-title">Backup and restore</h2><button type="button" data-backup-close aria-label="Close backup and restore">×</button></header>
     <p>Download your tasks, calendar, journal, notes, reading history, crochet projects, and settings in one file.</p>
     <button type="button" id="download-backup">Download backup</button>
+    <section class="backup-restore" aria-labelledby="restore-points-heading"><h3 id="restore-points-heading">Local restore points</h3>
+      <p>Keep up to five snapshots in this browser. Saving another drops the oldest.</p>
+      <button type="button" id="save-restore-point" class="workspace-primary">Save restore point</button>
+      <ul id="restore-points-list"></ul></section>
     <div class="backup-restore">
       <label for="backup-file">Restore from a backup</label><input type="file" id="backup-file" accept=".json,application/json">
       <p id="backup-status" role="status" hidden></p>
@@ -217,6 +241,7 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
   const apply=dialog.querySelector('#apply-backup');
   const preview=dialog.querySelector('#backup-preview');
   const sectionList=dialog.querySelector('#backup-preview-sections');
+  const pointList=dialog.querySelector('#restore-points-list');
   let staged, shown, revision=0;
   const selected=()=>new Set([...sectionList.querySelectorAll('input:checked')].map(input=>input.value));
   function report(message){
@@ -230,6 +255,35 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
     apply.hidden=true;apply.disabled=true;preview.hidden=true;sectionList.replaceChildren();
     report('');
   }
+  function renderPoints(){
+    pointList.innerHTML=loadRestorePoints(storage).map(point=>{
+      const date=new Date(point.snapshot.exportedAt).toLocaleString([],{dateStyle:'medium',timeStyle:'medium'});
+      return `<li><button type="button" data-restore-point="${escape(point.id)}">Preview ${escape(date)}</button></li>`;
+    }).join('')||'<li>No restore points saved yet.</li>';
+  }
+  function stage(parsed,label){
+    staged=parsed;
+    shown=planBackupRestore(storage,getState(),staged,new Set()).preview;
+    sectionList.innerHTML=previewMarkup(shown,new Set());
+    const date=new Date(parsed.exportedAt);
+    report(Number.isFinite(+date)?`${label} from ${date.toLocaleString([],{dateStyle:'medium',timeStyle:'short'})}.`:'Backup ready to preview.');
+    preview.hidden=false;apply.hidden=false;apply.disabled=true;
+  }
+  dialog.querySelector('#save-restore-point').addEventListener('click',()=>{
+    try{
+      saveRestorePoint(storage,createBackup(getState(),storage,getCaptures()));
+      renderPoints();report('Restore point saved.');
+    }catch{report('Could not save a restore point. Existing restore points are still available.');}
+  });
+  pointList.addEventListener('click',event=>{
+    const button=event.target.closest('[data-restore-point]');
+    if(!button)return;
+    clear();
+    const point=loadRestorePoints(storage).find(item=>item.id===button.dataset.restorePoint);
+    if(!point){report('That restore point is no longer available.');renderPoints();return;}
+    try{stage(readBackup(JSON.stringify(point.snapshot)),'Restore point');preview.querySelector('input')?.focus();}
+    catch(error){report(error.message);}
+  });
   file.addEventListener('change',async()=>{
     const request=++revision, chosen=file.files[0];
     staged=null;
@@ -239,12 +293,7 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
     try{
       const parsed=readBackup(await chosen.text());
       if(request!==revision||!dialog.open)return;
-      staged=parsed;
-      shown=planBackupRestore(storage,getState(),staged,new Set()).preview;
-      sectionList.innerHTML=previewMarkup(shown,new Set());
-      const date=new Date(parsed.exportedAt);
-      report(Number.isFinite(+date)?`Backup from ${date.toLocaleString([],{dateStyle:'medium',timeStyle:'short'})}.`:'Backup ready to preview.');
-      preview.hidden=false;apply.hidden=false;
+      stage(parsed,'Backup');
     }catch(error){if(request===revision)report(error.message);}
   });
   sectionList.addEventListener('change',()=>{apply.disabled=!selected().size;});
@@ -279,5 +328,5 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
     location.reload();
   });
   dialog.addEventListener('close',clear);
-  return {open(){clear();dialog.showModal();}};
+  return {open(){clear();renderPoints();dialog.showModal();}};
 }

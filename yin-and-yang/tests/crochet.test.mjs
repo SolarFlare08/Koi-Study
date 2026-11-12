@@ -1,6 +1,21 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {CROCHET_KEY,loadCrochet,logYarnUse} from '../dist/crochet.js';
+import {CROCHET_KEY,loadCrochet,logYarnUse,yarnShoppingList} from '../dist/crochet.js';
+
+test('shopping combines matching dye lots and credits yarn already used without counting finished work',()=>{
+  const storage={getItem:()=>JSON.stringify({
+    yarn:[{id:'a',name:'Merino',colorway:'Fern',grams:60},{id:'b',name:'Merino',colorway:'fern',grams:40},{id:'c',name:'Cotton',colorway:'Fern',grams:200}],
+    projects:[{id:'p',name:'Cardigan',status:'making',yarnIds:['a'],yarnNeeds:{a:130}},{id:'q',name:'Hat',status:'planned',yarnIds:['b'],yarnNeeds:{b:70}},
+      {id:'r',name:'Finished scarf',status:'finished',yarnIds:['a'],yarnNeeds:{a:500}}],
+    usage:[{id:'use',yarnId:'b',projectId:'p',grams:20,at:1}]
+  })};
+  const [row,...other]=yarnShoppingList(loadCrochet(storage));
+  assert.equal(row.onHand,100);
+  assert.equal(row.needed,180);
+  assert.equal(row.shortage,80);
+  assert.deepEqual(row.projects.map(project=>project.name),['Cardigan','Hat']);
+  assert.deepEqual(other,[]);
+});
 
 test('yarn use updates the stash and linked project together across reloads',()=>{
   const storageFor=data=>({getItem:key=>key===CROCHET_KEY?JSON.stringify(data):null});

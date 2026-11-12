@@ -27,9 +27,11 @@ function cleanProject(item){
   const patternChanges=Array.isArray(item.patternChanges)?item.patternChanges.filter(change=>
     typeof change?.id==='string'&&Number.isFinite(change.at)&&clean(change.note,1000))
     .map(change=>({id:change.id,at:change.at,row:whole(change.row),note:clean(change.note,1000)})):[];
+  const yarnIds=Array.isArray(item.yarnIds)?[...new Set(item.yarnIds.filter(id=>typeof id==='string'))]:[];
   return {id:item.id,name:clean(item.name,100),status:Object.hasOwn(statuses,item.status)?item.status:'planned',
     rows:whole(item.rows),goal:whole(item.goal),hook:clean(item.hook,40),pattern:patternUrl(clean(item.pattern,1000)),
-    notes:clean(item.notes,3000),counters,checkpoints,patternChanges,yarnIds:Array.isArray(item.yarnIds)?[...new Set(item.yarnIds.filter(id=>typeof id==='string'))]:[]};
+    notes:clean(item.notes,3000),counters,checkpoints,patternChanges,yarnIds,
+    yarnNeeds:Object.fromEntries(Object.entries(item.yarnNeeds||{}).filter(([id,grams])=>yarnIds.includes(id)&&Number.isInteger(grams)&&grams>0&&grams<=1000000))};
 }
 function cleanYarn(item){
   return {id:item.id,name:clean(item.name,100),colorway:clean(item.colorway,75),color:color(item.color),
@@ -63,6 +65,35 @@ export function logYarnUse(data,{yarnId,projectId='',grams},now=Date.now()){
   data.usage.push({id:crypto.randomUUID(),yarnId,projectId,grams,at:now});
   return true;
 }
+
+export function yarnShoppingList(data){
+  const normalized=value=>String(value||'').trim().replace(/\s+/g,' ').toLowerCase();
+  const key=yarn=>JSON.stringify([yarn.name,yarn.colorway,yarn.weight].map(normalized));
+  const stock=new Map(), yarnById=new Map(data.yarn.map(yarn=>[yarn.id,yarn]));
+  for(const yarn of data.yarn){
+    const id=key(yarn), row=stock.get(id)||{name:yarn.name,colorway:yarn.colorway,weight:yarn.weight,color:yarn.color,onHand:0,needed:0,projects:[]};
+    row.onHand+=yarn.grams;stock.set(id,row);
+  }
+  for(const project of data.projects){
+    if(project.status!=='planned'&&project.status!=='making')continue;
+    const targets=new Map();
+    for(const yarnId of project.yarnIds){
+      const yarn=yarnById.get(yarnId), grams=project.yarnNeeds?.[yarnId];
+      if(!yarn||!grams)continue;
+      const id=key(yarn);targets.set(id,(targets.get(id)||0)+grams);
+    }
+    for(const use of data.usage){
+      const yarn=yarnById.get(use.yarnId);
+      if(use.projectId===project.id&&yarn&&targets.has(key(yarn)))targets.set(key(yarn),targets.get(key(yarn))-use.grams);
+    }
+    for(const [id,grams] of targets){
+      if(grams<=0)continue;
+      const row=stock.get(id);row.needed+=grams;row.projects.push({name:project.name,grams});
+    }
+  }
+  return [...stock.values()].filter(row=>row.needed>row.onHand).map(row=>({...row,shortage:row.needed-row.onHand}))
+    .sort((a,b)=>(a.colorway||a.name).localeCompare(b.colorway||b.name));
+}
 const yarnIllustration=`<svg viewBox="0 0 230 125" fill="none" aria-hidden="true">
   <defs><pattern id="stitchwork" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M0 6 7 0" stroke="#a96c62" opacity=".28" stroke-width="1.1"/></pattern></defs>
   <path d="M14 102C42 91 47 114 74 102C93 93 97 78 102 73" stroke="#ab796b" stroke-width="2.1" stroke-linecap="round"/>
@@ -79,7 +110,7 @@ export function installCrochet({root,storage,notify}){
   const $=selector=>root.querySelector(selector);
   root.innerHTML=`<div class="crochet-wrap">
     <header class="crochet-hero"><div><span>THE CRAFT ROOM</span><h2 id="crochet-heading">Stitchbook</h2><p>Keep your projects, time, row counts, and yarn in one place.</p></div>${yarnIllustration}</header>
-    <div class="crochet-navigation"><div class="crochet-tabs" role="group" aria-label="Crochet views"><button type="button" data-crochet-view="projects">Projects</button><button type="button" data-crochet-view="yarn">Yarn stash</button></div><button type="button" class="crochet-primary" id="crochet-add"></button></div>
+    <div class="crochet-navigation"><div class="crochet-tabs" role="group" aria-label="Crochet views"><button type="button" data-crochet-view="projects">Projects</button><button type="button" data-crochet-view="yarn">Yarn stash</button><button type="button" data-crochet-view="shopping">Shopping list</button></div><button type="button" class="crochet-primary" id="crochet-add"></button></div>
     <div id="crochet-content"></div>
   </div><dialog id="crochet-dialog"></dialog>`;
   const content=$('#crochet-content'), dialog=$('#crochet-dialog');
@@ -130,7 +161,15 @@ export function installCrochet({root,storage,notify}){
   function render(){
     root.querySelectorAll('[data-crochet-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.crochetView===view)));
     add.textContent=view==='projects'?'+ New project':'+ Add yarn';
-    if (view==='projects') {
+    if(view==='shopping'){
+      const rows=yarnShoppingList(data);
+      content.innerHTML=`<div class="crochet-list-heading"><p>Shortages for planned and in-progress projects</p></div>
+        ${rows.length?`<ul class="crochet-yarn-list shopping-shortages">${rows.map(row=>`<li>
+          <h3>${escape(row.colorway||row.name)}</h3><p>${escape([row.colorway?row.name:'',row.weight].filter(Boolean).join(' · '))}</p>
+          <strong>${number(row.shortage)} g to buy</strong><p>${number(row.needed)} g still needed · ${number(row.onHand)} g on hand</p>
+          <ul>${row.projects.map(project=>`<li>${escape(project.name)} · ${number(project.grams)} g</li>`).join('')}</ul></li>`).join('')}</ul>`:
+          '<div class="crochet-empty"><h3>No yarn shortages</h3><p>In a project, link yarn and enter its total grams needed to calculate what to buy.</p></div>'}`;
+    }else if (view==='projects') {
       const items=data.projects.filter(item=>statusFilter==='all'||item.status===statusFilter);
       const open=data.projects.filter(item=>item.status==='making').length;
       const finished=data.projects.filter(item=>item.status==='finished').length;
@@ -144,7 +183,8 @@ export function installCrochet({root,storage,notify}){
   }
 
   function projectFields(item){
-    const yarn=data.yarn.map(y=>`<label class="crochet-yarn-choice"><input type="checkbox" name="yarnIds" value="${escape(y.id)}" ${item?.yarnIds.includes(y.id)?'checked':''}><i style="--swatch:${y.color}"></i><span>${escape(y.colorway?`${y.name} · ${y.colorway}`:y.name)}</span></label>`).join('');
+    const yarn=data.yarn.map(y=>`<div class="crochet-yarn-need"><label class="crochet-yarn-choice"><input type="checkbox" name="yarnIds" value="${escape(y.id)}" ${item?.yarnIds.includes(y.id)?'checked':''}><i style="--swatch:${y.color}"></i><span>${escape(y.colorway?`${y.name} · ${y.colorway}`:y.name)}</span></label>
+      <label>Total grams needed<input name="need:${escape(y.id)}" type="number" min="0" max="1000000" step="1" value="${item?.yarnNeeds?.[y.id]||''}"></label></div>`).join('');
     return `<label>Project name<input name="name" required maxlength="100" value="${escape(item?.name)}" placeholder="e.g. Willow cardigan"></label>
       <div class="crochet-fields"><label>Status<select name="status">${Object.entries(statuses).map(([key,name])=>`<option value="${key}" ${item?.status===key?'selected':''}>${name}</option>`).join('')}</select></label><label>Hook size<input name="hook" maxlength="40" value="${escape(item?.hook)}" placeholder="e.g. 4 mm"></label>
       <label>Rows worked<input name="rows" type="number" min="0" max="100000" step="1" value="${item?.rows??0}"></label><label>Row goal (optional)<input name="goal" type="number" min="1" max="100000" step="1" value="${item?.goal||''}"></label></div>
@@ -248,7 +288,8 @@ export function installCrochet({root,storage,notify}){
       const yarnIds=fields.getAll('yarnIds').filter(yarnId=>next.yarn.some(item=>item.id===yarnId));
       const index=next[kind].findIndex(record=>record.id===id);
       if (id&&index<0) return fail('This item was removed in another tab.');
-      const item=kind==='projects'?cleanProject({...next.projects[index],...values,yarnIds}):cleanYarn(values);
+      const yarnNeeds=Object.fromEntries(yarnIds.map(id=>[id,Number(fields.get(`need:${id}`))]));
+      const item=kind==='projects'?cleanProject({...next.projects[index],...values,yarnIds,yarnNeeds}):cleanYarn(values);
       if (index<0) next[kind].unshift(item); else next[kind][index]=item;
     }
     if (!commit(next)) return fail('Changes could not be saved on this device.');
@@ -265,13 +306,18 @@ export function installCrochet({root,storage,notify}){
     notify(remove?'Removed from Stitchbook.':kind==='time'?'Crochet time logged.':kind==='use'?'Yarn use logged.':'Saved in Stitchbook.');
   }
 
+  dialog.addEventListener('input',event=>{
+    if(event.target.name?.startsWith('need:')&&event.target.valueAsNumber>0){
+      event.target.closest('.crochet-yarn-need').querySelector('[name="yarnIds"]').checked=true;
+    }
+  });
   root.addEventListener('click',event=>{
     const button=event.target.closest('button');
     if (!button) return;
     const id=button.closest('[data-crochet-id]')?.dataset.crochetId;
     const action=button.dataset;
     if (action.crochetView) { view=action.crochetView; render(); }
-    if (button===add) openEditor(view,null,button);
+    if (button===add) openEditor(view==='projects'?'projects':'yarn',null,button);
     if (action.crochetEdit) openEditor(action.crochetEdit,id,button);
     if ('crochetUse' in action) openEditor('use',id,button);
     if ('crochetTime' in action) openEditor('time',id,button);

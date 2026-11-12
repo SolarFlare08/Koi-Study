@@ -297,6 +297,16 @@ button.project-context-item:hover { color: var(--planner-accent); }
 .day-recap-sections ul { list-style: none; padding: 0; margin: 0; }
 .day-recap-sections li { padding: 3px 0; font-size: 12px; overflow-wrap: anywhere; }
 .day-recap-sections small { display: block; color: var(--surface-muted); }
+#shutdown-checklist label { font-size: 12px; }
+#shutdown-checklist input { accent-color: var(--surface-accent); }
+#shutdown-edit { margin-top: 6px; }
+#shutdown-edit summary { color: var(--surface-accent); cursor: pointer; font-size: 12px; }
+#shutdown-form label { display: grid; gap: 4px; margin-top: 6px; }
+#shutdown-form textarea { min-height: 80px; }
+.capture-context-choice, .captured-context { display: block; margin: 6px 0; font-size: 11px; color: var(--surface-muted); overflow-wrap: anywhere; }
+.decision-list h4 { margin: 4px 0; }
+.decision-links { display: flex; gap: 6px; flex-wrap: wrap; }
+.decision-links button { border: 1px solid var(--surface-line); border-radius: 6px; padding: 3px 7px; }
 .garden-schedule { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--surface-line); }
 .garden-schedule h3 { margin: 0 0 6px; font-size: 13px; }
 .garden-schedule > label, .garden-schedule p { font-size: 11px; }

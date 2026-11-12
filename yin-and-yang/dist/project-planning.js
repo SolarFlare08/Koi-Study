@@ -30,3 +30,13 @@ export function milestoneProgress(milestone,tasksById){
   const done=tasks.filter(item=>item.done).length;
   return {milestone,tasks,done,complete:tasks.length>0&&done===tasks.length};
 }
+
+export function projectDecision(value){
+  const date=new Date(`${value?.date}T00:00:00Z`);
+  if(typeof value?.id!=='string'||!Number.isFinite(+date)||date.toISOString().slice(0,10)!==value.date)return null;
+  const name=typeof value.name==='string'?value.name.trim().slice(0,120):'';
+  const reason=typeof value.reason==='string'?value.reason.trim().slice(0,3000):'';
+  if(!name||!reason)return null;
+  return {id:value.id,date:value.date,name,reason,taskIds:strings(value.taskIds,Infinity),
+    milestoneId:typeof value.milestoneId==='string'?value.milestoneId:''};
+}
