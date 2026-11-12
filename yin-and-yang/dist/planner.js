@@ -32,7 +32,7 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>''}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
@@ -462,8 +462,10 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const settings=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:view==='reporting'?`<button type="button" data-report-export>${icon('download')} Export CSV</button>`:'';
     const replan=standalone||view==='today'?'<button type="button" data-replan-today aria-haspopup="dialog">Replan today</button>':'';
     $('#planner-heading-actions').innerHTML=addTask+settings+replan+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button>`:'<button type="button" data-plan-tomorrow aria-haspopup="dialog">Plan tomorrow</button><button type="button" data-plan-deadline aria-haspopup="dialog">Plan to deadline</button>');
+    $('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-availability aria-haspopup="dialog">Availability</button>');
     if(project)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="milestones" aria-haspopup="dialog">Milestones</button>');
     if(project?.thoughts?.length)$('#planner-heading-actions').insertAdjacentHTML('beforeend',`<button type="button" data-manage="project-thoughts">Thoughts (${project.thoughts.length})</button>`);
+    if(project&&linkedNotes(project.id))$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="project-notes" aria-haspopup="dialog">Linked notes</button>');
     $('#planner-layout-label').hidden=sectionView||standalone;
     $('#planner-toggle-sidebar').hidden=standalone;
     $('#calendar-layout-controls').hidden=!standalone;
@@ -624,6 +626,13 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       title='Import calendar';
       const sources=[...new Set(state().calendarEvents.filter(event=>!event.manual).map(event=>event.source||'Imported calendar'))];
       fields=`<label>iCalendar file<input type="file" name="calendar" accept=".ics,text/calendar" required></label><p>For Canvas, open Calendar → Calendar Feed and download the .ics file. Import it here again to refresh your assignments and events.</p><p><a href="https://community.instructure.com/en/kb/articles/662804-how-do-i-view-the-calendar-ical-feed-to-subscribe-to-an-external-calendar" target="_blank" rel="noopener noreferrer">Canvas calendar instructions ↗</a></p><p role="alert" id="planner-import-error" hidden></p>${sources.map(source=>`<p class="import-source">${escape(source)} <button type="button" data-remove-calendar="${escape(source)}">Remove</button></p>`).join('')}`;
+    } else if(type==='project-notes'){
+      if(!currentProject)return;
+      dialog.innerHTML=`<header><h3 id="planner-dialog-title">${escape(currentProject.name)} · Linked notes</h3>
+        <button type="button" data-dialog-close aria-label="Close dialog">×</button></header>
+        ${linkedNotes(currentProject.id)||'<p>No sticky notes are linked to this project.</p>'}`;
+      dialog.setAttribute('aria-labelledby','planner-dialog-title');
+      dialog.showModal();return;
     } else if (type==='project-thoughts') {
       if(!currentProject)return;
       dialog.innerHTML=`<header><h3 id="planner-dialog-title">${escape(currentProject.name)} · Thoughts</h3><button type="button" data-dialog-close aria-label="Close dialog">×</button></header><div class="project-thoughts">${(currentProject.thoughts||[]).map(note=>`<article><time>${escape(new Date(note.createdAt).toLocaleDateString())}</time><p>${escape(note.text)}</p></article>`).join('')}</div>`;

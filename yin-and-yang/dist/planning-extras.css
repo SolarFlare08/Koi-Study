@@ -281,3 +281,23 @@
 .crochet-resume p,.crochet-checkpoint-history p { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .crochet-checkpoint-history { list-style: none; margin: 0; padding: 0; }
 .crochet-checkpoint-history li { padding: 7px 0; }
+.availability-rules { list-style: none; padding: 0; margin: 10px 0; }
+.availability-rules li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--surface-line); }
+.availability-rules :is(strong,small) { display: block; overflow-wrap: anywhere; }
+.availability-rules small { color: var(--surface-muted); }
+.availability-days { display: flex; flex-wrap: wrap; gap: 5px 8px; padding: 6px 0; margin: 4px 0; border: 0; }
+.availability-days label,.availability-all-day { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+#availability-form input[type="checkbox"] { width: auto; margin: 0; }
+#availability-times[hidden] { display: none; }
+.journal-template-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 6px 10px; grid-column: 1/-1; }
+.journal-template-controls details { font-size: 12px; }
+.journal-template-controls details[open] { flex-basis: 100%; }
+.journal-template-controls summary { cursor: pointer; padding: 5px 0; }
+.journal-template-controls button { border: 1px solid var(--surface-line); border-radius: 6px; padding: 5px 8px; font-size: 12px; }
+.journal-template-controls button:disabled { opacity: .5; }
+.related-sticky-notes { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; padding: 7px 0; font-size: 12px; }
+.related-sticky-notes button { border: 1px solid var(--surface-line); border-radius: 6px; padding: 4px 7px; text-align: left; overflow-wrap: anywhere; }
+.related-sticky-notes button:hover { background: var(--surface-raised); }
+#sticky-link-related { display: grid; gap: 6px; }
+#sticky-link-related summary { cursor: pointer; font-size: 13px; }
+#sticky-link-related details > div { max-height: 155px; overflow: auto; margin-top: 4px; }

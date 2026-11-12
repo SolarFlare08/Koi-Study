@@ -6,7 +6,7 @@ import {installPlanner} from './planner.js';
 import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
-import {installFocusNotes,installStickyNotes,noteTaskIds,scratchNoteId} from './sticky-notes.js';
+import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
 import {annotationContext,installReadingShelf,readingShelf} from './reading-shelf.js';
 import {installBackup} from './backup.js';
 import {dailyRitualMarkup,ritualComplete,rituals} from './daily-rituals.js';
@@ -17,6 +17,7 @@ import {installCommandPalette} from './command-palette.js';
 import {installHelp} from './help.js';
 import {canPlanDeadline,planDeadline,scheduleImpact} from './scheduling.js';
 import {nextTaskDate} from './planner-data.js';
+import {loadAvailability,unavailableRanges} from './availability.js';
 import {taskTemplate} from './project-planning.js';
 import {estimateSummary,suggestTaskEstimate} from './planner-report.js';
 import {loadRoutinePhase,routinePhases} from './state.js';
@@ -127,6 +128,7 @@ undoButton.onclick=()=>{
 const planner=installPlanner({
   root:calendarPanel,getState:()=>state,commit:()=>{const saved=persist();refreshTasks();return saved;},
   editTask:openTaskEditor,openBlock:openCalendarBlock,taskMenu:openTaskMenu,
+  linkedNotes:id=>linkedStickyNotes('project',id),
   previewSchedule:previewTaskSchedule,
   calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,dailyRituals:renderDailyRituals,blockProgress:progressForBlock,notify:confirmChange,completeTask:markTask,hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden||Boolean(document.querySelector('dialog[open]'))
 });
@@ -151,9 +153,15 @@ $('#landscape').innerHTML=renderLandscape();
 $('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",music:"music",notes:"spark",progress:"target",appearance:"appearance"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",music:"Music",notes:"Notes",progress:"Today",appearance:"Appearance"})[o.id]}</span></button>`).join('');
 const crochet=installCrochet({root:$('#crochet-workspace'),storage,notify:message=>{toast(message);announce(message);}});
 const journal=installJournal({root:$('#journal-workspace'),storage,projects:()=>loadCrochet(storage).projects,notify:confirmChange,
+  getTemplates:()=>state.journalTemplates,saveTemplates:templates=>{
+    const previous=state.journalTemplates;state.journalTemplates=templates;
+    if(persist())return true;
+    state.journalTemplates=previous;return false;
+  },
+  linkedNotes:id=>linkedStickyNotes('journal',id),
   onChange:()=>{if(inSchedule())renderCalendar();}
 });
-const stickyBoard=installStickyNotes({root:$('#notes-workspace'),getNotes:()=>state.stickyNotes,getTasks:gardenTasks,saveNotes:saveStickyNotes,
+const stickyBoard=installStickyNotes({root:$('#notes-workspace'),getNotes:()=>state.stickyNotes,getTasks:gardenTasks,getRelated:relatedNoteTargets,saveNotes:saveStickyNotes,
   createTask:(noteId,text,anchor)=>openTaskEditor(null,anchor,{noteId,text:text.split(/\r?\n/)[0].trim().slice(0,160),description:text.slice(0,2000)}),
   notify:confirmChange});
 const focusNotes=installFocusNotes({
@@ -167,7 +175,7 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
     if(persist())return true;
     state.readingNotes=previous;
     return false;
-  },openCalendar:()=>calendarToggle.click()});
+  },openCalendar:()=>calendarToggle.click(),linkedNotes:id=>linkedStickyNotes('book',id)});
 const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
@@ -249,6 +257,27 @@ function visitWorkspace(name){
   button.click();
   return button;
 }
+function relatedNoteTargets(){
+  return [
+    ...readingShelf(state.dailyRituals,state.readingNotes).map(book=>({kind:'book',id:book.id,title:book.author?`${book.title} · ${book.author}`:book.title})),
+    ...state.projects.map(project=>({kind:'project',id:project.id,title:project.name})),
+    ...loadJournal(storage).map(entry=>({kind:'journal',id:entry.id,title:`${entry.title} · ${entry.date}`}))
+  ];
+}
+function linkedStickyNotes(kind,id){
+  const notes=state.stickyNotes.filter(note=>noteRelatedItems(note).some(item=>item.kind===kind&&item.id===id));
+  if(!notes.length)return '';
+  return `<div class="related-sticky-notes" role="group" aria-label="Linked sticky notes">
+    <strong>Sticky notes</strong>${notes.map(note=>`<button type="button" data-open-sticky="${escape(note.id)}">${escape(note.title||note.body.trim().slice(0,60)||'Untitled note')}</button>`).join('')}</div>`;
+}
+document.addEventListener('click',event=>{
+  const button=event.target.closest('[data-open-sticky]');
+  if(!button)return;
+  const id=button.dataset.openSticky;
+  if(!state.stickyNotes.some(note=>note.id===id))return;
+  button.closest('dialog[open]')?.close();
+  visitWorkspace('notes');stickyBoard.focusNote(id);
+});
 function commandEntries(){
   const action=(title,detail,search,run)=>({kind:'Action',title,detail,search,run});
   const tasks=state.tasks.map(task=>({
@@ -339,6 +368,8 @@ function focusedTask(date=new Date()){
   const queue=gardenFocusQueue(date);
   const sessionId=state.timer.mode==='focus'?state.timer.taskSnapshot?.id:null;
   const day=dayKey(date);
+  const snoozedSession=state.tasks.find(task=>task.id===sessionId&&task.snoozedUntil>day);
+  if(snoozedSession)return snoozedSession;
   const selectedId=(state.tomorrowPlan?.day!==day||state.activeTaskDay===day?state.activeTask:null)||sessionId;
   return queue.find(task=>task.id===selectedId)||queue[0];
 }
@@ -601,7 +632,8 @@ function taskCard(task,status,date,currentId,prerequisites){
     ${task.description?`<p class="task-description">${escape(task.description)}</p>`:''}
     ${details.length?`<p class="task-meta">${escape(details.join(' · '))}</p>`:''}
     ${prerequisites.length?`<p class="task-waiting">Waiting on ${escape(prerequisites.map(item=>item.text).join(', '))}</p>`:''}
-    ${status==='todo'&&!prerequisites.length?`<button type="button" class="task-active" aria-label="Focus on ${name}" aria-pressed="${selected}">${icon('target')} ${selected?'In focus':'Focus on this'}</button>`:''}
+    ${status!=='done'&&task.snoozedUntil>dayKey(date)?`<p class="task-waiting">Snoozed until ${escape(shortScheduleDate(task.snoozedUntil))}</p>`:''}
+    ${status==='todo'&&!prerequisites.length&&!(task.snoozedUntil>dayKey(date))?`<button type="button" class="task-active" aria-label="Focus on ${name}" aria-pressed="${selected}">${icon('target')} ${selected?'In focus':'Focus on this'}</button>`:''}
   </li>`;
 }
 function renderTasks(date=new Date()){
@@ -963,6 +995,9 @@ function taskEditor(){
             <button type="submit" value="plan-deadline" id="task-plan-deadline" class="text-button" hidden>Save and plan to deadline</button>
           </div>
           ${taskDependencies(values)}
+          <div class="task-detail-property"><label class="field-label" for="task-snooze">Snooze until</label>
+            <input id="task-snooze" name="snoozedUntil" type="date" value="${escape(values.snoozedUntil)}">
+            <p>Leave blank to keep this task in the focus queue when it’s ready.</p></div>
           <div class="task-detail-property">
             <label class="field-label" for="task-priority">Priority</label><select id="task-priority" name="priorityLevel">${[1,2,3,4].map(level=>`<option value="${level}" ${level===taskPriority(values)?'selected':''}>${level===4?'P4 · Normal':`P${level}`}</option>`).join('')}</select>
           </div>
@@ -1115,6 +1150,7 @@ function timerNotificationControls(){
     <button type="button" class="text-button" id="timer-open-sounds">Adjust chimes and ambience</button></section>`;
 }
 function panelContent(id){
+  if(id==='availability')return availabilityMarkup();
   if(id==='routine-editor')return routineEditor();
   if(id==='focus-review')return focusReviewMarkup();
   if(id==='focus-goal')return `${header('FOCUS','Set an outcome')}
@@ -1232,7 +1268,7 @@ function openPanel(id,anchor){
   closePanel(false);activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','schedule-drop','routine-editor'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','schedule-drop','routine-editor','availability'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
   if(id==='routine-editor')updatePhaseButtons();
   const scheduleForm=panel.querySelector('#task-editor-form,#block-editor-form');
   if(scheduleForm)updateScheduleEditor(scheduleForm);
@@ -1570,7 +1606,7 @@ function openTaskMenu(id,anchor,x,y){
   actions.push(['duplicate','Duplicate task']);
   if(anchor.classList.contains('calendar-block'))actions.unshift(['block-focus','Start focus…']);
   if(anchor.dataset.block)actions.push(['edit-block','Edit block'],['remove-block','Remove block']);
-  if(taskStatus(task)==='todo'&&!waitingOn(task).length)actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
+  if(taskStatus(task)==='todo'&&!waitingOn(task).length&&!(task.snoozedUntil>dayKey()))actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
   if(canPlanDeadline(task))actions.push(['plan-deadline','Plan to deadline…']);
   if(status!=='upcoming')actions.push(['complete',status==='done'?'Reopen task':'Mark done']);
   if(task.date&&task.time&&!anchor.dataset.block)actions.push(['unschedule','Remove scheduled time']);
@@ -2000,11 +2036,53 @@ function saveDeadlinePlan(form){
 }
 
 let replanPreview;
+const availabilityDays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+let editingAvailabilityId='';
+function availabilityMarkup(){
+  const rule=state.availability.find(item=>item.id===editingAvailabilityId);
+  const rows=state.availability.map(item=>`<li><span><strong>${escape(item.name)}</strong><small>${item.days.map(day=>availabilityDays[day]).join(', ')} ·
+    ${item.allDay?'All day':`${timeLabel(timeMinutes(item.start))}–${timeLabel(timeMinutes(item.end))}${item.end<item.start?' next day':''}`}</small></span>
+    <button type="button" class="text-button" data-edit-availability="${escape(item.id)}" aria-label="Edit ${escape(item.name)}">Edit</button></li>`).join('');
+  return `${header('CALENDAR','Recurring availability')}
+    <p>Plan tomorrow and Replan today leave these times free.</p>
+    ${rows?`<ul class="availability-rules">${rows}</ul>`:''}
+    <form id="availability-form">
+      <label class="field-label" for="availability-name">Block name</label><input id="availability-name" name="name" maxlength="60" required placeholder="Work hours" value="${escape(rule?.name)}">
+      <fieldset class="availability-days"><legend>Repeat on</legend>${availabilityDays.map((name,index)=>
+        `<label><input type="checkbox" name="day" value="${index}" ${rule?.days.includes(index)?'checked':''}> ${name}</label>`).join('')}</fieldset>
+      <label class="availability-all-day"><input type="checkbox" name="allDay" ${rule?.allDay?'checked':''}> All day</label>
+      <div class="ritual-goal-fields" id="availability-times" ${rule?.allDay?'hidden':''}>
+        <label class="field-label">Starts<input type="time" name="start" value="${rule?.start||'18:00'}" ${rule?.allDay?'disabled':''} required></label>
+        <label class="field-label">Ends<input type="time" name="end" value="${rule?.end||'23:00'}" ${rule?.allDay?'disabled':''} required></label>
+      </div>
+      <p class="panel-subtle">An earlier end time continues into the next day.</p>
+      <p class="event-error" role="alert" hidden></p>
+      <div class="panel-actions">${rule?'<button type="button" class="text-button" id="new-availability">New block</button><button type="submit" value="remove" class="text-button" formnovalidate>Remove block</button>':''}
+        <button type="submit" class="panel-primary">${rule?'Save changes':'Add unavailable time'}</button></div>
+    </form>`;
+}
+function saveAvailability(form,remove){
+  const fields=new FormData(form),previous=state.availability,id=editingAvailabilityId;
+  if(id&&!previous.some(rule=>rule.id===id))return;
+  if(remove&&id)state.availability=previous.filter(rule=>rule.id!==id);
+  else{
+    const [rule]=loadAvailability([{id:id||crypto.randomUUID(),name:fields.get('name'),days:fields.getAll('day').map(Number),
+      allDay:fields.has('allDay'),start:fields.get('start'),end:fields.get('end')}]);
+    if(!rule){
+      const error=form.querySelector('[role="alert"]');error.hidden=false;
+      error.textContent='Enter a name, choose at least one day, and use distinct start and end times for a timed block.';return;
+    }
+    state.availability=id?previous.map(item=>item.id===id?rule:item):[...previous,rule];
+  }
+  if(!persist()){state.availability=previous;return;}
+  editingAvailabilityId='';refreshPanel();$('#availability-name').focus();
+  confirmChange(remove?'Unavailable time removed.':'Unavailable time saved.');
+}
 function currentReplan(){
   const locked=state.timer.block?.taskId||
     (state.timer.mode==='focus'&&state.timer.status!=='idle'?state.timer.taskSnapshot?.id:null);
   const cutoff=timeMinutes(state.replanCutoff)||24*60;
-  return replanToday(gardenTasks(),state.calendarEvents,new Date(),locked,{cutoff,focus:focusTotals()});
+  return replanToday(gardenTasks(),state.calendarEvents,new Date(),locked,{cutoff,focus:focusTotals(),availability:state.availability});
 }
 function replanMarkup(){
   const {day,moves,unplaced}=replanPreview;
@@ -2071,9 +2149,11 @@ function tomorrowBlockDefaults(task,date){
   const previous=state.tomorrowPlan?.day===dayKey(date)?state.tomorrowPlan:null;
   const blocks=task?calendarBlocks([task],date).filter(block=>!block.continues&&openFocusBlock(block)):[];
   const existing=blocks.find(block=>previous&&previous.taskId===task.id&&(block.blockId||null)===previous.blockId)||blocks[0];
-  if(existing)return {start:existing.start,minutes:existing.end-existing.start};
+  if(existing&&!unavailableRanges(state.availability,date).some(range=>range.start<existing.end&&range.end>existing.start)){
+    return {start:existing.start,minutes:existing.end-existing.start};
+  }
   const minutes=task?.estimate||Math.max(1,Math.round(state.settings.focus));
-  return {start:tomorrowFocusSlot(gardenTasks(),state.calendarEvents,date,minutes,previous),minutes};
+  return {start:tomorrowFocusSlot(gardenTasks(),state.calendarEvents,date,minutes,previous,state.availability),minutes};
 }
 function planTomorrowMarkup(){
   const date=shiftDay(new Date(),1),day=dayKey(date),{unfinished,choices}=tomorrowChoices(date);
@@ -2099,7 +2179,7 @@ function updateTomorrowSlot(form,useDefaults){
   const date=new Date(form.dataset.day+'T00:00:00');
   const task=gardenTasks().find(item=>item.id===form.elements.taskId.value);
   const suggestion=useDefaults?tomorrowBlockDefaults(task,date):{
-    start:form.elements.minutes.checkValidity()?tomorrowFocusSlot(gardenTasks(),state.calendarEvents,date,Number(form.elements.minutes.value),state.tomorrowPlan):null
+    start:form.elements.minutes.checkValidity()?tomorrowFocusSlot(gardenTasks(),state.calendarEvents,date,Number(form.elements.minutes.value),state.tomorrowPlan,state.availability):null
   };
   if(useDefaults)form.elements.minutes.value=suggestion.minutes;
   form.elements.start.value=suggestion.start===null?'':timeValue(suggestion.start);
@@ -2115,7 +2195,7 @@ function saveTomorrowPlan(form){
   try{
     if(dayKey(date)!==form.dataset.day)throw new Error('The date changed. Reopen Plan tomorrow to see the new schedule.');
     if(!tomorrowChoices(date).choices.some(task=>task.id===taskId))throw new Error('That task is no longer available.');
-    result=reserveTomorrowFocus(gardenTasks(),state.calendarEvents,date,{taskId,start,minutes},previous);
+    result=reserveTomorrowFocus(gardenTasks(),state.calendarEvents,date,{taskId,start,minutes},previous,state.availability);
   }catch(err){error.textContent=err.message;error.hidden=false;return;}
   const updates=state.tasks.filter(task=>result.changes.has(task.id)).map(task=>[task,task.blocks,result.changes.get(task.id)]);
   for(const [task,,blocks] of updates)task.blocks=blocks;
@@ -2263,6 +2343,8 @@ $('#calendar-jump-date').addEventListener('change',event=>{
   else planner.jumpMonth(date);
 });
 calendarPanel.addEventListener('click',event=>{
+  const availability=event.target.closest('[data-open-availability]');
+  if(availability){editingAvailabilityId='';openPanel('availability',availability);return;}
   const deadline=event.target.closest('[data-plan-deadline]');
   if(deadline){openDeadlinePlanner(null,deadline);return;}
   const plan=event.target.closest('[data-plan-tomorrow]');
@@ -2375,6 +2457,8 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const availability=e.target.closest('[data-edit-availability],#new-availability');
+  if(availability){editingAvailabilityId=availability.dataset.editAvailability||'';refreshPanel();$('#availability-name').focus();return;}
   const phase=e.target.closest('[data-phase-action]');
   if(phase){changePhaseRows(phase);return;}
   const routineEditorButton=e.target.closest('#add-routine-sequence,[data-edit-routine]');
@@ -2602,6 +2686,10 @@ root.addEventListener('pointerup',event=>endFocusQueueDrag(event,true));
 root.addEventListener('pointercancel',event=>endFocusQueueDrag(event,false));
 root.addEventListener('lostpointercapture',event=>endFocusQueueDrag(event,false));
 root.addEventListener('change',event=>{
+  if(event.target.form?.id==='availability-form'&&event.target.name==='allDay'){
+    const times=$('#availability-times');times.hidden=event.target.checked;
+    times.querySelectorAll('input').forEach(input=>input.disabled=event.target.checked);
+  }
   if(event.target.id==='task-template'){updateTemplateButtons(event.target);return;}
   if(event.target.id==='deadline-plan-task'){
     deadlineTaskId=event.target.value;refreshPanel();return;
@@ -2660,6 +2748,7 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='availability-form'){saveAvailability(e.target,e.submitter?.value==='remove');return;}
   if(e.target.id==='focus-goal-form'){
     const fields=new FormData(e.target),goal=String(fields.get('goal')).trim();
     const previous=state.timer.goal;
@@ -2837,7 +2926,7 @@ root.addEventListener('submit',e=>{
     const comment=fields.get('comment').trim();
     if(comment)comments.push({id:crypto.randomUUID(),text:comment,at:Date.now()});
     const task={
-      id, text, prerequisiteIds,
+      id, text, prerequisiteIds,snoozedUntil:fields.get('snoozedUntil'),
       description:fields.get('description').trim(),
       resumeNote:String(fields.get('resumeNote')||'').trim(),
       date:fields.get('date')||(repeat!=='none'||fields.get('time')?dayKey():''),

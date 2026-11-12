@@ -76,7 +76,7 @@ export function countReadingChapters(rituals){
   },0);
 }
 
-export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCalendar}){
+export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCalendar,linkedNotes=()=>''}){
   root.innerHTML=`<div class="reading-wrap">
     <header class="reading-heading"><h2 id="reading-heading">Reading shelf</h2><div class="reading-actions">
       <button type="button" id="reading-review" aria-pressed="false">Review queue</button><button type="button" id="reading-calendar">Open Calendar</button></div></header>
@@ -141,6 +141,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
     history.innerHTML=`<h3>${escape(current.title)}</h3>${current.author?`<p class="reading-author">${escape(current.author)}</p>`:''}
       ${current.last?`<div class="reading-resume"><span>Where you left off</span><strong>${escape(current.last.chapter)}</strong><time datetime="${current.last.date}">${escape(formatDay(current.last.date))}</time></div>`:''}
       ${chips?`<h4>Chapters annotated</h4><ul class="reading-chapters">${chips}</ul>`:''}
+      ${linkedNotes(current.id)}
       ${noteEditor(current,notes.filter(note=>bookKey(note.bookTitle,note.bookAuthor)===current.id))}
       <h4>History</h4><ol class="reading-timeline">${current.entries.map(entry=>`<li>
         <time datetime="${entry.date}">${escape(formatDay(entry.date))}</time>

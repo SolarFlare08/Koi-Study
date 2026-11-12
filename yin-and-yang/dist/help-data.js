@@ -236,6 +236,14 @@ export const helpTopics = [
     action:'replan', actionLabel:'Open Replan today', related:['tomorrow','workload'], keywords:'missed overdue reschedule split cutoff'
   },
   {
+    id:'availability', group:'Calendar & planning', title:'Protect time every week',
+    summary:'Keep recurring work hours, evenings, and days off free when planning.',
+    steps:['Open Planner or Calendar and choose `Availability`.',
+      'Name the block, select the days it repeats, and set a start and end time or choose All day. An end time earlier than the start continues into the next day.',
+      'Choose `Add unavailable time`. Plan tomorrow and Replan today avoid these blocks. Open Availability again to edit or remove a block.'],
+    action:'calendar', actionLabel:'Open Calendar', related:['tomorrow','replan']
+  },
+  {
     id:'tomorrow', group:'Calendar & planning', title:'Plan tomorrow in two minutes',
     summary:'Choose tomorrow’s first task and reserve a focus block.',
     steps:['Open Planner → `Plan tomorrow`, or run that action from `Ctrl+K`.',
@@ -326,7 +334,7 @@ export const helpTopics = [
   {
     id:'linked-notes', group:'Thoughts & notes', title:'Link notes to tasks or turn a line into a task',
     summary:'Keep the original context beside your focus timer.',
-    steps:['In the Notes tab, use a note’s `Link note to task` control to choose one or more tasks and save the links.',
+    steps:['In the Notes tab, use a note’s link control to choose tasks, books, projects, or journal entries and save the links. Open the original sticky note from a linked book, project, or journal entry.',
       'To create a task from a note, select text or place the cursor on a line, then choose `Create task from note text`.',
       'Review the new task in its editor and save it. The original note is linked automatically.',
       'Select the linked task in Garden and use its linked-notes control to open the notes beside the timer.'],
@@ -366,6 +374,7 @@ export const helpTopics = [
     id:'journal', group:'Reading & journal', title:'Write and revisit journal entries',
     summary:'Use a spacious editor with visible date, mood, and project fields.',
     steps:['Open Journal → `New entry`, or click a date’s Journal ritual in Calendar.',
+      'Start blank or choose a template and select `Insert template`. Use `Save as template` to reuse the current draft text in another entry.',
       'Add a title and write your entry. Choose the date, optional mood, and an optional crochet project above the writing area.',
       'Choose `Save entry` to save it and complete that date’s Journal ritual. The word count updates while you write.',
       'Search the journal library or Ctrl+K to find an entry. Click its title to edit it. Deleting asks for confirmation and offers Undo after deletion.'],

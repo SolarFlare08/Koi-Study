@@ -4,6 +4,7 @@ import {captureTaskChange} from './task-undo.js';
 import {loadGardenSchedule} from './garden-appearance.js';
 import {loadDailyRituals} from './daily-rituals.js';
 import {loadReadingNotes} from './reading-shelf.js';
+import {loadAvailability} from './availability.js';
 import {loadStickyNotes} from './sticky-notes.js';
 import {projectMilestone,taskTemplate} from './project-planning.js';
 
@@ -120,6 +121,7 @@ function loadTask(task) {
     sectionId:typeof task.sectionId==='string'?task.sectionId:'',
     labels:Array.isArray(task.labels)?task.labels.filter(label=>typeof label==='string'&&label.length<=40):[],
     deadline:isDay(task.deadline)?task.deadline:'',
+    snoozedUntil:isDay(task.snoozedUntil)?task.snoozedUntil:'',
     prerequisiteIds:Array.isArray(task.prerequisiteIds)
       ? [...new Set(task.prerequisiteIds.filter(id=>typeof id==='string'&&id!==task.id))]
       : [],
@@ -151,7 +153,7 @@ export function formatDuration(ms) {
 }
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
-    replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null, readingNotes:[],
+    replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null, readingNotes:[], availability:[], journalTemplates:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -177,6 +179,10 @@ export function loadState(storage) {
     if(isTime(raw.replanCutoff))base.replanCutoff=raw.replanCutoff;
     base.dailyRituals=loadDailyRituals(raw.dailyRituals);
     base.readingNotes=loadReadingNotes(raw.readingNotes);
+    base.availability=loadAvailability(raw.availability);
+    if(Array.isArray(raw.journalTemplates))base.journalTemplates=raw.journalTemplates.filter(item=>
+      typeof item?.id==='string'&&typeof item.name==='string'&&item.name.trim()&&typeof item.body==='string'&&item.body.trim())
+      .map(({id,name,body})=>({id,name:name.slice(0,80),body:body.slice(0,6000)}));
     if(isDay(raw.focusPins?.day)&&Array.isArray(raw.focusPins.ids)){
       base.focusPins={day:raw.focusPins.day,ids:[...new Set(raw.focusPins.ids.filter(id=>typeof id==='string'))]};
     }
@@ -207,7 +213,8 @@ export function loadState(storage) {
         .map(key=>[key,project.weeklyGoals[key]])),
       thoughts:Array.isArray(project.thoughts)?project.thoughts.filter(note=>typeof note?.key==='string'&&typeof note.text==='string'&&Number.isFinite(note.createdAt)):[]
     }));
-    if (Array.isArray(raw.plannerFilters)) base.plannerFilters=raw.plannerFilters.filter(filter=>filter&&typeof filter.id==='string'&&typeof filter.name==='string'&&typeof filter.query==='string');
+    if (Array.isArray(raw.plannerFilters)) base.plannerFilters=raw.plannerFilters.filter(filter=>filter&&typeof filter.id==='string'&&typeof filter.name==='string'&&typeof filter.query==='string')
+      .map(filter=>({...filter,pinned:filter.pinned===true}));
     if (Array.isArray(raw.plannerLabels)) base.plannerLabels=raw.plannerLabels.filter(label=>typeof label==='string'&&label.length>0&&label.length<=40);
     if (Array.isArray(raw.taskActivity)) base.taskActivity=raw.taskActivity.filter(event=>event&&typeof event.id==='string'&&typeof event.taskId==='string'&&typeof event.text==='string'&&Number.isFinite(event.at));
     base.activeTask=base.tasks.some(t=>t.id===raw.activeTask&&!t.done)?raw.activeTask:null;

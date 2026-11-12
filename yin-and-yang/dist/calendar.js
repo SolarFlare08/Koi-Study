@@ -1,4 +1,5 @@
 import {dayKey, taskOccursOn, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
+import {unavailableRanges} from './availability.js';
 
 const minutesPerDay = 24 * 60;
 export const defaultBlockMinutes = 60;
@@ -165,7 +166,8 @@ export function focusCalendarBlock(task,date=new Date()){
 }
 
 export function focusTaskQueue(tasks,date=new Date(),pinnedIds=[],tasksById=new Map(tasks.map(task=>[task.id,task]))){
-  const ready=tasks.filter(task=>!unfinishedPrerequisites(task,tasksById).length);
+  const day=dayKey(date);
+  const ready=tasks.filter(task=>!(task.snoozedUntil>day)&&!unfinishedPrerequisites(task,tasksById).length);
   const scheduled=[...new Set(calendarBlocks(ready,date).filter(openFocusBlock).map(block=>block.task))];
   const queued=new Set(scheduled);
   const unscheduled=ready.filter(task=>!queued.has(task)&&taskStatus(task,date)==='todo');
@@ -198,15 +200,18 @@ function tomorrowBusy(tasks,events,date,previous){
   return calendarBlocks(tasks,date,events).filter(block=>(block.event||openFocusBlock(block))&&
     !(previous?.ownsBlock&&previous.day===day&&block.occurrence===day&&block.task?.id===previous.taskId&&block.blockId===previous.blockId));
 }
-export function tomorrowFocusSlot(tasks,events,date,minutes,previous){
-  return openSlots(tomorrowBusy(tasks,events,date,previous),9*60,minutesPerDay)
+export function tomorrowFocusSlot(tasks,events,date,minutes,previous,availability=[]){
+  const busy=[...tomorrowBusy(tasks,events,date,previous),...unavailableRanges(availability,date)].sort((a,b)=>a.start-b.start);
+  return openSlots(busy,9*60,minutesPerDay)
     .find(slot=>slot.end-slot.start>=minutes)?.start??null;
 }
-export function reserveTomorrowFocus(tasks,events,date,{taskId,start,minutes},previous){
+export function reserveTomorrowFocus(tasks,events,date,{taskId,start,minutes},previous,availability=[]){
   const day=dayKey(date),task=tasks.find(item=>item.id===taskId);
   if(!task||!Number.isInteger(start)||start<0||!Number.isInteger(minutes)||minutes<1||start+minutes>minutesPerDay){
     throw new Error('Choose a task and a focus block that fits within tomorrow.');
   }
+  const blocked=unavailableRanges(availability,date).find(range=>range.start<start+minutes&&range.end>start);
+  if(blocked)throw new Error(`That time is unavailable (${blocked.name}). Choose a different time.`);
   const overlaps=tomorrowBusy(tasks,events,date,previous).filter(block=>block.start<start+minutes&&block.end>start);
   const existing=overlaps.find(block=>block.task?.id===taskId&&!block.continues&&block.start===start&&block.end===start+minutes);
   if(overlaps.some(block=>block!==existing))throw new Error('That time overlaps a calendar block. Pick another time.');
@@ -240,6 +245,12 @@ export function replanToday(tasks,events,now=new Date(),lockedTaskId,options){
   const isBusy=block=>block.event||openFocusBlock(block);
   const busy=blocks.filter(block=>block.end>elapsed&&isBusy(block));
   const busyTomorrow=options?calendarBlocks(tasks,nextDate,events).filter(isBusy):[];
+  if(options?.availability){
+    busy.push(...unavailableRanges(options.availability,now));
+    busyTomorrow.push(...unavailableRanges(options.availability,nextDate));
+    busy.sort((a,b)=>a.start-b.start);
+    busyTomorrow.sort((a,b)=>a.start-b.start);
+  }
   const missed=blocks.filter(block=>block.task&&!block.continues&&block.end<=elapsed&&block.task.id!==lockedTaskId&&openFocusBlock(block)&&
     !focus.get(calendarFocusKey(block.task.id,block.occurrence,block.blockId)));
   const moves=[], unplaced=[];
