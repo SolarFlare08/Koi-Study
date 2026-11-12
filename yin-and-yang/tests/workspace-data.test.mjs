@@ -4,7 +4,7 @@ import {applyBackupRestore,createBackup,planBackupRestore,readBackup,restoreBack
 import {CAPTURE_PREFIX,readCaptures} from '../dist/capture.js';
 import {CROCHET_KEY,loadCrochet,logCrochetTime} from '../dist/crochet.js';
 import {JOURNAL_KEY,loadJournal} from '../dist/journal.js';
-import {annotationContext,editFinishedBook,readingShelf} from '../dist/reading-shelf.js';
+import {annotationContext,editFinishedBook,mergeShelfBooks,readingForecast,readingShelf} from '../dist/reading-shelf.js';
 import {dayKey,STORAGE_KEY,freshState,loadState} from '../dist/state.js';
 import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
@@ -12,6 +12,21 @@ import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail} from '../dist/garden-growth.js';
 import {gardenGrowthMarkup} from '../dist/scenery.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay} from '../dist/day-recap.js';
+
+test('merged reading logs retain notes and give a range when session pace varies',()=>{
+  const state=freshState(), target='["the waves",""]', source='["the wave",""]';
+  state.dailyRituals={'2026-11-10':{annotate:{title:'The Waves',position:'20',totalPages:140}},
+    '2026-11-11':{annotate:{title:'The Wave',position:'60'}},
+    '2026-11-12':{annotate:{title:'The Waves',position:'80'}}};
+  state.readingNotes=[{id:'note',bookTitle:'The Wave',chapter:'1',text:'A detail',kind:'insight'}];
+  const merge=mergeShelfBooks(state,source,target);
+  assert.ok(merge.changes);
+  const books=readingShelf(merge.changes.dailyRituals,merge.changes.readingNotes);
+  assert.equal(books.length,1);
+  assert.equal(books[0].entries.length,3);
+  assert.equal(merge.changes.readingNotes[0].bookTitle,'The Waves');
+  assert.deepEqual(readingForecast(books[0]).range,[2,3]);
+});
 
 test('editing a legacy finished book keeps annotations, links, and its original lantern',()=>{
   const state=freshState(), day='2026-11-12', id='["draft title","author"]';

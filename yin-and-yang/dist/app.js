@@ -9,7 +9,7 @@ import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearan
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
-import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,readingShelf} from './reading-shelf.js';
+import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,mergeShelfBooks,readingShelf} from './reading-shelf.js';
 import {installBackup} from './backup.js';
 import {dailyRitualMarkup,ritualComplete,rituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
@@ -124,8 +124,7 @@ function finishReadingBook(book){
   state.finishedBooks=previous;
   return false;
 }
-function saveFinishedBook(id,values){
-  const edit=editFinishedBook(state,id,values);
+function saveReadingChanges(edit){
   if(edit.error)return edit;
   const previous=Object.fromEntries(Object.keys(edit.changes).map(key=>[key,state[key]]));
   Object.assign(state,edit.changes);
@@ -133,6 +132,7 @@ function saveFinishedBook(id,values){
     Object.assign(state,previous);
     return {error:'Could not save the book. Try again.'};
   }
+  renderGardenGrowth();
   return {bookId:edit.bookId};
 }
 function syncSound(unlock=false){
@@ -232,7 +232,8 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
     return false;
   },openCalendar:()=>calendarToggle.click(),linkedNotes:id=>linkedStickyNotes('book',id),
   getFinished:()=>state.finishedBooks,bookReward:id=>gardenReward(state.gardenGrowth,'book',id),
-  finishBook:finishReadingBook,saveBook:saveFinishedBook});
+  finishBook:finishReadingBook,saveBook:(id,values)=>saveReadingChanges(editFinishedBook(state,id,values)),
+  mergeBooks:(source,target)=>saveReadingChanges(mergeShelfBooks(state,source,target))});
 const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
@@ -2186,7 +2187,16 @@ function openDeadlinePlanner(taskId,anchor){
   openPanel('plan-deadline',anchor);
 }
 function deadlineSuggestion(task){
-  return planDeadline(task,gardenTasks(),state.calendarEvents,state.history,new Date(),schedulingCutoff(),state.studyCapacity);
+  return planDeadline(task,gardenTasks(),state.calendarEvents,state.history,new Date(),schedulingCutoff(),state.studyCapacity,
+    {availability:state.availability,cooldown:state.planningCooldown});
+}
+function slotExplanation(context,deadline,cooldown,edited=false){
+  if(!context)return '';
+  const commitments=context.commitments.map(block=>`<li>${escape(block.title)} · ${block.allDay?'All day':`${timeLabel(block.start)}–${timeLabel(block.end)}`}</li>`).join('');
+  return `<details class="slot-explanation"><summary>${edited?'Schedule details':'Why this time?'}</summary>
+    <p>Due ${shortScheduleDate(deadline)} · ${minutesLabel(context.free)} free between ${timeLabel(context.from)} and ${timeLabel(context.end)} around existing commitments.
+    ${cooldown?`Free time allows for ${cooldown} min between calendar blocks.`:''}</p>
+    ${commitments?`<ul>${commitments}</ul>`:'<p>No commitments in this window.</p>'}</details>`;
 }
 function deadlinePlannerMarkup(){
   const tasks=gardenTasks().filter(canPlanDeadline).sort((a,b)=>a.deadline.localeCompare(b.deadline)||a.text.localeCompare(b.text));
@@ -2202,7 +2212,8 @@ function deadlinePlannerMarkup(){
   if(plan.noOccurrence)return `${heading}${selection}<p>${minutesLabel(plan.unplaced)} couldn’t be scheduled. There’s no unfinished occurrence between today and the deadline.</p>`;
   const waiting=waitingOn(selected);
   const suggestions=plan.slots.map((slot,index)=>`<li><label><input type="checkbox" name="slot" value="${index}" checked>
-    <span><strong>${shortScheduleDate(slot.date)}</strong><small>${timeLabel(slot.start)}–${timeLabel(slot.start+slot.minutes)} · ${slot.minutes} min</small></span></label></li>`).join('');
+    <span><strong>${shortScheduleDate(slot.date)}</strong><small>${timeLabel(slot.start)}–${timeLabel(slot.start+slot.minutes)} · ${slot.minutes} min</small></span></label>
+    ${slotExplanation(plan.contexts[slot.date],selected.deadline,state.planningCooldown)}</li>`).join('');
   return `${heading}${selection}
     <p class="deadline-plan-details">Due ${shortScheduleDate(selected.deadline)} · ${minutesLabel(selected.estimate)} estimated.
       Suggestions use 9 AM to ${timeLabel(schedulingCutoff())} and your ${minutesLabel(state.studyCapacity)} daily study capacity.${plan.lastYearOnly?' Showing availability for up to one year before the deadline.':''}</p>
@@ -2242,20 +2253,21 @@ function saveDeadlinePlan(form){
   confirmChange(`${slots.length} focus ${slots.length===1?'block':'blocks'} added.${missing?` ${minutesLabel(missing)} still unscheduled.`:''}`,finishUndo());
 }
 
-let weekSettings, weekDraft;
+let weekSettings, weekDraft, weekSlots=[], weekEditId=null;
 const approvedWeekDays=new Map();
 
 function openWeekBuilder(anchor){
   const end=Math.min(1439,schedulingCutoff());
-  weekSettings={date:dayKey(),start:Math.min(9*60,end-1),end,capacity:state.studyCapacity};
+  weekSettings={date:dayKey(),start:Math.min(9*60,end-1),end,capacity:state.studyCapacity,cooldown:state.planningCooldown};
   weekDraft=null;
+  weekSlots=[];weekEditId=null;
   approvedWeekDays.clear();
   openPanel('build-week',anchor);
 }
 
-function currentWeekDraft(){
+function currentWeekDraft(proposed){
   return draftStudyWeek({tasks:gardenTasks(),events:state.calendarEvents,history:state.history,
-    availability:state.availability,tasksById:taskIndex()},weekSettings);
+    availability:state.availability,tasksById:taskIndex()},{...weekSettings,proposed});
 }
 
 function weekRiskText({reason,unplaced}){
@@ -2263,20 +2275,34 @@ function weekRiskText({reason,unplaced}){
   if(reason==='overdue')return `${minutesLabel(unplaced)} unplanned · deadline passed`;
   if(reason==='occurrence')return 'No open occurrence before the deadline';
   if(reason==='prerequisite')return `${minutesLabel(unplaced)} unplanned · waiting on a prerequisite`;
+  if(reason==='unplanned')return `${minutesLabel(unplaced)} still unplanned before the deadline`;
   return `${minutesLabel(unplaced)} couldn’t fit before the deadline`;
 }
 
 function buildWeekMarkup(){
   const heading=header('PLANNER','Build my week');
-  const {date,start,end,capacity}=weekSettings;
+  const {date,start,end,capacity,cooldown}=weekSettings;
   const tasks=taskIndex();
   const results=weekDraft?.days.map(day=>{
     const approved=approvedWeekDays.get(day.date)||0;
     const label=new Date(`${day.date}T12:00:00`).toLocaleDateString([],{weekday:'long',month:'short',day:'numeric'});
     return `<section class="week-draft-day"><h3>${label}</h3>
       ${approved?`<p>${approved} ${approved===1?'block':'blocks'} approved</p>`:''}
-      ${day.slots.length?`<ul>${day.slots.map(slot=>`<li><strong>${escape(tasks.get(slot.taskId)?.text)}</strong>
-        <span>${timeLabel(slot.start)}–${timeLabel(slot.start+slot.minutes)}</span></li>`).join('')}</ul>
+      ${day.slots.length?`<ul>${day.slots.map(slot=>{
+        const task=tasks.get(slot.taskId);
+        const invalid=weekDraft.invalid.includes(slot);
+        return `<li><strong>${escape(task?.text||'Task unavailable')}</strong>
+          <span>${timeLabel(slot.start)}–${timeLabel(slot.start+slot.minutes)}${invalid?' · Needs a new time':''}</span>
+          ${task?.deadline?slotExplanation(day.context,task.deadline,cooldown,slot.edited):''}
+          ${slot.draftId===weekEditId?`<form id="week-slot-form">
+            <label>Day<select name="date">${weekDraft.days.map(option=>`<option value="${option.date}" ${option.date===slot.date?'selected':''}>${shortScheduleDate(option.date)}</option>`).join('')}</select></label>
+            <label>Start time<input type="time" name="start" required value="${timeValue(slot.start)}"></label>
+            <label>Minutes<input type="number" name="minutes" min="1" max="50" required value="${slot.minutes}"></label>
+            <p id="week-slot-error" role="alert" hidden></p>
+            <div class="week-slot-actions"><button class="panel-primary" type="submit">Save block</button><button class="text-button" type="button" data-cancel-week-slot>Cancel</button></div>
+          </form>`:`<div class="week-slot-actions"><button class="text-button" type="button" data-edit-week-slot="${slot.draftId}">Edit block</button>
+            <button class="text-button" type="button" data-skip-week-slot="${slot.draftId}">Skip block</button></div>`}</li>`;
+      }).join('')}</ul>
         <button type="button" class="text-button" data-approve-week-day="${day.date}" aria-label="Approve ${label}">Approve day</button>`:
         approved?'':'<p>No new blocks suggested.</p>'}</section>`;
   }).join('');
@@ -2286,6 +2312,7 @@ function buildWeekMarkup(){
       <label>Available from<input name="start" type="time" value="${timeValue(start)}" required></label>
       <label>Available until<input name="end" type="time" value="${timeValue(end)}" required></label>
       <label>Study minutes per day<input name="capacity" type="number" min="1" max="1440" value="${capacity}" required></label>
+      <label>Cooldown between blocks (min)<input name="cooldown" type="number" min="0" max="30" value="${cooldown}" required></label>
       <p id="week-draft-error" class="event-error" role="alert" hidden></p>
       <div class="panel-actions"><button class="panel-primary" id="draft-week-button">${weekDraft?'Refresh draft':'Draft week'}</button></div>
     </form>
@@ -2298,9 +2325,9 @@ function buildWeekMarkup(){
 }
 
 function draftWeek(form){
-  const {date,start,end,capacity}=form.elements;
+  const {date,start,end,capacity,cooldown}=form.elements;
   const previous=weekSettings;
-  weekSettings={date:date.value,start:timeMinutes(start.value),end:timeMinutes(end.value),capacity:Number(capacity.value)};
+  weekSettings={date:date.value,start:timeMinutes(start.value),end:timeMinutes(end.value),capacity:Number(capacity.value),cooldown:Number(cooldown.value)};
   const draft=currentWeekDraft();
   if(!draft){
     weekSettings=previous;
@@ -2308,19 +2335,40 @@ function draftWeek(form){
     error.textContent='Choose today or a future date and an end time after the start time.';
     return;
   }
-  weekDraft=draft;
+  if(state.planningCooldown!==weekSettings.cooldown){
+    const old=state.planningCooldown;state.planningCooldown=weekSettings.cooldown;
+    if(!persist())state.planningCooldown=old;
+  }
+  weekSlots=draft.days.flatMap(day=>day.slots);
+  weekSlots.forEach((slot,index)=>{slot.draftId=index;});
+  weekEditId=null;weekDraft=draft;
   refreshPanel();
   $('#week-draft-heading').focus({preventScroll:true});
 }
 
+function updateWeekSlot(form){
+  const old=weekSlots.find(slot=>slot.draftId===weekEditId);
+  if(!old)return;
+  const fields=new FormData(form);
+  const edited={...old,date:fields.get('date'),start:timeMinutes(fields.get('start')),minutes:Number(fields.get('minutes')),edited:true};
+  const slots=weekSlots.map(slot=>slot===old?edited:slot);
+  const draft=currentWeekDraft(slots);
+  if(!draft||draft.invalid.some(slot=>slot.date===edited.date)){
+    const error=$('#week-slot-error');error.hidden=false;
+    error.textContent='Choose an open time before the deadline that fits the daily limit and leaves the cooldown.';return;
+  }
+  weekSlots=slots;weekDraft=draft;weekEditId=null;refreshPanel();
+  $(`[data-edit-week-slot="${edited.draftId}"]`)?.focus({preventScroll:true});
+}
+
 function approveWeekDay(date){
-  const draft=currentWeekDraft();
+  const draft=currentWeekDraft(weekSlots);
   const slots=draft?.days.find(day=>day.date===date)?.slots;
-  const shown=weekDraft?.days.find(day=>day.date===date)?.slots;
-  if(!slots?.length||JSON.stringify(slots)!==JSON.stringify(shown)){
-    weekDraft=draft;refreshPanel();
+  if(!slots?.length||draft.invalid.some(slot=>slot.date===date)){
+    if(draft)weekDraft=draft;
+    refreshPanel();
     ($('#week-draft-heading')||$('#draft-week-button')).focus({preventScroll:true});
-    confirmChange('The schedule changed. Review the updated draft before approving.');
+    confirmChange('Some blocks no longer fit. Edit or skip them before approving.');
     return;
   }
   const tasks=taskIndex(), previous=new Map();
@@ -2338,7 +2386,8 @@ function approveWeekDay(date){
     return;
   }
   approvedWeekDays.set(date,(approvedWeekDays.get(date)||0)+slots.length);
-  weekDraft=currentWeekDraft();
+  weekSlots=weekSlots.filter(slot=>slot.date!==date);
+  weekDraft=currentWeekDraft(weekSlots);weekEditId=null;
   refreshTasks();refreshPanel();
   $('#week-draft-heading').focus({preventScroll:true});
   confirmChange(`${slots.length} focus ${slots.length===1?'block':'blocks'} added for ${shortScheduleDate(date)}.`);
@@ -2391,7 +2440,7 @@ function currentReplan(){
   const locked=state.timer.block?.taskId||
     (state.timer.mode==='focus'&&state.timer.status!=='idle'?state.timer.taskSnapshot?.id:null);
   const cutoff=timeMinutes(state.replanCutoff)||24*60;
-  return replanToday(gardenTasks(),state.calendarEvents,new Date(),locked,{cutoff,focus:focusTotals(),availability:state.availability});
+  return replanToday(gardenTasks(),state.calendarEvents,new Date(),locked,{cutoff,focus:focusTotals(),availability:state.availability,cooldown:state.planningCooldown});
 }
 function replanMarkup(){
   const {day,moves,unplaced}=replanPreview;
@@ -2462,7 +2511,7 @@ function tomorrowBlockDefaults(task,date){
     return {start:existing.start,minutes:existing.end-existing.start};
   }
   const minutes=task?.estimate||Math.max(1,Math.round(state.settings.focus));
-  return {start:tomorrowFocusSlot(gardenTasks(),state.calendarEvents,date,minutes,previous,state.availability),minutes};
+  return {start:tomorrowFocusSlot(gardenTasks(),state.calendarEvents,date,minutes,previous,state.availability,state.planningCooldown),minutes};
 }
 function planTomorrowMarkup(){
   const date=shiftDay(new Date(),1),day=dayKey(date),{unfinished,choices}=tomorrowChoices(date);
@@ -2488,7 +2537,7 @@ function updateTomorrowSlot(form,useDefaults){
   const date=new Date(form.dataset.day+'T00:00:00');
   const task=gardenTasks().find(item=>item.id===form.elements.taskId.value);
   const suggestion=useDefaults?tomorrowBlockDefaults(task,date):{
-    start:form.elements.minutes.checkValidity()?tomorrowFocusSlot(gardenTasks(),state.calendarEvents,date,Number(form.elements.minutes.value),state.tomorrowPlan,state.availability):null
+    start:form.elements.minutes.checkValidity()?tomorrowFocusSlot(gardenTasks(),state.calendarEvents,date,Number(form.elements.minutes.value),state.tomorrowPlan,state.availability,state.planningCooldown):null
   };
   if(useDefaults)form.elements.minutes.value=suggestion.minutes;
   form.elements.start.value=suggestion.start===null?'':timeValue(suggestion.start);
@@ -2786,6 +2835,21 @@ root.addEventListener('click',e=>{
   if(history){openPanel(history.id==='open-garden-history'?'garden-history':'progress',$('[data-panel="progress"]'));return;}
   const approval=e.target.closest('[data-approve-week-day]');
   if(approval){approveWeekDay(approval.dataset.approveWeekDay);return;}
+  const editWeekSlot=e.target.closest('[data-edit-week-slot],[data-cancel-week-slot],[data-skip-week-slot]');
+  if(editWeekSlot){
+    const {editWeekSlot:edit,skipWeekSlot:skip}=editWeekSlot.dataset;
+    const returnId=weekEditId;
+    weekEditId=edit===undefined?null:Number(edit);
+    if(skip!==undefined){
+      const slots=weekSlots.filter(slot=>slot.draftId!==Number(skip));
+      const draft=currentWeekDraft(slots);
+      if(!draft){announce('Refresh the draft to update its date range.');return;}
+      weekSlots=slots;weekDraft=draft;
+    }
+    refreshPanel();
+    const target=edit!==undefined?$('#week-slot-form select'):skip!==undefined?$('#week-draft-heading'):$(`[data-edit-week-slot="${returnId}"]`);
+    target?.focus({preventScroll:true});return;
+  }
   const viewProject=e.target.closest('[data-view-project]');
   if(viewProject){visitWorkspace('planner');planner.openProject(viewProject.dataset.viewProject);return;}
   if(e.target.closest('#project-context-ready')){closePanel(false);timerButton.focus({preventScroll:true});return;}
@@ -3123,6 +3187,7 @@ root.addEventListener('submit',e=>{
   }
   if(e.target.id==='deadline-plan-form'){saveDeadlinePlan(e.target);return;}
   if(e.target.id==='build-week-form'){draftWeek(e.target);return;}
+  if(e.target.id==='week-slot-form'){updateWeekSlot(e.target);return;}
   if(e.target.id==='schedule-drop-form'){saveScheduleDrop();return;}
   if(e.target.id==='plan-tomorrow-form'){saveTomorrowPlan(e.target);return;}
   if(e.target.id==='replan-cutoff-form'){

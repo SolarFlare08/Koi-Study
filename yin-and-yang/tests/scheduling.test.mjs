@@ -7,6 +7,26 @@ import {createsDependencyCycle,freshState,loadState,recordTaskCompletion} from '
 const date = (day,hour=0,minute=0) => new Date(2026,10,day,hour,minute);
 const event = (title,start,end) => ({title,start:+start,end:+end});
 
+test('weekly edits keep the cooldown and report work left after shortening or skipping',()=>{
+  const task={id:'paper',text:'Paper',deadline:'2026-11-13',estimate:70};
+  const input={tasks:[task],tasksById:new Map([[task.id,task]]),history:[],availability:[],
+    events:[event('Class',date(12,9),date(12,9,30))]};
+  const options={date:'2026-11-12',start:540,end:660,capacity:120,cooldown:5};
+  const now=date(12,8);
+  const draft=draftStudyWeek(input,options,now);
+  const [first,second]=draft.days[0].slots;
+  assert.equal(first.start,575);
+  assert.equal(second.start,630);
+  assert.equal(draft.days[0].context.commitments[0].title,'Class');
+  const moved={...first,date:'2026-11-13',start:540,minutes:35};
+  const result=draftStudyWeek(input,{...options,proposed:[moved]},now);
+  assert.deepEqual(result.invalid,[]);
+  assert.deepEqual(result.days[1].slots,[moved]);
+  assert.equal(result.risks[0].unplaced,35);
+  assert.equal(draftStudyWeek(input,{...options,proposed:[{...first,start:573},second]},now).invalid.length,1);
+  assert.equal(draftStudyWeek(input,{...options,proposed:[first,{...second,start:628}]},now).invalid.length,1);
+});
+
 test('a weekly draft protects commitments, prioritizes deadlines, and reports work that cannot fit',()=>{
   const urgent={id:'urgent',text:'Lab report',deadline:'2026-11-12',estimate:70,blocks:[{id:'first',date:'2026-11-12',time:'09:20',minutes:15}]};
   const later={id:'later',text:'Read chapter',deadline:'2026-11-14',estimate:50};

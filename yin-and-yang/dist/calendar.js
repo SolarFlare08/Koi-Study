@@ -200,8 +200,12 @@ function tomorrowBusy(tasks,events,date,previous){
   return calendarBlocks(tasks,date,events).filter(block=>(block.event||openFocusBlock(block))&&
     !(previous?.ownsBlock&&previous.day===day&&block.occurrence===day&&block.task?.id===previous.taskId&&block.blockId===previous.blockId));
 }
-export function tomorrowFocusSlot(tasks,events,date,minutes,previous,availability=[]){
-  const busy=[...tomorrowBusy(tasks,events,date,previous),...unavailableRanges(availability,date)].sort((a,b)=>a.start-b.start);
+export function withCooldown(blocks,minutes=0){
+  return blocks.map(block=>({...block,start:block.start-minutes,end:block.end+minutes}));
+}
+
+export function tomorrowFocusSlot(tasks,events,date,minutes,previous,availability=[],cooldown=0){
+  const busy=[...withCooldown(tomorrowBusy(tasks,events,date,previous),cooldown),...unavailableRanges(availability,date)].sort((a,b)=>a.start-b.start);
   return openSlots(busy,9*60,minutesPerDay)
     .find(slot=>slot.end-slot.start>=minutes)?.start??null;
 }
@@ -237,14 +241,15 @@ function twoSlots(slots,minutes){
 
 export function replanToday(tasks,events,now=new Date(),lockedTaskId,options){
   const cutoff=options?.cutoff??minutesPerDay;
+  const cooldown=options?.cooldown??0;
   const focus=options?.focus??new Map();
   const day=dayKey(now);
   const nextDate=shiftDay(now,1), tomorrow=dayKey(nextDate);
   const elapsed=now.getHours()*60+now.getMinutes()+now.getSeconds()/60+now.getMilliseconds()/60000;
   const blocks=calendarBlocks(tasks,now,events);
   const isBusy=block=>block.event||openFocusBlock(block);
-  const busy=blocks.filter(block=>block.end>elapsed&&isBusy(block));
-  const busyTomorrow=options?calendarBlocks(tasks,nextDate,events).filter(isBusy):[];
+  const busy=withCooldown(blocks.filter(block=>block.end+cooldown>elapsed&&isBusy(block)),cooldown);
+  const busyTomorrow=options?withCooldown(calendarBlocks(tasks,nextDate,events).filter(isBusy),cooldown):[];
   if(options?.availability){
     busy.push(...unavailableRanges(options.availability,now));
     busyTomorrow.push(...unavailableRanges(options.availability,nextDate));
@@ -269,7 +274,7 @@ export function replanToday(tasks,events,now=new Date(),lockedTaskId,options){
     }
     if(!parts){unplaced.push(details);continue;}
     moves.push({...details,to:parts[0].to,...(options?{day:targetDay,parts}:{})});
-    for(const part of parts)reserved.push({start:part.to,end:part.to+part.minutes});
+    reserved.push(...withCooldown(parts.map(part=>({start:part.to,end:part.to+part.minutes})),cooldown));
     reserved.sort((a,b)=>a.start-b.start);
   }
   return {day,moves,unplaced};

@@ -19,10 +19,10 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
   const $=selector=>root.querySelector(selector);
   const dialog=$('#journal-dialog'), add=$('#journal-add');
   root.parentElement.append(dialog);
-  function save(next){
+  function save(next,completed=true){
     try{storage.setItem(JOURNAL_KEY,JSON.stringify(next));entries=next;}
     catch{notify('Could not save this journal entry on this device.');return false;}
-    onChange();
+    if(completed)onChange();
     return true;
   }
   function render(){
@@ -31,8 +31,8 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
     const names=new Map(projects().map(project=>[project.id,project.name]));
     $('#journal-count').textContent=query?`${items.length} of ${entries.length}`:`${entries.length} ${entries.length===1?'entry':'entries'}`;
     $('#journal-entries').innerHTML=items.map(item=>`<article class="journal-entry"><div><time datetime="${esc(item.date)}">${esc(new Date(item.date+'T12:00:00').toLocaleDateString([],{dateStyle:'long'}))}</time>
-      ${item.mood?`<span>${esc(item.mood)}</span>`:''}${names.has(item.projectId)?`<span>${esc(names.get(item.projectId))}</span>`:''}</div>
-      <h4><button type="button" data-journal-edit="${esc(item.id)}">${esc(item.title)}</button></h4><p>${esc(item.body)}</p>${linkedNotes(item.id)}</article>`).join('')||`<p class="journal-empty">${query?'No entries match your search.':'Your reflections will appear here.'}</p>`;
+      ${item.draft?'<span>Draft</span>':''}${item.mood?`<span>${esc(item.mood)}</span>`:''}${names.has(item.projectId)?`<span>${esc(names.get(item.projectId))}</span>`:''}</div>
+      <h4><button type="button" data-journal-edit="${esc(item.id)}">${esc(item.title||(item.draft?'Untitled draft':''))}</button></h4><p>${esc(item.body)}</p>${linkedNotes(item.id)}</article>`).join('')||`<p class="journal-empty">${query?'No entries match your search.':'Your reflections will appear here.'}</p>`;
   }
   let anchor, returnFocus;
   function templateOptions(){
@@ -40,9 +40,12 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
       `<option value="${esc(template.id)}">${esc(template.name)}</option>`).join('');
   }
   function open(item,trigger,date=dayKey(),restore){
+    if(item&&!item.draft)item=entries.find(entry=>entry.draftFor===item.id)||item;
     anchor=trigger;
     returnFocus=restore;
-    dialog.innerHTML=`<form data-entry-id="${esc(item?.id)}"><header>
+    const draftId=item?.draft?item.id:crypto.randomUUID();
+    const entryId=item?.draft?item.draftFor:item?.id;
+    dialog.innerHTML=`<form data-entry-id="${esc(entryId)}" data-draft-id="${esc(draftId)}" data-date="${esc(item?.date||date)}"><header>
       <h3 id="journal-editor-title" class="sr-only">${item?'Edit entry':'New entry'}</h3>
       <label class="journal-title-field"><span class="sr-only">Title</span><input class="journal-title" name="title" required maxlength="120" value="${esc(item?.title)}" placeholder="Entry title"></label>
       <button type="button" data-journal-close aria-label="Close journal editor">×</button>
@@ -50,19 +53,34 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
       <div class="journal-fields"><label>Date<input name="date" type="date" required value="${esc(item?.date||date)}"></label>
       <label>Mood<select name="mood"><option value="">Optional</option>${moods.map(mood=>`<option ${item?.mood===mood?'selected':''}>${mood}</option>`).join('')}</select></label>
       <label>Crochet project<select name="projectId"><option value="">General journal</option>${projects().map(project=>`<option value="${esc(project.id)}" ${project.id===item?.projectId?'selected':''}>${esc(project.name)}</option>`).join('')}</select></label>
-      ${item?'':`<div class="journal-template-controls"><label>Template<select id="journal-template">${templateOptions()}</select></label>
+      ${entryId?'':`<div class="journal-template-controls"><label>Template<select id="journal-template">${templateOptions()}</select></label>
         <button type="button" data-journal-template="apply" disabled>Insert template</button>
         <button type="button" data-journal-template="remove" hidden>Remove template</button>
         <details><summary>Save as template</summary><label>Template name<input id="journal-template-name" maxlength="80"></label>
           <button type="button" data-journal-template="save">Save current text as template</button></details></div>`}</div>
       <label class="journal-writing"><span class="sr-only">Entry</span><textarea name="body" placeholder="What stayed with you today?" required>${esc(item?.body)}</textarea></label>
-      <div><p id="journal-error" role="alert" hidden></p><footer><span id="journal-word-count"></span>${item?'<button type="submit" value="delete" formnovalidate>Delete entry</button>':''}<button type="submit" value="save">Save entry</button></footer></div></form>`;
+      <div><p id="journal-error" role="alert" hidden></p><footer><span id="journal-word-count"></span><span id="journal-draft-status" role="status">${item?.draft?'Draft saved':''}</span><button type="submit" value="save">${entryId?'Save completed entry':'Mark complete'}</button><button type="submit" value="delete" formnovalidate ${item?'':'hidden'}>${item?.draft?'Discard draft':'Delete entry'}</button></footer></div></form>`;
     const body=dialog.querySelector('[name="body"]');
     const updateWordCount=()=>{
       const count=body.value.match(/\S+/g)?.length||0;
       dialog.querySelector('#journal-word-count').textContent=`${count} ${count===1?'word':'words'}`;
     };
-    body.addEventListener('input',updateWordCount);
+    dialog.querySelector('form').addEventListener('input',event=>{
+      if(!event.target.name)return;
+      if(event.target===body)updateWordCount();
+      const form=event.currentTarget,data=new FormData(form);
+      const record={id:draftId,draft:true,draftFor:entryId||'',title:data.get('title'),body:data.get('body'),
+        date:data.get('date')||form.dataset.date,mood:data.get('mood'),projectId:data.get('projectId'),updatedAt:Date.now()};
+      const next=loadJournal(storage).filter(entry=>entry.id!==draftId);
+      next.push(record);
+      const status=dialog.querySelector('#journal-draft-status');
+      if(save(next,false)){
+        if(status.textContent!=='Draft saved')status.textContent='Draft saved';
+        const discard=form.querySelector('[value="delete"]');
+        discard.hidden=false;discard.textContent='Discard draft';delete discard.dataset.confirm;
+      }
+      else status.textContent='Draft could not be saved';
+    });
     updateWordCount();
     dialog.setAttribute('aria-labelledby','journal-editor-title');
     dialog.showModal();
@@ -91,7 +109,7 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
       const template=[...builtInTemplates,...getTemplates()].find(item=>item.id===picker.value);
       if(!template)return;
       body.value=body.value.trim()?body.value.trimEnd()+'\n\n'+template.body:template.body;
-      body.dispatchEvent(new Event('input'));body.focus();return;
+      body.dispatchEvent(new Event('input',{bubbles:true}));body.focus();return;
     }
     if(action==='remove'){
       if(saveTemplates(getTemplates().filter(template=>template.id!==picker.value))){
@@ -111,29 +129,33 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
   });
   dialog.addEventListener('submit',event=>{
     event.preventDefault();
-    const form=event.target,data=new FormData(form),id=form.dataset.entryId||crypto.randomUUID();
-    const deleting=event.submitter?.value==='delete',previous=entries.find(item=>item.id===id);
+    const form=event.target,data=new FormData(form),draftId=form.dataset.draftId;
+    const deleting=event.submitter?.value==='delete',latest=loadJournal(storage);
+    const draft=latest.find(item=>item.id===draftId);
+    const id=deleting&&draft?draftId:form.dataset.entryId||draftId;
+    const previous=latest.find(item=>item.id===id);
     if(deleting&&event.submitter.dataset.confirm!=='true'){
-      event.submitter.dataset.confirm='true';event.submitter.textContent='Confirm delete';return;
+      event.submitter.dataset.confirm='true';event.submitter.textContent=draft?'Confirm discard':'Confirm delete';return;
     }
     const title=String(data.get('title')).trim(),body=String(data.get('body')).trim();
     const error=dialog.querySelector('#journal-error');
     if(!deleting&&(!title||!body)){
       error.textContent='Enter a title and an entry.';error.hidden=false;return;
     }
-    const next=entries.filter(item=>item.id!==id);
+    const next=latest.filter(item=>item.id!==id&&item.id!==draftId);
     if(!deleting)next.push({id,title,body,date:data.get('date'),mood:data.get('mood'),projectId:data.get('projectId'),updatedAt:Date.now()});
     if(!save(next)){
       error.textContent='Storage is unavailable. Keep this editor open to copy your entry.';error.hidden=false;return;
     }
     dialog.close();render();
-    notify(deleting?'Journal entry deleted.':'Journal entry saved.',deleting&&previous?()=>{
+    notify(deleting?(previous?.draft?'Journal draft discarded.':'Journal entry deleted.'):'Journal entry completed.',deleting&&previous?()=>{
       const latest=loadJournal(storage);
       if(latest.some(item=>item.id===id)||!save([...latest,previous]))return false;
       render();return true;
     }:null);
   });
   dialog.addEventListener('close',()=>{
+    render();
     if(returnFocus)returnFocus();
     else (anchor?.isConnected?anchor:add).focus({preventScroll:true});
   });
@@ -146,10 +168,10 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
       if(item)open(item,root.querySelector(`[data-journal-edit="${CSS.escape(id)}"]`)||add);
     },
     completedAt(date){
-      return entries.reduce((latest,item)=>item.date===date?Math.max(latest,item.updatedAt||1):latest,0);
+      return entries.reduce((latest,item)=>!item.draft&&item.date===date?Math.max(latest,item.updatedAt||1):latest,0);
     },
     openDate(date,restore){
-      const item=entries.filter(entry=>entry.date===date).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))[0];
+      const item=entries.filter(entry=>entry.date===date).sort((a,b)=>Number(Boolean(b.draft))-Number(Boolean(a.draft))||(b.updatedAt||0)-(a.updatedAt||0))[0];
       open(item,add,date,restore);
     }
   };

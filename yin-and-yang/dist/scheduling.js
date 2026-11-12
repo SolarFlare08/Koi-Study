@@ -1,4 +1,4 @@
-import {allDayEvents, calendarBlocks, calendarTaskBlock, openFocusBlock, shiftDay} from './calendar.js';
+import {allDayEvents, calendarBlocks, calendarTaskBlock, openFocusBlock, shiftDay, withCooldown} from './calendar.js';
 import {dayKey, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
 import {unavailableRanges} from './availability.js';
 
@@ -73,6 +73,18 @@ function freeRanges(busy, from, to) {
   return ranges;
 }
 
+function studyDay(tasks,events,availability,day,from,end,capacity,cooldown){
+  const busy=commitments(tasks,events,day);
+  const unavailable=unavailableRanges(availability,day);
+  const allDay=allDayEvents(events,day);
+  const booked=busy.reduce((total,block)=>total+(block.task?block.end-block.start:0),0);
+  const ranges=allDay.length?[]:freeRanges([...withCooldown(busy,cooldown),...unavailable].sort((a,b)=>a.start-b.start),from,end);
+  const context={from,end,booked,free:ranges.reduce((total,range)=>total+range.end-range.start,0),
+    commitments:[...allDay.map(event=>({title:event.title,allDay:true})),...busy.map(block=>({title:block.event?.title||block.task.text,start:block.start,end:block.end})),
+      ...unavailable.map(block=>({title:block.name,start:block.start,end:block.end}))].filter(block=>block.allDay||block.end+cooldown>from&&block.start-cooldown<end)};
+  return {date:dayKey(day),ranges,context,remaining:Math.max(0,capacity-booked),slots:[]};
+}
+
 export function canPlanDeadline(task) {
   return !task.done && Number.isInteger(task.estimate) && task.estimate > 0 && Boolean(task.deadline);
 }
@@ -107,7 +119,7 @@ function deadlineWork(task, history, now, firstDay, deadline) {
   return {unplaced: Math.max(0, task.estimate - recorded - booked), booked, recorded, occurrence};
 }
 
-export function planDeadline(task, tasks, events, history, now, cutoff, dailyCapacity) {
+export function planDeadline(task, tasks, events, history, now, cutoff, dailyCapacity, {availability=[],cooldown=0}={}) {
   if (!canPlanDeadline(task)) return null;
   const deadline = new Date(`${task.deadline}T00:00:00`);
   if (!Number.isFinite(+deadline) || dayKey(deadline) !== task.deadline) return null;
@@ -126,20 +138,16 @@ export function planDeadline(task, tasks, events, history, now, cutoff, dailyCap
     slots.push({date: day.date, start: range.end - minutes, minutes});
     day.capacity -= minutes;
     unplaced -= minutes;
-    range.end -= minutes;
-    if (range.end === range.start) day.ranges.pop();
+    range.end -= minutes+cooldown;
+    if (range.end <= range.start) day.ranges.pop();
   }
 
   // Spread the first blocks over separate days before adding more on a day.
   for (let date = deadline; unplaced > 0 && date >= firstDay; date = shiftDay(date, -1)) {
-    const busy = commitments(tasks, events, date);
-    const planned = busy.reduce((total, block) => total + (block.task ? block.end - block.start : 0), 0);
-    const capacity = Math.max(0, dailyCapacity - planned);
-    if (!capacity) continue;
     const from = dayKey(date) === dayKey(now) ? Math.max(workdayStart, Math.ceil(minuteOfDay(now))) : workdayStart;
-    const ranges = freeRanges(busy, from, cutoff);
-    if (!ranges.length) continue;
-    const day = {date: dayKey(date), capacity, ranges};
+    const day = studyDay(tasks,events,availability,date,from,cutoff,dailyCapacity,cooldown);
+    if(!day.ranges.length||!day.remaining)continue;
+    day.capacity=day.remaining;
     days.push(day);
     takeLatest(day);
   }
@@ -147,31 +155,50 @@ export function planDeadline(task, tasks, events, history, now, cutoff, dailyCap
     while (unplaced > 0 && day.capacity > 0 && day.ranges.length) takeLatest(day);
   }
   slots.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
-  return {slots, unplaced, booked, recorded, occurrence, lastYearOnly: firstDay > today};
+  return {slots, unplaced, booked, recorded, occurrence, lastYearOnly: firstDay > today,
+    contexts:Object.fromEntries(days.map(day=>[day.date,day.context]))};
 }
 
-export function draftStudyWeek({tasks, events, history, availability, tasksById}, {date, start, end, capacity}, now = new Date()) {
+export function draftStudyWeek({tasks, events, history, availability, tasksById}, {date, start, end, capacity,cooldown=0,proposed}, now = new Date()) {
   const first = new Date(`${date}T00:00:00`);
   const today = dayKey(now);
   if (!Number.isFinite(+first) || dayKey(first) !== date || date < today ||
     !Number.isInteger(start) || start < 0 || !Number.isInteger(end) || end > dayMinutes || start >= end ||
-    !Number.isInteger(capacity) || capacity < 1 || capacity > dayMinutes) return null;
+    !Number.isInteger(capacity) || capacity < 1 || capacity > dayMinutes || !Number.isInteger(cooldown)||cooldown<0||cooldown>30) return null;
 
   const days = Array.from({length: 7}, (_, index) => {
     const day = shiftDay(first, index);
     const key = dayKey(day);
-    const busy = commitments(tasks, events, day);
-    const booked = busy.reduce((total, block) => total + (block.task ? block.end - block.start : 0), 0);
-    const blocked = allDayEvents(events, day).length > 0;
     const from = key === today ? Math.max(start, Math.ceil(minuteOfDay(now))) : start;
-    const ranges = blocked ? [] : freeRanges([...busy, ...unavailableRanges(availability, day)].sort((a, b) => a.start - b.start), from, end);
-    return {date: key, ranges, remaining: Math.max(0, capacity - booked), slots: []};
+    return studyDay(tasks,events,availability,day,from,end,capacity,cooldown);
   });
 
   const last = days.at(-1).date;
   const risks = [];
   const deadlines = tasks.filter(task => !task.done && task.deadline && task.deadline <= last)
     .sort((a, b) => a.deadline.localeCompare(b.deadline) || taskPriority(a) - taskPriority(b));
+  const workByTask=new Map(deadlines.filter(canPlanDeadline).flatMap(task=>{
+    const deadline=new Date(`${task.deadline}T00:00:00`);
+    return dayKey(deadline)===task.deadline?[[task.id,deadlineWork(task,history,now,shiftDay(now,0),deadline)]]:[];
+  }));
+  const invalid=[],planned=new Map();
+  if(proposed){
+    const byDay=new Map(days.map(day=>[day.date,day]));
+    const byTask=new Map(deadlines.map(task=>[task.id,task]));
+    for(const slot of [...proposed].sort((a,b)=>a.start-b.start)){
+      const day=byDay.get(slot.date),task=byTask.get(slot.taskId),work=workByTask.get(slot.taskId);
+      if(!day)continue;
+      day.slots.push(slot);
+      const minutes=slot.minutes,start=slot.start;
+      const fits=day.ranges.some(range=>range.start<=start&&start+minutes<=range.end);
+      const overlaps=day.slots.some(other=>other!==slot&&other.start+other.minutes+cooldown>start);
+      if(!task||!work||work.noOccurrence||slot.occurrence!==work.occurrence||task.deadline<slot.date||task.snoozedUntil>slot.date||
+        unfinishedPrerequisites(task,tasksById).length||!Number.isInteger(start)||!Number.isInteger(minutes)||minutes<1||
+        minutes>focusBlockMinutes||minutes>day.remaining||!fits||overlaps){invalid.push(slot);continue;}
+      day.remaining-=minutes;
+      planned.set(task.id,(planned.get(task.id)||0)+minutes);
+    }
+  }
   for (const task of deadlines) {
     const deadline = new Date(`${task.deadline}T00:00:00`);
     if (!Number.isFinite(+deadline) || dayKey(deadline) !== task.deadline) continue;
@@ -181,14 +208,14 @@ export function draftStudyWeek({tasks, events, history, availability, tasksById}
       }
       continue;
     }
-    const work = deadlineWork(task, history, now, shiftDay(now, 0), deadline);
-    let unplaced = work.unplaced;
+    const work = workByTask.get(task.id);
+    let unplaced = Math.max(0,work.unplaced-(planned.get(task.id)||0));
     if (!unplaced) continue;
-    let reason = 'capacity';
+    let reason = proposed?'unplanned':'capacity';
     if (task.deadline < today) reason = 'overdue';
     else if (work.noOccurrence) reason = 'occurrence';
     else if (unfinishedPrerequisites(task, tasksById).length) reason = 'prerequisite';
-    else {
+    else if(!proposed){
       for (const day of days) {
         if (day.date > task.deadline || !unplaced) break;
         if (task.snoozedUntil > day.date) continue;
@@ -196,15 +223,15 @@ export function draftStudyWeek({tasks, events, history, availability, tasksById}
           const range = day.ranges[0];
           const minutes = Math.min(focusBlockMinutes, day.remaining, unplaced, range.end - range.start);
           day.slots.push({taskId: task.id, date: day.date, start: range.start, minutes, occurrence: work.occurrence});
-          range.start += minutes;
+          range.start += minutes+cooldown;
           day.remaining -= minutes;
           unplaced -= minutes;
-          if (range.start === range.end) day.ranges.shift();
+          if (range.start >= range.end) day.ranges.shift();
         }
       }
     }
     if (unplaced) risks.push({task, reason, unplaced});
   }
 
-  return {days: days.map(({date, slots}) => ({date, slots})), risks, deadlines: deadlines.length};
+  return {days: days.map(({date, slots, context}) => ({date, slots,context})), risks, invalid, deadlines: deadlines.length};
 }

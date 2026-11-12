@@ -154,7 +154,7 @@ export function formatDuration(ms) {
 }
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
-    replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
+    replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -178,6 +178,7 @@ export function loadState(storage) {
     base.gardenSchedule=loadGardenSchedule(raw.gardenSchedule);
     base.calendarEvents=loadCalendarEvents(raw.calendarEvents);
     if(isTime(raw.replanCutoff))base.replanCutoff=raw.replanCutoff;
+    if(Number.isInteger(raw.planningCooldown)&&raw.planningCooldown>=0&&raw.planningCooldown<=30)base.planningCooldown=raw.planningCooldown;
     base.dailyRituals=loadDailyRituals(raw.dailyRituals);
     base.readingNotes=loadReadingNotes(raw.readingNotes);
     base.availability=loadAvailability(raw.availability);

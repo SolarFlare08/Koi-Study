@@ -126,6 +126,37 @@ export function editFinishedBook(state,id,values){
     finishedBooks:state.finishedBooks.map(item=>item===previous?updated:item)}};
 }
 
+export function mergeShelfBooks(state,sourceId,targetId){
+  const books=readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks);
+  const source=books.find(book=>book.id===sourceId),target=books.find(book=>book.id===targetId);
+  if(!source||!target||source===target)return {error:'Choose another book to keep.'};
+  const from=source.finished,into=target.finished,kept=into||from;
+  const combine=(first,second)=>[...new Set([first,second].filter(Boolean))].join('\n\n');
+  const review=combine(into?.review,from?.review),takeaway=combine(into?.takeaway,from?.takeaway);
+  if(review.length>6000||takeaway.length>500)return {error:'The combined reviews or takeaways exceed the editor limit. Shorten them before merging.'};
+  const finishedBooks=state.finishedBooks.filter(item=>item!==from&&item!==into);
+  if(kept)finishedBooks.push({...kept,title:target.title,author:target.author,review,takeaway,
+    rating:into?.rating??from?.rating,totalPages:into?.totalPages??from?.totalPages});
+  const dailyRituals=Object.fromEntries(Object.entries(state.dailyRituals).map(([date,day])=>{
+    if(!day.annotate||bookKey(day.annotate.title,day.annotate.author)!==sourceId)return [date,day];
+    return [date,{...day,annotate:{...day.annotate,title:target.title,author:target.author}}];
+  }));
+  const readingNotes=state.readingNotes.map(note=>bookKey(note.bookTitle,note.bookAuthor)===sourceId?
+    {...note,bookTitle:target.title,bookAuthor:target.author}:note);
+  const stickyNotes=state.stickyNotes.map(note=>{
+    if(!note.related?.some(item=>item.kind==='book'&&item.id===sourceId))return note;
+    const related=note.related.filter(item=>item.kind!=='book'||item.id!==sourceId&&item.id!==targetId);
+    return {...note,related:[...related,{kind:'book',id:targetId}]};
+  });
+  let gardenGrowth=state.gardenGrowth;
+  if(from&&into){
+    const hasTargetLantern=gardenGrowth.some(item=>item.kind==='book'&&item.sourceId===into.id);
+    gardenGrowth=gardenGrowth.flatMap(item=>item.kind==='book'&&item.sourceId===from.id?
+      hasTargetLantern?[]:[{...item,sourceId:into.id}]:[item]);
+  }
+  return {bookId:targetId,changes:{dailyRituals,readingNotes,stickyNotes,finishedBooks,gardenGrowth}};
+}
+
 export function countReadingChapters(rituals){
   return readingShelf(rituals).reduce((total,book)=>{
     const ranges=[],names=new Set();
@@ -157,20 +188,22 @@ export function readingForecast(book){
   const remaining=Math.max(0,total-current);
   const advances=pages.slice(0,-1).map((page,index)=>page-pages[index+1]).filter(delta=>delta>0).slice(0,5);
   const pace=advances.length?advances.reduce((sum,value)=>sum+value,0)/advances.length:0;
-  return {current,total,remaining,samples:advances.length,pace,sittings:remaining===0?0:pace?Math.ceil(remaining/pace):null};
+  const range=advances.length>1&&remaining?[Math.ceil(remaining/Math.max(...advances)),Math.ceil(remaining/Math.min(...advances))]:null;
+  return {current,total,remaining,samples:advances.length,pace,range,sittings:remaining===0?0:pace?Math.ceil(remaining/pace):null};
 }
 
 function forecastMarkup(book){
   const forecast=readingForecast(book);
   if(!forecast)return '';
-  const {current,total,remaining,sittings,pace,samples}=forecast;
+  const {current,total,remaining,sittings,pace,samples,range}=forecast;
   const prediction=!remaining?'Finished':sittings===null?'Log another page position to estimate your pace.':
+    range&&range[0]!==range[1]?`About ${range[0]}–${range[1]} sittings left, based on your fastest and slowest recent advances.`:
     `About ${sittings} ${sittings===1?'sitting':'sittings'} left at ${Math.round(pace)} pages per log.`;
   return `<section class="reading-forecast"><h4>Reading pace</h4><p>Page ${current} of ${total} · ${remaining} pages left</p>
     <p>${prediction}${samples&&remaining?` Based on ${samples} recent ${samples===1?'advance':'advances'} between page logs.`:''}</p></section>`;
 }
 
-export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCalendar,linkedNotes=()=>'',getFinished,bookReward,finishBook,saveBook}){
+export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCalendar,linkedNotes=()=>'',getFinished,bookReward,finishBook,saveBook,mergeBooks}){
   root.innerHTML=`<div class="reading-wrap">
     <header class="reading-heading"><h2 id="reading-heading">Reading shelf</h2><div class="reading-actions">
       <button type="button" id="reading-finished" aria-pressed="false">Finished books</button>
@@ -178,6 +211,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
     <p class="sr-only" id="reading-note-status" role="status"></p>
     <div class="reading-layout"><section class="reading-books" aria-label="Books">
       <label class="sr-only" for="reading-search">Find a book</label><input type="search" id="reading-search" placeholder="Find a book">
+      <label class="reading-sort">Sort books<select id="reading-sort"><option value="last">Last read</option><option value="finished">Finish date</option><option value="rating">Rating</option></select></label>
       <div id="reading-books"></div></section>
       <section id="reading-history" aria-label="Annotation history"></section>
     </div></div>`;
@@ -185,6 +219,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
   const list=root.querySelector('#reading-books');
   const history=root.querySelector('#reading-history');
   let selected='',review=false,editingNote='',editingBook=false,finishedOnly=false;
+  const sort=root.querySelector('#reading-sort');
   const reviewButton=root.querySelector('#reading-review');
   const finishedButton=root.querySelector('#reading-finished');
   const status=root.querySelector('#reading-note-status');
@@ -250,7 +285,14 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
     reviewButton.textContent=`Review queue${queued.length?` (${queued.length})`:''}`;
     reviewButton.setAttribute('aria-pressed',String(review));
     finishedButton.setAttribute('aria-pressed',String(finishedOnly&&!review));
-    const books=shelf().filter(book=>(!finishedOnly||book.finished)&&normalized(`${book.title} ${book.author}`).includes(query));
+    const all=shelf();
+    const last=book=>book.entries[0]?.date||book.finished?.finishedOn||'';
+    const books=all.filter(book=>(!finishedOnly||book.finished)&&normalized(`${book.title} ${book.author}`).includes(query));
+    books.sort((a,b)=>{
+      if(sort.value==='rating'&&(a.finished?.rating||0)!==(b.finished?.rating||0))return (b.finished?.rating||0)-(a.finished?.rating||0);
+      if(sort.value==='finished'&&a.finished?.finishedOn!==b.finished?.finishedOn)return (b.finished?.finishedOn||'').localeCompare(a.finished?.finishedOn||'');
+      return last(b).localeCompare(last(a))||a.title.localeCompare(b.title);
+    });
     const current=books.find(book=>book.id===selected)||books[0];
     list.innerHTML=books.map(book=>`<button type="button" data-reading-book="${escape(book.id)}" aria-pressed="${book===current}">
       <strong>${escape(book.title)}</strong><small>${book.author?`${escape(book.author)} · `:''}${book.finished?'Finished':`${book.entries.length} ${book.entries.length===1?'entry':'entries'}`}</small>
@@ -266,6 +308,11 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
     selected=current.id;
     const chips=current.chapters.map(chapter=>`<li>${escape(chapter)}</li>`).join('');
     history.innerHTML=`<h3>${escape(current.title)}</h3>${current.author?`<p class="reading-author">${escape(current.author)}</p>`:''}
+      ${all.length>1?`<details class="reading-merge"><summary>Merge duplicate book</summary><form id="reading-merge-form">
+        <p>Move this book’s annotation history and notes into the book you keep. If both are finished, the kept book supplies the rating and finish date. Review text is combined.</p>
+        <label>Book to keep<select name="target" required><option value="">Choose a book</option>${all.filter(book=>book!==current).map(book=>
+          `<option value="${escape(book.id)}">${escape([book.title,book.author].filter(Boolean).join(' · '))}</option>`).join('')}</select></label>
+        <p role="alert" id="reading-merge-error" hidden></p><button type="submit">Merge into selected book</button></form></details>`:''}
       ${current.finished?finishedMarkup(current.finished):'<div class="reading-growth-action"><button type="button" class="garden-growth-action" data-finish-book>Mark book finished</button></div>'}
       ${current.last?`<div class="reading-resume"><span>Where you left off</span><strong>${escape(current.last.chapter)}</strong><time datetime="${current.last.date}">${escape(formatDay(current.last.date))}</time></div>`:''}
       ${current.finished?'':forecastMarkup(current)}
@@ -279,6 +326,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
       </li>`).join('')}</ol>`;
   }
   search.addEventListener('input',()=>{review=false;editingNote='';editingBook=false;render();});
+  sort.addEventListener('change',render);
   reviewButton.addEventListener('click',()=>{review=!review;editingNote='';editingBook=false;render();});
   finishedButton.addEventListener('click',()=>{finishedOnly=review||!finishedOnly;review=false;editingNote='';editingBook=false;render();});
   root.querySelector('#reading-calendar').addEventListener('click',openCalendar);
@@ -290,6 +338,13 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
     list.querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});
   });
   history.addEventListener('submit',event=>{
+    if(event.target.id==='reading-merge-form'){
+      event.preventDefault();
+      const result=mergeBooks(selected,new FormData(event.target).get('target'));
+      if(result.error){const error=history.querySelector('#reading-merge-error');error.hidden=false;error.textContent=result.error;return;}
+      selected=result.bookId;search.value='';editingBook=false;editingNote='';render();
+      list.querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});status.textContent='Books merged.';return;
+    }
     if(event.target.id==='finished-book-form'){
       event.preventDefault();
       const book=shelf().find(item=>item.id===selected);

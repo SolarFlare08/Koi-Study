@@ -238,6 +238,20 @@ button.project-context-item:hover { color: var(--planner-accent); }
 .week-draft-day h3, .week-draft-risks h4 { margin: 0 0 4px; font-size: 13px; }
 .week-draft-day li, .week-draft-risks li { display: grid; gap: 2px; padding: 4px 0; font-size: 12px; }
 .week-draft-day p, .week-draft-day span, .week-draft-risks span { margin: 3px 0; color: var(--surface-muted); font-size: 12px; }
+.week-draft-day > ul > li + li { border-top: 1px solid var(--surface-line); }
+.week-slot-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#week-slot-form { display: grid; gap: 5px; }
+#week-slot-form label { display: grid; gap: 3px; }
+.slot-explanation { margin: 2px 0 5px; font-size: 11px; }
+.slot-explanation summary, .reading-merge summary { cursor: pointer; color: var(--surface-accent); }
+.panel .slot-explanation p { margin: 4px 0; }
+.slot-explanation li { padding: 2px 0; }
+.reading-sort { display: grid; gap: 4px; margin: 8px 0; font-size: 12px; }
+.reading-merge { margin: 9px 0; font-size: 12px; }
+#reading-merge-form { display: grid; gap: 6px; margin-top: 6px; }
+#reading-merge-form label { display: grid; gap: 4px; }
+.reading-sort select,#reading-merge-form select { width: 100%; padding: 7px; color: var(--surface-ink); background: var(--surface-field); border: 1px solid var(--surface-line); border-radius: 6px; }
+#reading-merge-form button { justify-self: start; padding: 6px 9px; border: 1px solid var(--surface-line); border-radius: 6px; }
 .milestone-list { max-height: 52dvh; overflow: auto; }
 .milestone-list section { padding: 9px 0; border-top: 1px solid var(--planner-line); }
 .milestone-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }

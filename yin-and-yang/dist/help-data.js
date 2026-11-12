@@ -222,7 +222,7 @@ export const helpTopics = [
     id:'deadline-plan', group:'Calendar & planning', title:'Plan backward from a deadline',
     summary:'Fit your remaining study time into calendar blocks before a task is due.',
     steps:['Give a task an estimate and deadline. Choose `Save and plan to deadline` in the task editor or `Plan to deadline` in Planner.',
-      'Review the suggested blocks and how much time couldn’t fit. Suggestions credit booked time and completed focus for the task.',
+      'Review the suggested blocks and how much time couldn’t fit. Expand `Why this time?` to see the deadline, free time, and commitments. Suggestions credit booked time and completed focus for the task.',
       'Choose the blocks you want, then select `Add selected blocks`. Calendar opens to the first booking.'],
     tip:'Suggestions work backward from the deadline using 9 AM, your Replan cutoff, and the daily study capacity in Workload. For a repeating task, the plan targets the latest unfinished occurrence by the deadline.',
     action:'deadline', actionLabel:'Open Plan to deadline', related:['build-week','workload','schedule-preview','task-dependencies']
@@ -231,8 +231,9 @@ export const helpTopics = [
     id:'build-week', group:'Calendar & planning', title:'Build a week around deadlines',
     summary:'Draft seven days of focus blocks and see which deadlines need attention.',
     steps:['Set deadlines and estimates on your tasks. In Planner, choose `Build my week` or find it with `Ctrl+K`.',
-      'Choose the first day, available hours, and daily study minutes. The draft works around your calendar commitments and recurring unavailable time.',
-      'Choose `Draft week`. Review the deadlines at risk and the blocks for each date. Choose `Approve day` to add that day’s blocks to Calendar.'],
+      'Choose the first day, available hours, daily study minutes, and cooldown between blocks. The cooldown defaults to five minutes and also applies to Plan to deadline, Plan tomorrow, and Replan today suggestions.',
+      'Choose `Draft week` and review deadlines at risk. Expand `Why this time?` to see the deadline, free time, and calendar commitments behind a suggestion.',
+      'Use `Edit block` to change its day, start, or duration. Use `Skip block` to remove it from the draft. Choose `Approve day` to add only that date’s blocks to Calendar.'],
     action:'build-week', actionLabel:'Open Build my week', related:['deadline-plan','availability','workload']
   },
   {
@@ -417,8 +418,9 @@ export const helpTopics = [
     id:'reading-shelf', group:'Reading & journal', title:'Browse your reading shelf',
     summary:'See annotation history, finished chapters, and your latest bookmark by book.',
     steps:['Open the Reading tab.',
-      'Search for a book or select one from the book list.',
-      'Read `Where you left off`, chapters annotated, and the dated history of your logs. Enter total pages and page numbers in your Annotate logs to see a pace forecast after at least two logs show an advance.',
+      'Search for a book or sort by last read, finish date, or rating.',
+      'If a typo split a book, open the duplicate and choose `Merge duplicate book`. Pick the book you want to keep. Logs, chapter notes, and sticky links move there. If both are finished, their review text is combined and the kept book’s completion and lantern take priority.',
+      'Read `Where you left off`, chapters annotated, and the dated history of your logs. Enter total pages and page numbers in your Annotate logs to get a pace forecast. When recent progress varies, Reading shows a range of sittings.',
       'Use `Add chapter note` on a book to save a question, quote, or insight. Mark notes for the `Review queue`. Choose `Mark reviewed` after revisiting a note.',
       'Use `Open Calendar` and the daily Annotate item to add your next log or goal. Ctrl+K can also find a book and open its history directly.'],
     tip:'Books are grouped by title and author. Keeping those consistent keeps your history together.',
@@ -439,9 +441,9 @@ export const helpTopics = [
     steps:['Open Journal → `New entry`, or click a date’s Journal ritual in Calendar.',
       'Start blank or choose a template and select `Insert template`. Use `Save as template` to reuse the current draft text in another entry.',
       'Add a title and write your entry. Choose the date, optional mood, and an optional crochet project above the writing area.',
-      'Choose `Save entry` to save it and complete that date’s Journal ritual. The word count updates while you write.',
+      'Your draft saves as you type. Reopen it from the library after closing or refreshing. Choose `Mark complete` when you want it to count toward that date’s Journal ritual.',
       'Search the journal library or Ctrl+K to find an entry. Click its title to edit it. Deleting asks for confirmation and offers Undo after deletion.'],
-    tip:'Use Save entry before leaving the editor. Journal entries are saved locally; export a backup to keep a separate copy.',
+    tip:'Drafts and completed entries are saved locally and included in backups.',
     action:'journal', actionLabel:'Open Journal', related:['daily-rituals','backup']
   },
   {
