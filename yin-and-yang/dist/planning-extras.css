@@ -199,6 +199,16 @@
 .project-overview-next button:disabled { opacity: .55; cursor: default; }
 .project-overview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
 .reading-growth-action { margin: 9px 0; }
+.finished-book { margin: 12px 0; padding: 10px 13px; border: 1px solid var(--surface-line); border-radius: 9px; background: var(--surface-raised); }
+#reading-history .finished-book h4:first-child { margin-top: 0; }
+.finished-book .reading-note-actions { margin-top: 8px; }
+.finished-book-review { white-space: pre-wrap; }
+#finished-book-form { display: grid; gap: 9px; margin-top: 12px; }
+.finished-book-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(180px,100%),1fr)); gap: 9px; }
+#finished-book-form label { display: grid; min-width: 0; gap: 4px; font-size: 12px; }
+#finished-book-form :is(input,select,textarea) { width: 100%; min-width: 0; padding: 7px; border-radius: 6px; background: var(--surface-field); color: var(--surface-ink); border: 1px solid var(--surface-line); font: inherit; }
+#finished-book-form textarea { resize: vertical; }
+#reading-history #finished-book-error { color: var(--surface-danger); }
 .garden-growth-action, .garden-growth-status { padding: 5px 9px; border: 1px solid var(--surface-line); border-radius: 6px; font-size: 12px; }
 .garden-growth-action:hover { background: var(--surface-raised); }
 .garden-growth-status { color: var(--surface-accent); }

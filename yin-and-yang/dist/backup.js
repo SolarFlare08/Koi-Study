@@ -159,6 +159,7 @@ export function planBackupRestore(storage,current,incoming,sections){
   });
   section('reading','Reading','Annotation logs match by calendar day.',apply=>{
     rituals(apply,'annotate','Annotation logs');stateList(apply,'readingNotes','Chapter notes');
+    stateList(apply,'finishedBooks','Finished books and reviews');
   });
   section('journal','Journal','Entries, templates, and daily completion marks.',apply=>{
     const records=merge('Journal entries',loadJournal(storage),incoming.journal);

@@ -422,7 +422,16 @@ export const helpTopics = [
       'Use `Add chapter note` on a book to save a question, quote, or insight. Mark notes for the `Review queue`. Choose `Mark reviewed` after revisiting a note.',
       'Use `Open Calendar` and the daily Annotate item to add your next log or goal. Ctrl+K can also find a book and open its history directly.'],
     tip:'Books are grouped by title and author. Keeping those consistent keeps your history together.',
-    action:'reading', actionLabel:'Open Reading', related:['reading-goal','search']
+    action:'reading', actionLabel:'Open Reading', related:['finished-books','reading-goal','search']
+  },
+  {
+    id:'finished-books', group:'Reading & journal', title:'Edit finished books and write reviews',
+    summary:'Correct book details and keep a final review, rating, and takeaway.',
+    steps:['In Reading, choose `Finished books` to filter the shelf, then open a book. To finish a book, open it on the full shelf and choose `Mark book finished`.',
+      'Choose `Edit book details` to correct the title, author, finish date, or page count. Annotation history and links follow a title or author change.',
+      'Choose `Write final review` or `Edit final review` to add your thoughts, an optional rating out of five, and a main takeaway. Choose `Save finished book`.'],
+    tip:'Reading backups include your finished books and reviews.',
+    action:'reading', actionLabel:'Open Reading', related:['reading-shelf','garden-growth','backup']
   },
   {
     id:'journal', group:'Reading & journal', title:'Write and revisit journal entries',

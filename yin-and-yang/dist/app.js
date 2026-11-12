@@ -9,7 +9,7 @@ import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearan
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
-import {annotationContext,installReadingShelf,readingShelf} from './reading-shelf.js';
+import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,readingShelf} from './reading-shelf.js';
 import {installBackup} from './backup.js';
 import {dailyRitualMarkup,ritualComplete,rituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
@@ -114,6 +114,27 @@ function renderGardenGrowth(){
   for(const [part,markup] of Object.entries(art))$(`#garden-growth-${part}`).innerHTML=markup;
   renderedGardenGrowth=state.gardenGrowth;
 }
+function finishReadingBook(book){
+  const record=finishedBook({id:crypto.randomUUID(),title:book.title,author:book.author,finishedOn:dayKey(),
+    totalPages:book.entries.find(entry=>entry.totalPages)?.totalPages});
+  if(!record||book.finished)return false;
+  const previous=state.finishedBooks;
+  state.finishedBooks=[...previous,record];
+  if(recordGardenGrowth('book',record.id,[record.title,record.author].filter(Boolean).join(' · ')))return true;
+  state.finishedBooks=previous;
+  return false;
+}
+function saveFinishedBook(id,values){
+  const edit=editFinishedBook(state,id,values);
+  if(edit.error)return edit;
+  const previous=Object.fromEntries(Object.keys(edit.changes).map(key=>[key,state[key]]));
+  Object.assign(state,edit.changes);
+  if(!persist()){
+    Object.assign(state,previous);
+    return {error:'Could not save the book. Try again.'};
+  }
+  return {bookId:edit.bookId};
+}
 function syncSound(unlock=false){
   gardenAudio.sync(state.sounds,spotifyPlayback!=='idle');
   if(unlock)gardenAudio.unlock();
@@ -210,8 +231,8 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
     state.readingNotes=previous;
     return false;
   },openCalendar:()=>calendarToggle.click(),linkedNotes:id=>linkedStickyNotes('book',id),
-  bookReward:id=>gardenReward(state.gardenGrowth,'book',id),
-  finishBook:book=>recordGardenGrowth('book',book.id,[book.title,book.author].filter(Boolean).join(' · '))});
+  getFinished:()=>state.finishedBooks,bookReward:id=>gardenReward(state.gardenGrowth,'book',id),
+  finishBook:finishReadingBook,saveBook:saveFinishedBook});
 const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
@@ -295,7 +316,7 @@ function visitWorkspace(name){
 }
 function relatedNoteTargets(){
   return [
-    ...readingShelf(state.dailyRituals,state.readingNotes).map(book=>({kind:'book',id:book.id,title:book.author?`${book.title} · ${book.author}`:book.title})),
+    ...readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks).map(book=>({kind:'book',id:book.id,title:book.author?`${book.title} · ${book.author}`:book.title})),
     ...state.projects.map(project=>({kind:'project',id:project.id,title:project.name})),
     ...loadJournal(storage).map(entry=>({kind:'journal',id:entry.id,title:`${entry.title} · ${entry.date}`}))
   ];
@@ -326,7 +347,7 @@ function commandEntries(){
     detail:note.body.trim().replace(/\s+/g,' ').slice(0,100),search:note.body,
     run:()=>{visitWorkspace('notes');stickyBoard.focusNote(note.id);}
   }));
-  const books=readingShelf(state.dailyRituals,state.readingNotes).map(book=>({
+  const books=readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks).map(book=>({
     kind:'Book',title:book.title,detail:book.author,search:book.chapters.join(' '),
     run:()=>{visitWorkspace('reading');reading.openBook(book.id);}
   }));

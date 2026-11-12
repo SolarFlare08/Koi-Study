@@ -4,7 +4,7 @@ import {applyBackupRestore,createBackup,planBackupRestore,readBackup,restoreBack
 import {CAPTURE_PREFIX,readCaptures} from '../dist/capture.js';
 import {CROCHET_KEY,loadCrochet,logCrochetTime} from '../dist/crochet.js';
 import {JOURNAL_KEY,loadJournal} from '../dist/journal.js';
-import {annotationContext,readingShelf} from '../dist/reading-shelf.js';
+import {annotationContext,editFinishedBook,readingShelf} from '../dist/reading-shelf.js';
 import {dayKey,STORAGE_KEY,freshState,loadState} from '../dist/state.js';
 import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
@@ -12,6 +12,30 @@ import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail} from '../dist/garden-growth.js';
 import {gardenGrowthMarkup} from '../dist/scenery.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay} from '../dist/day-recap.js';
+
+test('editing a legacy finished book keeps annotations, links, and its original lantern',()=>{
+  const state=freshState(), day='2026-11-12', id='["draft title","author"]';
+  state.dailyRituals[day]={annotate:{title:'Draft Title',author:'Author',chapters:'Chapter 2',totalPages:180}};
+  state.readingNotes=[{id:'chapter',bookTitle:'Draft Title',bookAuthor:'Author',chapter:'2',text:'Consider the theme',kind:'insight'}];
+  state.stickyNotes=[{id:'sticky',body:'A quote',related:[{kind:'book',id}]}];
+  state.gardenGrowth=earnGardenDetail([], 'book',id,'Draft Title · Author',day);
+  const loaded=loadState(memoryStorage([[STORAGE_KEY,JSON.stringify(state)]]));
+  assert.equal(loaded.finishedBooks[0].totalPages,180);
+  const edit=editFinishedBook(loaded,id,{...loaded.finishedBooks[0],title:'Correct Title',rating:5,review:'Memorable.',takeaway:'Notice the framing.'});
+  assert.ok(edit.changes);
+  Object.assign(loaded,edit.changes);
+  const backup=readBackup(JSON.stringify(createBackup(loaded,memoryStorage(),[])));
+  const storage=memoryStorage();
+  applyBackupRestore(storage,planBackupRestore(storage,freshState(),backup,new Set(['reading'])));
+  const restored=loadState(storage);
+  const [book]=readingShelf(restored.dailyRituals,restored.readingNotes,restored.finishedBooks);
+  assert.equal(book.title,'Correct Title');
+  assert.deepEqual(book.chapters,['Chapter 2']);
+  assert.equal(book.finished.review,'Memorable.');
+  assert.equal(restored.readingNotes[0].bookTitle,'Correct Title');
+  assert.equal(loaded.stickyNotes[0].related[0].id,edit.bookId);
+  assert.deepEqual(loaded.gardenGrowth,state.gardenGrowth);
+});
 
 test('a Reading-only restore previews conflicts and preserves local tasks, rituals, and Stitchbook',()=>{
   const current=freshState(), backup=freshState(), day='2026-11-12', next='2026-11-13';
