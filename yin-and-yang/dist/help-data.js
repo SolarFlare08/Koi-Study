@@ -106,6 +106,7 @@ export const helpTopics = [
     steps:['Choose `Add task` in Garden or Planner. You can also use the `Add task` action in `Ctrl+K`.',
       'Enter the name. Add a description, next step, subtasks (one per line), and a comment if useful.',
       'Set its project, section, date, time, estimate, deadline, priority, labels, or reminder in the properties area.',
+      'Set `Snooze until` to keep the task out of the focus queue until that date. Its schedule and deadline stay visible in Planner. Clear the date to bring it back early.',
       'Save the task. Click its title to edit it again. Right-click a task for actions such as editing, prioritizing, focusing, and deleting.'],
     tip:'Task reminders are shown while the app is open. A task’s estimate is also useful for scheduling and estimate-accuracy reports.',
     action:'planner', actionLabel:'Open Planner', related:['repeat','quick-add','completion']
@@ -156,7 +157,8 @@ export const helpTopics = [
     steps:['Open Planner → `Filters & Labels`. Use the plus beside Filters or Labels to add one.',
       'Add labels and priorities to tasks in the task editor. P1 is highest; P4 is normal.',
       'For a filter, try `today & p1` for today’s highest-priority work, or `%reading | #Study` for a label or project.',
-      'Queries also support `overdue`, `undated`, `recurring`, `completed`, words, and `!` to exclude a match. Select a saved filter or label to open its tasks.'],
+      'Queries also support `overdue`, `undated`, `recurring`, `completed`, words, and `!` to exclude a match. Select a saved filter or label to open its tasks.',
+      'Use `Pin 30 minutes or less` or `Pin Due this week` for a ready-made view. For your own filter, turn on `Pin in Planner` to show it in the sidebar.'],
     action:'filters', actionLabel:'Open Filters & Labels', related:['projects','search']
   },
   {
@@ -281,7 +283,15 @@ export const helpTopics = [
       'Import it to add its supported events and recurring occurrences to the shared schedule.',
       'To refresh imported data, download a new file and import it again. The import panel also lists imported sources with Remove controls.'],
     tip:'This is a file import, not a live Canvas account connection or automatic background sync.',
-    action:'calendar-import', actionLabel:'Open calendar import', related:['events','calendar'], keywords:'ics ical feed classes assignments canvas sync'
+    action:'calendar-import', actionLabel:'Open calendar import', related:['events','calendar','calendar-export'], keywords:'ics ical feed classes assignments canvas sync'
+  },
+  {
+    id:'calendar-export', group:'Calendar & planning', title:'Export a calendar as .ics',
+    summary:'Take a day, week, or project schedule to another calendar.',
+    steps:['Open Calendar or a project in Planner and choose `Export .ics`.',
+      'Choose Day, Week (Monday through Sunday), or Project. For a project, also select an end date.',
+      'Choose `Download .ics`, then import the file into your other calendar. Day and week exports can include standalone events; project exports include its timed task blocks.'],
+    action:'calendar', actionLabel:'Open Calendar', related:['calendar','calendar-import'], keywords:'ics ical download export'
   },
   {
     id:'reporting', group:'Tasks & projects', title:'Reports and estimate accuracy',
@@ -364,7 +374,7 @@ export const helpTopics = [
     summary:'See annotation history, finished chapters, and your latest bookmark by book.',
     steps:['Open the Reading tab.',
       'Search for a book or select one from the book list.',
-      'Read `Where you left off`, chapters annotated, and the dated history of your logs.',
+      'Read `Where you left off`, chapters annotated, and the dated history of your logs. Enter total pages and page numbers in your Annotate logs to see a pace forecast after at least two logs show an advance.',
       'Use `Add chapter note` on a book to save a question, quote, or insight. Mark notes for the `Review queue`. Choose `Mark reviewed` after revisiting a note.',
       'Use `Open Calendar` and the daily Annotate item to add your next log or goal. Ctrl+K can also find a book and open its history directly.'],
     tip:'Books are grouped by title and author. Keeping those consistent keeps your history together.',
@@ -388,7 +398,8 @@ export const helpTopics = [
       'Set a name, status, hook size, rows, optional row goal, pattern link, and notes. Link yarn already in your stash, then Save.',
       'Use the plus/minus row buttons as you work. Row goals show progress, and the status filter helps you find active or finished projects.',
       'Choose `Add counter` for separate counts such as a sleeve or a stitch repeat. Save a checkpoint with a resume note to record the current row and counter values.',
-      'Choose `Log time` on a project, enter the date and minutes worked, and save. The project shows its total hours and minutes and the time dialog shows recent sessions.'],
+      'Choose `Log time` on a project, enter the date and minutes worked, and save. The project shows its total hours and minutes and the time dialog shows recent sessions.',
+      'Choose `Log pattern change` to record a date, row, and change. Open the same dialog to see earlier changes.'],
     tip:'Link a project from Calendar’s daily Crochet item for quick access. Time logs, row counts, and yarn use are separate, so you can update just what changed.',
     action:'crochet', actionLabel:'Open Stitchbook', related:['yarn','journal','daily-rituals'], keywords:'stitchbook crochet hours duration log time pattern hook rows'
   },

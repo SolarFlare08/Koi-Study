@@ -24,9 +24,12 @@ function cleanProject(item){
     .map(point=>({id:point.id,at:point.at,note:clean(point.note,1000),rows:whole(point.rows),
       counters:Array.isArray(point.counters)?point.counters.filter(counter=>clean(counter?.name,60))
         .map(counter=>({name:clean(counter.name,60),count:whole(counter.count)})):[]})):[];
+  const patternChanges=Array.isArray(item.patternChanges)?item.patternChanges.filter(change=>
+    typeof change?.id==='string'&&Number.isFinite(change.at)&&clean(change.note,1000))
+    .map(change=>({id:change.id,at:change.at,row:whole(change.row),note:clean(change.note,1000)})):[];
   return {id:item.id,name:clean(item.name,100),status:Object.hasOwn(statuses,item.status)?item.status:'planned',
     rows:whole(item.rows),goal:whole(item.goal),hook:clean(item.hook,40),pattern:patternUrl(clean(item.pattern,1000)),
-    notes:clean(item.notes,3000),counters,checkpoints,yarnIds:Array.isArray(item.yarnIds)?[...new Set(item.yarnIds.filter(id=>typeof id==='string'))]:[]};
+    notes:clean(item.notes,3000),counters,checkpoints,patternChanges,yarnIds:Array.isArray(item.yarnIds)?[...new Set(item.yarnIds.filter(id=>typeof id==='string'))]:[]};
 }
 function cleanYarn(item){
   return {id:item.id,name:clean(item.name,100),colorway:clean(item.colorway,75),color:color(item.color),
@@ -94,6 +97,7 @@ export function installCrochet({root,storage,notify}){
     const worked=data.timeLog.filter(item=>item.projectId===project.id).reduce((sum,item)=>sum+item.minutes,0);
     const percent=project.goal?Math.min(100,Math.floor(project.rows/project.goal*100)):null;
     const checkpoint=project.checkpoints.at(-1);
+    const change=project.patternChanges.at(-1);
     return `<article class="crochet-project" data-crochet-id="${escape(project.id)}">
       <div class="crochet-card-heading"><div><span class="crochet-status" data-status="${project.status}">${statuses[project.status]}</span><h3>${escape(project.name)}</h3></div><button type="button" class="crochet-link" data-crochet-edit="projects" aria-label="Edit ${escape(project.name)}">Edit</button></div>
       <div class="crochet-project-meta">${[project.hook?`Hook ${escape(project.hook)}`:'',project.pattern?`<a href="${escape(project.pattern)}" target="_blank" rel="noopener noreferrer">Pattern ↗</a>`:'',used?`${number(used)} g used`:''].filter(Boolean).join('<span aria-hidden="true"> · </span>')||'Project details'}</div>
@@ -108,6 +112,9 @@ export function installCrochet({root,storage,notify}){
         <button type="button" class="crochet-link" data-crochet-checkpoint>${checkpoint?'Checkpoints':'Save checkpoint'}</button></div>
       ${checkpoint?`<div class="crochet-resume"><strong>Resume here</strong><p>${escape(checkpoint.note)}</p><small>${escape(checkpointCounts(checkpoint))}</small></div>`:''}
       <div class="crochet-worked"><span>Time worked <strong>${formatTime(worked)}</strong></span><button type="button" class="crochet-link" data-crochet-time aria-label="Log time for ${escape(project.name)}">Log time</button></div>
+      <div class="crochet-worked"><span>Pattern changes <strong>${project.patternChanges.length}</strong></span>
+        <button type="button" class="crochet-link" data-crochet-pattern>Log pattern change</button></div>
+      ${change?`<p class="crochet-pattern-latest"><strong>Row ${number(change.row)}</strong> · ${escape(change.note)}</p>`:''}
       ${yarn.length?`<ul class="crochet-project-yarn">${yarn.map(item=>`<li><i style="--swatch:${item.color}"></i>${escape(item.colorway||item.name)}</li>`).join('')}</ul>`:''}
       ${project.notes?`<p class="crochet-project-notes">${escape(project.notes)}</p>`:''}
     </article>`;
@@ -169,21 +176,28 @@ export function installCrochet({root,storage,notify}){
       ${project.checkpoints.length?`<h4>Saved checkpoints</h4><ul class="crochet-checkpoint-history">${[...project.checkpoints].reverse().map(point=>`<li>
         <small>${escape(new Date(point.at).toLocaleString())}</small><p>${escape(point.note)}</p><small>${escape(checkpointCounts(point))}</small></li>`).join('')}</ul>`:''}`;
   }
+  function patternChangeFields(project){
+    return `<p class="crochet-use-context">${escape(project.name)} · ${number(project.rows)} rows</p>
+      <label>Row<input name="row" type="number" min="0" max="100000" value="${project.rows}" required></label>
+      <label>Pattern change<textarea name="note" rows="3" maxlength="1000" placeholder="Switched to a 4 mm hook" required></textarea></label>
+      ${project.patternChanges.length?`<h4>Change history</h4><ul class="crochet-checkpoint-history">${[...project.patternChanges].reverse().map(change=>
+        `<li><small>${escape(new Date(change.at).toLocaleDateString())} · Row ${number(change.row)}</small><p>${escape(change.note)}</p></li>`).join('')}</ul>`:''}`;
+  }
   function openEditor(kind,id,trigger){
-    const item=data[['projects','time','counter','checkpoint'].includes(kind)?'projects':'yarn'].find(record=>record.id===id);
+    const item=data[['projects','time','counter','checkpoint','pattern-change'].includes(kind)?'projects':'yarn'].find(record=>record.id===id);
     if(!['projects','yarn'].includes(kind)&&!item)return;
     const counterId=trigger.closest('[data-counter-id]')?.dataset.counterId;
     const counter=item?.counters?.find(record=>record.id===counterId);
     editor={kind,id,counterId}; anchor=trigger;
-    const title=kind==='counter'?(counter?'Edit counter':'Add counter'):kind==='checkpoint'?'Checkpoints':kind==='time'?'Log crochet time':kind==='use'?'Log yarn used':kind==='projects'?(item?'Edit project':'New project'):(item?'Edit yarn':'Add yarn');
+    const title=kind==='pattern-change'?'Pattern changes':kind==='counter'?(counter?'Edit counter':'Add counter'):kind==='checkpoint'?'Checkpoints':kind==='time'?'Log crochet time':kind==='use'?'Log yarn used':kind==='projects'?(item?'Edit project':'New project'):(item?'Edit yarn':'Add yarn');
     const linked=kind==='use'?data.projects.filter(project=>project.yarnIds.includes(id)):[];
     const fields=kind==='counter'?`<label>Counter name<input name="name" maxlength="60" value="${escape(counter?.name)}" required></label><label>Count<input name="count" type="number" min="0" max="100000" required value="${counter?.count??0}"></label>`:
-      kind==='checkpoint'?checkpointFields(item):kind==='time'?timeFields(item):kind==='projects'?projectFields(item):kind==='yarn'?yarnFields(item):
+      kind==='pattern-change'?patternChangeFields(item):kind==='checkpoint'?checkpointFields(item):kind==='time'?timeFields(item):kind==='projects'?projectFields(item):kind==='yarn'?yarnFields(item):
       `<p class="crochet-use-context">${escape(item.name)} · ${number(item.grams)} g on hand</p><label>Grams used<input name="grams" type="number" min="1" max="${item.grams}" required step="1"></label>
       <label>Project (optional)<select name="projectId"><option value="">Stash only</option>${linked.map(project=>`<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('')}</select></label>`;
     const removable=counter||item&&(kind==='projects'||kind==='yarn');
     dialog.innerHTML=`<form><header><h3 id="crochet-dialog-title">${title}</h3><button type="button" data-crochet-close aria-label="Close dialog">×</button></header><div class="crochet-dialog-fields">${fields}<p role="alert" id="crochet-form-error" hidden></p></div>
-      <footer>${removable?'<button type="button" class="crochet-delete" data-crochet-delete>Delete</button>':''}<button class="crochet-primary" type="submit" value="save">${kind==='checkpoint'?'Save checkpoint':kind==='time'?'Log time':kind==='use'?'Log use':'Save'}</button></footer></form>`;
+      <footer>${removable?'<button type="button" class="crochet-delete" data-crochet-delete>Delete</button>':''}<button class="crochet-primary" type="submit" value="save">${kind==='pattern-change'?'Save change':kind==='checkpoint'?'Save checkpoint':kind==='time'?'Log time':kind==='use'?'Log use':'Save'}</button></footer></form>`;
     dialog.setAttribute('aria-labelledby','crochet-dialog-title');
     dialog.showModal();
     dialog.querySelector(kind==='time'?'[name="minutes"]':'input,textarea')?.focus();
@@ -195,10 +209,14 @@ export function installCrochet({root,storage,notify}){
     const next=structuredClone(data);
     const error=$('#crochet-form-error');
     const fail=message=>{error.hidden=false;error.textContent=message;};
-    if(kind==='counter'||kind==='checkpoint'){
+    if(kind==='counter'||kind==='checkpoint'||kind==='pattern-change'){
       const project=next.projects.find(item=>item.id===id);
       if(!project)return fail('This project was removed in another tab.');
-      if(kind==='checkpoint'){
+      if(kind==='pattern-change'){
+        const note=clean(fields.get('note'),1000);
+        if(!note)return fail('Enter the pattern change.');
+        project.patternChanges.push({id:crypto.randomUUID(),at:Date.now(),row:whole(fields.get('row')),note});
+      }else if(kind==='checkpoint'){
         const note=clean(fields.get('note'),1000);
         if(!note)return fail('Enter a note about where to resume.');
         project.checkpoints.push({id:crypto.randomUUID(),at:Date.now(),note,rows:project.rows,
@@ -237,6 +255,7 @@ export function installCrochet({root,storage,notify}){
     if (kind==='projects'&&!remove&&statusFilter!=='all'&&fields.get('status')!==statusFilter) statusFilter='all';
     render();
     if(kind==='time')anchor=content.querySelector(`[data-crochet-id="${CSS.escape(id)}"] [data-crochet-time]`);
+    if(kind==='pattern-change')anchor=content.querySelector(`[data-crochet-id="${CSS.escape(id)}"] [data-crochet-pattern]`);
     if(kind==='counter'||kind==='checkpoint'){
       const card=content.querySelector(`[data-crochet-id="${CSS.escape(id)}"]`);
       anchor=kind==='checkpoint'?card?.querySelector('[data-crochet-checkpoint]'):
@@ -258,6 +277,7 @@ export function installCrochet({root,storage,notify}){
     if ('crochetTime' in action) openEditor('time',id,button);
     if ('crochetCounter' in action) openEditor('counter',id,button);
     if ('crochetCheckpoint' in action) openEditor('checkpoint',id,button);
+    if ('crochetPattern' in action) openEditor('pattern-change',id,button);
     if ('crochetClose' in action) dialog.close();
     if ('crochetDelete' in action) {
       if (button.dataset.confirm) return saveEditor(button.form,true);

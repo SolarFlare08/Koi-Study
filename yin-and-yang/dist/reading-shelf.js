@@ -40,7 +40,8 @@ export function readingShelf(rituals,notes=[]){
     const id=bookKey(title,author);
     if(!books.has(id))books.set(id,{id,title,author,entries:[]});
     const chapters=chapterLines(entry.chapters);
-    books.get(id).entries.push({date,chapters,...(entry.position?{position:entry.position}:{})});
+    books.get(id).entries.push({date,chapters,...(entry.position?{position:entry.position}:{}),
+      ...(entry.totalPages?{totalPages:entry.totalPages}:{})});
   }
   for(const note of notes){
     const id=bookKey(note.bookTitle,note.bookAuthor);
@@ -74,6 +75,30 @@ export function countReadingChapters(rituals){
     }
     return total+count;
   },0);
+}
+
+export function readingForecast(book){
+  const total=book.entries.find(entry=>entry.totalPages)?.totalPages;
+  const pages=book.entries.flatMap(entry=>{
+    const match=normalized(entry.position).match(/^(?:page\s+|p\.?\s*)?(\d{1,6})$/);
+    return match?[Number(match[1])]:[];
+  });
+  const current=pages[0];
+  if(!total||current===undefined)return null;
+  const remaining=Math.max(0,total-current);
+  const advances=pages.slice(0,-1).map((page,index)=>page-pages[index+1]).filter(delta=>delta>0).slice(0,5);
+  const pace=advances.length?advances.reduce((sum,value)=>sum+value,0)/advances.length:0;
+  return {current,total,remaining,samples:advances.length,pace,sittings:remaining===0?0:pace?Math.ceil(remaining/pace):null};
+}
+
+function forecastMarkup(book){
+  const forecast=readingForecast(book);
+  if(!forecast)return '';
+  const {current,total,remaining,sittings,pace,samples}=forecast;
+  const prediction=!remaining?'Finished':sittings===null?'Log another page position to estimate your pace.':
+    `About ${sittings} ${sittings===1?'sitting':'sittings'} left at ${Math.round(pace)} pages per log.`;
+  return `<section class="reading-forecast"><h4>Reading pace</h4><p>Page ${current} of ${total} · ${remaining} pages left</p>
+    <p>${prediction}${samples&&remaining?` Based on ${samples} recent ${samples===1?'advance':'advances'} between page logs.`:''}</p></section>`;
 }
 
 export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCalendar,linkedNotes=()=>''}){
@@ -140,6 +165,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
     const chips=current.chapters.map(chapter=>`<li>${escape(chapter)}</li>`).join('');
     history.innerHTML=`<h3>${escape(current.title)}</h3>${current.author?`<p class="reading-author">${escape(current.author)}</p>`:''}
       ${current.last?`<div class="reading-resume"><span>Where you left off</span><strong>${escape(current.last.chapter)}</strong><time datetime="${current.last.date}">${escape(formatDay(current.last.date))}</time></div>`:''}
+      ${forecastMarkup(current)}
       ${chips?`<h4>Chapters annotated</h4><ul class="reading-chapters">${chips}</ul>`:''}
       ${linkedNotes(current.id)}
       ${noteEditor(current,notes.filter(note=>bookKey(note.bookTitle,note.bookAuthor)===current.id))}

@@ -2241,6 +2241,8 @@ function ritualEditor(){
     </div>
     <label class="field-label" for="ritual-chapters">Chapters annotated</label><textarea id="ritual-chapters" name="chapters" maxlength="3000" rows="4" placeholder="One per line or a range, e.g. Chapters 3–5">${escape(item.chapters)}</textarea>
     <label class="field-label" for="ritual-position">Where you stopped (optional)</label><input id="ritual-position" name="position" maxlength="100" value="${escape(item.position)}" placeholder="e.g. Page 52">
+    <label class="field-label" for="ritual-total-pages">Total pages (optional)</label><input id="ritual-total-pages" name="totalPages" type="number" min="1" max="100000" value="${item.totalPages||book.totalPages||''}">
+    <p class="panel-subtle">Enter a stopping point like Page 52 and total pages to see a forecast in Reading.</p>
     <label class="field-label" for="ritual-reading-project">Project for weekly goal</label><select id="ritual-reading-project" name="projectId">
       <option value="">No project</option>${state.projects.filter(project=>!project.archived||project.id===item.projectId).map(project=>
         `<option value="${escape(project.id)}" ${project.id===(item.projectId??book.projectId)?'selected':''}>${escape(project.name)}</option>`).join('')}</select>
@@ -2806,6 +2808,9 @@ root.addEventListener('submit',e=>{
       for(const key of ['title','author','chapters','position','goal'])item[key]=String(fields.get(key)).trim();
       item.goalType=fields.get('goalType')==='page'?'page':'chapter';
       item.projectId=String(fields.get('projectId')||'');
+      const totalPages=Number(fields.get('totalPages'));
+      if(totalPages)item.totalPages=totalPages;
+      else delete item.totalPages;
       if(!item.title&&(item.chapters||item.position||item.goal)){
         const error=form.querySelector('.ritual-error');
         error.textContent='Enter the book title for this reading log.';error.hidden=false;

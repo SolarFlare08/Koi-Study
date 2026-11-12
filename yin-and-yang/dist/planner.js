@@ -6,8 +6,13 @@ import {captureTaskChange} from './task-undo.js';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
 import {activityLabels,estimateAccuracy,estimateCsv,estimateSummary,reportCsv,reportEvents,reportMetrics,suggestTaskEstimate} from './planner-report.js';
 import {milestoneProgress,projectMilestone} from './project-planning.js';
+import {exportCalendar} from './calendar-export.js';
 
 const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',review:'Weekly review',workload:'Workload',filters:'Filters & Labels',reporting:'Reporting'};
+const workViewPresets={
+  short:{name:'30 minutes or less',query:'estimate<=30 & !completed'},
+  week:{name:'Due this week',query:'due-this-week & !completed'}
+};
 const calendarLayouts={day:1,'3days':3,calendar:7,month:0};
 const paths={
   search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',
@@ -112,16 +117,19 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const count={inbox:tasks.filter(task=>!projectFor(task)).length,today:tasks.filter(task=>todayDate(task,now)||overdueDate(task,now)).length};
     const plan=['inbox','today','upcoming','review','workload'].map(key=>navItem(key,views[key],count[key])).join('');
     const organize=['filters','reporting'].map(key=>navItem(key,views[key])).join('');
+    const pinned=state().plannerFilters.filter(filter=>filter.pinned);
+    const saved=state().plannerFilters.filter(filter=>!filter.pinned);
     const scroll=sidebar.querySelector('.planner-rail-sections')?.scrollTop||0;
     sidebar.innerHTML=`<div class="planner-brand"><span>${icon('pavilion')}</span><div><strong>Planner</strong><small>Yin and Yang</small></div></div>
       <div class="planner-rail-actions"><button class="planner-add" type="button" title="Add task (Q)" data-planner-add>${icon('plus')} <span>Add task</span> <kbd aria-hidden="true">Q</kbd></button>
       <button class="planner-search-link" type="button" data-planner-view="search" data-value="" title="Search tasks (/)" ${view==='search'?'aria-current="page"':''}>${icon('search')} <span>Search tasks</span> <kbd aria-hidden="true">/</kbd></button></div>
       <div class="planner-rail-sections">
+        ${pinned.length?`<section class="planner-rail-group"><div class="planner-sidebar-heading"><h3>Pinned work views</h3></div><nav aria-label="Pinned work views">${pinned.map(filter=>navItem('filter',filter.name,'',filter.id,icon('filters'))).join('')}</nav></section>`:''}
         <section class="planner-rail-group"><div class="planner-sidebar-heading"><h3>Plan</h3></div><nav aria-label="Plan">${plan}</nav></section>
         <section class="planner-rail-group"><div class="planner-sidebar-heading"><h3>Organize</h3></div><nav aria-label="Organize">${organize}</nav></section>
         <section class="planner-rail-group"><div class="planner-sidebar-heading"><h3>Projects</h3><button type="button" data-manage="project" title="Add project" aria-label="Add project">${icon('plus')}</button></div>
           <nav aria-label="Projects">${projects.map(project=>navItem('project',project.name,tasks.filter(task=>task.projectId===project.id).length,project.id,`<span class="planner-project-mark" style="--project-color:${escape(project.color)}" aria-hidden="true"></span>`)).join('')||'<p class="planner-side-empty">Group related tasks in a project.</p>'}</nav></section>
-        ${state().plannerFilters.length?`<section class="planner-rail-group"><div class="planner-sidebar-heading"><h3>Saved filters</h3></div><nav aria-label="Saved filters">${state().plannerFilters.map(filter=>navItem('filter',filter.name,'',filter.id,icon('filters'))).join('')}</nav></section>`:''}
+        ${saved.length?`<section class="planner-rail-group"><div class="planner-sidebar-heading"><h3>Saved filters</h3></div><nav aria-label="Saved filters">${saved.map(filter=>navItem('filter',filter.name,'',filter.id,icon('filters'))).join('')}</nav></section>`:''}
       </div>
       <div class="planner-sidebar-foot"><button type="button" data-manage="import" title="Import Todoist CSV">${icon('upload')}<span>Import Todoist CSV</span></button><small>Stored on this device</small></div>`;
     sidebar.querySelector('.planner-rail-sections').scrollTop=scroll;
@@ -154,6 +162,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
           ${view==='inbox'?'':`<span class="planner-task-project">${project?icon('project'):icon('inbox')} ${escape(project?.name||'Inbox')}</span>`}
           ${priority<4?`<span class="planner-priority">P${priority}</span>`:''}
           ${task.deadline?`<span class="planner-deadline">Due ${plainDate(task.deadline)}</span>`:''}
+          ${!complete&&task.snoozedUntil>dayKey()?`<span>Snoozed until ${plainDate(task.snoozedUntil)}</span>`:''}
           ${task.reminderAt?'<span title="Reminder scheduled">◷</span>':''}
           ${task.comments?.length?`<span>${task.comments.length} ${task.comments.length===1?'comment':'comments'}</span>`:''}
           ${labels}
@@ -269,6 +278,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const archived=state().projects.filter(project=>project.archived);
     const add=(kind,label)=>`<button class="planner-group-action" type="button" data-manage="${kind}" aria-label="${label}" title="${label}">${icon('plus')}</button>`;
     return `<div class="planner-collection">
+      <div class="work-view-presets">${Object.entries(workViewPresets).map(([key,preset])=>
+        `<button type="button" data-pin-work-view="${key}">Pin ${preset.name}</button>`).join('')}</div>
       ${listGroup('filters','My filters',filters.map(item=>row(item.name,'filter',item.id,'filter',icon('filters'))).join('')||'<p class="planner-empty">Save a search to revisit it anytime.</p>',{action:add('filter','Add filter'),count:filters.length})}
       ${listGroup('labels','Labels',labels.map(label=>row(label,'label',label,'label',icon('label'))).join('')||'<p class="planner-empty">Create a label to organize related tasks.</p>',{action:add('label','Add label'),count:labels.length})}
       ${archived.length?listGroup('archived','Archived projects',archived.map(project=>row(project.name,'project',project.id,'project',icon('project'))).join('')):''}</div>`;
@@ -463,6 +474,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const replan=standalone||view==='today'?'<button type="button" data-replan-today aria-haspopup="dialog">Replan today</button>':'';
     $('#planner-heading-actions').innerHTML=addTask+settings+replan+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button>`:'<button type="button" data-plan-tomorrow aria-haspopup="dialog">Plan tomorrow</button><button type="button" data-plan-deadline aria-haspopup="dialog">Plan to deadline</button>');
     $('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-availability aria-haspopup="dialog">Availability</button>');
+    if(standalone||project)$('#planner-heading-actions').insertAdjacentHTML('beforeend',
+      `<button type="button" data-manage="calendar-export" data-value="${escape(project?.id)}">Export .ics</button>`);
     if(project)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="milestones" aria-haspopup="dialog">Milestones</button>');
     if(project?.thoughts?.length)$('#planner-heading-actions').insertAdjacentHTML('beforeend',`<button type="button" data-manage="project-thoughts">Thoughts (${project.thoughts.length})</button>`);
     if(project&&linkedNotes(project.id))$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="project-notes" aria-haspopup="dialog">Linked notes</button>');
@@ -617,11 +630,24 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       if (section) extra='<button type="submit" value="remove" formnovalidate>Remove section</button>';
     } else if (type==='filter') {
       title=filter?'Edit filter':'Add filter';
-      fields=`<label>Filter name<input name="name" maxlength="80" required value="${escape(filter?.name)}"></label><label>Query<input name="query" maxlength="180" required value="${escape(filter?.query)}" placeholder="today &amp; p1 | %reading"></label><p>Use dates, #projects, %labels, p1–p4, overdue, undated, recurring, or words. Use | for alternatives and ! to exclude.</p>`;
+      fields=`<label>Filter name<input name="name" maxlength="80" required value="${escape(filter?.name)}"></label><label>Query<input name="query" maxlength="180" required value="${escape(filter?.query)}" placeholder="today &amp; p1 | %reading"></label><p>Use dates, #projects, %labels, p1–p4, overdue, undated, recurring, estimate&lt;=30, or due-this-week. Use | for alternatives and ! to exclude.</p>
+        <label class="planner-check-label"><input type="checkbox" name="pinned" ${filter?.pinned?'checked':''}> Pin in Planner</label>`;
       if (filter) extra='<button type="submit" value="remove" formnovalidate>Remove filter</button>';
     } else if (type==='import') {
       title='Import Todoist project';
       fields='<label>Todoist project CSV<input type="file" name="csv" accept=".csv,text/csv" required></label><label>Project name (optional)<input name="name" maxlength="80" placeholder="Use the filename"></label><p>Imports a new project. Unsupported schedule text is kept in the task description.</p><p role="alert" id="planner-import-error" hidden></p>';
+    } else if(type==='calendar-export'){
+      const start=timeLayout()?calendarDate():date;
+      const defaultScope=project?'project':layout==='day'?'day':'week';
+      title='Export calendar';
+      fields=`<label>Scope<select name="scope">${['day','week','project'].map(scope=>`<option value="${scope}" ${scope===defaultScope?'selected':''}>${scope[0].toUpperCase()+scope.slice(1)}</option>`).join('')}</select></label>
+        <label>Date<input type="date" name="date" required value="${dayKey(start)}"></label>
+        <label data-export-project ${project?'':'hidden'}>Project<select name="projectId" required ${project?'':'disabled'}><option value="">Choose a project</option>
+          ${state().projects.map(item=>`<option value="${escape(item.id)}" ${item.id===project?.id?'selected':''}>${escape(item.name)}</option>`).join('')}</select></label>
+        <label data-export-project ${project?'':'hidden'}>Through<input type="date" name="endDate" required ${project?'':'disabled'} value="${dayKey(shiftDay(start,29))}"></label>
+        <label class="planner-check-label" data-export-events ${project?'hidden':''}><input type="checkbox" name="includeEvents" checked> Include calendar events</label>
+        <p>Week exports use Monday through Sunday. Project exports include its timed task blocks in the selected date range.</p>
+        <p id="calendar-export-error" role="alert" hidden></p>`;
     } else if (type==='calendar-import') {
       title='Import calendar';
       const sources=[...new Set(state().calendarEvents.filter(event=>!event.manual).map(event=>event.source||'Imported calendar'))];
@@ -645,7 +671,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     } else {
       title='Reschedule overdue tasks'; fields=`<label>New date<input name="date" type="date" required min="${dayKey()}" value="${dayKey()}"></label>`;
     }
-    dialog.innerHTML=`<form data-manage-form="${type}" data-value="${escape(id)}"><header><h3 id="planner-dialog-title">${title}</h3><button type="button" data-dialog-close aria-label="Close dialog">×</button></header>${fields}<footer>${extra}<button class="planner-primary" type="submit" value="save">${type==='reschedule'?'Reschedule':type.endsWith('import')?'Import':'Save'}</button></footer></form>`;
+    dialog.innerHTML=`<form data-manage-form="${type}" data-value="${escape(id)}"><header><h3 id="planner-dialog-title">${title}</h3><button type="button" data-dialog-close aria-label="Close dialog">×</button></header>${fields}<footer>${extra}<button class="planner-primary" type="submit" value="save">${type==='reschedule'?'Reschedule':type==='calendar-export'?'Download .ics':type.endsWith('import')?'Import':'Save'}</button></footer></form>`;
     dialog.setAttribute('aria-labelledby','planner-dialog-title');
     if(!dialog.open)dialog.showModal();
     if(type==='milestone')dialog.querySelector('[name="name"]').focus();
@@ -699,6 +725,21 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const type=form.dataset.manageForm,id=form.dataset.value, fields=new FormData(form);
     if (type==='import') return importProject(form,fields);
     if (type==='calendar-import') return importCalendar(form,fields);
+    if(type==='calendar-export'){
+      const options={...Object.fromEntries(fields),includeEvents:fields.has('includeEvents')};
+      try{
+        const {content,count,first}=exportCalendar(options.scope==='project'?state().tasks:activeTasks(),state().calendarEvents,options);
+        const url=URL.createObjectURL(new Blob([content],{type:'text/calendar;charset=utf-8'}));
+        const download=document.createElement('a');
+        download.href=url;download.download=`yin-yang-${options.scope}-${first}.ics`;
+        dialog.append(download);download.click();download.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+        dialog.close();notify(`Exported ${count} calendar ${count===1?'item':'items'}.`);
+      }catch(error){
+        const message=form.querySelector('#calendar-export-error');message.hidden=false;message.textContent=error.message;
+      }
+      return;
+    }
     const name=String(fields.get('name')||'').trim();
     const projects=state().projects, filters=state().plannerFilters;
     if (action==='save'&&!['reschedule','weekly-goals'].includes(type)&&!name) {
@@ -764,8 +805,11 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     } else if (type==='filter') {
       const existing=filters.find(item=>item.id===id);
       if (action==='remove') state().plannerFilters=filters.filter(item=>item.id!==id);
-      else if (existing) Object.assign(existing,{name,query:String(fields.get('query')).trim()});
-      else filters.push({id:blankId(),name,query:String(fields.get('query')).trim()});
+      else{
+        const values={name,query:String(fields.get('query')).trim(),pinned:fields.has('pinned')};
+        if(existing)Object.assign(existing,values);
+        else filters.push({id:blankId(),...values});
+      }
     } else if (type==='label') {
       const labels=state().plannerLabels.filter(label=>label!==id);
       if (action!=='remove') labels.push(name);
@@ -790,6 +834,15 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
 
   root.addEventListener('click',event=>{
     const button=event.target.closest('button');
+    const preset=button&&workViewPresets[button.dataset.pinWorkView];
+    if(preset){
+      const prior=state().plannerFilters;
+      const existing=prior.find(item=>item.query===preset.query);
+      const filter={id:existing?.id||blankId(),...preset,...existing,pinned:true};
+      state().plannerFilters=existing?prior.map(item=>item===existing?filter:item):[...prior,filter];
+      if(!commit()){state().plannerFilters=prior;render();return;}
+      setView('filter',filter.id);return;
+    }
     if (!button) return;
     const data=button.dataset;
     if(data.removeCalendar){
@@ -905,6 +958,13 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   });
   root.addEventListener('change',event=>{
     const input=event.target;
+    if(input.name==='scope'&&input.form?.dataset.manageForm==='calendar-export'){
+      const project=input.value==='project';
+      for(const field of input.form.querySelectorAll('[data-export-project]')){
+        field.hidden=!project;field.querySelector('input,select').disabled=!project;
+      }
+      input.form.querySelector('[data-export-events]').hidden=project;
+    }
     if (input===layoutSelect) { selectLayout(input.value); quick=null; content.scrollLeft=0; return render(); }
     if (input.dataset.reportControl) {
       report[input.dataset.reportControl]=input.value;

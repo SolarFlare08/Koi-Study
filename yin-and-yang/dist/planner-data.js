@@ -1,5 +1,5 @@
 import {dayKey, taskOccursOn, taskPriority, taskStatus} from './state.js';
-import {shiftDay, timeValue} from './calendar.js';
+import {shiftDay, timeValue, weekDays} from './calendar.js';
 
 const weekdays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
 
@@ -95,6 +95,12 @@ export function matchesPlannerQuery(task, query, projects, now = new Date()) {
     if (value==='completed') return taskStatus(task,now)==='done';
     if (value==='undated') return !date;
     if (value==='recurring') return Boolean(task.repeat&&task.repeat!=='none');
+    const estimate=value.match(/^estimate<=(\d+)$/);
+    if(estimate)return Number.isInteger(task.estimate)&&task.estimate>0&&task.estimate<=Number(estimate[1]);
+    if(value==='due-this-week'){
+      const week=weekDays(now),due=task.deadline||date;
+      return Boolean(due&&due>=dayKey(week[0])&&due<=dayKey(week.at(-1)));
+    }
     const day=plannerDate(value,now);
     if (day) return date===day;
     return `${task.text} ${task.description||''} ${task.labels?.join(' ')||''}`.toLowerCase().includes(value);

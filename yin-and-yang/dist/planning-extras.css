@@ -301,3 +301,8 @@
 #sticky-link-related { display: grid; gap: 6px; }
 #sticky-link-related summary { cursor: pointer; font-size: 13px; }
 #sticky-link-related details > div { max-height: 155px; overflow: auto; margin-top: 4px; }
+.work-view-presets { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+.work-view-presets button { padding: 6px 9px; border: 1px solid var(--planner-line); border-radius: 7px; color: var(--planner-accent); }
+.reading-forecast { padding: 8px 0; border-bottom: 1px solid var(--surface-line); }
+.reading-forecast h4,.reading-forecast p { margin: 4px 0; }
+.crochet-pattern-latest { margin: 3px 0 8px; font-size: 12px; overflow-wrap: anywhere; }
