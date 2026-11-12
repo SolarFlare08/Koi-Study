@@ -17,6 +17,8 @@ import {installCommandPalette} from './command-palette.js';
 import {installHelp} from './help.js';
 import {canPlanDeadline,planDeadline,scheduleImpact} from './scheduling.js';
 import {nextTaskDate} from './planner-data.js';
+import {taskTemplate} from './project-planning.js';
+import {estimateSummary,suggestTaskEstimate} from './planner-report.js';
 
 const $=s=>document.querySelector(s);
 const icons={
@@ -644,6 +646,7 @@ function blockEditor(){
       </div>
       <label class="field-label" for="block-minutes">Duration (min)</label>
       <input id="block-minutes" name="minutes" type="number" min="1" max="1440" value="${block?.minutes||task.estimate||60}" required>
+      <div class="estimate-suggestion" data-estimate-suggestion hidden></div>
       ${schedulePreviewRegion()}
       <div class="panel-actions"><button class="panel-primary" type="submit">Save block</button>${block?'<button type="button" class="text-button" id="delete-block">Remove block</button>':''}</div>
     </form>`;
@@ -711,6 +714,77 @@ function taskDependencies(values){
     <p class="event-error" id="prerequisite-error" role="alert" hidden></p>
   </details>`;
 }
+function templateOptions(){
+  return '<option value="">Choose a template</option>'+state.taskTemplates.map(template=>
+    `<option value="${escape(template.id)}">${escape(template.name)}</option>`).join('');
+}
+function taskTemplateFields(isNew){
+  return `<details class="task-detail-section task-templates"><summary>Task templates</summary>
+    ${isNew?`<label class="field-label" for="task-template">Saved templates</label><select id="task-template">${templateOptions()}</select>
+      <div class="panel-actions"><button type="button" data-template-action="apply" disabled>Use template</button>
+        <button type="button" data-template-action="remove" disabled>Remove template</button></div>`:''}
+    <label class="field-label" for="task-template-name">Template name</label>
+    <input id="task-template-name" maxlength="100" placeholder="Use the task name">
+    <button type="button" class="text-button" data-template-action="save">Save as template</button>
+    <p class="event-error" id="task-template-error" role="alert" hidden></p>
+    <p id="task-template-status" role="status"></p>
+  </details>`;
+}
+function taskLabels(text){
+  return [...new Set(text.split(',').map(label=>label.trim().replace(/^[@%]/,'').slice(0,40)).filter(Boolean))];
+}
+function editTaskTemplate(button){
+  const form=button.form, fields=form.elements;
+  const picker=$('#task-template'), status=$('#task-template-status'), error=$('#task-template-error');
+  const selected=state.taskTemplates.find(template=>template.id===picker?.value);
+  error.hidden=true;status.textContent='';
+  const action=button.dataset.templateAction;
+  if(action==='apply'&&selected){
+    if(!fields.title.value.trim())fields.title.value=selected.name;
+    if(!fields.description.value.trim())fields.description.value=selected.description;
+    if(!fields.estimate.value&&selected.estimate)fields.estimate.value=selected.estimate;
+    const labels=[...new Set([...taskLabels(fields.labels.value),...selected.labels])].join(', ');
+    fields.labels.maxLength=Math.max(240,labels.length);
+    fields.labels.value=labels;
+    const subtasks=[...new Set([...fields.subtasks.value.split('\n').map(line=>line.trim()).filter(Boolean),...selected.subtasks])].join('\n');
+    fields.subtasks.maxLength=Math.max(2000,subtasks.length);
+    fields.subtasks.value=subtasks;
+    fields.title.setCustomValidity('');
+    updateScheduleEditor(form);
+    status.textContent='Template added to this draft.';
+    return;
+  }
+  const prior=state.taskTemplates;
+  let template;
+  if(action==='save'){
+    const name=$('#task-template-name').value.trim()||fields.title.value.replace(/\s+/g,' ').trim().slice(0,100);
+    template=taskTemplate({
+      id:crypto.randomUUID(),name,description:fields.description.value,
+      labels:taskLabels(fields.labels.value),estimate:Number(fields.estimate.value),
+      subtasks:[...[...form.querySelectorAll('input[name^="sub:"]')].map(input=>input.value),...fields.subtasks.value.split('\n')]
+    });
+    if(!template||prior.some(item=>item.name.toLowerCase()===template.name.toLowerCase())){
+      error.textContent=template?'A template already uses that name.':'Enter a name for the template.';
+      error.hidden=false;$('#task-template-name').focus();return;
+    }
+    state.taskTemplates=[...prior,template];
+  }else if(action==='remove'&&selected){
+    state.taskTemplates=prior.filter(item=>item!==selected);
+  }else return;
+  if(!persist()){state.taskTemplates=prior;return;}
+  if(picker){
+    picker.innerHTML=templateOptions();
+    picker.value=template?.id||'';
+    updateTemplateButtons(picker);
+    if(action==='remove')picker.focus();
+  }
+  status.textContent=template?'Template saved.':'Template removed.';
+}
+function updateTemplateButtons(picker){
+  for(const button of picker.form.querySelectorAll('[data-template-action="apply"],[data-template-action="remove"]')){
+    button.disabled=!picker.value;
+  }
+}
 function taskEditor(){
   const task=state.tasks.find(item=>item.id===editingTaskId);
   const values=task||taskDraft||{};
@@ -733,6 +807,7 @@ function taskEditor(){
             <label class="sr-only" for="task-title">Task name</label>
             <textarea id="task-title" name="title" rows="2" maxlength="${Math.max(300,values.text?.length||0)}" placeholder="Task name" required>${escape(values.text)}</textarea>
           </div>
+          ${taskTemplateFields(!task)}
           <label class="field-label" for="task-description">Description</label>
           <textarea id="task-description" name="description" rows="3" maxlength="2000" placeholder="Add a description…">${escape(values.description)}</textarea>
           <label class="field-label" for="task-resume">Next step</label><textarea id="task-resume" name="resumeNote" rows="2" maxlength="500" placeholder="Pick up here next time…">${escape(values.resumeNote)}</textarea>
@@ -764,6 +839,7 @@ function taskEditor(){
               <div><label class="field-label" for="task-repeat">Repeat</label><select id="task-repeat" name="repeat" aria-describedby="task-repeat-hint">${options}</select></div>
               <div><label class="field-label" for="task-estimate">Estimate (min)</label><input id="task-estimate" name="estimate" type="number" min="1" max="1440" step="1" value="${values.estimate??''}" placeholder="60"></div>
             </div>
+            <div class="estimate-suggestion" data-estimate-suggestion hidden></div>
             <p id="task-repeat-hint" ${values.repeat&&values.repeat!=='none'?'':'hidden'}>The date sets the first occurrence. Leave it blank to start today.</p>
             <div id="task-interval-field" ${values.repeat==='interval'?'':'hidden'}><label class="field-label" for="task-interval">Days between occurrences</label><input id="task-interval" name="repeatEvery" type="number" min="2" max="365" value="${values.repeatEvery||2}" ${values.repeat==='interval'?'':'disabled'}></div>
             ${schedulePreviewRegion()}
@@ -1702,6 +1778,14 @@ function updateScheduleEditor(form){
   const task=state.tasks.find(item=>item.id===editingTaskId);
   const minutes=isTask?(fields.estimate.value?Number(fields.estimate.value):60):Number(fields.minutes.value);
   const date=fields.date.value||(isTask?dayKey():'');
+  const comparable=isTask?{text:fields.title.value,labels:taskLabels(fields.labels.value)}:task;
+  const suggestion=comparable&&suggestTaskEstimate(state,comparable);
+  const estimateRegion=form.querySelector('[data-estimate-suggestion]');
+  estimateRegion.hidden=!suggestion;
+  if(suggestion){
+    const hint=`<p>${estimateSummary(suggestion)}</p><button type="button" class="text-button" data-use-estimate="${suggestion.estimate}">Use ${suggestion.estimate} min</button>`;
+    if(estimateRegion.innerHTML!==hint)estimateRegion.innerHTML=hint;
+  }
   let preview=null;
   if(fields.time.value&&date){
     const replacing=task&&(isTask||editingBlockId)?{taskId:task.id,blockId:isTask?null:editingBlockId}:null;
@@ -2155,6 +2239,13 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const template=e.target.closest('[data-template-action]');
+  if(template){editTaskTemplate(template);return;}
+  const estimate=e.target.closest('[data-use-estimate]');
+  if(estimate){
+    const field=estimate.form.elements.estimate||estimate.form.elements.minutes;
+    field.value=estimate.dataset.useEstimate;updateScheduleEditor(estimate.form);field.focus();return;
+  }
   const findTomorrow=e.target.closest('#tomorrow-find-slot');
   if(findTomorrow){updateTomorrowSlot(findTomorrow.form,false);return;}
   if(e.target.closest('#open-spotify-external')){
@@ -2304,7 +2395,7 @@ root.addEventListener('input',e=>{
     $('#prerequisite-no-results').hidden=matches>0;
   }
   if(e.target.form?.matches('#task-editor-form,#block-editor-form')&&
-    ['date','time','estimate','minutes','deadline','repeat'].includes(e.target.name))updateScheduleEditor(e.target.form);
+    ['date','time','estimate','minutes','deadline','repeat','title','labels'].includes(e.target.name))updateScheduleEditor(e.target.form);
   if(e.target.id==='focus-minutes'||e.target.id==='break-minutes')formatDurationInput(e);
   if(e.target.dataset.soundLevel)changeSound(e.target.dataset.soundLevel,Number(e.target.value));
   if(e.target.id==='notes-input')saveScratchpad(e.target.value);
@@ -2343,6 +2434,7 @@ root.addEventListener('pointerup',event=>endFocusQueueDrag(event,true));
 root.addEventListener('pointercancel',event=>endFocusQueueDrag(event,false));
 root.addEventListener('lostpointercapture',event=>endFocusQueueDrag(event,false));
 root.addEventListener('change',event=>{
+  if(event.target.id==='task-template'){updateTemplateButtons(event.target);return;}
   if(event.target.id==='deadline-plan-task'){
     deadlineTaskId=event.target.value;refreshPanel();return;
   }
@@ -2544,7 +2636,7 @@ root.addEventListener('submit',e=>{
       repeatEvery:Number(fields.get('repeatEvery'))||2,
       priority:priorityLevel!==4, priorityLevel,
       projectId:fields.get('projectId'), sectionId:fields.get('sectionId'), deadline:fields.get('deadline'),
-      labels:[...new Set(fields.get('labels').split(',').map(label=>label.trim().replace(/^[@%]/,'').slice(0,40)).filter(Boolean))],
+      labels:taskLabels(fields.get('labels')),
       reminderAt:Number.isFinite(reminderAt)?reminderAt:null, reminderShown:existing?.reminderAt===reminderAt&&existing?.reminderShown===true,
       subtasks,comments,done:repeat==='none'&&existing?.done===true,
       completedOn:sameRepeatType?existing.completedOn||'':'',completions:sameRepeatType?existing.completions||[]:[]

@@ -183,6 +183,25 @@
 #deadline-plan-status { margin-block: 10px; }
 #deadline-plan-status[data-shortfall] { color: var(--surface-danger); }
 .deadline-plan-slots { max-height: min(32dvh,290px); overflow: auto; scrollbar-width: thin; }
+.task-templates { padding: 10px 0; }
+.task-templates summary { font-size: 13px; cursor: pointer; }
+.task-templates .panel-actions { margin: 6px 0; justify-content: flex-start; }
+.task-templates .panel-actions button,.task-templates [data-template-action="save"] { font-size: 12px; padding: 5px 0; }
+.task-templates p { margin: 4px 0 0; font-size: 12px; }
+.task-templates p:empty { display: none; }
+.estimate-suggestion { margin: 7px 0; padding: 8px 10px; border-radius: 7px; background: var(--surface-field); color: var(--surface-muted); }
+.estimate-suggestion p { margin: 0; font-size: 12px; }
+.estimate-suggestion button { padding: 4px 0 0; font-size: 12px; }
+.milestone-next { text-align: left; color: var(--planner-accent); overflow-wrap: anywhere; }
+.milestone-list { max-height: 52dvh; overflow: auto; }
+.milestone-list section { padding: 9px 0; border-top: 1px solid var(--planner-line); }
+.milestone-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.milestone-row h4 { margin: 0; overflow-wrap: anywhere; }
+.milestone-list p { margin: 4px 0; }
+.milestone-list ul { margin: 4px 0; padding-left: 18px; }
+.milestone-list li button { text-align: left; text-decoration: underline; }
+.milestone-list li small { display: block; color: var(--planner-muted); }
+.milestone-links { max-height: 28dvh; overflow: auto; border: 1px solid var(--planner-line); border-radius: 7px; }
 #deadline-plan-form input[type="checkbox"] { width: auto; margin: 3px 0 0; }
 .tomorrow-review p { margin: 6px 0 0; font-size: 12px; }
 .tomorrow-review ul { max-height: 7.4em; overflow: auto; padding-left: 17px; margin: 6px 0 0; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }

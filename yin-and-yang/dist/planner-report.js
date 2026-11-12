@@ -46,9 +46,8 @@ export function reportMetrics(events) {
   return {total,days:[...groups.values()].sort((a,b)=>b.day.localeCompare(a.day))};
 }
 
-export function estimateAccuracy(state,filters={},now=new Date()){
-  const visible=new Set(reportEvents(state,{...filters,type:'task'},now).map(event=>event.id));
-  const sessions=new Map(),completions=new Map(),results=[];
+function* completedTaskWork(state){
+  const sessions=new Map(),completions=new Map();
   for(const session of state.history){
     if(session.mode!=='focus'||session.outcome!=='completed'||!session.taskId||session.focusMs<=0)continue;
     if(!sessions.has(session.taskId))sessions.set(session.taskId,[]);
@@ -62,21 +61,60 @@ export function estimateAccuracy(state,filters={},now=new Date()){
     const work=sessions.get(taskId)?.sort((a,b)=>a.finishedAt-b.finishedAt);
     if(!work)continue;
     let index=0;
-    const row={taskId,text:'',samples:0,over:0,estimatedMs:0,actualMs:0};
     for(const event of events.sort((a,b)=>a.at-b.at)){
       let actual=0;
       while(index<work.length&&work[index].finishedAt<=event.at)actual+=work[index++].focusMs;
-      if(!actual||!Number.isInteger(event.estimate)||event.estimate<=0||!visible.has(event.id))continue;
-      const estimated=event.estimate*60000;
-      row.text=event.text;
-      row.samples++;
-      row.over+=Number(actual>estimated);
-      row.estimatedMs+=estimated;
-      row.actualMs+=actual;
+      if(actual)yield {event,actual};
     }
-    if(row.samples)results.push({...row,consistent:row.over>=2&&row.over*2>row.samples});
   }
-  return results.sort((a,b)=>Number(b.consistent)-Number(a.consistent)||b.over-a.over||a.text.localeCompare(b.text));
+}
+
+export function estimateAccuracy(state,filters={},now=new Date()){
+  const visible=new Set(reportEvents(state,{...filters,type:'task'},now).map(event=>event.id));
+  const rows=new Map();
+  for(const {event,actual} of completedTaskWork(state)){
+    if(!Number.isInteger(event.estimate)||event.estimate<=0||!visible.has(event.id))continue;
+    const row=rows.get(event.taskId)||{taskId:event.taskId,text:'',samples:0,over:0,estimatedMs:0,actualMs:0};
+    const estimated=event.estimate*60000;
+    row.text=event.text;
+    row.samples++;
+    row.over+=Number(actual>estimated);
+    row.estimatedMs+=estimated;
+    row.actualMs+=actual;
+    rows.set(event.taskId,row);
+  }
+  return [...rows.values()].map(row=>({...row,consistent:row.over>=2&&row.over*2>row.samples}))
+    .sort((a,b)=>Number(b.consistent)-Number(a.consistent)||b.over-a.over||a.text.localeCompare(b.text));
+}
+
+export function suggestTaskEstimate(state,task){
+  const title=task.text.trim().toLowerCase();
+  const labels=new Set((task.labels||[]).map(label=>label.toLowerCase()));
+  const terms=text=>[...(text.toLowerCase().match(/[\p{L}]{4,}/gu)||[])]
+    .map(word=>word.length>=7?word.replace(/ing$/,''):word)
+    .filter(word=>!['finish','complete','work','task','with','from','that','this'].includes(word));
+  const words=new Set(terms(title));
+  if(!title&&!labels.size)return null;
+  const known=new Map(state.tasks.map(item=>[item.id,item]));
+  const samples=[];
+  for(const {event,actual} of completedTaskWork(state)){
+    const priorLabels=Array.isArray(event.labels)?event.labels:known.get(event.taskId)?.labels||[];
+    const score=event.text.trim().toLowerCase()===title?3:
+      priorLabels.some(label=>typeof label==='string'&&labels.has(label.toLowerCase()))?2:
+      terms(event.text).some(word=>words.has(word))?1:0;
+    if(score)samples.push({score,at:event.at,minutes:Math.max(1,Math.round(actual/60000))});
+  }
+  if(!samples.length)return null;
+  samples.sort((a,b)=>b.score-a.score||b.at-a.at);
+  const minutes=samples.slice(0,5).map(item=>item.minutes).sort((a,b)=>a-b);
+  const midpoint=Math.floor(minutes.length/2);
+  const median=minutes.length%2?minutes[midpoint]:(minutes[midpoint-1]+minutes[midpoint])/2;
+  return {count:minutes.length,min:minutes[0],max:minutes.at(-1),estimate:Math.min(1440,Math.round(median))};
+}
+
+export function estimateSummary({count,min,max}){
+  const range=min===max?`${min} min`:`${min}–${max} min`;
+  return `${count} similar completed ${count===1?'task took':'tasks took'} ${range} of logged focus${count===1?'':' each'}.`;
 }
 
 function toCsv(rows){

@@ -4,6 +4,7 @@ import {captureTaskChange} from './task-undo.js';
 import {loadGardenSchedule} from './garden-appearance.js';
 import {loadDailyRituals} from './daily-rituals.js';
 import {loadStickyNotes} from './sticky-notes.js';
+import {projectMilestone,taskTemplate} from './project-planning.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -65,7 +66,7 @@ export function recordTaskCompletion(state, task, checked, occurrence = new Date
   const prior=state.taskActivity.find(event=>event.id===id);
   completeTask(task, checked, recurring ? occurrence : new Date(now));
   state.taskActivity = state.taskActivity.filter(event => event.id !== id);
-  if (checked) state.taskActivity.push({id, taskId:task.id, text:task.text, projectId:task.projectId||'', estimate:task.estimate||null, at:now});
+  if (checked) state.taskActivity.push({id, taskId:task.id, text:task.text, projectId:task.projectId||'', labels:[...(task.labels||[])], estimate:task.estimate||null, at:now});
   const undo=finishUndo();
   return latest=>{
     if ((latest.taskActivity.find(event=>event.id===id)?.at??null)!==(checked?now:null)) return false;
@@ -148,7 +149,7 @@ export function formatDuration(ms) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
     replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
@@ -177,9 +178,11 @@ export function loadState(storage) {
     base.stickyNotes=loadStickyNotes(raw.stickyNotes,base.notes);
     for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
     if (Array.isArray(raw.tasks)) base.tasks=raw.tasks.filter(t=>t && typeof t.id==='string' && typeof t.text==='string' && typeof t.done==='boolean').map(loadTask);
+    base.taskTemplates=Array.isArray(raw.taskTemplates)?raw.taskTemplates.map(taskTemplate).filter(Boolean):[];
     if (Array.isArray(raw.projects)) base.projects=raw.projects.filter(project=>project&&typeof project.id==='string'&&typeof project.name==='string').map(project=>({
       id:project.id,name:project.name,color:/^#[\da-f]{6}$/i.test(project.color)?project.color:'#d94b49',favorite:project.favorite===true,archived:project.archived===true,
       sections:Array.isArray(project.sections)?project.sections.filter(section=>section&&typeof section.id==='string'&&typeof section.name==='string'):[],
+      milestones:Array.isArray(project.milestones)?project.milestones.map(projectMilestone).filter(Boolean):[],
       thoughts:Array.isArray(project.thoughts)?project.thoughts.filter(note=>typeof note?.key==='string'&&typeof note.text==='string'&&Number.isFinite(note.createdAt)):[]
     }));
     if (Array.isArray(raw.plannerFilters)) base.plannerFilters=raw.plannerFilters.filter(filter=>filter&&typeof filter.id==='string'&&typeof filter.name==='string'&&typeof filter.query==='string');
