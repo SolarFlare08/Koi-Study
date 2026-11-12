@@ -98,7 +98,16 @@ export const helpTopics = [
       'Read your completed-session count and total focus minutes. The list shows each session’s finish time, intention, and outcome.',
       'Each completed focus session adds a blossom. Skipped sessions are recorded separately and do not add to completed totals.',
       'For earlier dates or project-level statistics, use Planner → `Reporting`.'],
-    action:'progress', actionLabel:'Open today’s progress', related:['reporting','timer','weekly-review']
+    action:'progress', actionLabel:'Open today’s progress', related:['garden-growth','reporting','timer','weekly-review']
+  },
+  {
+    id:'garden-growth', group:'Focus & rest', title:'Grow the Garden and see its history',
+    summary:'Leave a permanent tree for a finished project or a floating lantern for a finished book.',
+    steps:['Open a project in Planner. In Project overview, choose `Mark project finished` to plant its tree.',
+      'Open a book in Reading and choose `Mark book finished` to add its lantern to the lake. Lanterns glow after dark.',
+      'In Garden, open `Today` → `View Garden history`, or search for `Garden history` with `Ctrl+K`. Each entry shows what earned the detail and when.'],
+    tip:'Each project or book earns one detail. Garden history is included in backups.',
+    action:'garden-history', actionLabel:'Open Garden history', related:['progress','projects','reading-shelf','backup']
   },
   {
     id:'tasks', group:'Tasks & projects', title:'Create and edit tasks',

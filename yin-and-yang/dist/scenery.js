@@ -20,6 +20,53 @@ function pine(x,y,scale=1){
 function shoreTree(x,y,scale){
   return `<g class="season-layer summer-scene">${pine(x,y,scale)}</g>${seasonalTree(x,y,scale)}`;
 }
+
+const groveSlots = [
+  [732,677,.27],[707,678,.19],[755,675,.21],[720,670,.17],[747,670,.16],
+  [1184,608,.28],[1214,602,.24],[1245,596,.32],[1274,590,.25],[1293,600,.20],
+  [1370,836,.31],[1393,831,.24],[1423,829,.29],[1450,818,.23]
+];
+const lanternSlots = [
+  [863,704,1],[892,692,.85],[924,710,.95],[962,680,.8],[995,702,.78],
+  [843,797,1.05],[891,784,1],[934,805,1.1],[977,757,.88],[1027,732,.87],
+  [1081,700,.77],[1135,680,.7],[1189,667,.67],[1242,661,.64]
+];
+
+function growthPosition(slots,index){
+  const [x,y,scale]=slots[index%slots.length];
+  const layer=Math.floor(index/slots.length);
+  if(!layer)return [x,y,scale];
+  const angle=layer*2.4, radius=Math.min(14,5+layer);
+  return [x+Math.cos(angle)*radius,y+Math.sin(angle)*radius/3,scale*Math.max(.32,.72-layer*.04)];
+}
+
+export function gardenGrowthMarkup(history){
+  const trees=[],lanterns=[],lights=[];
+  for(const item of history){
+    if(item.kind==='project'){
+      const [x,y,scale]=growthPosition(groveSlots,trees.length);
+      trees.push({y,art:shoreTree(x,y,scale)});
+    }else if(item.kind==='book'){
+      const position=growthPosition(lanternSlots,lanterns.length);
+      const [x,y,scale]=position;
+      const transform=`translate(${x} ${y}) scale(${scale})`;
+      lanterns.push(`<g transform="${transform}">
+        <ellipse rx="12" ry="3" fill="#385e5b" opacity=".35"/>
+        <path d="M-8-1h16l-3 3H-5Z" fill="#795f53"/>
+        <path d="M-5-1l-1-9h12L5-1Z" fill="#dfae7c" stroke="#956e56" stroke-width=".85"/>
+        <path d="M0-10v9" stroke="#f3d0a2" stroke-width=".8"/>
+      </g>`);
+      lights.push(`<g transform="${transform}">
+        <ellipse cy="-6" rx="24" ry="16" fill="url(#lamp-halo)"/>
+        <path d="M-4-8h8l-1 6h-6Z" fill="#ffe0a1"/>
+        <path d="M-5 5H5m-3 3h6" stroke="#ffd498" stroke-linecap="round" opacity=".43"/>
+      </g>`);
+    }
+  }
+  const island=trees.length?`<path d="M684 682q24-7 48-6t54 5q-19 7-51 7t-51-6Z" fill="var(--shore-lower,#527e70)" opacity=".76"/>
+    <path d="M689 681q17-7 39-9t51 8q-32 3-52 2t-38-1Z" fill="url(#shore)"/>`:'';
+  return {trees:island+trees.sort((a,b)=>a.y-b.y).map(tree=>tree.art).join(''),lanterns:lanterns.join(''),lights:lights.join('')};
+}
 function rock(x,y,scale,flip=1){
   return `<g transform="translate(${x} ${y}) scale(${scale*flip} ${scale})">
     <ellipse cy="2" rx="43" ry="5" fill="#294f52" opacity=".26"/>
@@ -97,6 +144,7 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
   <path d="M1074 623C1101 619 1129 619 1149 611C1171 602 1187 600 1200 600C1180 611 1160 620 1132 624C1108 627 1092 625 1074 623Z" fill="var(--far-shore-detail,#759986)"/>
 </g>
 <g id="blossoms" transform="translate(1185 452) scale(.22)"/>
+<g id="garden-growth-lanterns"/>
 <g transform="translate(${boatOrigin})">
   ${alternateBoats()}
   <g class="season-layer summer-scene">
@@ -139,8 +187,10 @@ ${rock(1514,844,1.05,-1)}${rock(1462,850,.49)}${rock(1418,854,.33,-1)}
   <path class="season-layer autumn-scene winter-scene" d="M1440 795l-3-7m48-4 5-7m-61 38-4-5" stroke="#8e7760" stroke-width="3"/>
 </g>
 ${shoreDetails()}
+<g id="garden-growth-trees"/>
 <rect id="night-shade" width="1600" height="900" fill="#071730" opacity="0"/>
 <g id="evening-lights" opacity="0">
+  <g id="garden-growth-lights"/>
   <g class="far-shore">
     <g transform="translate(${pavilionOrigin})">
       <ellipse cy="-17" rx="37" ry="28" fill="url(#lamp-halo)" opacity=".8"/>

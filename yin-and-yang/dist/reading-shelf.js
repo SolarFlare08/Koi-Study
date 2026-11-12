@@ -101,7 +101,7 @@ function forecastMarkup(book){
     <p>${prediction}${samples&&remaining?` Based on ${samples} recent ${samples===1?'advance':'advances'} between page logs.`:''}</p></section>`;
 }
 
-export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCalendar,linkedNotes=()=>''}){
+export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCalendar,linkedNotes=()=>'',bookReward,finishBook}){
   root.innerHTML=`<div class="reading-wrap">
     <header class="reading-heading"><h2 id="reading-heading">Reading shelf</h2><div class="reading-actions">
       <button type="button" id="reading-review" aria-pressed="false">Review queue</button><button type="button" id="reading-calendar">Open Calendar</button></div></header>
@@ -162,10 +162,13 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
       return;
     }
     selected=current.id;
+    const reward=bookReward(current.id);
     const chips=current.chapters.map(chapter=>`<li>${escape(chapter)}</li>`).join('');
     history.innerHTML=`<h3>${escape(current.title)}</h3>${current.author?`<p class="reading-author">${escape(current.author)}</p>`:''}
+      <div class="reading-growth-action">${reward?'<span class="garden-growth-status" id="reading-growth-status" tabindex="-1">Finished · Lantern lit</span>':
+        '<button type="button" class="garden-growth-action" data-finish-book>Mark book finished</button>'}</div>
       ${current.last?`<div class="reading-resume"><span>Where you left off</span><strong>${escape(current.last.chapter)}</strong><time datetime="${current.last.date}">${escape(formatDay(current.last.date))}</time></div>`:''}
-      ${forecastMarkup(current)}
+      ${reward?'':forecastMarkup(current)}
       ${chips?`<h4>Chapters annotated</h4><ul class="reading-chapters">${chips}</ul>`:''}
       ${linkedNotes(current.id)}
       ${noteEditor(current,notes.filter(note=>bookKey(note.bookTitle,note.bookAuthor)===current.id))}
@@ -204,6 +207,14 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
   history.addEventListener('click',event=>{
     const button=event.target.closest('button');
     if(!button)return;
+    if('finishBook' in button.dataset){
+      const book=readingShelf(getRituals(),getNotes()).find(item=>item.id===selected);
+      if(book&&finishBook(book)){
+        render();
+        history.querySelector('#reading-growth-status')?.focus({preventScroll:true});
+      }
+      return;
+    }
     const {noteReview,noteEdit,noteCancel,noteDelete}=button.dataset;
     if(noteReview){
       const notes=getNotes(),item=notes.find(note=>note.id===noteReview);

@@ -9,6 +9,27 @@ import {dayKey,STORAGE_KEY,freshState,loadState} from '../dist/state.js';
 import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
+import {earnGardenDetail} from '../dist/garden-growth.js';
+import {gardenGrowthMarkup} from '../dist/scenery.js';
+
+test('earned Garden details stay unique and survive a backup without the original project or book',()=>{
+  const state=freshState();
+  assert.deepEqual(gardenGrowthMarkup(state.gardenGrowth),{trees:'',lanterns:'',lights:''});
+  const grove=earnGardenDetail(state.gardenGrowth,'project','studio','Studio portfolio','2026-11-12');
+  const earned=earnGardenDetail(grove,'book','["the waves","virginia woolf"]','The Waves · Virginia Woolf','2026-11-19');
+  assert.strictEqual(earnGardenDetail(earned,'project','studio','Renamed portfolio','2026-11-20'),earned);
+  state.gardenGrowth=earned;
+
+  const restored=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state;
+  assert.deepEqual(restored.gardenGrowth,earned);
+  assert.deepEqual(restored.projects,[]);
+  assert.deepEqual(restored.dailyRituals,{});
+  const art=gardenGrowthMarkup(restored.gardenGrowth);
+  assert.equal(art.trees,gardenGrowthMarkup(grove).trees);
+  assert.match(art.trees,/winter-scene/);
+  assert.match(art.lanterns,/translate\(863 704\)/);
+  assert.match(art.lights,/lamp-halo/);
+});
 
 test('calendar export preserves short and instant events at midnight',()=>{
   const day=new Date(2026,10,11);

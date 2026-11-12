@@ -37,7 +37,7 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>'',nextProjectTask,resumeProject,projectTimerLocked}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>'',nextProjectTask,resumeProject,projectTimerLocked,projectReward,finishProject}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
@@ -476,12 +476,15 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const sessions=state().history.filter(item=>item.projectId===project.id&&item.mode==='focus')
       .sort((a,b)=>b.finishedAt-a.finishedAt).slice(0,5);
     const notes=linkedNotes(project.id);
+    const reward=projectReward(project.id);
     const timestamp=date=>date.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
     const markup=`<section class="project-overview-next" aria-label="Resume project">
       <div><strong>${task?escape(task.text):'No task ready in Garden'}</strong>
       ${task?.resumeNote?`<p>Next step · ${escape(task.resumeNote)}</p>`:''}
       ${locked&&task?'<p>Finish or reset the current focus timer to switch projects.</p>':''}</div>
-      <button type="button" class="planner-primary" data-resume-project="${escape(project.id)}" ${!task||locked?'disabled':''}>Resume project</button></section>
+      <div class="project-overview-actions"><button type="button" class="planner-primary" data-resume-project="${escape(project.id)}" ${!task||locked?'disabled':''}>Resume project</button>
+      ${reward?'<span class="garden-growth-status" id="project-growth-status" tabindex="-1">Finished · Tree planted</span>':!project.archived?
+        '<button type="button" class="garden-growth-action" data-finish-project>Mark project finished</button>':''}</div></section>
       <div class="project-overview-sections">
         <section><h3>Next milestone</h3>${next?`<button type="button" class="project-context-item" data-manage="milestones"><strong>${escape(next.milestone.name)}</strong>
           <span>${plainDate(next.milestone.date)} · ${next.done}/${next.tasks.length} tasks complete</span></button>`:
@@ -890,6 +893,14 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     }
     if (!button) return;
     const data=button.dataset;
+    if('finishProject' in data){
+      const project=state().projects.find(item=>item.id===selection&&!item.archived);
+      if(view==='project'&&project&&finishProject(project)){
+        renderProjectOverview(project);
+        $('#project-growth-status')?.focus({preventScroll:true});
+      }
+      return;
+    }
     if(data.resumeProject)return resumeProject(data.resumeProject);
     if(data.removeCalendar){
       const source=data.removeCalendar;

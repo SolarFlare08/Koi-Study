@@ -7,6 +7,7 @@ import {loadReadingNotes} from './reading-shelf.js';
 import {loadAvailability} from './availability.js';
 import {loadStickyNotes} from './sticky-notes.js';
 import {projectMilestone,taskTemplate} from './project-planning.js';
+import {loadGardenGrowth} from './garden-growth.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -153,7 +154,7 @@ export function formatDuration(ms) {
 }
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
-    replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null, readingNotes:[], availability:[], journalTemplates:[],
+    replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null, readingNotes:[], availability:[], journalTemplates:[], gardenGrowth:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -201,6 +202,7 @@ export function loadState(storage) {
     });
     for (const key of ['intention','notes','spotify']) if (typeof raw[key] === 'string') base[key] = raw[key];
     base.stickyNotes=loadStickyNotes(raw.stickyNotes,base.notes);
+    base.gardenGrowth=loadGardenGrowth(raw.gardenGrowth);
     for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
     if (Array.isArray(raw.tasks)) base.tasks=raw.tasks.filter(t=>t && typeof t.id==='string' && typeof t.text==='string' && typeof t.done==='boolean').map(loadTask);
     base.taskTemplates=Array.isArray(raw.taskTemplates)?raw.taskTemplates.map(taskTemplate).filter(Boolean):[];

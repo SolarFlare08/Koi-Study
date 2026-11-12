@@ -1,5 +1,6 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites} from './state.js';
-import {renderLandscape,objects,blossomMarkup,animateLandscape} from './scenery.js';
+import {renderLandscape,objects,blossomMarkup,animateLandscape,gardenGrowthMarkup} from './scenery.js';
+import {earnGardenDetail,gardenReward} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
 import {installPlanner} from './planner.js';
@@ -75,6 +76,7 @@ let dragOffset=0,workspace='focus';
 let capturePointer=null,nativeNotes=[],captureApiAvailable=true,syncingCaptures=false;
 let reopenTasksAfterCalendar=false;
 let effectiveAppearance=state.appearance, resumeTaskId=null, captureActionKey=null;
+let renderedGardenGrowth;
 const gardenAudio=createGardenAudio();
 let spotifyPlayback='idle';
 const spotifyEmbed=createSpotifyEmbed(playback=>{spotifyPlayback=playback;syncSound();});
@@ -83,6 +85,22 @@ let pendingUndo,undoTimeout,undoReturn;
 function persist(){try{storage.setItem(STORAGE_KEY,JSON.stringify(state));$('#saved-status').innerHTML='<span class="tiny-dot"></span>Saved on this device';return true;}catch{$('#saved-status').textContent='Storage unavailable — keep this tab open';toast('Your browser could not save changes. Keep this tab open.');return false;}}
 function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4200);}
 function announce(text){$('#announcer').textContent=text;}
+function recordGardenGrowth(kind,id,title){
+  const previous=state.gardenGrowth;
+  const next=earnGardenDetail(previous,kind,id,title,dayKey());
+  if(next===previous)return false;
+  state.gardenGrowth=next;
+  if(!persist()){state.gardenGrowth=previous;return false;}
+  renderGardenGrowth();
+  confirmChange(kind==='project'?'Project finished. A tree has taken root in the Garden.':'Book finished. A lantern has joined the lake.');
+  return true;
+}
+function renderGardenGrowth(){
+  if(renderedGardenGrowth===state.gardenGrowth)return;
+  const art=gardenGrowthMarkup(state.gardenGrowth);
+  for(const [part,markup] of Object.entries(art))$(`#garden-growth-${part}`).innerHTML=markup;
+  renderedGardenGrowth=state.gardenGrowth;
+}
 function syncSound(unlock=false){
   gardenAudio.sync(state.sounds,spotifyPlayback!=='idle');
   if(unlock)gardenAudio.unlock();
@@ -130,6 +148,8 @@ const planner=installPlanner({
   editTask:openTaskEditor,openBlock:openCalendarBlock,taskMenu:openTaskMenu,
   linkedNotes:id=>linkedStickyNotes('project',id),
   nextProjectTask, resumeProject, projectTimerLocked,
+  projectReward:id=>gardenReward(state.gardenGrowth,'project',id),
+  finishProject:project=>recordGardenGrowth('project',project.id,project.name),
   previewSchedule:previewTaskSchedule,
   calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,dailyRituals:renderDailyRituals,blockProgress:progressForBlock,notify:confirmChange,completeTask:markTask,hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden||Boolean(document.querySelector('dialog[open]'))
 });
@@ -176,7 +196,9 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
     if(persist())return true;
     state.readingNotes=previous;
     return false;
-  },openCalendar:()=>calendarToggle.click(),linkedNotes:id=>linkedStickyNotes('book',id)});
+  },openCalendar:()=>calendarToggle.click(),linkedNotes:id=>linkedStickyNotes('book',id),
+  bookReward:id=>gardenReward(state.gardenGrowth,'book',id),
+  finishBook:book=>recordGardenGrowth('book',book.id,[book.title,book.author].filter(Boolean).join(' · '))});
 const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
@@ -301,6 +323,7 @@ function commandEntries(){
   }));
   return [
     action('Help','Browse searchable instructions and keyboard shortcuts','guide how to tutorial features',()=>helpGuide.open()),
+    action('Garden history','See the projects and books that shaped your Garden','growth trees lanterns milestones finished',()=>runHelpAction('garden-history')),
     action('Plan to deadline','Suggest focus blocks before a task is due','backward schedule estimate capacity',()=>{
       visitWorkspace('planner');$('[data-plan-deadline]')?.click();
     }),
@@ -354,12 +377,13 @@ function runHelpAction(action){
   if(action==='csv-import'){
     visitWorkspace('planner');$('[data-manage="import"]')?.click();return;
   }
-  const panels={settings:'pagoda',appearance:'appearance',music:'music',capture:'capture',progress:'progress'};
+  const panels={settings:'pagoda',appearance:'appearance',music:'music',capture:'capture',progress:'progress','garden-history':'garden-history'};
   if(panels[action]){
     if(state.focusMode)toggleFocusMode();
     visitWorkspace('focus');
     const panel=panels[action];
-    openPanel(panel,$(`[data-panel="${panel==='capture'?'notes':panel}"]`));
+    const anchor=panel==='capture'?'notes':panel==='garden-history'?'progress':panel;
+    openPanel(panel,$(`[data-panel="${anchor}"]`));
   }
 }
 
@@ -477,6 +501,7 @@ function render(){
   app.classList.toggle('focus-running',running);
   const progress=todayProgress(state);
   if(progress.completed!==lastBlossoms){$('#blossoms').innerHTML=blossomMarkup(progress.completed);lastBlossoms=progress.completed;}
+  renderGardenGrowth();
   document.title=t.status==='idle'?'Yin and Yang — A quiet place to focus':`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} · ${t.mode==='focus'?'Focus':'Rest'} — Yin and Yang`;
 }
 function checkCompletion(){
@@ -634,6 +659,21 @@ document.addEventListener('pointermove',event=>{
   capturePointer={x:event.clientX,y:event.clientY,screenX:event.screenX,screenY:event.screenY};
 },{passive:true});
 function header(eyebrow,title){return `<div class="panel-header"><div><span class="eyebrow">${eyebrow}</span><h2 id="panel-title">${title}</h2></div><button class="icon-button close-panel" aria-label="Close panel">${icon('close')}</button></div>`;}
+function gardenHistoryMarkup(){
+  const history=state.gardenGrowth;
+  const trees=history.filter(item=>item.kind==='project').length;
+  const lanterns=history.length-trees;
+  const entries=[...history].reverse().map(item=>{
+    const tree=item.kind==='project';
+    return `<li><div><strong>${tree?'Tree planted':'Lantern lit'}</strong>
+      <p>${tree?'Finished project':'Finished book'} · ${escape(item.title)}</p></div>
+      <time datetime="${item.day}">${new Date(`${item.day}T12:00:00`).toLocaleDateString([],{dateStyle:'medium'})}</time></li>`;
+  }).join('');
+  return `${header('GARDEN','Garden history')}
+    ${entries?`<p>${trees} ${trees===1?'tree':'trees'} · ${lanterns} ${lanterns===1?'lantern':'lanterns'}</p><ol class="garden-growth-history">${entries}</ol>`:
+    '<p>Mark a project finished in Planner to plant a tree. Mark a book finished in Reading to add a lantern to the lake.</p>'}
+    <button type="button" class="text-button" id="garden-history-today">Back to today’s progress</button>`;
+}
 function taskCard(task,status,date,currentId,prerequisites){
   const details=[];
   if(task.date && (task.date>dayKey(date) || task.repeat==='none')){
@@ -1278,8 +1318,9 @@ function panelContent(id){
     <p class="note-caption"><kbd>Ctrl+Alt+N</kbd> for quick capture</p>
     <div id="notes-captures">${captureCards()}</div>`;
   if(id==='progress'){
-    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time>${focusReviewDetails(h)}</span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p>`;
+    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time>${focusReviewDetails(h)}</span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p><div class="panel-actions"><button type="button" class="text-button" id="open-garden-history">View Garden history</button></div>`;
   }
+  if(id==='garden-history')return gardenHistoryMarkup();
   return `${header('BY THE LAKE','Your own soundtrack.')}<label class="field-label" for="spotify-link">Spotify playlist, album, or track link</label><form id="spotify-form" class="music-link"><input id="spotify-link" type="url" value="${escape(state.spotify)}" placeholder="https://open.spotify.com/playlist/…" required><button class="panel-primary" type="submit">Load</button></form><div id="music-player-wrap"></div><p id="spotify-error" role="status" class="panel-subtle"></p><div class="panel-actions"><a class="panel-primary" id="open-spotify-external" href="https://open.spotify.com/" target="_blank" rel="noopener noreferrer">Open Spotify ${icon('external')}</a><button class="text-button" id="remove-player" ${state.spotify?'':'hidden'}>Remove player</button></div><p class="music-tip">The embedded player pauses app sounds automatically. Open Spotify enables the outside music switch below.</p>${soundControls()}`;
 }
 function positionPanel(panel,anchor){
@@ -2605,6 +2646,8 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const history=e.target.closest('#open-garden-history,#garden-history-today');
+  if(history){openPanel(history.id==='open-garden-history'?'garden-history':'progress',$('[data-panel="progress"]'));return;}
   const approval=e.target.closest('[data-approve-week-day]');
   if(approval){approveWeekDay(approval.dataset.approveWeekDay);return;}
   const viewProject=e.target.closest('[data-view-project]');

@@ -197,6 +197,17 @@
 #planner-project-context { max-height: min(32vh, 280px); overflow: auto; padding: 0 12px 12px; overflow-wrap: anywhere; }
 .project-overview-next { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; padding: 8px 0 12px; }
 .project-overview-next button:disabled { opacity: .55; cursor: default; }
+.project-overview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.reading-growth-action { margin: 9px 0; }
+.garden-growth-action, .garden-growth-status { padding: 5px 9px; border: 1px solid var(--surface-line); border-radius: 6px; font-size: 12px; }
+.garden-growth-action:hover { background: var(--surface-raised); }
+.garden-growth-status { color: var(--surface-accent); }
+.garden-growth-history { list-style: none; padding: 0; margin: 0 0 8px; }
+.garden-growth-history li { display: flex; justify-content: space-between; align-items: baseline; gap: 6px 12px; padding: 10px 0; border-top: 1px solid var(--surface-line); }
+.garden-growth-history li div { min-width: 0; overflow-wrap: anywhere; }
+.garden-growth-history li strong { font-size: 13px; }
+.panel .garden-growth-history p { margin: 2px 0 0; }
+.garden-growth-history time { flex: none; font-size: 10px; color: var(--surface-muted); }
 .project-overview-next p, .project-overview-sections p { margin: 4px 0 0; color: var(--planner-muted); font-size: 12px; }
 .project-overview-sections { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(160px,100%),1fr)); gap: 12px; }
 .project-overview-sections section { min-width: 0; border-top: 1px solid var(--planner-line); padding-top: 8px; }
