@@ -107,6 +107,7 @@ export const helpTopics = [
       'Enter the name. Add a description, next step, subtasks (one per line), and a comment if useful.',
       'Set its project, section, date, time, estimate, deadline, priority, labels, or reminder in the properties area.',
       'Set `Snooze until` to keep the task out of the focus queue until that date. Its schedule and deadline stay visible in Planner. Clear the date to bring it back early.',
+      'Expand `Task templates` and choose `Save as template` to reuse a task’s subtasks, labels, and estimate. In a new task, select a saved template and choose `Use template`. Review the draft and save it as a task.',
       'Save the task. Click its title to edit it again. Right-click a task for actions such as editing, prioritizing, focusing, and deleting.'],
     tip:'Task reminders are shown while the app is open. A task’s estimate is also useful for scheduling and estimate-accuracy reports.',
     action:'planner', actionLabel:'Open Planner', related:['repeat','quick-add','completion']
@@ -146,6 +147,7 @@ export const helpTopics = [
     summary:'Group related work and choose the task layout that suits you.',
     steps:['In Planner, use the plus beside `Projects` to add a project with a name and color.',
       'Assign tasks to the project in their editors. Within a project, use `+ Section` to group tasks further.',
+      'In a project, choose `Milestones` → `Add milestone`. Set a target date and link the tasks that need to be done. The project shows its next incomplete milestone and how many linked tasks are finished.',
       'Use Inbox for ungrouped tasks, Today for due work and overdue tasks, and Upcoming to browse dates.',
       'Use Display to switch supported views between list, board, week calendar, three-day calendar, and month. Project settings let you edit, favorite, or archive a project.'],
     tip:'Archived projects are kept, but their tasks are left out of the Garden’s active focus queue.',
@@ -185,6 +187,7 @@ export const helpTopics = [
     id:'schedule-preview', group:'Calendar & planning', title:'Check free time and scheduling overlaps',
     summary:'See what a timed task would overlap and how much open time would remain.',
     steps:['Enter a time and estimate in the task editor or choose a task from Calendar’s `Task shelf` to set a block duration.',
+      'When the editor finds completed focus history for similar tasks, it shows their typical duration. Choose `Use … min` to apply the suggested estimate or enter your own.',
       'Read the preview for free time until your scheduling cutoff and the commitments the proposed time overlaps.',
       'Change the start or duration to avoid a conflict, or save to keep the overlap. Calendar also asks you to review drops scheduled for today or drops that would overlap another commitment.'],
     tip:'Today’s free time starts now. Future dates use a 9 AM start. The cutoff comes from Replan today.',
