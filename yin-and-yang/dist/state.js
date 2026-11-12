@@ -154,7 +154,7 @@ export function formatDuration(ms) {
 }
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
-    replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null, readingNotes:[], availability:[], journalTemplates:[], gardenGrowth:[],
+    replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null, readingNotes:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -192,6 +192,10 @@ export function loadState(storage) {
     }
     if(Number.isInteger(raw.studyCapacity)&&raw.studyCapacity>=15&&raw.studyCapacity<=1440)base.studyCapacity=raw.studyCapacity;
     if(Array.isArray(raw.processedCaptures))base.processedCaptures=raw.processedCaptures.filter(key=>typeof key==='string');
+    if(Array.isArray(raw.captureArchive))base.captureArchive=raw.captureArchive.filter(item=>typeof item?.key==='string'&&
+      typeof item.text==='string'&&Number.isFinite(item.createdAt)&&Number.isFinite(item.archivedAt));
+    if(Array.isArray(raw.scheduleMoves))base.scheduleMoves=raw.scheduleMoves.filter(item=>typeof item?.id==='string'&&isDay(item.day)&&
+      typeof item.title==='string'&&[item.from,item.to].every(place=>place&&typeof place.date==='string'&&typeof place.time==='string'));
     base.sounds=loadSoundSettings(raw.sounds);
     base.notifications=raw.notifications===true;
     if (Array.isArray(raw.routines)) base.routines=raw.routines.flatMap(routine=>{

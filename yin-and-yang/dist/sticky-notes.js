@@ -57,7 +57,8 @@ const control=(action,label)=>`<button type="button" data-note-action="${action}
 export function installStickyNotes({root,getNotes,getTasks,getRelated=()=>[],saveNotes,createTask,notify}){
   root.innerHTML=`<header class="sticky-heading">
     <div><span class="sticky-kicker">GARDEN DESK</span><h2 id="notes-heading">Notes</h2><p>Drag to arrange, resize, or stack your notes.</p></div>
-    <button type="button" id="sticky-add"><span aria-hidden="true">+</span> New note</button>
+    <div class="note-workspace-actions"><button type="button" id="open-capture-inbox" aria-haspopup="dialog">Note inbox</button>
+    <button type="button" id="sticky-add"><span aria-hidden="true">+</span> New note</button></div>
   </header><div class="sticky-viewport" role="region" aria-label="Sticky note board" tabindex="0"><div class="sticky-board"></div></div>
   <dialog id="sticky-link-dialog" class="workspace-dialog" aria-labelledby="sticky-link-title">
     <form><header><h2 id="sticky-link-title">Link sticky note</h2><button type="button" data-link-close aria-label="Close link editor">×</button></header>

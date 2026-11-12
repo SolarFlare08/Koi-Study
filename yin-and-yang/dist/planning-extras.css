@@ -260,6 +260,19 @@ button.project-context-item:hover { color: var(--planner-accent); }
 .capture-card .capture-actions { grid-column: 1/-1; display: flex; flex-wrap: wrap; gap: 4px; }
 .capture-card .capture-actions button { position: static; width: auto; height: auto; padding: 3px 5px; border: 1px solid currentColor; border-radius: 4px; color: inherit; font-size: 10px; }
 .capture-card .capture-actions button:hover { background: color-mix(in srgb,currentColor 10%,transparent); }
+.note-workspace-actions, .capture-inbox-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+#open-capture-inbox, .capture-inbox-tabs button { padding: 6px 9px; border: 1px solid var(--surface-line); border-radius: 7px; font-size: 12px; }
+#open-capture-inbox:hover, .capture-inbox-tabs button[aria-pressed="true"] { background: var(--surface-raised); color: var(--surface-accent); }
+#capture-inbox-list .capture-card { margin-top: 9px; padding: 10px; }
+#capture-inbox-list time { display: block; margin: 3px 0; color: var(--surface-muted); font-size: 10px; }
+#capture-inbox-list .capture-actions { margin-top: 6px; }
+.day-recap-sections { display: grid; gap: 10px; }
+.day-recap-sections section { border-top: 1px solid var(--surface-line); padding: 9px 0 0; }
+.day-recap-sections h3 { font-size: 13px; margin: 0 0 5px; }
+.panel .day-recap-sections p { margin: 2px 0 4px; }
+.day-recap-sections ul { list-style: none; padding: 0; margin: 0; }
+.day-recap-sections li { padding: 3px 0; font-size: 12px; overflow-wrap: anywhere; }
+.day-recap-sections small { display: block; color: var(--surface-muted); }
 .garden-schedule { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--surface-line); }
 .garden-schedule h3 { margin: 0 0 6px; font-size: 13px; }
 .garden-schedule > label, .garden-schedule p { font-size: 11px; }

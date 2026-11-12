@@ -98,7 +98,15 @@ export const helpTopics = [
       'Read your completed-session count and total focus minutes. The list shows each session’s finish time, intention, and outcome.',
       'Each completed focus session adds a blossom. Skipped sessions are recorded separately and do not add to completed totals.',
       'For earlier dates or project-level statistics, use Planner → `Reporting`.'],
-    action:'progress', actionLabel:'Open today’s progress', related:['garden-growth','reporting','timer','weekly-review']
+    action:'progress', actionLabel:'Open today’s progress', related:['day-recap','garden-growth','reporting','timer','weekly-review']
+  },
+  {
+    id:'day-recap', group:'Calendar & planning', title:'Review today in two minutes',
+    summary:'See what you finished or moved and what is lined up for tomorrow.',
+    steps:['Open Garden → Today → `End-of-day recap`, use the button on Planner’s Today view, or find it with `Ctrl+K`.',
+      'Review completed tasks and rituals, focus time, and the schedule changes recorded today.',
+      'Check tomorrow’s events, focus blocks, and due tasks. Choose `Plan tomorrow` to reserve your first focus block.'],
+    action:'day-recap', actionLabel:'Open end-of-day recap', related:['progress','tomorrow','weekly-review']
   },
   {
     id:'garden-growth', group:'Focus & rest', title:'Grow the Garden and see its history',
@@ -345,10 +353,18 @@ export const helpTopics = [
     summary:'Get a thought out of your head without losing your place.',
     steps:['Press `Ctrl+Alt+N` while using the app, or open Garden’s top `Notes` tool and choose `Quick capture`.',
       'Write the thought and press `Ctrl+Enter` or choose `Save note`. Escape closes capture without submitting it.',
-      'Return to Garden’s Notes tool to review captured thoughts.',
+      'Open the `Note inbox` in Notes to sort your captured thoughts.',
       'Give a thought a destination: make a task, attach it to a project, or move it to Quick Notes. Attached thoughts are available from that project’s Thoughts button.'],
     tip:'The Quick Notes text area saves as you type. The quick-capture form has an explicit Save note action.',
-    action:'capture', actionLabel:'Open quick capture', related:['capture-window','sticky-notes','projects']
+    action:'capture', actionLabel:'Open quick capture', related:['capture-inbox','capture-window','sticky-notes','projects']
+  },
+  {
+    id:'capture-inbox', group:'Thoughts & notes', title:'Sort ideas in the note inbox',
+    summary:'Review unsorted captured thoughts and decide where they belong.',
+    steps:['Open Notes → `Note inbox`, or find it with `Ctrl+K`.',
+      'File a thought as a sticky note, make a task, attach it to a project, or link it to an existing task. Linking creates a sticky note you can open from that task.',
+      'Choose `Archive` to set a thought aside. Open the Archive view and choose `Return to inbox` whenever you want to sort it again.'],
+    action:'capture-inbox', actionLabel:'Open note inbox', related:['capture','sticky-notes','linked-notes']
   },
   {
     id:'capture-window', group:'Thoughts & notes', title:'Use the mini note window and system hotkey',
@@ -495,7 +511,7 @@ export const helpTopics = [
     steps:['Saved work stays in this browser on this device when you close the tab. Reopen the app at the same address, browser, and profile to access it.',
       'Open Garden → Settings → `Backup and restore`, then choose `Download backup` to export one file with tasks, calendar, journal, notes, reading history, crochet projects/time, and settings.',
       'On another device or after a reset, open Backup and restore and choose the `.json` file.',
-      'Read the restore summary, then choose `Replace data on this device` only when you want the backup to replace what is currently saved there.'],
+      'Review the add and replace counts. Open `Show records` to inspect named changes. Check the sections you want and choose `Restore selected sections`. Matching records are replaced and new ones are added. Reading logs match by date.'],
     tip:'There is no account sync. Clearing site data, using a different browser/profile/address or port, or ending a private session can make saved work unavailable. Keep a downloaded backup of work you want to preserve.',
     action:'backup', actionLabel:'Open Backup and restore', related:['journal','csv-import','calendar-import'], keywords:'save persist export import restore computer delete tab offline storage localstorage data lost'
   }

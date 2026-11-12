@@ -2,6 +2,7 @@ import {CAPTURE_PREFIX} from './capture.js';
 import {CROCHET_KEY,loadCrochet} from './crochet.js';
 import {JOURNAL_KEY,loadJournal} from './journal.js';
 import {STORAGE_KEY,loadState,reset} from './state.js';
+import {scratchNoteId} from './sticky-notes.js';
 
 const format='yin-and-yang-backup';
 const version=1;
@@ -48,7 +49,7 @@ export function readBackup(text){
       if(!state.processedCaptures.includes(key))state.processedCaptures.push(key);
     }else captures.set(key,{text,createdAt});
   }
-  return {state,journal,crochet,captures};
+  return {state,journal,crochet,captures,exportedAt:typeof backup.exportedAt==='string'?backup.exportedAt:''};
 }
 
 export function restoreBackup(storage,{state,journal,crochet,captures}){
@@ -58,17 +59,20 @@ export function restoreBackup(storage,{state,journal,crochet,captures}){
     [CROCHET_KEY,JSON.stringify(crochet)]
   ]);
   for(const [key,note] of captures)next.set(key,JSON.stringify(note));
-  const previous=new Map();
+  const remove=[];
   for(let index=0;index<storage.length;index++){
     const key=storage.key(index);
-    if(key?.startsWith(CAPTURE_PREFIX))previous.set(key,storage.getItem(key));
+    if(key?.startsWith(CAPTURE_PREFIX)&&!next.has(key))remove.push(key);
   }
-  for(const key of next.keys())if(!previous.has(key))previous.set(key,storage.getItem(key));
+  writeBackupChanges(storage,next,remove);
+}
+
+function writeBackupChanges(storage,next,remove=[]){
+  const previous=new Map();
+  for(const key of [...remove,...next.keys()])previous.set(key,storage.getItem(key));
   const touched=new Set();
   try{
-    for(const [key,value] of previous){
-      if(value!==null&&!next.has(key)){storage.removeItem(key);touched.add(key);}
-    }
+    for(const key of remove){storage.removeItem(key);touched.add(key);}
     for(const [key,value] of next){storage.setItem(key,value);touched.add(key);}
   }catch{
     try{
@@ -80,6 +84,120 @@ export function restoreBackup(storage,{state,journal,crochet,captures}){
   }
 }
 
+const comparable=value=>JSON.stringify(value,(_,item)=>item&&typeof item==='object'&&!Array.isArray(item)?
+  Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
+const describe=item=>String(typeof item==='string'?item:item.title||item.name||item.taskTitle||item.text||item.date||item.day||'').slice(0,100);
+
+export function planBackupRestore(storage,current,incoming,sections){
+  const state={...current,dailyRituals:{...current.dailyRituals}};
+  const writes=new Map(), preview=[];
+  let stateChanged=false, details;
+  const include=id=>sections?.has(id)??true;
+  function section(id,label,description,plan){
+    details=[];
+    plan(include(id));
+    preview.push({id,label,description,details});
+  }
+  function merge(label,local,backup,key=item=>item.id){
+    const items=new Map(local.map(item=>[key(item),item]));
+    let added=0,replaced=0;
+    const changes=[];
+    const unique=new Map(backup.map(item=>[key(item),item]));
+    for(const [id,item] of unique){
+      let action;
+      if(!items.has(id)){added++;action='Add';}
+      else if(comparable(items.get(id))!==comparable(item)){replaced++;action='Replace';}
+      if(action&&changes.length<10){const title=describe(item);if(title)changes.push({action,title});}
+      items.set(id,item);
+    }
+    if(unique.size)details.push({label,added,replaced,unchanged:unique.size-added-replaced,changes});
+    return [...items.values()];
+  }
+  function stateList(apply,key,label,identify){
+    const records=merge(label,current[key],incoming.state[key],identify);
+    if(apply){state[key]=records;stateChanged=true;}
+  }
+  function rituals(apply,kind,label){
+    const entries=value=>Object.entries(value).filter(([,day])=>day[kind]).map(([date,day])=>({date,entry:day[kind]}));
+    const merged=merge(label,entries(current.dailyRituals),entries(incoming.state.dailyRituals),item=>item.date);
+    if(!apply)return;
+    for(const {date,entry} of merged)state.dailyRituals[date]={...state.dailyRituals[date],[kind]:entry};
+    stateChanged=true;
+  }
+  section('planner','Planner','Tasks include their scheduled blocks.',apply=>{
+    stateList(apply,'tasks','Tasks');stateList(apply,'projects','Projects');stateList(apply,'taskTemplates','Task templates');
+    stateList(apply,'plannerFilters','Saved views');stateList(apply,'plannerLabels','Labels',item=>item);
+    stateList(apply,'taskActivity','Task completions');stateList(apply,'scheduleMoves','Schedule moves');
+    for(const [key,label] of [['tomorrowPlan','First focus reservation'],['focusPins','Pinned focus order']]){
+      const local=current[key], backup=incoming.state[key];
+      if(!backup||local?.day>backup.day)continue;
+      const changed=comparable(local)!==comparable(backup);
+      details.push({label,added:!local?1:0,replaced:local&&changed?1:0,unchanged:changed?0:1});
+      if(apply)state[key]=backup;
+    }
+    if(apply)state.gardenClearedDone={...current.gardenClearedDone,...incoming.state.gardenClearedDone};
+  });
+  section('calendar','Calendar','Events and recurring unavailable hours.',apply=>{
+    stateList(apply,'calendarEvents','Events');stateList(apply,'availability','Availability rules');
+  });
+  section('notes','Notes','Sticky notes and captured thoughts.',apply=>{
+    stateList(apply,'stickyNotes','Sticky notes');stateList(apply,'captureArchive','Archived thoughts',item=>item.key);
+    const active=[...incoming.captures].map(([key,note])=>({key,...note}));
+    const local=active.flatMap(({key})=>{
+      const archived=current.captureArchive.find(note=>note.key===key);
+      if(archived)return [archived];
+      try{const note=JSON.parse(storage.getItem(key));return note?[{key,text:note.text,createdAt:note.createdAt}]:[];}catch{return [];}
+    });
+    const captures=merge('Unsorted thoughts',local,active,item=>item.key);
+    if(apply){
+      state.notes=state.stickyNotes.find(note=>note.id===scratchNoteId)?.body||'';
+      state.captureArchive=state.captureArchive.filter(note=>!incoming.captures.has(note.key));
+      state.processedCaptures=[...new Set([...current.processedCaptures,...incoming.state.processedCaptures,...state.captureArchive.map(note=>note.key)])]
+        .filter(key=>!incoming.captures.has(key));
+      for(const {key,text,createdAt} of captures)writes.set(key,JSON.stringify({text,createdAt}));
+    }
+  });
+  section('reading','Reading','Annotation logs match by calendar day.',apply=>{
+    rituals(apply,'annotate','Annotation logs');stateList(apply,'readingNotes','Chapter notes');
+  });
+  section('journal','Journal','Entries, templates, and daily completion marks.',apply=>{
+    const records=merge('Journal entries',loadJournal(storage),incoming.journal);
+    rituals(apply,'journal','Journal completion marks');stateList(apply,'journalTemplates','Journal templates');
+    if(apply)writes.set(JOURNAL_KEY,JSON.stringify(records));
+  });
+  section('stitchbook','Stitchbook','Projects, yarn, usage, and crochet logs.',apply=>{
+    const local=loadCrochet(storage);
+    const fields={projects:'Projects',yarn:'Yarn',usage:'Yarn usage',timeLog:'Time logs'};
+    const records=Object.fromEntries(Object.entries(fields).map(([key,label])=>[key,merge(label,local[key],incoming.crochet[key])]));
+    rituals(apply,'crochet','Crochet check-ins');
+    if(apply)writes.set(CROCHET_KEY,JSON.stringify(records));
+  });
+  section('garden','Garden & focus','Focus history, landscape, and preferences.',apply=>{
+    stateList(apply,'history','Focus and rest sessions');stateList(apply,'routines','Timer routines');
+    stateList(apply,'gardenGrowth','Garden landmarks',item=>JSON.stringify([item.kind,item.sourceId]));
+    const keys=['settings','appearance','gardenSchedule','sounds','notifications','intention','spotify','focusMode','replanCutoff','studyCapacity'];
+    const replaced=keys.filter(key=>comparable(current[key])!==comparable(incoming.state[key])).length;
+    details.push({label:'Preferences',added:0,replaced,unchanged:keys.length-replaced});
+    if(apply){for(const key of keys)state[key]=incoming.state[key];}
+  });
+  if(stateChanged)writes.set(STORAGE_KEY,JSON.stringify(state));
+  return {preview,writes};
+}
+
+export function applyBackupRestore(storage,plan){writeBackupChanges(storage,plan.writes);}
+
+const escape=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
+
+function previewMarkup(rows,selected){
+  return rows.map(row=>`<section class="backup-preview-section">
+    <label><input type="checkbox" name="section" value="${row.id}" ${selected.has(row.id)?'checked':''}><strong>${row.label}</strong></label>
+    <p>${row.description}</p>
+    ${row.details.length?`<ul>${row.details.map(detail=>`<li>${detail.label} · ${detail.added} added · ${detail.replaced} replaced${detail.unchanged?` · ${detail.unchanged} unchanged`:''}
+      ${detail.changes?.length?`<details><summary>Show records</summary><ul>${detail.changes.map(change=>`<li>${change.action} ${escape(change.title)}</li>`).join('')}
+      ${detail.added+detail.replaced>detail.changes.length?'<li>Additional records are included in the counts.</li>':''}</ul></details>`:''}</li>`).join('')}</ul>`:
+      '<p>No records in this backup section.</p>'}</section>`).join('');
+}
+
 export function installBackup({dialog,storage,getState,getCaptures,notify}){
   dialog.innerHTML=`<form id="backup-form">
     <header><h2 id="backup-title">Backup and restore</h2><button type="button" data-backup-close aria-label="Close backup and restore">×</button></header>
@@ -88,12 +206,18 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
     <div class="backup-restore">
       <label for="backup-file">Restore from a backup</label><input type="file" id="backup-file" accept=".json,application/json">
       <p id="backup-status" role="status" hidden></p>
-      <button type="submit" id="apply-backup" hidden>Replace data on this device</button>
+      <fieldset id="backup-preview" hidden><legend>Choose sections to restore</legend>
+        <p>Matching records are replaced. New records are added. Other records stay on this device.</p>
+        <div id="backup-preview-sections"></div></fieldset>
+      <button type="submit" id="apply-backup" hidden disabled>Restore selected sections</button>
     </div></form>`;
   const file=dialog.querySelector('#backup-file');
   const status=dialog.querySelector('#backup-status');
   const apply=dialog.querySelector('#apply-backup');
-  let staged, revision=0;
+  const preview=dialog.querySelector('#backup-preview');
+  const sectionList=dialog.querySelector('#backup-preview-sections');
+  let staged, shown, revision=0;
+  const selected=()=>new Set([...sectionList.querySelectorAll('input:checked')].map(input=>input.value));
   function report(message){
     status.textContent=message;
     status.hidden=!message;
@@ -102,23 +226,27 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
     revision++;
     staged=null;
     file.value='';
-    apply.hidden=true;
+    apply.hidden=true;apply.disabled=true;preview.hidden=true;sectionList.replaceChildren();
     report('');
   }
   file.addEventListener('change',async()=>{
     const request=++revision, chosen=file.files[0];
     staged=null;
-    apply.hidden=true;
+    apply.hidden=true;apply.disabled=true;preview.hidden=true;sectionList.replaceChildren();
     if(!chosen){report('');return;}
     report('Reading backup…');
     try{
       const parsed=readBackup(await chosen.text());
       if(request!==revision||!dialog.open)return;
       staged=parsed;
-      report(`This backup has ${parsed.state.tasks.length} tasks, ${parsed.journal.length} journal entries, and ${parsed.state.stickyNotes.length} sticky notes. Restoring replaces the data currently on this device.`);
-      apply.hidden=false;
+      shown=planBackupRestore(storage,getState(),staged,new Set()).preview;
+      sectionList.innerHTML=previewMarkup(shown,new Set());
+      const date=new Date(parsed.exportedAt);
+      report(Number.isFinite(+date)?`Backup from ${date.toLocaleString([],{dateStyle:'medium',timeStyle:'short'})}.`:'Backup ready to preview.');
+      preview.hidden=false;apply.hidden=false;
     }catch(error){if(request===revision)report(error.message);}
   });
+  sectionList.addEventListener('change',()=>{apply.disabled=!selected().size;});
   dialog.querySelector('#download-backup').addEventListener('click',()=>{
     const backup=createBackup(getState(),storage,getCaptures());
     const file=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
@@ -135,8 +263,17 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
   dialog.querySelector('[data-backup-close]').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('submit',event=>{
     event.preventDefault();
-    if(!staged)return;
-    try{restoreBackup(storage,staged);}
+    const choices=selected();
+    if(!staged||!choices.size)return;
+    try{
+      const plan=planBackupRestore(storage,getState(),staged,choices);
+      const chosen=rows=>rows.filter(row=>choices.has(row.id));
+      if(comparable(chosen(shown))!==comparable(chosen(plan.preview))){
+        shown=plan.preview;sectionList.innerHTML=previewMarkup(shown,choices);
+        report('Your data changed after the preview. Review the updated counts before restoring.');return;
+      }
+      applyBackupRestore(storage,plan);
+    }
     catch(error){report(error.message);return;}
     location.reload();
   });

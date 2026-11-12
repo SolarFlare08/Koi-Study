@@ -529,6 +529,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const replan=standalone||view==='today'?'<button type="button" data-replan-today aria-haspopup="dialog">Replan today</button>':'';
     $('#planner-heading-actions').innerHTML=addTask+settings+replan+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button>`:'<button type="button" data-plan-tomorrow aria-haspopup="dialog">Plan tomorrow</button><button type="button" data-plan-deadline aria-haspopup="dialog">Plan to deadline</button>');
     if(!standalone)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-build-week aria-haspopup="dialog">Build my week</button>');
+    if(view==='today')$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-day-recap aria-haspopup="dialog">End-of-day recap</button>');
     $('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-availability aria-haspopup="dialog">Availability</button>');
     if(standalone||project)$('#planner-heading-actions').insertAdjacentHTML('beforeend',
       `<button type="button" data-manage="calendar-export" data-value="${escape(project?.id)}">Export .ics</button>`);

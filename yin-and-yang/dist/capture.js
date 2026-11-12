@@ -3,8 +3,14 @@ export const CAPTURE_PREFIX = 'yin-and-yang.capture.';
 export function saveCapture(storage, text) {
   const note = {text: text.trim(), createdAt: Date.now()};
   if (!note.text) return false;
-  storage.setItem(CAPTURE_PREFIX + crypto.randomUUID(), JSON.stringify(note));
+  storeCapture(storage,note);
   return true;
+}
+
+export function storeCapture(storage,{text,createdAt}) {
+  const key=CAPTURE_PREFIX+crypto.randomUUID();
+  storage.setItem(key,JSON.stringify({text,createdAt}));
+  return key;
 }
 
 export function readCaptures(storage) {

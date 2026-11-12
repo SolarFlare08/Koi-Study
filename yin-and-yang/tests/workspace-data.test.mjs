@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createBackup,readBackup,restoreBackup} from '../dist/backup.js';
+import {applyBackupRestore,createBackup,planBackupRestore,readBackup,restoreBackup} from '../dist/backup.js';
 import {CAPTURE_PREFIX,readCaptures} from '../dist/capture.js';
 import {CROCHET_KEY,loadCrochet,logCrochetTime} from '../dist/crochet.js';
 import {JOURNAL_KEY,loadJournal} from '../dist/journal.js';
@@ -11,6 +11,46 @@ import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail} from '../dist/garden-growth.js';
 import {gardenGrowthMarkup} from '../dist/scenery.js';
+import {recordScheduleMoves,snapshotSchedule,summarizeDay} from '../dist/day-recap.js';
+
+test('a Reading-only restore previews conflicts and preserves local tasks, rituals, and Stitchbook',()=>{
+  const current=freshState(), backup=freshState(), day='2026-11-12', next='2026-11-13';
+  current.tasks=[{id:'local',text:'Keep local task',done:false}];
+  current.dailyRituals[day]={journal:{done:true,stamp:1},annotate:{title:'Local book'}};
+  backup.tasks=[{id:'remote',text:'Incoming task',done:false}];
+  backup.dailyRituals[day]={journal:{done:false},annotate:{title:'Incoming book'}};
+  backup.dailyRituals[next]={annotate:{title:'Next chapter'}};
+  const localCrochet=JSON.stringify({projects:[{id:'keep',name:'Keep this project'}],yarn:[],usage:[]});
+  const storage=memoryStorage([[STORAGE_KEY,JSON.stringify(current)],[CROCHET_KEY,localCrochet]]);
+  const incoming=readBackup(JSON.stringify(createBackup(backup,memoryStorage(),[])));
+  const plan=planBackupRestore(storage,loadState(storage),incoming,new Set(['reading']));
+  const [logs]=plan.preview.find(section=>section.id==='reading').details;
+  assert.deepEqual([logs.added,logs.replaced],[1,1]);
+  assert.equal(loadState(storage).dailyRituals[day].annotate.title,'Local book');
+  applyBackupRestore(storage,plan);
+  const restored=loadState(storage);
+  assert.deepEqual(restored.tasks.map(task=>task.id),['local']);
+  assert.equal(restored.dailyRituals[day].journal.done,true);
+  assert.equal(restored.dailyRituals[day].annotate.title,'Incoming book');
+  assert.equal(restored.dailyRituals[next].annotate.title,'Next chapter');
+  assert.equal(storage.getItem(CROCHET_KEY),localCrochet);
+});
+
+test('day recap combines completions and tomorrow’s blocks and drops an undone move',()=>{
+  const state=freshState(), now=new Date(2026,10,12,18), tomorrow='2026-11-13';
+  const task={id:'review',text:'Review chapter',done:false,date:'2026-11-12',time:'17:00',estimate:30};
+  state.tasks=[task];
+  state.taskActivity=[{id:'done',text:'Finish worksheet',at:+now}];
+  const before=snapshotSchedule(state);
+  task.date=tomorrow;
+  const after=snapshotSchedule(state);
+  state.scheduleMoves=recordScheduleMoves([],before,after,now);
+  const recap=summarizeDay(state,state.tasks,now);
+  assert.equal(recap.finished[0].text,'Finish worksheet');
+  assert.equal(recap.moves[0].to.date,tomorrow);
+  assert.equal(recap.blocks[0].task.id,task.id);
+  assert.deepEqual(recordScheduleMoves(state.scheduleMoves,after,before,now),[]);
+});
 
 test('earned Garden details stay unique and survive a backup without the original project or book',()=>{
   const state=freshState();

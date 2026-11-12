@@ -2,7 +2,8 @@ import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,res
 import {renderLandscape,objects,blossomMarkup,animateLandscape,gardenGrowthMarkup} from './scenery.js';
 import {earnGardenDetail,gardenReward} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
-import {CAPTURE_PREFIX, readCaptures, saveCapture} from './capture.js';
+import {CAPTURE_PREFIX, readCaptures, saveCapture, storeCapture} from './capture.js';
+import {recordScheduleMoves,snapshotSchedule,summarizeDay} from './day-recap.js';
 import {installPlanner} from './planner.js';
 import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
 import {installCrochet,loadCrochet} from './crochet.js';
@@ -77,12 +78,24 @@ let capturePointer=null,nativeNotes=[],captureApiAvailable=true,syncingCaptures=
 let reopenTasksAfterCalendar=false;
 let effectiveAppearance=state.appearance, resumeTaskId=null, captureActionKey=null;
 let renderedGardenGrowth;
+let savedSchedule=snapshotSchedule(state), captureInboxTab='inbox', returnToCaptureInbox=false;
 const gardenAudio=createGardenAudio();
 let spotifyPlayback='idle';
 const spotifyEmbed=createSpotifyEmbed(playback=>{spotifyPlayback=playback;syncSound();});
 const undoToast=$('#undo-toast'),undoButton=$('#undo-action');
 let pendingUndo,undoTimeout,undoReturn;
-function persist(){try{storage.setItem(STORAGE_KEY,JSON.stringify(state));$('#saved-status').innerHTML='<span class="tiny-dot"></span>Saved on this device';return true;}catch{$('#saved-status').textContent='Storage unavailable — keep this tab open';toast('Your browser could not save changes. Keep this tab open.');return false;}}
+function persist(){
+  const previous=state.scheduleMoves, schedule=snapshotSchedule(state);
+  state.scheduleMoves=recordScheduleMoves(previous,savedSchedule,schedule);
+  try{
+    storage.setItem(STORAGE_KEY,JSON.stringify(state));savedSchedule=schedule;
+    $('#saved-status').innerHTML='<span class="tiny-dot"></span>Saved on this device';return true;
+  }catch{
+    state.scheduleMoves=previous;
+    $('#saved-status').textContent='Storage unavailable — keep this tab open';
+    toast('Your browser could not save changes. Keep this tab open.');return false;
+  }
+}
 function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4200);}
 function announce(text){$('#announcer').textContent=text;}
 function recordGardenGrowth(kind,id,title){
@@ -324,6 +337,8 @@ function commandEntries(){
   return [
     action('Help','Browse searchable instructions and keyboard shortcuts','guide how to tutorial features',()=>helpGuide.open()),
     action('Garden history','See the projects and books that shaped your Garden','growth trees lanterns milestones finished',()=>runHelpAction('garden-history')),
+    action('End-of-day recap','Review today’s work and tomorrow’s plans','daily recap finished moved tomorrow',()=>runHelpAction('day-recap')),
+    action('Note inbox','File, link, or archive captured thoughts','capture ideas notes archive',()=>runHelpAction('capture-inbox')),
     action('Plan to deadline','Suggest focus blocks before a task is due','backward schedule estimate capacity',()=>{
       visitWorkspace('planner');$('[data-plan-deadline]')?.click();
     }),
@@ -353,6 +368,9 @@ function runHelpAction(action){
   if(workspaces.includes(action)){visitWorkspace(action);return;}
   if(action==='search'){commandPalette.open();return;}
   if(action==='backup'){backup.open();return;}
+  if(action==='capture-inbox'){
+    visitWorkspace('notes');openCaptureInbox();return;
+  }
   const views={filters:'filters',review:'review',workload:'workload',reporting:'reporting'};
   if(views[action]){
     visitWorkspace('planner');
@@ -377,12 +395,12 @@ function runHelpAction(action){
   if(action==='csv-import'){
     visitWorkspace('planner');$('[data-manage="import"]')?.click();return;
   }
-  const panels={settings:'pagoda',appearance:'appearance',music:'music',capture:'capture',progress:'progress','garden-history':'garden-history'};
+  const panels={settings:'pagoda',appearance:'appearance',music:'music',capture:'capture',progress:'progress','garden-history':'garden-history','day-recap':'day-recap'};
   if(panels[action]){
     if(state.focusMode)toggleFocusMode();
     visitWorkspace('focus');
     const panel=panels[action];
-    const anchor=panel==='capture'?'notes':panel==='garden-history'?'progress':panel;
+    const anchor=panel==='capture'?'notes':['garden-history','day-recap'].includes(panel)?'progress':panel;
     openPanel(panel,$(`[data-panel="${anchor}"]`));
   }
 }
@@ -674,6 +692,28 @@ function gardenHistoryMarkup(){
     '<p>Mark a project finished in Planner to plant a tree. Mark a book finished in Reading to add a lantern to the lake.</p>'}
     <button type="button" class="text-button" id="garden-history-today">Back to today’s progress</button>`;
 }
+function dayRecapMarkup(){
+  const {today,tomorrow,finished,moves,focus,blocks,due,firstTask,allDay,rituals:todayRituals}=summarizeDay(state,gardenTasks());
+  const list=(rows,empty)=>rows.length?`<ul>${rows.join('')}</ul>`:`<p>${empty}</p>`;
+  const completed=[...finished].sort((a,b)=>b.at-a.at).map(item=>`<li>${escape(item.text)}</li>`);
+  for(const kind of ['journal','annotate','crochet']){
+    if(ritualComplete(kind,todayRituals[kind],kind==='journal'?journal.completedAt(today):0))completed.push(`<li>${rituals[kind].label}</li>`);
+  }
+  const position=place=>[place.date?shortScheduleDate(place.date):'',place.time?timeLabel(timeMinutes(place.time)):'',place.place].filter(Boolean).join(' · ')||'Unscheduled';
+  const moved=moves.map(item=>`<li><strong>${escape(item.title)}</strong><small>${escape(position(item.from))} → ${escape(position(item.to))}</small></li>`);
+  const upcoming=[...allDay.map(event=>`<li>${escape(event.title)} <small>All day</small></li>`),...blocks.map(block=>
+    `<li><strong>${escape(block.event?.title||block.task.text)}</strong><small>${timeLabel(block.start)}–${timeLabel(block.end)}</small></li>`),
+    ...due.map(task=>`<li>${escape(task.text)} <small>${task.deadline===tomorrow?'Deadline':'Dated task'}</small></li>`)];
+  return `${header(shortScheduleDate(today),'End-of-day recap')}
+    <div class="day-recap-sections">
+      <section><h3>Finished today</h3><p>${completed.length} completed · ${minutesLabel(Math.floor(focus.reduce((sum,item)=>sum+item.focusMs,0)/60000))} focused</p>
+      ${list(completed,'No completed items today.')}</section>
+      <section><h3>Moved today</h3>${list(moved,'No schedule changes recorded today.')}</section>
+      <section><h3>Tomorrow · ${shortScheduleDate(tomorrow)}</h3>
+      ${firstTask?`<p>First focus task · <strong>${escape(firstTask.text)}</strong></p>`:''}${list(upcoming,'Nothing lined up yet.')}
+      <button type="button" class="text-button" id="recap-open-tomorrow">Plan tomorrow</button></section>
+    </div>`;
+}
 function taskCard(task,status,date,currentId,prerequisites){
   const details=[];
   if(task.date && (task.date>dayKey(date) || task.repeat==='none')){
@@ -881,9 +921,13 @@ function availableCaptures(){
   const processed=new Set(state.processedCaptures);
   return [...notes,...nativeNotes].filter(note=>!processed.has(note.key)).sort((a,b)=>b.createdAt-a.createdAt);
 }
-function captureCards(){
-  return availableCaptures().map(note=>`<article class="capture-card" data-capture-key="${escape(note.key)}"><p>${escape(note.text)}</p><button type="button" data-dismiss-capture="${escape(note.key)}" aria-label="Dismiss captured note" title="Dismiss note">×</button>
-    <div class="capture-actions"><button type="button" data-capture-action="task">Make a task</button><button type="button" data-capture-action="project">Attach to project</button><button type="button" data-capture-action="notes">Quick Notes</button></div></article>`).join('');
+function captureCards(inbox=false){
+  return availableCaptures().map(note=>`<article class="capture-card" data-capture-key="${escape(note.key)}"><p>${escape(note.text)}</p>
+    ${inbox?`<time>${new Date(note.createdAt).toLocaleString([],{dateStyle:'medium',timeStyle:'short'})}</time>`:''}
+    <div class="capture-actions"><button type="button" data-capture-action="task">Make a task</button>
+    <button type="button" data-capture-action="project">Attach to project</button>${inbox?'<button type="button" data-capture-action="link">Link to a task</button>':''}
+    <button type="button" data-capture-action="notes">${inbox?'File as sticky note':'Quick Notes'}</button>
+    <button type="button" data-capture-action="archive">Archive</button></div></article>`).join('');
 }
 function saveCaptureDestination(key,change,revert){
   change();
@@ -898,6 +942,49 @@ function renderCaptures(){
   $('#captured-list').innerHTML=cards;
   const notesPanel=$('#notes-captures');
   if(notesPanel)notesPanel.innerHTML=cards;
+  const inbox=$('#capture-inbox-list');
+  if(inbox)inbox.innerHTML=captureInboxList();
+  const button=$('#open-capture-inbox');
+  if(button){const count=availableCaptures().length;button.textContent=count?`Note inbox (${count})`:'Note inbox';}
+}
+
+function openCaptureInbox(resetTab=true){
+  if(resetTab)captureInboxTab='inbox';
+  openPanel('capture-inbox',$('#open-capture-inbox'));
+}
+function captureInboxList(){
+  if(captureInboxTab==='inbox')return captureCards(true)||'<p>Your note inbox is clear.</p>';
+  return [...state.captureArchive].sort((a,b)=>b.archivedAt-a.archivedAt).map(note=>
+    `<article class="capture-card"><p>${escape(note.text)}</p><div class="capture-actions">
+    <button type="button" data-restore-capture="${escape(note.key)}">Return to inbox</button></div></article>`).join('')||'<p>No archived thoughts.</p>';
+}
+function archiveCapture(note){
+  const previous=state.captureArchive;
+  if(saveCaptureDestination(note.key,()=>{state.captureArchive=[...previous,{...note,archivedAt:Date.now()}];},()=>{state.captureArchive=previous;})){
+    confirmChange('Thought archived.');return true;
+  }
+  return false;
+}
+function restoreCapture(key){
+  const note=state.captureArchive.find(item=>item.key===key);
+  if(!note)return;
+  let newKey;
+  try{newKey=storeCapture(storage,note);}catch{confirmChange('Could not return the thought to the inbox.');return;}
+  const previous=state.captureArchive;
+  state.captureArchive=previous.filter(item=>item!==note);
+  if(!persist()){state.captureArchive=previous;storage.removeItem(newKey);return;}
+  renderCaptures();confirmChange('Thought returned to the inbox.');
+}
+function captureInboxFocus(){
+  const target=$('#capture-inbox-list button')||$('[data-capture-inbox-tab][aria-pressed="true"]');
+  target?.focus({preventScroll:true});
+}
+function finishCaptureFiling(message){
+  const reopen=returnToCaptureInbox;
+  returnToCaptureInbox=false;
+  if(reopen){openCaptureInbox(false);captureInboxFocus();}
+  else closePanel();
+  confirmChange(message);
 }
 async function syncNativeCaptures(){
   if(!captureApiAvailable||syncingCaptures||!['localhost','127.0.0.1'].includes(location.hostname))return;
@@ -1240,6 +1327,18 @@ function panelContent(id){
     const projects=state.projects.filter(project=>!project.archived);
     return `${header('CAPTURED THOUGHT','Attach to a project')}${projects.length?`<form id="capture-project-form"><label class="field-label" for="capture-project-id">Project</label><select id="capture-project-id" required>${projects.map(project=>`<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('')}</select><div class="panel-actions"><button class="panel-primary">Attach thought</button></div></form>`:'<p>Create a project in Planner to attach a thought.</p>'}`;
   }
+  if(id==='capture-link'){
+    const tasks=gardenTasks().filter(task=>!task.done).sort((a,b)=>a.text.localeCompare(b.text));
+    return `${header('NOTE INBOX','Link to a task')}${tasks.length?`<form id="capture-link-form">
+      <label class="field-label" for="capture-link-task">Task</label><select id="capture-link-task" required>${tasks.map(task=>
+      `<option value="${escape(task.id)}">${escape(task.text)}</option>`).join('')}</select>
+      <div class="panel-actions"><button class="panel-primary">File and link note</button></div></form>`:'<p>Add an open task to link this thought.</p>'}
+      <button type="button" class="text-button" data-open-capture-inbox>Back to inbox</button>`;
+  }
+  if(id==='capture-inbox')return `${header('NOTES','Note inbox')}
+    <div class="capture-inbox-tabs" role="group" aria-label="Captured thoughts">${['inbox','archive'].map(tab=>
+      `<button type="button" data-capture-inbox-tab="${tab}" aria-pressed="${tab===captureInboxTab}">${tab==='inbox'?'Unsorted':'Archive'}</button>`).join('')}</div>
+    <div id="capture-inbox-list">${captureInboxList()}</div>`;
   if(id==='appearance'){
     const {lighting,season}=state.appearance;
     return `${header('GARDEN APPEARANCE','Light and seasons')}
@@ -1318,9 +1417,10 @@ function panelContent(id){
     <p class="note-caption"><kbd>Ctrl+Alt+N</kbd> for quick capture</p>
     <div id="notes-captures">${captureCards()}</div>`;
   if(id==='progress'){
-    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time>${focusReviewDetails(h)}</span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p><div class="panel-actions"><button type="button" class="text-button" id="open-garden-history">View Garden history</button></div>`;
+    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time>${focusReviewDetails(h)}</span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p><div class="panel-actions"><button type="button" class="text-button" id="open-day-recap">End-of-day recap</button><button type="button" class="text-button" id="open-garden-history">View Garden history</button></div>`;
   }
   if(id==='garden-history')return gardenHistoryMarkup();
+  if(id==='day-recap')return dayRecapMarkup();
   return `${header('BY THE LAKE','Your own soundtrack.')}<label class="field-label" for="spotify-link">Spotify playlist, album, or track link</label><form id="spotify-form" class="music-link"><input id="spotify-link" type="url" value="${escape(state.spotify)}" placeholder="https://open.spotify.com/playlist/…" required><button class="panel-primary" type="submit">Load</button></form><div id="music-player-wrap"></div><p id="spotify-error" role="status" class="panel-subtle"></p><div class="panel-actions"><a class="panel-primary" id="open-spotify-external" href="https://open.spotify.com/" target="_blank" rel="noopener noreferrer">Open Spotify ${icon('external')}</a><button class="text-button" id="remove-player" ${state.spotify?'':'hidden'}>Remove player</button></div><p class="music-tip">The embedded player pauses app sounds automatically. Open Spotify enables the outside music switch below.</p>${soundControls()}`;
 }
 function positionPanel(panel,anchor){
@@ -1363,6 +1463,9 @@ function openPanel(id,anchor){
   initialFocus.focus({preventScroll:true});
 }
 function closePanel(restore=true){
+  if(restore&&returnToCaptureInbox&&(['capture-project','capture-link'].includes(activePanel)||activePanel==='task-editor'&&taskDraft?.captureKey)){
+    returnToCaptureInbox=false;openCaptureInbox(false);return;
+  }
   const p=visiblePanel();if(p){if(p.id==='music-panel'){p.classList.add('music-hidden');p.setAttribute('aria-hidden','true');p.inert=true;p.querySelector('h2').id='music-hidden-title';p.setAttribute('aria-labelledby','music-hidden-title');}else p.remove();}
   if(lastAnchor){
     lastAnchor.setAttribute('aria-expanded','false');
@@ -2530,6 +2633,8 @@ $('#calendar-jump-date').addEventListener('change',event=>{
   else planner.jumpMonth(date);
 });
 calendarPanel.addEventListener('click',event=>{
+  const recap=event.target.closest('[data-day-recap]');
+  if(recap){openPanel('day-recap',recap);return;}
   const buildWeek=event.target.closest('[data-build-week]');
   if(buildWeek){openWeekBuilder(buildWeek);return;}
   const availability=event.target.closest('[data-open-availability]');
@@ -2646,6 +2751,16 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const inboxTab=e.target.closest('[data-capture-inbox-tab]');
+  if(inboxTab){
+    captureInboxTab=inboxTab.dataset.captureInboxTab;
+    for(const tab of root.querySelectorAll('[data-capture-inbox-tab]'))tab.setAttribute('aria-pressed',String(tab===inboxTab));
+    renderCaptures();return;
+  }
+  const restore=e.target.closest('[data-restore-capture]');
+  if(restore){restoreCapture(restore.dataset.restoreCapture);captureInboxFocus();return;}
+  if(e.target.closest('#open-day-recap')){openPanel('day-recap',$('[data-panel="progress"]'));return;}
+  if(e.target.closest('#recap-open-tomorrow')){runHelpAction('tomorrow');return;}
   const history=e.target.closest('#open-garden-history,#garden-history-today');
   if(history){openPanel(history.id==='open-garden-history'?'garden-history':'progress',$('[data-panel="progress"]'));return;}
   const approval=e.target.closest('[data-approve-week-day]');
@@ -3053,7 +3168,17 @@ root.addEventListener('submit',e=>{
     if(!note||!project)return;
     const prior=project.thoughts||[];
     if(saveCaptureDestination(note.key,()=>{project.thoughts=[...prior,note];},()=>{project.thoughts=prior;})){
-      closePanel();refreshTasks();toast('Thought attached. Open the project’s Thoughts button to read it.');
+      finishCaptureFiling('Thought attached. Open the project’s Thoughts button to read it.');refreshTasks();
+    }
+    return;
+  }
+  if(e.target.id==='capture-link-form'){
+    const note=availableCaptures().find(item=>item.key===captureActionKey);
+    const task=gardenTasks().find(item=>item.id===$('#capture-link-task').value&&!item.done);
+    if(!note||!task)return;
+    const previous=state.stickyNotes, sticky={...stickyBoard.newNote(note.text,'Quick capture'),taskId:task.id};
+    if(saveCaptureDestination(note.key,()=>{state.stickyNotes=[...previous,sticky];},()=>{state.stickyNotes=previous;})){
+      stickyBoard.render();finishCaptureFiling('Thought filed as a sticky note and linked to the task.');
     }
     return;
   }
@@ -3172,6 +3297,7 @@ root.addEventListener('submit',e=>{
       return;
     }
     closePanel(false);refreshTasks();
+    if(captureKey&&returnToCaptureInbox){finishCaptureFiling('Thought filed as a task.');return;}
     if(e.submitter?.value==='plan-deadline'&&canPlanDeadline(task)){
       const anchor=inSchedule()?$('#planner-heading'):taskButton(task.id)||$('#sidebar-add-task');
       openDeadlinePlanner(task.id,anchor);return;
@@ -3211,16 +3337,25 @@ document.addEventListener('pointerdown',e=>{
   if(!taskMenu.hidden&&!e.target.closest('#task-menu'))closeTaskMenu(false);
   if(activePanel&&!e.target.closest('.panel, #undo-toast')&&!e.target.closest('[data-panel]')&&!e.target.closest('#music-shortcut')&&!e.target.closest('#current-task, #resume-task, #finish-current-task'))closePanel(false);
 });
-document.addEventListener('click',async event=>{
+document.addEventListener('click',event=>{
+  if(event.target.closest('#open-capture-inbox,[data-open-capture-inbox]')){openCaptureInbox();return;}
   const action=event.target.closest('[data-capture-action]');
   if(action){
     const key=action.closest('[data-capture-key]').dataset.captureKey;
     const note=availableCaptures().find(item=>item.key===key);
     if(!note)return;
-    if(action.dataset.captureAction==='task'){
+    const fromInbox=Boolean(action.closest('#capture-inbox-list'));
+    if(action.dataset.captureAction==='archive'){
+      if(archiveCapture(note)&&fromInbox)captureInboxFocus();
+    }else if(action.dataset.captureAction==='task'){
+      returnToCaptureInbox=fromInbox;
       openTaskEditor(null,action,{text:note.text.split(/\r?\n/)[0].slice(0,160),description:note.text,captureKey:key});
     }else if(action.dataset.captureAction==='project'){
+      returnToCaptureInbox=fromInbox;
       captureActionKey=key;openPanel('capture-project',action);
+    }else if(action.dataset.captureAction==='link'){
+      returnToCaptureInbox=true;
+      captureActionKey=key;openPanel('capture-link',action);
     }else{
       const previous=state.stickyNotes;
       const sticky=stickyBoard.newNote(note.text,'Quick capture');
@@ -3228,22 +3363,11 @@ document.addEventListener('click',async event=>{
         stickyBoard.render();
         const input=$('#notes-input');
         toast('Thought saved as a sticky note.');
-        (input||$('[data-panel="notes"]')).focus({preventScroll:true});
+        if(fromInbox)captureInboxFocus();else (input||$('[data-panel="notes"]')).focus({preventScroll:true});
       }
     }
     return;
   }
-  const dismiss=event.target.closest('[data-dismiss-capture]');
-  if(!dismiss)return;
-  const key=dismiss.dataset.dismissCapture;
-  try{
-    if(key.startsWith('native:')){
-      const response=await fetch(`./api/capture-inbox/${key.slice(7)}`,{method:'DELETE'});
-      if(!response.ok)throw new Error('Capture inbox unavailable');
-      nativeNotes=nativeNotes.filter(note=>note.key!==key);
-    }else storage.removeItem(key);
-    renderCaptures();
-  }catch{toast('Could not dismiss the note.');}
 });
 document.addEventListener('keydown',e=>{
   if(e.key==='F1'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){
@@ -3293,7 +3417,7 @@ window.addEventListener('focus',syncNativeCaptures);
 window.addEventListener('pageshow',()=>{checkCompletion();render();});
 window.addEventListener('storage',e=>{
   if(e.key===STORAGE_KEY){
-    state=loadState(storage);syncSound();checkCompletion();refreshTasks();stickyBoard.render();renderCaptures();
+    state=loadState(storage);savedSchedule=snapshotSchedule(state);syncSound();checkCompletion();refreshTasks();stickyBoard.render();renderCaptures();
     if(workspace==='reading')reading.render();
     if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();
   }
