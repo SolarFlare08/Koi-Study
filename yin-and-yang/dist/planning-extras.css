@@ -236,3 +236,19 @@
 .garden-schedule li button { font-size: 16px; }
 
 @media(max-width:470px) { #workspace-tabs button span { display: none; } }
+.session-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: min(100%,360px); }
+.session-tools .resume-task { margin: 3px 0 0; max-width: 175px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.routine-phase-caption { margin: 7px 0 0; font-size: 11px; overflow-wrap: anywhere; }
+#add-routine-sequence { margin-top: 6px; font-size: 12px; }
+#routine-phases { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 7px; }
+.routine-phase-fields { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr) minmax(0,.8fr); gap: 7px; padding: 8px; border: 1px solid var(--surface-line); border-radius: 7px; font-size: 11px; }
+.routine-phase-fields :is(input,select) { width: 100%; min-width: 0; }
+.phase-actions { grid-column: 1/-1; display: flex; gap: 8px; justify-content: flex-end; }
+.phase-actions button { padding: 3px 6px; }
+.focus-review-choices { display: flex; gap: 14px; border: 0; padding: 6px 0; }
+.focus-review-choices input { width: auto; }
+.session-review-detail { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+.fit-task-results { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.fit-task-results button { width: 100%; display: flex; justify-content: space-between; gap: 10px; text-align: left; border: 1px solid var(--surface-line); border-radius: 7px; padding: 7px; }
+.fit-task-results button:not(:disabled):hover { background: var(--surface-raised); }
+.fit-task-results small { flex: none; color: var(--surface-muted); }

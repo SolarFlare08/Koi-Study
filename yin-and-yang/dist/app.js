@@ -19,6 +19,8 @@ import {canPlanDeadline,planDeadline,scheduleImpact} from './scheduling.js';
 import {nextTaskDate} from './planner-data.js';
 import {taskTemplate} from './project-planning.js';
 import {estimateSummary,suggestTaskEstimate} from './planner-report.js';
+import {loadRoutinePhase,routinePhases} from './state.js';
+import {tasksWithinTime} from './calendar.js';
 
 const $=s=>document.querySelector(s);
 const icons={
@@ -390,6 +392,18 @@ function render(){
   if(calendarHistory!==state.history||calendarHistoryLength!==state.history.length)syncCalendarProgress(clock.getTime());
   if(activePanel==='calendar-block')updateBlockPreview(clock.getTime());
   const running=t.status==='running';
+  const sequence=t.sequence;
+  const phase=sequence?.phases[sequence.index];
+  const routineCaption=$('#routine-phase');
+  const phaseText=phase?`${sequence.name} · ${sequence.index+1}/${sequence.phases.length} · ${phase.name}`:'';
+  routineCaption.hidden=!phase;
+  $('#end-routine').hidden=!phase;
+  if(routineCaption.textContent!==phaseText)routineCaption.textContent=phaseText;
+  const outcomeButton=$('#focus-goal'), outcomeText=t.goal||'Set outcome';
+  outcomeButton.hidden=t.mode!=='focus';
+  if(outcomeButton.textContent!==outcomeText)outcomeButton.textContent=outcomeText;
+  outcomeButton.title=t.goal?`Edit outcome: ${t.goal}`:'Set an outcome for this focus session';
+  $('#review-focus').hidden=!pendingFocusReview();
   timerButton.innerHTML=icon(running?'pause':'play')+`<span>${running?'Pause':t.status==='paused'?'Continue':t.mode==='focus'?'Begin focus':'Begin rest'}</span>`;
   $('[data-mode="focus"]').setAttribute('aria-pressed',t.mode==='focus');
   $('[data-mode="break"]').setAttribute('aria-pressed',t.mode==='break');
@@ -399,7 +413,7 @@ function render(){
   document.title=t.status==='idle'?'Yin and Yang — A quiet place to focus':`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} · ${t.mode==='focus'?'Focus':'Rest'} — Yin and Yang`;
 }
 function checkCompletion(){
-  const now=Date.now(),wasBlock=Boolean(state.timer.block);
+  const now=Date.now(),wasBlock=Boolean(state.timer.block),wasRoutine=Boolean(state.timer.sequence);
   let completed=null;
   let focused=false;
   for(let phase=settle(state,now);phase;phase=settle(state,now)){
@@ -417,9 +431,12 @@ function checkCompletion(){
     return;
   }
   if(focused)nextPenguinThought();
-  const message=wasBlock
+  let message=wasRoutine
+    ?state.timer.sequence?`${state.timer.sequence.phases[state.timer.sequence.index].name} is ready.`:'Routine complete.'
+    :wasBlock
     ? state.timer.block ? (state.timer.mode==='break'?'Focus complete. A short rest has started.':'Rest complete. Focus has resumed.') : 'Calendar block finished.'
     : completed.mode==='focus'?'Focus session complete. Your break is ready.':'Break complete. Your focus timer is ready.';
+  if(completed.goal)message+=' Review your outcome when you’re ready.';
   persist();render();planner.refreshReporting();toast(message);announce(message);
   notifyTimer(completed.mode==='focus'?'Focus finished':'Break finished',message,`${completed.id}-complete`);
   gardenAudio.cue(completed.mode);
@@ -465,7 +482,10 @@ function toggleFocusTimer(task,now=Date.now()){
 timerButton.onclick=()=>action(()=>{toggleFocusTimer(focusedTask());announce(state.timer.status==='running'?`${state.timer.mode} timer started.`:'Timer paused.');});
 $('#reset-timer').onclick=()=>action(()=>{
   if(state.timer.id){record(state,'skipped');toast('Timer reset. The unfinished session was marked skipped.');}
-  reset(state);
+  const {sequence,goal}=state.timer;
+  if(sequence)loadRoutinePhase(state,sequence,sequence.index);
+  else reset(state);
+  if(goal)state.timer.goal=goal;
 });
 $('#skip-timer').onclick=()=>action(()=>{const skipped=skipPhase(state);toast(skipped?'Session skipped. It won’t count as completed.':`${state.timer.mode==='focus'?'Focus':'Rest'} timer ready.`);});
 document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>{if(el.dataset.mode===state.timer.mode)return;action(()=>{if(state.timer.id){record(state,'skipped');toast('Unfinished session marked skipped.');}reset(state,el.dataset.mode);});});
@@ -476,6 +496,15 @@ currentTaskButton.onclick=()=>{
   selected?.focus({preventScroll:true});
 };
 finishTaskButton.onclick=()=>openPanel('finish-task',finishTaskButton);
+$('#focus-goal').onclick=()=>openPanel('focus-goal',$('#focus-goal'));
+$('#review-focus').onclick=()=>openPanel('focus-review',$('#review-focus'));
+$('#fit-task').onclick=()=>openPanel('fit-task',$('#fit-task'));
+$('#end-routine').onclick=()=>action(()=>{
+  if(!state.timer.sequence)return;
+  record(state,'skipped');
+  reset(state,'focus');
+  timerButton.focus({preventScroll:true});announce('Routine ended.');
+});
 $('#sidebar-add-task').onclick=()=>openTaskEditor(null,$('#sidebar-add-task'));
 $('#sidebar-calendar').onclick=()=>toggleCalendar($('#sidebar-calendar'));
 $('#sidebar-capture').onclick=()=>openPanel('capture',$('#sidebar-capture'));
@@ -654,9 +683,87 @@ function blockEditor(){
 function timerRoutines(){
   const routines=[...builtinRoutines,...state.routines];
   return `<section class="routine-section"><h3>Timer routines</h3>
-    <div class="routine-list">${routines.map(routine=>`<div class="routine-row"><button type="button" data-routine="${escape(routine.id)}"><strong>${escape(routine.name)}</strong><span>${formatDuration(routine.focus)} / ${formatDuration(routine.rest)}</span></button>${state.routines.includes(routine)?`<button type="button" class="routine-remove" data-delete-routine="${escape(routine.id)}" aria-label="Delete ${escape(routine.name)} routine">×</button>`:''}</div>`).join('')}</div>
+    <div class="routine-list">${routines.map(routine=>`<div class="routine-row"><button type="button" data-routine="${escape(routine.id)}"><strong>${escape(routine.name)}</strong><span>${routine.phases?`${routine.phases.length} phases`:`${formatDuration(routine.focus)} / ${formatDuration(routine.rest)}`}</span></button>${routine.phases?`<button type="button" class="routine-remove" data-edit-routine="${escape(routine.id)}" aria-label="Edit ${escape(routine.name)} routine">Edit</button>`:''}${state.routines.includes(routine)?`<button type="button" class="routine-remove" data-delete-routine="${escape(routine.id)}" aria-label="Delete ${escape(routine.name)} routine">×</button>`:''}</div>`).join('')}</div>
     <form id="save-routine" class="routine-save"><label class="sr-only" for="routine-name">Routine name</label><input id="routine-name" name="name" placeholder="Name these durations" maxlength="40" required><button class="panel-primary" type="submit">Save routine</button></form>
+    <button type="button" class="text-button" id="add-routine-sequence">Create a multi-phase routine</button>
   </section>`;
+}
+
+let editingRoutineId=null, fitMinutes=20, goalTimer=null;
+function phaseFields(phase={name:'',mode:'focus',ms:5*60000}){
+  return `<li class="routine-phase-fields">
+    <label>Phase name<input name="phase-name" maxlength="40" required value="${escape(phase.name)}"></label>
+    <label>Type<select name="phase-mode"><option value="focus">Focus</option><option value="break" ${phase.mode==='break'?'selected':''}>Break</option></select></label>
+    <label>Minutes<input name="phase-minutes" type="number" min="1" max="180" required value="${phase.ms/60000}"></label>
+    <div class="phase-actions"><button type="button" data-phase-action="up" aria-label="Move phase earlier">↑</button><button type="button" data-phase-action="down" aria-label="Move phase later">↓</button><button type="button" data-phase-action="remove">Remove</button></div>
+  </li>`;
+}
+function routineEditor(){
+  const routine=state.routines.find(item=>item.id===editingRoutineId&&item.phases);
+  const phases=routine?.phases||[{name:'Focus',mode:'focus',ms:25*60000},{name:'Break',mode:'break',ms:5*60000}];
+  return `${header('TIMER ROUTINES',routine?'Edit routine':'Create a routine')}
+    <form id="routine-editor-form">
+      <label class="field-label" for="sequence-name">Routine name</label><input id="sequence-name" name="name" maxlength="40" required value="${escape(routine?.name)}">
+      <ol id="routine-phases">${phases.map(phaseFields).join('')}</ol>
+      <p class="panel-subtle">Each phase is ready to start when the previous one ends.</p>
+      <p id="routine-editor-error" class="event-error" role="alert" hidden></p>
+      <div class="panel-actions"><button type="button" class="text-button" data-phase-action="add">Add phase</button><button class="panel-primary" type="submit">Save sequence</button></div>
+    </form>`;
+}
+function changePhaseRows(button){
+  const list=$('#routine-phases'),row=button.closest('li'),action=button.dataset.phaseAction;
+  if(action==='add'&&list.children.length<12){
+    list.insertAdjacentHTML('beforeend',phaseFields());
+    list.lastElementChild.querySelector('input').focus();
+  }else if(action==='remove'&&list.children.length>2){
+    const next=row.nextElementSibling||row.previousElementSibling;
+    row.remove();next.querySelector('input').focus();
+  }else if(action==='up'&&row?.previousElementSibling){
+    list.insertBefore(row,row.previousElementSibling);button.focus();
+  }else if(action==='down'&&row?.nextElementSibling){
+    list.insertBefore(row.nextElementSibling,row);button.focus();
+  }
+  updatePhaseButtons();
+}
+function updatePhaseButtons(){
+  const list=$('#routine-phases'),rows=[...list.children];
+  rows.forEach((row,index)=>{
+    row.querySelector('[data-phase-action="up"]').disabled=index===0;
+    row.querySelector('[data-phase-action="down"]').disabled=index===rows.length-1;
+    row.querySelector('[data-phase-action="remove"]').disabled=rows.length<=2;
+  });
+  $('[data-phase-action="add"]').disabled=rows.length>=12;
+}
+function pendingFocusReview(){
+  return state.history.findLast(item=>item.mode==='focus'&&item.outcome==='completed'&&item.goal&&!item.review);
+}
+function focusReviewMarkup(){
+  const session=pendingFocusReview();
+  if(!session)return header('FOCUS','No outcomes to review');
+  return `${header('FOCUS COMPLETE','Review your outcome')}
+    <p>${escape(session.goal)}</p>
+    ${session.taskTitle?`<p class="panel-subtle">${escape(session.taskTitle)}</p>`:''}
+    <form id="focus-review-form" data-session="${escape(session.id)}">
+      <fieldset class="focus-review-choices"><legend>How far did you get?</legend>
+        <label><input type="radio" name="result" value="reached" required> Reached</label>
+        <label><input type="radio" name="result" value="partial" required> Partial</label>
+      </fieldset>
+      <label class="field-label" for="focus-review-next">Next step</label><textarea id="focus-review-next" name="next" rows="3" maxlength="500"></textarea>
+      <div class="panel-actions"><button type="button" class="text-button close-panel">Later</button><button class="panel-primary" type="submit">Save review</button></div>
+    </form>`;
+}
+function focusReviewDetails(session){
+  if(!session.goal)return '';
+  const result=session.review?.result==='reached'?'Reached':session.review?.result==='partial'?'Partial':'Ready to review';
+  return `<small class="session-review-detail">${escape(session.goal)} · ${result}${session.review?.next?`<br>Next: ${escape(session.review.next)}`:''}</small>`;
+}
+function fitTaskResults(minutes){
+  if(!Number.isInteger(minutes)||minutes<1||minutes>1440)return '<p>Enter the minutes you have available.</p>';
+  const tasks=tasksWithinTime(gardenFocusQueue(),minutes);
+  const locked=state.timer.block||state.timer.mode==='focus'&&state.timer.id;
+  if(!tasks.length)return '<p>No ready tasks with an estimate fit this window.</p>';
+  return `${locked?'<p>Finish or reset the current focus timer to choose a different task.</p>':''}
+    <ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-fit-task="${escape(task.id)}" ${locked?'disabled':''}><strong>${escape(task.text)}</strong><small>${task.estimate} min · P${taskPriority(task)}</small></button></li>`).join('')}</ul>`;
 }
 
 function availableCaptures(){
@@ -1001,6 +1108,21 @@ function timerNotificationControls(){
     <button type="button" class="text-button" id="timer-open-sounds">Adjust chimes and ambience</button></section>`;
 }
 function panelContent(id){
+  if(id==='routine-editor')return routineEditor();
+  if(id==='focus-review')return focusReviewMarkup();
+  if(id==='focus-goal')return `${header('FOCUS','Set an outcome')}
+    <form id="focus-goal-form">
+      <label class="field-label" for="session-goal">What will you finish?</label>
+      <input id="session-goal" name="goal" maxlength="160" placeholder="Solve problems 1–4" value="${escape(state.timer.goal)}">
+      <div class="panel-actions">
+        ${state.timer.mode==='focus'&&state.timer.status==='idle'?'<button class="text-button" type="submit" value="begin">Save and begin</button>':''}
+        <button class="panel-primary" type="submit" value="save">Save outcome</button>
+      </div>
+    </form>`;
+  if(id==='fit-task')return `${header('CURRENT TASK','Find a task by time')}
+    <label class="field-label" for="fit-minutes">Minutes available</label>
+    <input id="fit-minutes" type="number" min="1" max="1440" value="${fitMinutes}">
+    <div id="fit-results" aria-live="polite">${fitTaskResults(fitMinutes)}</div>`;
   if(id==='capture-project'){
     const projects=state.projects.filter(project=>!project.archived);
     return `${header('CAPTURED THOUGHT','Attach to a project')}${projects.length?`<form id="capture-project-form"><label class="field-label" for="capture-project-id">Project</label><select id="capture-project-id" required>${projects.map(project=>`<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('')}</select><div class="panel-actions"><button class="panel-primary">Attach thought</button></div></form>`:'<p>Create a project in Planner to attach a thought.</p>'}`;
@@ -1031,6 +1153,7 @@ function panelContent(id){
     afterCompletion.set(task.id,{...task,done:true});
     const next=gardenFocusQueue(new Date(),gardenTasks(),afterCompletion).find(item=>item.id!==task.id);
     return `${header('CURRENT TASK','Finish early?')}<p>Mark <strong>${escape(task.text)}</strong> complete.</p>
+      ${state.timer.sequence?'<p>This also ends the current routine.</p>':''}
       <p>${next?`Up next · <strong>${escape(next.text)}</strong>`:'Your task queue is clear after this.'}</p>
       <div class="panel-actions"><button type="button" class="text-button" data-finish-task="break" data-task-id="${escape(task.id)}">Take a break</button><button type="button" class="panel-primary" data-finish-task="focus" data-task-id="${escape(task.id)}">Keep going</button></div>`;
   }
@@ -1070,7 +1193,7 @@ function panelContent(id){
     <p class="note-caption"><kbd>Ctrl+Alt+N</kbd> for quick capture</p>
     <div id="notes-captures">${captureCards()}</div>`;
   if(id==='progress'){
-    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time></span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p>`;
+    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time>${focusReviewDetails(h)}</span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p>`;
   }
   return `${header('BY THE LAKE','Your own soundtrack.')}<label class="field-label" for="spotify-link">Spotify playlist, album, or track link</label><form id="spotify-form" class="music-link"><input id="spotify-link" type="url" value="${escape(state.spotify)}" placeholder="https://open.spotify.com/playlist/…" required><button class="panel-primary" type="submit">Load</button></form><div id="music-player-wrap"></div><p id="spotify-error" role="status" class="panel-subtle"></p><div class="panel-actions"><a class="panel-primary" id="open-spotify-external" href="https://open.spotify.com/" target="_blank" rel="noopener noreferrer">Open Spotify ${icon('external')}</a><button class="text-button" id="remove-player" ${state.spotify?'':'hidden'}>Remove player</button></div><p class="music-tip">The embedded player pauses app sounds automatically. Open Spotify enables the outside music switch below.</p>${soundControls()}`;
 }
@@ -1098,10 +1221,12 @@ function positionPanel(panel,anchor){
 }
 function visiblePanel(){return root.querySelector('.panel:not(.music-hidden)');}
 function openPanel(id,anchor){
+  if(id==='focus-goal')goalTimer=state.timer;
   closePanel(false);activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','schedule-drop'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','schedule-drop','routine-editor'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  if(id==='routine-editor')updatePhaseButtons();
   const scheduleForm=panel.querySelector('#task-editor-form,#block-editor-form');
   if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(id==='music')syncSound();
@@ -1128,6 +1253,7 @@ function refreshPanel(){
   if(!p)return;
   const focusId=p.contains(document.activeElement)?document.activeElement.id:null;
   p.innerHTML=panelContent(activePanel);
+  if(activePanel==='routine-editor')updatePhaseButtons();
   const scheduleForm=p.querySelector('#task-editor-form,#block-editor-form');
   if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(activePanel==='calendar-block')updateBlockPreview(Date.now());
@@ -2239,6 +2365,24 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const phase=e.target.closest('[data-phase-action]');
+  if(phase){changePhaseRows(phase);return;}
+  const routineEditorButton=e.target.closest('#add-routine-sequence,[data-edit-routine]');
+  if(routineEditorButton){
+    editingRoutineId=routineEditorButton.dataset.editRoutine||null;
+    openPanel('routine-editor',$('[data-panel="pagoda"]'));return;
+  }
+  const fit=e.target.closest('[data-fit-task]');
+  if(fit){
+    const minutes=Number($('#fit-minutes').value);
+    const task=tasksWithinTime(gardenFocusQueue(),minutes).find(item=>item.id===fit.dataset.fitTask);
+    if(!task||state.timer.block||state.timer.mode==='focus'&&state.timer.id)return;
+    const previous=state.activeTask,previousDay=state.activeTaskDay;
+    state.activeTask=task.id;state.activeTaskDay=dayKey();
+    if(!persist()){state.activeTask=previous;state.activeTaskDay=previousDay;return;}
+    closePanel(false);refreshTasks();timerButton.focus({preventScroll:true});
+    announce(`Current task: ${task.text}`);return;
+  }
   const template=e.target.closest('[data-template-action]');
   if(template){editTaskTemplate(template);return;}
   const estimate=e.target.closest('[data-use-estimate]');
@@ -2341,6 +2485,15 @@ root.addEventListener('click',e=>{
   if(btn.dataset.routine){
     const routine=[...builtinRoutines,...state.routines].find(item=>item.id===btn.dataset.routine);
     if(!routine)return;
+    if(routine.phases){
+      checkCompletion();
+      if(state.timer.id){toast('Finish or reset the current timer before switching routines.');return;}
+      const prior=state.timer;
+      loadRoutinePhase(state,routine);
+      if(!persist()){state.timer=prior;return;}
+      closePanel(false);render();timerButton.focus({preventScroll:true});
+      confirmChange(`${routine.name} is ready.`);return;
+    }
     action(()=>{
       state.settings.focus=routine.focus/60000;
       state.settings.break=routine.rest/60000;
@@ -2385,6 +2538,11 @@ root.addEventListener('click',e=>{
   }
 });
 root.addEventListener('input',e=>{
+  if(e.target.id==='fit-minutes'){
+    const minutes=Number(e.target.value);
+    if(e.target.validity.valid&&minutes>0)fitMinutes=minutes;
+    $('#fit-results').innerHTML=fitTaskResults(minutes);
+  }
   if(e.target.id==='prerequisite-search'){
     const query=e.target.value.trim().toLowerCase();
     let matches=0;
@@ -2492,6 +2650,42 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='focus-goal-form'){
+    const fields=new FormData(e.target),goal=String(fields.get('goal')).trim();
+    const previous=state.timer.goal;
+    if(state.timer!==goalTimer||state.timer.mode!=='focus'){toast('The focus session changed. Reopen the outcome editor.');return;}
+    state.timer.goal=goal;
+    if(!persist()){state.timer.goal=previous;return;}
+    closePanel(false);render();
+    if(e.submitter?.value==='begin'&&state.timer.status==='idle')timerButton.click();
+    timerButton.focus({preventScroll:true});return;
+  }
+  if(e.target.id==='focus-review-form'){
+    const fields=new FormData(e.target),result=fields.get('result'),next=String(fields.get('next')).trim();
+    const session=state.history.find(item=>item.id===e.target.dataset.session&&item.goal&&!item.review);
+    if(!session||!['reached','partial'].includes(result))return;
+    const task=state.tasks.find(item=>item.id===session.taskId),previous=task?.resumeNote;
+    session.review={result,next};
+    if(task&&next)task.resumeNote=next;
+    if(!persist()){delete session.review;if(task&&next)task.resumeNote=previous;return;}
+    closePanel(false);render();timerButton.focus({preventScroll:true});confirmChange('Focus review saved.');return;
+  }
+  if(e.target.id==='routine-editor-form'){
+    const fields=new FormData(e.target),names=fields.getAll('phase-name'),modes=fields.getAll('phase-mode'),minutes=fields.getAll('phase-minutes');
+    const name=String(fields.get('name')).trim();
+    const phases=routinePhases(names.map((name,index)=>({name,mode:modes[index],ms:Number(minutes[index])*60000})));
+    if(!name||!phases){
+      const error=$('#routine-editor-error');error.hidden=false;error.textContent='Enter a routine name and a name and duration for each phase.';return;
+    }
+    const prior=state.routines;
+    if(editingRoutineId&&!prior.some(item=>item.id===editingRoutineId)){toast('This routine was removed in another tab.');return;}
+    const routine={id:editingRoutineId||crypto.randomUUID(),name,phases};
+    state.routines=editingRoutineId?prior.map(item=>item.id===editingRoutineId?routine:item):[...prior,routine];
+    if(!persist()){state.routines=prior;return;}
+    openPanel('pagoda',$('[data-panel="pagoda"]'));
+    root.querySelector(`[data-routine="${CSS.escape(routine.id)}"]`)?.focus({preventScroll:true});
+    confirmChange('Routine saved.');return;
+  }
   if(e.target.id==='deadline-plan-form'){saveDeadlinePlan(e.target);return;}
   if(e.target.id==='schedule-drop-form'){saveScheduleDrop();return;}
   if(e.target.id==='plan-tomorrow-form'){saveTomorrowPlan(e.target);return;}
@@ -2590,7 +2784,11 @@ root.addEventListener('submit',e=>{
     state.settings.focus=focus/60000;
     state.settings.break=rest/60000;
     state.intention=$('#intention').value.trim();
-    if(!state.timer.id)reset(state);
+    if(!state.timer.id&&!state.timer.sequence){
+      const goal=state.timer.goal;
+      reset(state);
+      if(goal)state.timer.goal=goal;
+    }
     persist();render();toast('Your rhythm is saved.');closePanel();
   }
   if(e.target.id==='task-editor-form'){
@@ -2827,7 +3025,7 @@ function formatDurationInput(event){
   input.setSelectionRange(caret,caret);
 }
 function finishEdit(focusTarget=editDuration){durationForm.hidden=true;editDuration.hidden=false;focusTarget.focus({preventScroll:true});}
-editDuration.onclick=()=>{typed.value=formatDuration(duration(state));typed.setCustomValidity('');editDuration.hidden=true;durationForm.hidden=false;typed.focus();typed.select();};
+editDuration.onclick=()=>{typed.value=formatDuration(state.timer.sequence?state.timer.total:duration(state));typed.setCustomValidity('');editDuration.hidden=true;durationForm.hidden=false;typed.focus();typed.select();};
 $('#cancel-duration').onclick=()=>finishEdit();
 typed.oninput=formatDurationInput;
 typed.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();finishEdit();}};
@@ -2838,8 +3036,15 @@ durationForm.onsubmit=e=>{
   const mode=state.timer.mode;
   action(()=>{
     if(state.timer.id)record(state,'skipped');
-    state.settings[mode]=ms/60000;
-    reset(state,mode);
+    const {sequence,goal}=state.timer;
+    if(sequence){
+      const phases=sequence.phases.map((phase,index)=>index===sequence.index?{...phase,ms}:phase);
+      loadRoutinePhase(state,{...sequence,phases},sequence.index);
+    }else{
+      state.settings[mode]=ms/60000;
+      reset(state,mode);
+    }
+    if(goal)state.timer.goal=goal;
   });
   finishEdit(timerButton);
   announce(`Timer set to ${formatDuration(ms)}.`);

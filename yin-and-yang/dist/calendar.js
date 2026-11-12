@@ -174,6 +174,11 @@ export function focusTaskQueue(tasks,date=new Date(),pinnedIds=[],tasksById=new 
   return pinnedIds.length?automatic.sort((a,b)=>(rank.get(a.id)??pinnedIds.length)-(rank.get(b.id)??pinnedIds.length)):automatic;
 }
 
+export function tasksWithinTime(queue,minutes){
+  return queue.filter(task=>Number.isInteger(task.estimate)&&task.estimate>0&&task.estimate<=minutes)
+    .sort((a,b)=>taskPriority(a)-taskPriority(b)||b.estimate-a.estimate).slice(0,5);
+}
+
 const replanStep=15;
 const roundUp=minute=>Math.ceil(minute/replanStep)*replanStep;
 function openSlots(busy,from,cutoff){

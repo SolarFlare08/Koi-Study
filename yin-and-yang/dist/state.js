@@ -153,6 +153,18 @@ export function freshState() {
     replanCutoff:'21:00', tomorrowPlan:null, activeTaskDay:null,
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
+export function routinePhases(value) {
+  if(!Array.isArray(value)||value.length<2||value.length>12)return null;
+  if(!value.every(phase=>typeof phase?.name==='string'&&phase.name.trim()&&
+    ['focus','break'].includes(phase.mode)&&Number.isInteger(phase.ms)&&phase.ms>=1000&&phase.ms<=10800000))return null;
+  return value.map(({name,mode,ms})=>({name:name.trim().slice(0,40),mode,ms}));
+}
+export function loadRoutinePhase(state,sequence,index=0){
+  const phase=sequence.phases[index];
+  reset(state,phase.mode);
+  Object.assign(state.timer,{remaining:phase.ms,total:phase.ms,sequence:{...sequence,index}});
+}
+
 export function loadState(storage) {
   const base = freshState();
   try {
@@ -173,7 +185,12 @@ export function loadState(storage) {
     if(Array.isArray(raw.processedCaptures))base.processedCaptures=raw.processedCaptures.filter(key=>typeof key==='string');
     base.sounds=loadSoundSettings(raw.sounds);
     base.notifications=raw.notifications===true;
-    if (Array.isArray(raw.routines)) base.routines=raw.routines.filter(routine=>routine && typeof routine.id==='string' && typeof routine.name==='string' && ['focus','rest'].every(key=>Number.isInteger(routine[key])&&routine[key]>=1000&&routine[key]<=10800000));
+    if (Array.isArray(raw.routines)) base.routines=raw.routines.flatMap(routine=>{
+      if(typeof routine?.id!=='string'||typeof routine.name!=='string')return [];
+      const phases=routinePhases(routine.phases);
+      if(phases)return [{id:routine.id,name:routine.name,phases}];
+      return ['focus','rest'].every(key=>Number.isInteger(routine[key])&&routine[key]>=1000&&routine[key]<=10800000)?[routine]:[];
+    });
     for (const key of ['intention','notes','spotify']) if (typeof raw[key] === 'string') base[key] = raw[key];
     base.stickyNotes=loadStickyNotes(raw.stickyNotes,base.notes);
     for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
@@ -200,6 +217,12 @@ export function loadState(storage) {
     const t=raw.timer;
     if (t && ['focus','break'].includes(t.mode) && ['idle','running','paused'].includes(t.status) && Number.isFinite(t.remaining) && t.remaining>=0 && t.remaining<=10800000 && Number.isFinite(t.total) && t.total>0 && t.total<=10800000 && (t.status!=='running' || (Number.isFinite(t.endAt) && typeof t.id==='string' && Number.isFinite(t.startedAt)))) {
       base.timer={...t};
+      const sequence=t.sequence, phases=routinePhases(sequence?.phases);
+      if(phases&&typeof sequence.name==='string'&&Number.isInteger(sequence.index)&&phases[sequence.index]?.mode===t.mode){
+        base.timer.sequence={name:sequence.name,phases,index:sequence.index};
+      }else delete base.timer.sequence;
+      if(typeof t.goal==='string')base.timer.goal=t.goal.slice(0,160);
+      else delete base.timer.goal;
       const block=t.block;
       if (t.status==='idle' || typeof block?.taskId!=='string' || !Number.isFinite(block.left) || block.left<0 || block.left>25*3600000) delete base.timer.block;
       else if (base.tasks.some(task=>task.id===block.taskId)) base.activeTask=block.taskId;
@@ -255,9 +278,12 @@ export function startBlockFocus(state, taskId, available, split, now=Date.now(),
 }
 
 function advanceTimer(state, now) {
-  const {mode,block}=state.timer;
+  const {mode,block,sequence}=state.timer;
   const next=mode==='focus'?'break':'focus';
-  if (block?.left>0) {
+  if(sequence){
+    if(sequence.index+1<sequence.phases.length)loadRoutinePhase(state,sequence,sequence.index+1);
+    else reset(state,'focus');
+  }else if (block?.left>0) {
     const {occurrence,blockId,taskDay}=block;
     startBlockPhase(state,next,block.taskId,block.left,true,now,{occurrence,blockId,taskDay});
   }
@@ -276,6 +302,7 @@ export function record(state, outcome, now=Date.now(), {early=false}={}) {
   const task=t.taskSnapshot||state.tasks.find(task=>task.id===t.block?.taskId);
   const intention=t.block?(task?.text||state.intention):(state.intention||task?.text||'');
   const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention,taskTitle:task?.text||'',taskId:task?.id||'',projectId:task?task.projectId||'':null};
+  if(t.mode==='focus'&&outcome==='completed'&&t.goal)h.goal=t.goal;
   const block=t.block||t.calendarBlock;
   if(t.mode==='focus'&&isDay(block?.occurrence)&&Object.hasOwn(block,'blockId')){
     h.calendarBlock={occurrence:block.occurrence,blockId:block.blockId||null};

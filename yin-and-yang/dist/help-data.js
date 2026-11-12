@@ -37,7 +37,8 @@ export const helpTopics = [
     steps:['In Garden, open `Settings` from the top tools.',
       'Set Focus and Rest lengths and add a session intention under `What are you making space for?`. Choose `Save rhythm`.',
       'Use the routines section to apply Classic (25/5), Deep work (50/10), or a routine you saved.',
-      'To save your own routine, give it a name and set its focus and rest lengths, then save it.'],
+      'To save your own routine, give it a name and set its focus and rest lengths, then save it.',
+      'Choose `Create a multi-phase routine` to name, reorder, and save a sequence of focus and break phases. Select the saved routine to load it. Each phase is ready to start when the previous one ends.'],
     tip:'When a session has already started, saved settings apply to the next session. Your current countdown is not silently replaced.',
     action:'settings', actionLabel:'Open timer settings', related:['timer','focus-mode']
   },
@@ -47,9 +48,19 @@ export const helpTopics = [
     steps:['In Garden, click `Current task` below the timer.',
       'Select a task to focus on. Drag rows or use their up/down arrows to pin a custom order for today.',
       'Choose `Use calendar order` to restore automatic ordering. Calendar blocks come first, followed by unscheduled tasks in priority order.',
-      'Use the finish-current-task control beside the task to end early. Choose `Take a break` or `Keep going` to continue with the next task.'],
+      'Use the finish-current-task control beside the task to end early. Choose `Take a break` or `Keep going` to continue with the next task.',
+      'Choose `Find a task by time` and enter your available minutes. Garden suggests ready tasks that fit, with higher priorities first.'],
     tip:'Your pinned order is for today. A session started from a calendar block keeps that block’s task selected.',
     action:'focus', actionLabel:'Open Garden', related:['resume','tomorrow','block-focus']
+  },
+  {
+    id:'focus-outcome', group:'Focus & rest', title:'Set and review a focus outcome',
+    summary:'Write what you want to finish, then record how far you got.',
+    steps:['Choose `Set outcome` beneath the timer and write a concrete goal, such as “Solve problems 1–4.”',
+      'Choose `Save and begin` to start a ready timer with the outcome.',
+      'After the session, choose `Review outcome`, mark it Reached or Partial, and leave a next step. The next step appears on the task if the session was linked to one.'],
+    tip:'Choose Later if you want to review it another time. Garden keeps completed outcomes available to review.',
+    action:'focus', actionLabel:'Open Garden', related:['timer','resume']
   },
   {
     id:'resume', group:'Focus & rest', title:'Pick up where you left off',
