@@ -1,11 +1,39 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {focusTaskQueue} from '../dist/calendar.js';
-import {planDeadline,scheduleImpact} from '../dist/scheduling.js';
+import {draftStudyWeek,planDeadline,scheduleImpact} from '../dist/scheduling.js';
 import {createsDependencyCycle,freshState,loadState,recordTaskCompletion} from '../dist/state.js';
 
 const date = (day,hour=0,minute=0) => new Date(2026,10,day,hour,minute);
 const event = (title,start,end) => ({title,start:+start,end:+end});
+
+test('a weekly draft protects commitments, prioritizes deadlines, and reports work that cannot fit',()=>{
+  const urgent={id:'urgent',text:'Lab report',deadline:'2026-11-12',estimate:70,blocks:[{id:'first',date:'2026-11-12',time:'09:20',minutes:15}]};
+  const later={id:'later',text:'Read chapter',deadline:'2026-11-14',estimate:50};
+  const waiting={id:'waiting',text:'Review report',deadline:'2026-11-13',estimate:20,prerequisiteIds:['urgent']};
+  const unknown={id:'unknown',text:'Unestimated',deadline:'2026-11-15'};
+  const tasks=[later,waiting,urgent,unknown];
+  const input={tasks,tasksById:new Map(tasks.map(task=>[task.id,task])),history:[],events:[
+    event('Class',date(12,9),date(12,9,20)),
+    {title:'Away',day:'2026-11-13',endDay:'2026-11-14'}
+  ],availability:[{days:[date(12).getDay()],start:'09:50',end:'10:00'}]};
+  const options={date:'2026-11-12',start:540,end:600,capacity:50};
+  const draft=draftStudyWeek(input,options,date(12,9,5));
+  assert.deepEqual(draft.days.slice(0,3).map(day=>day.slots.map(({taskId,start,minutes})=>({taskId,start,minutes}))),[
+    [{taskId:'urgent',start:575,minutes:15}],[],[{taskId:'later',start:540,minutes:50}]
+  ]);
+  assert.deepEqual(draft.risks.map(({task,reason,unplaced})=>[task.id,reason,unplaced]),[
+    ['urgent','capacity',40],['waiting','prerequisite',20],['unknown','estimate',undefined]
+  ]);
+  assert.equal(urgent.blocks.length,1);
+
+  // Simulate approving Thursday and redrafting. Only Saturday still needs approval.
+  urgent.blocks.push({id:'approved',date:'2026-11-12',time:'09:35',minutes:15});
+  const refreshed=draftStudyWeek(input,options,date(12,9,5));
+  assert.deepEqual(refreshed.days[0].slots,[]);
+  assert.deepEqual(refreshed.days[2].slots,draft.days[2].slots);
+  assert.equal(refreshed.risks[0].unplaced,40);
+});
 
 test('deadline plans work backward, credit existing effort, and show a shortfall',()=>{
   const task={id:'report',text:'Write report',estimate:150,deadline:'2026-11-13',done:false,blocks:[

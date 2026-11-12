@@ -192,7 +192,31 @@
 .estimate-suggestion { margin: 7px 0; padding: 8px 10px; border-radius: 7px; background: var(--surface-field); color: var(--surface-muted); }
 .estimate-suggestion p { margin: 0; font-size: 12px; }
 .estimate-suggestion button { padding: 4px 0 0; font-size: 12px; }
-.milestone-next { text-align: left; color: var(--planner-accent); overflow-wrap: anywhere; }
+#planner-project-overview { flex: none; margin: 0 clamp(12px,3vw,32px) 12px; border: 1px solid var(--planner-line); border-radius: 10px; background: var(--planner-sidebar); }
+#planner-project-overview summary { padding: 8px 12px; color: var(--planner-accent); font-weight: 650; cursor: pointer; }
+#planner-project-context { max-height: min(32vh, 280px); overflow: auto; padding: 0 12px 12px; overflow-wrap: anywhere; }
+.project-overview-next { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; padding: 8px 0 12px; }
+.project-overview-next button:disabled { opacity: .55; cursor: default; }
+.project-overview-next p, .project-overview-sections p { margin: 4px 0 0; color: var(--planner-muted); font-size: 12px; }
+.project-overview-sections { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(160px,100%),1fr)); gap: 12px; }
+.project-overview-sections section { min-width: 0; border-top: 1px solid var(--planner-line); padding-top: 8px; }
+.project-overview-sections h3 { margin: 0 0 4px; font-size: 13px; }
+.project-overview-sections ul, .week-draft-day ul, .week-draft-risks ul { margin: 0; padding: 0; list-style: none; }
+.project-context-item { display: grid; gap: 2px; padding: 5px 0; text-align: left; overflow-wrap: anywhere; }
+.project-context-item span { color: var(--planner-muted); font-size: 12px; }
+button.project-context-item:hover { color: var(--planner-accent); }
+.project-overview-sections .related-sticky-notes > strong { display: none; }
+#panel-root .event-editor:has(#build-week-form) { width: min(680px,calc(100vw - 24px)); }
+.week-draft-settings, .week-draft-days { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(155px,100%),1fr)); gap: 10px; }
+.week-draft-settings label { display: grid; align-content: start; gap: 4px; font-size: 12px; }
+.week-draft-settings input { min-width: 0; }
+.week-draft-settings :is(.panel-actions,.event-error) { grid-column: 1/-1; }
+#week-draft-heading { margin-top: 14px; }
+.week-draft-day, .week-draft-risks { padding: 9px 11px; border: 1px solid var(--surface-line); border-radius: 9px; background: var(--surface-raised); overflow-wrap: anywhere; }
+.week-draft-risks { margin: 6px 0 10px; }
+.week-draft-day h3, .week-draft-risks h4 { margin: 0 0 4px; font-size: 13px; }
+.week-draft-day li, .week-draft-risks li { display: grid; gap: 2px; padding: 4px 0; font-size: 12px; }
+.week-draft-day p, .week-draft-day span, .week-draft-risks span { margin: 3px 0; color: var(--surface-muted); font-size: 12px; }
 .milestone-list { max-height: 52dvh; overflow: auto; }
 .milestone-list section { padding: 9px 0; border-top: 1px solid var(--planner-line); }
 .milestone-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }

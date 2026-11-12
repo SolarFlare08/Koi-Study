@@ -47,6 +47,7 @@
         <button id="finish-current-task" type="button" aria-label="Finish current task early" aria-haspopup="dialog" aria-expanded="false" title="Finish current task early" hidden>Finish</button>
       </div>
       <button id="resume-task" class="resume-task" type="button" aria-haspopup="dialog" hidden></button>
+      <button id="focus-project-context" class="resume-task" type="button" aria-haspopup="dialog" title="Open project context" hidden></button>
       <button id="focus-linked-notes" class="resume-task" type="button" aria-controls="focus-notes-panel" aria-expanded="false" hidden>Task notes</button>
       <p id="routine-phase" class="routine-phase-caption" aria-live="polite" hidden></p>
       <div class="session-tools">
@@ -116,6 +117,7 @@
           <button id="close-calendar" class="icon-button" type="button" aria-label="Return to Garden"><span data-icon="close"></span></button>
         </header>
         <div class="planner-heading-row"><div><h2 id="planner-heading" tabindex="-1">Today</h2><p id="planner-heading-detail" hidden></p></div><div id="planner-heading-actions"></div></div>
+        <details id="planner-project-overview" hidden><summary>Project overview</summary><div id="planner-project-context"></div></details>
         <div id="calendar-toolbar" hidden>
           <div id="calendar-range" aria-live="polite"></div>
           <div class="calendar-toolbar-actions">

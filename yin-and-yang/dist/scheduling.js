@@ -1,5 +1,6 @@
-import {calendarBlocks, calendarTaskBlock, openFocusBlock, shiftDay} from './calendar.js';
-import {dayKey, taskStatus} from './state.js';
+import {allDayEvents, calendarBlocks, calendarTaskBlock, openFocusBlock, shiftDay} from './calendar.js';
+import {dayKey, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
+import {unavailableRanges} from './availability.js';
 
 const dayMinutes = 24 * 60;
 const minuteMs = 60_000;
@@ -76,13 +77,8 @@ export function canPlanDeadline(task) {
   return !task.done && Number.isInteger(task.estimate) && task.estimate > 0 && Boolean(task.deadline);
 }
 
-export function planDeadline(task, tasks, events, history, now, cutoff, dailyCapacity) {
-  if (!canPlanDeadline(task)) return null;
-  const deadline = new Date(`${task.deadline}T00:00:00`);
-  if (!Number.isFinite(+deadline) || dayKey(deadline) !== task.deadline) return null;
-  const today = shiftDay(now, 0);
+function deadlineWork(task, history, now, firstDay, deadline) {
   const lastDay = shiftDay(deadline, 1);
-  const firstDay = new Date(Math.max(+today, +shiftDay(deadline, -365)));
   const recurring = task.repeat && task.repeat !== 'none';
   let occurrence = null;
   if (recurring) {
@@ -91,7 +87,7 @@ export function planDeadline(task, tasks, events, history, now, cutoff, dailyCap
       occurrence = dayKey(date);
       break;
     }
-    if (!occurrence) return {slots: [], unplaced: task.estimate, booked: 0, recorded: 0, noOccurrence: true};
+    if (!occurrence) return {unplaced: task.estimate, booked: 0, recorded: 0, noOccurrence: true};
   }
   const blocks = task.blocks || [];
   const recorded = Math.floor(history.filter(session => {
@@ -108,7 +104,18 @@ export function planDeadline(task, tasks, events, history, now, cutoff, dailyCap
   if (task.date && task.time) existing.push(calendarTaskBlock(task, null, occurrence || task.date));
   const booked = Math.floor(occupiedMinutes(existing.filter(Boolean).map(block => ({start: +block.start, end: +block.end})),
     +now, +lastDay) / minuteMs);
-  let unplaced = Math.max(0, task.estimate - recorded - booked);
+  return {unplaced: Math.max(0, task.estimate - recorded - booked), booked, recorded, occurrence};
+}
+
+export function planDeadline(task, tasks, events, history, now, cutoff, dailyCapacity) {
+  if (!canPlanDeadline(task)) return null;
+  const deadline = new Date(`${task.deadline}T00:00:00`);
+  if (!Number.isFinite(+deadline) || dayKey(deadline) !== task.deadline) return null;
+  const today = shiftDay(now, 0);
+  const firstDay = new Date(Math.max(+today, +shiftDay(deadline, -365)));
+  const work = deadlineWork(task, history, now, firstDay, deadline);
+  if (work.noOccurrence) return {slots: [], ...work};
+  let {unplaced, booked, recorded, occurrence} = work;
   const days = [];
   const slots = [];
 
@@ -141,4 +148,63 @@ export function planDeadline(task, tasks, events, history, now, cutoff, dailyCap
   }
   slots.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
   return {slots, unplaced, booked, recorded, occurrence, lastYearOnly: firstDay > today};
+}
+
+export function draftStudyWeek({tasks, events, history, availability, tasksById}, {date, start, end, capacity}, now = new Date()) {
+  const first = new Date(`${date}T00:00:00`);
+  const today = dayKey(now);
+  if (!Number.isFinite(+first) || dayKey(first) !== date || date < today ||
+    !Number.isInteger(start) || start < 0 || !Number.isInteger(end) || end > dayMinutes || start >= end ||
+    !Number.isInteger(capacity) || capacity < 1 || capacity > dayMinutes) return null;
+
+  const days = Array.from({length: 7}, (_, index) => {
+    const day = shiftDay(first, index);
+    const key = dayKey(day);
+    const busy = commitments(tasks, events, day);
+    const booked = busy.reduce((total, block) => total + (block.task ? block.end - block.start : 0), 0);
+    const blocked = allDayEvents(events, day).length > 0;
+    const from = key === today ? Math.max(start, Math.ceil(minuteOfDay(now))) : start;
+    const ranges = blocked ? [] : freeRanges([...busy, ...unavailableRanges(availability, day)].sort((a, b) => a.start - b.start), from, end);
+    return {date: key, ranges, remaining: Math.max(0, capacity - booked), slots: []};
+  });
+
+  const last = days.at(-1).date;
+  const risks = [];
+  const deadlines = tasks.filter(task => !task.done && task.deadline && task.deadline <= last)
+    .sort((a, b) => a.deadline.localeCompare(b.deadline) || taskPriority(a) - taskPriority(b));
+  for (const task of deadlines) {
+    const deadline = new Date(`${task.deadline}T00:00:00`);
+    if (!Number.isFinite(+deadline) || dayKey(deadline) !== task.deadline) continue;
+    if (!canPlanDeadline(task)) {
+      if (task.repeat === 'none' || !task.repeat || !task.completedOn || task.completedOn < task.deadline) {
+        risks.push({task, reason: 'estimate'});
+      }
+      continue;
+    }
+    const work = deadlineWork(task, history, now, shiftDay(now, 0), deadline);
+    let unplaced = work.unplaced;
+    if (!unplaced) continue;
+    let reason = 'capacity';
+    if (task.deadline < today) reason = 'overdue';
+    else if (work.noOccurrence) reason = 'occurrence';
+    else if (unfinishedPrerequisites(task, tasksById).length) reason = 'prerequisite';
+    else {
+      for (const day of days) {
+        if (day.date > task.deadline || !unplaced) break;
+        if (task.snoozedUntil > day.date) continue;
+        while (unplaced && day.remaining && day.ranges.length) {
+          const range = day.ranges[0];
+          const minutes = Math.min(focusBlockMinutes, day.remaining, unplaced, range.end - range.start);
+          day.slots.push({taskId: task.id, date: day.date, start: range.start, minutes, occurrence: work.occurrence});
+          range.start += minutes;
+          day.remaining -= minutes;
+          unplaced -= minutes;
+          if (range.start === range.end) day.ranges.shift();
+        }
+      }
+    }
+    if (unplaced) risks.push({task, reason, unplaced});
+  }
+
+  return {days: days.map(({date, slots}) => ({date, slots})), risks, deadlines: deadlines.length};
 }

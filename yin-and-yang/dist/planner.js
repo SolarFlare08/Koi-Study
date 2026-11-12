@@ -1,4 +1,4 @@
-import {blockProgressLabels,calendarBlocks,allDayEvents,calendarDragType,openFocusBlock,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
+import {blockProgressLabels,calendarBlocks,calendarTaskBlock,allDayEvents,calendarDragType,openFocusBlock,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
 import {parseCalendarImport} from './calendar-import.js';
 import {summarizeWeek,weeklyProjectProgress} from './weekly-planning.js';
 import {dayKey,taskPriority,taskStatus,unfinishedPrerequisites} from './state.js';
@@ -37,7 +37,7 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>''}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>'',nextProjectTask,resumeProject,projectTimerLocked}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
@@ -46,6 +46,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   let view='today', selection='', layout='list', query='', date=new Date(), quick=null, expanded=new Set(), dialogAnchor=null;
   let parkedPlanner=null, calendarLayout='calendar', calendarProject='all';
   let reviewWeek=new Date();
+  let projectOverviewMarkup='';
   let reminderMinute=-1;
   const layouts=new Map(), collapsed=new Set();
   const report={mode:'activity',period:'all',project:'all',type:'task',metric:'ms'};
@@ -445,6 +446,61 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     $('#planner-search-count').textContent=view==='search'&&query?`${tasks.length} results`:'';
   }
 
+  function upcomingProjectBlocks(projectId, now){
+    const tasks=state().tasks.filter(task=>task.projectId===projectId);
+    const blocks=[];
+    for(let offset=0;offset<14&&blocks.length<5;offset++){
+      for(const block of calendarBlocks(tasks,shiftDay(now,offset))){
+        if(!openFocusBlock(block)||offset&&block.continues)continue;
+        const schedule=calendarTaskBlock(block.task,block.blockId,block.occurrence);
+        if(schedule?.end>now)blocks.push({...block,...schedule});
+      }
+    }
+    return blocks.sort((a,b)=>a.start-b.start).slice(0,5);
+  }
+
+  function renderProjectOverview(project){
+    const overview=$('#planner-project-overview');
+    overview.hidden=!project;
+    if(!project){delete overview.dataset.projectId;return;}
+    if(overview.dataset.projectId!==project.id){
+      overview.open=true;
+      overview.dataset.projectId=project.id;
+    }
+    const now=new Date();
+    const task=nextProjectTask(project.id);
+    const locked=projectTimerLocked();
+    const milestones=milestonesFor(project);
+    const next=milestones.find(item=>!item.complete);
+    const blocks=upcomingProjectBlocks(project.id,now);
+    const sessions=state().history.filter(item=>item.projectId===project.id&&item.mode==='focus')
+      .sort((a,b)=>b.finishedAt-a.finishedAt).slice(0,5);
+    const notes=linkedNotes(project.id);
+    const timestamp=date=>date.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    const markup=`<section class="project-overview-next" aria-label="Resume project">
+      <div><strong>${task?escape(task.text):'No task ready in Garden'}</strong>
+      ${task?.resumeNote?`<p>Next step · ${escape(task.resumeNote)}</p>`:''}
+      ${locked&&task?'<p>Finish or reset the current focus timer to switch projects.</p>':''}</div>
+      <button type="button" class="planner-primary" data-resume-project="${escape(project.id)}" ${!task||locked?'disabled':''}>Resume project</button></section>
+      <div class="project-overview-sections">
+        <section><h3>Next milestone</h3>${next?`<button type="button" class="project-context-item" data-manage="milestones"><strong>${escape(next.milestone.name)}</strong>
+          <span>${plainDate(next.milestone.date)} · ${next.done}/${next.tasks.length} tasks complete</span></button>`:
+          `<p>${milestones.length?'All milestones complete.':'No milestones yet.'}</p>`}</section>
+        <section><h3>Upcoming blocks</h3>${blocks.length?`<ul>${blocks.map(block=>`<li><button type="button" class="project-context-item" data-open-time
+          data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-task-day="${escape(block.taskDay)}" aria-haspopup="dialog">
+          <strong>${escape(block.task.text)}</strong><span>${shortDay(block.start)} · ${timestamp(block.start)}–${timestamp(block.end)}</span></button></li>`).join('')}</ul>`:
+          '<p>No upcoming blocks in the next 14 days.</p>'}</section>
+        <section><h3>Linked notes</h3>${notes||'<p>No linked notes.</p>'}</section>
+        <section><h3>Recent focus</h3>${sessions.length?`<ul>${sessions.map(session=>`<li class="project-context-item"><strong>${escape(session.taskTitle||'Focus session')}</strong>
+          <span>${shortDay(new Date(session.finishedAt))} · ${Math.round(session.focusMs/60000)} min · ${session.outcome==='skipped'?'Skipped':'Completed'}</span></li>`).join('')}</ul>`:
+          '<p>No recorded focus sessions.</p>'}</section>
+      </div>`;
+    if(projectOverviewMarkup!==markup){
+      $('#planner-project-context').innerHTML=markup;
+      projectOverviewMarkup=markup;
+    }
+  }
+
   function render() {
     const project=view==='project'?state().projects.find(item=>item.id===selection):null;
     const filter=view==='filter'?state().plannerFilters.find(item=>item.id===selection):null;
@@ -458,27 +514,23 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     root.dataset.plannerLayout=layout;
     $('#planner-heading').textContent=standalone?'Calendar':project?.name||filter?.name||(view==='label'?`%${selection}`:views[view]);
     const detail=$('#planner-heading-detail');
-    const milestones=project?milestonesFor(project):[];
-    const next=milestones.find(item=>!item.complete);
-    detail.hidden=view!=='today'&&view!=='inbox'&&!milestones.length;
-    if (milestones.length) {
-      detail.innerHTML=next?`<button type="button" class="milestone-next" data-manage="milestones">Next: ${escape(next.milestone.name)} · ${plainDate(next.milestone.date)} · ${next.done}/${next.tasks.length} tasks</button>`:
-        '<button type="button" class="milestone-next" data-manage="milestones">All milestones complete</button>';
-    } else if (!detail.hidden) {
+    detail.hidden=view!=='today'&&view!=='inbox';
+    if (!detail.hidden) {
       const count=matchingTasks().filter(task=>taskStatus(task)!=='done').length;
       detail.innerHTML=`${icon(view==='inbox'?'inbox':'check')} ${count} open ${count===1?'task':'tasks'}`;
     }
+    renderProjectOverview(project);
     $('#planner-breadcrumb').textContent=standalone?'Schedule':project?.archived?'Archived project':'Task workspace';
     const addTask=`<button class="planner-heading-add${standalone?'':' planner-mobile-add'}" type="button" ${standalone?'data-calendar-new':'data-planner-add'}>${icon('plus')} New task</button>`;
     const settings=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:view==='reporting'?`<button type="button" data-report-export>${icon('download')} Export CSV</button>`:'';
     const replan=standalone||view==='today'?'<button type="button" data-replan-today aria-haspopup="dialog">Replan today</button>':'';
     $('#planner-heading-actions').innerHTML=addTask+settings+replan+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button>`:'<button type="button" data-plan-tomorrow aria-haspopup="dialog">Plan tomorrow</button><button type="button" data-plan-deadline aria-haspopup="dialog">Plan to deadline</button>');
+    if(!standalone)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-build-week aria-haspopup="dialog">Build my week</button>');
     $('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-availability aria-haspopup="dialog">Availability</button>');
     if(standalone||project)$('#planner-heading-actions').insertAdjacentHTML('beforeend',
       `<button type="button" data-manage="calendar-export" data-value="${escape(project?.id)}">Export .ics</button>`);
     if(project)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="milestones" aria-haspopup="dialog">Milestones</button>');
     if(project?.thoughts?.length)$('#planner-heading-actions').insertAdjacentHTML('beforeend',`<button type="button" data-manage="project-thoughts">Thoughts (${project.thoughts.length})</button>`);
-    if(project&&linkedNotes(project.id))$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="project-notes" aria-haspopup="dialog">Linked notes</button>');
     $('#planner-layout-label').hidden=sectionView||standalone;
     $('#planner-toggle-sidebar').hidden=standalone;
     $('#calendar-layout-controls').hidden=!standalone;
@@ -652,13 +704,6 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       title='Import calendar';
       const sources=[...new Set(state().calendarEvents.filter(event=>!event.manual).map(event=>event.source||'Imported calendar'))];
       fields=`<label>iCalendar file<input type="file" name="calendar" accept=".ics,text/calendar" required></label><p>For Canvas, open Calendar → Calendar Feed and download the .ics file. Import it here again to refresh your assignments and events.</p><p><a href="https://community.instructure.com/en/kb/articles/662804-how-do-i-view-the-calendar-ical-feed-to-subscribe-to-an-external-calendar" target="_blank" rel="noopener noreferrer">Canvas calendar instructions ↗</a></p><p role="alert" id="planner-import-error" hidden></p>${sources.map(source=>`<p class="import-source">${escape(source)} <button type="button" data-remove-calendar="${escape(source)}">Remove</button></p>`).join('')}`;
-    } else if(type==='project-notes'){
-      if(!currentProject)return;
-      dialog.innerHTML=`<header><h3 id="planner-dialog-title">${escape(currentProject.name)} · Linked notes</h3>
-        <button type="button" data-dialog-close aria-label="Close dialog">×</button></header>
-        ${linkedNotes(currentProject.id)||'<p>No sticky notes are linked to this project.</p>'}`;
-      dialog.setAttribute('aria-labelledby','planner-dialog-title');
-      dialog.showModal();return;
     } else if (type==='project-thoughts') {
       if(!currentProject)return;
       dialog.innerHTML=`<header><h3 id="planner-dialog-title">${escape(currentProject.name)} · Thoughts</h3><button type="button" data-dialog-close aria-label="Close dialog">×</button></header><div class="project-thoughts">${(currentProject.thoughts||[]).map(note=>`<article><time>${escape(new Date(note.createdAt).toLocaleDateString())}</time><p>${escape(note.text)}</p></article>`).join('')}</div>`;
@@ -845,6 +890,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     }
     if (!button) return;
     const data=button.dataset;
+    if(data.resumeProject)return resumeProject(data.resumeProject);
     if(data.removeCalendar){
       const source=data.removeCalendar;
       const removed=state().calendarEvents.filter(event=>!event.manual&&(event.source||'Imported calendar')===source);
@@ -1045,6 +1091,6 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     return true;
   }
 
-  return {open,render,calendarTasks,checkReminders,setCalendarLayout,jumpMonth,calendarAnchor:()=>date,
+  return {open,render,calendarTasks,checkReminders,setCalendarLayout,jumpMonth,openProject:id=>setView('project',id),calendarAnchor:()=>date,
     refreshReporting:()=>{if (!root.hidden&&view==='reporting') renderContent();},calendarVisible:()=>!$('#planner-calendar-view').hidden};
 }

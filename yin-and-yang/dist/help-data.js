@@ -151,7 +151,15 @@ export const helpTopics = [
       'Use Inbox for ungrouped tasks, Today for due work and overdue tasks, and Upcoming to browse dates.',
       'Use Display to switch supported views between list, board, week calendar, three-day calendar, and month. Project settings let you edit, favorite, or archive a project.'],
     tip:'Archived projects are kept, but their tasks are left out of the Garden’s active focus queue.',
-    action:'planner', actionLabel:'Open Planner', related:['filters','csv-import','calendar']
+    action:'planner', actionLabel:'Open Planner', related:['project-resume','filters','csv-import','calendar']
+  },
+  {
+    id:'project-resume', group:'Tasks & projects', title:'Resume work on a project',
+    summary:'See project context in Planner and bring your next task to Garden.',
+    steps:['Select a project in Planner. Its overview shows the next milestone, upcoming blocks, linked sticky notes, and recent focus sessions.',
+      'Choose `Resume project` to select the project’s first ready task in the Garden focus queue. Finish or reset any current focus session first.',
+      'Read the task’s description and saved next step. Use linked notes for context or choose `Back to timer` when you are ready. The project name by the timer reopens this panel.'],
+    action:'planner', actionLabel:'Open Planner', related:['projects','linked-notes','focus-queue']
   },
   {
     id:'filters', group:'Tasks & projects', title:'Use filters, labels, and priorities',
@@ -200,7 +208,15 @@ export const helpTopics = [
       'Review the suggested blocks and how much time couldn’t fit. Suggestions credit booked time and completed focus for the task.',
       'Choose the blocks you want, then select `Add selected blocks`. Calendar opens to the first booking.'],
     tip:'Suggestions work backward from the deadline using 9 AM, your Replan cutoff, and the daily study capacity in Workload. For a repeating task, the plan targets the latest unfinished occurrence by the deadline.',
-    action:'deadline', actionLabel:'Open Plan to deadline', related:['workload','schedule-preview','task-dependencies']
+    action:'deadline', actionLabel:'Open Plan to deadline', related:['build-week','workload','schedule-preview','task-dependencies']
+  },
+  {
+    id:'build-week', group:'Calendar & planning', title:'Build a week around deadlines',
+    summary:'Draft seven days of focus blocks and see which deadlines need attention.',
+    steps:['Set deadlines and estimates on your tasks. In Planner, choose `Build my week` or find it with `Ctrl+K`.',
+      'Choose the first day, available hours, and daily study minutes. The draft works around your calendar commitments and recurring unavailable time.',
+      'Choose `Draft week`. Review the deadlines at risk and the blocks for each date. Choose `Approve day` to add that day’s blocks to Calendar.'],
+    action:'build-week', actionLabel:'Open Build my week', related:['deadline-plan','availability','workload']
   },
   {
     id:'multiple-blocks', group:'Calendar & planning', title:'Give one task multiple calendar blocks',
@@ -245,8 +261,8 @@ export const helpTopics = [
     summary:'Keep recurring work hours, evenings, and days off free when planning.',
     steps:['Open Planner or Calendar and choose `Availability`.',
       'Name the block, select the days it repeats, and set a start and end time or choose All day. An end time earlier than the start continues into the next day.',
-      'Choose `Add unavailable time`. Plan tomorrow and Replan today avoid these blocks. Open Availability again to edit or remove a block.'],
-    action:'calendar', actionLabel:'Open Calendar', related:['tomorrow','replan']
+      'Choose `Add unavailable time`. Build my week, Plan tomorrow, and Replan today avoid these blocks. Open Availability again to edit or remove a block.'],
+    action:'calendar', actionLabel:'Open Calendar', related:['build-week','tomorrow','replan']
   },
   {
     id:'tomorrow', group:'Calendar & planning', title:'Plan tomorrow in two minutes',
