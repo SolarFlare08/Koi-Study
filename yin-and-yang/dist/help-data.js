@@ -601,9 +601,19 @@ export const helpTopics = [
       'Choose Spring, Summer, Autumn, or Winter. Set weather manually or choose `Rotate every 8 minutes` for seasonal changes.',
       'Watch showers crossfade into lake mist and the cloud cover pull apart as skies clear. Each season has a signature detail: spring petals, summer fireflies, autumn leaves, or winter flurries.',
       'Under `Scenery motion`, choose Still for a static scene, Gentle for slow movement, or Lively for faster movement. Still also holds the timer-driven sun in place. This setting applies across all saved looks.',
+      'Choose a palette and lighting, then use `Saved Garden looks` to name and save the combination. Looks are silent by default. To include rain, water, and wind, set their levels in Music first and check the ambient sound option when saving.',
+      'Select a saved look to apply its colors, weather, motion, and ambience. Applying a named look pauses the daily schedule. Saving with the same name updates that look.',
       'For timed looks, choose the appearance you want, set a start time under `Daily Garden presets`, and choose `Save preset`. Enable `Switch looks by time of day`.'],
     tip:'Changing the look manually pauses the schedule until you save or enable it again. Resetting a timer returns its sun directly to the beginning of the cycle. Click the penguin for another thought.',
-    action:'appearance', actionLabel:'Open Appearance', related:['focus-mode','music'], keywords:'theme garden snow rain fog sun sunset sunrise night day seasons presets'
+    action:'appearance', actionLabel:'Open Appearance', related:['focus-mode','music','garden-postcard'], keywords:'theme garden snow rain fog sun sunset sunrise night day seasons presets'
+  },
+  {
+    id:'garden-postcard',group:'Make it yours',title:'Export a Garden postcard',
+    summary:'Download a 1600 × 900 PNG of the landscape with an optional caption.',
+    steps:['In Garden, open Appearance or the Field Guide and choose `Export postcard`.',
+      'Type a caption such as a semester title or milestone, choose `Use month`, or leave it blank.',
+      'Choose `Download PNG`. To export an earlier Garden, first open a historical view from the Field Guide.'],
+    action:'garden-postcard',actionLabel:'Open postcard export',related:['garden-growth','appearance']
   },
   {
     id:'music', group:'Make it yours', title:'Spotify, optional ambience, and silence',

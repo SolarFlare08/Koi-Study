@@ -4,7 +4,7 @@
 .appearance-options legend { margin-bottom: 8px; padding: 0; font-size: 12px; font-weight: 650; }
 .appearance-options p { margin: 6px 0 0; font-size: 11px; }
 .lighting-options, .season-options { display: grid; gap: 6px; }
-.lighting-options { grid-template-columns: 1.45fr 1fr 1fr; }
+.lighting-options { grid-template-columns: repeat(auto-fit,minmax(65px,1fr)); }
 .season-options { grid-template-columns: 1fr 1fr; }
 .appearance-options label { position: relative; min-width: 0; cursor: pointer; }
 .appearance-options label > span { display: grid; gap: 4px; padding: 9px; border: 1px solid var(--surface-line); border-radius: 7px; background: var(--surface-field); font-size: 12px; }
@@ -43,6 +43,25 @@
   --bank-upper:#afc2ca; --bank-lower:#647f8c; --shore-upper:#d9e6e8; --shore-lower:#90aab4;
   --water-horizon:#dce5e7; --water-middle:#bfccd2; --water-near:#829fab; --shore-reed:#8a8a78; --pavilion-roof:#536d70;
 }
+#app[data-palette="jade"] {
+  --season-sky:#c2e2c9; --ridge-near:#387969; --ridge-base:#91bfa1;
+  --water-horizon:#d9eee0; --water-middle:#9bcbbb; --water-near:#568e85;
+  --shore-upper:#9ac393; --shore-lower:#548c74;
+}
+#app[data-palette="amber"] {
+  --season-sky:#ffd09a; --season-sky-strength:.78; --ridge-near:#936d64; --ridge-base:#cba487;
+  --water-horizon:#f0d8bb; --water-middle:#c9ada0; --water-near:#898c8d;
+  --shore-upper:#d5aa73; --shore-lower:#977951;
+}
+#app[data-palette="ink"] {
+  --season-sky:#aec9e1; --season-sky-strength:.7; --ridge-near:#526d92; --ridge-base:#9bacbd;
+  --water-horizon:#ccdbe6; --water-middle:#91adc1; --water-near:#52738e;
+  --shore-upper:#92a5ae; --shore-lower:#547786;
+}
+.named-garden-looks #garden-look-form, #garden-postcard-form { display: grid; gap: 7px; }
+.named-garden-looks #garden-look-form button { justify-self: start; }
+.named-garden-looks li > button:first-child { text-align: left; overflow-wrap: anywhere; }
+#garden-postcard-form label { font-size: 12px; }
 .season-layer { display: none; }
 #app[data-season="spring"] .spring-scene, #app[data-season="summer"] .summer-scene, #app[data-season="autumn"] .autumn-scene, #app[data-season="winter"] .winter-scene { display: inline; }
 .summer-dragonfly { animation: summer-hover 9s ease-in-out infinite alternate; }

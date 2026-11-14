@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {daylight,sunPosition} from '../dist/daylight.js';
 import {animateLandscape} from '../dist/scenery.js';
-import {gardenWeather,loadAppearance,sceneProgress,sceneryWeatherLayers,scheduledAppearance,weatherInterval} from '../dist/garden-appearance.js';
+import {gardenWeather,loadAppearance,loadGardenLooks,sceneProgress,sceneryWeatherLayers,scheduledAppearance,weatherInterval} from '../dist/garden-appearance.js';
 
 test('sunrise brightens into day; sunset darkens into night',()=>{
   assert.ok(daylight(0).shade>daylight(.12).shade);
@@ -66,12 +66,19 @@ test('sun follows a circular arc on standard and wide screens',()=>{
   }
 });
 test('fixed lighting stays still and saved seasons load independently',()=>{
-  assert.deepEqual(loadAppearance({lighting:'day',season:'winter'},0),{lighting:'day',season:'winter',weather:'auto',weatherSince:0,motion:'gentle'});
-  assert.deepEqual(loadAppearance({lighting:'unknown',season:'spring'},0),{lighting:'session',season:'spring',weather:'auto',weatherSince:0,motion:'gentle'});
+  assert.deepEqual(loadAppearance({lighting:'day',season:'winter'},0),{lighting:'day',season:'winter',weather:'auto',weatherSince:0,motion:'gentle',palette:'seasonal'});
+  assert.deepEqual(loadAppearance({lighting:'unknown',season:'spring'},0),{lighting:'session',season:'spring',weather:'auto',weatherSince:0,motion:'gentle',palette:'seasonal'});
   assert.equal(sceneProgress(.12,'day',false),sceneProgress(.86,'day',false));
   assert.equal(sceneProgress(.12,'night',false),1);
   assert.equal(sceneProgress(.12,'session',false),.12);
   assert.equal(sceneProgress(.12,'session',true),sceneProgress(.86,'session',true));
+});
+test('named Garden looks preserve color and motion and default to silence',()=>{
+  const [look]=loadGardenLooks([{id:'fall',name:' Late Autumn Dusk ',appearance:{lighting:'dusk',palette:'amber',season:'autumn',weather:'mist',motion:'still'}}]);
+  assert.equal(look.name,'Late Autumn Dusk');
+  assert.deepEqual(look.appearance,{lighting:'dusk',palette:'amber',season:'autumn',weather:'mist',motion:'still'});
+  assert.deepEqual(look.ambient,{rain:0,water:0,wind:0});
+  assert.equal(sceneProgress(.1,'dusk',false),.87);
 });
 test('rain carries mist into the next weather and scenery motion survives timed looks',()=>{
   const base=loadAppearance({season:'summer',motion:'still'},0);

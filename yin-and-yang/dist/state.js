@@ -1,4 +1,4 @@
-import {loadAppearance} from './garden-appearance.js';
+import {loadAppearance,loadGardenLooks} from './garden-appearance.js';
 import {loadSoundSettings} from './garden-audio.js';
 import {captureTaskChange} from './task-undo.js';
 import {loadGardenSchedule} from './garden-appearance.js';
@@ -167,7 +167,7 @@ export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],
-    taskBundles:[],activeBundle:null,weeklyReflections:[],
+    taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -188,6 +188,7 @@ export function loadState(storage) {
     const raw = JSON.parse(storage.getItem(STORAGE_KEY));
     if (!raw || typeof raw !== 'object') return base;
     base.appearance=loadAppearance(raw.appearance);
+    base.gardenLooks=loadGardenLooks(raw.gardenLooks);
     base.gardenSchedule=loadGardenSchedule(raw.gardenSchedule);
     base.calendarEvents=loadCalendarEvents(raw.calendarEvents);
     if(isTime(raw.replanCutoff))base.replanCutoff=raw.replanCutoff;

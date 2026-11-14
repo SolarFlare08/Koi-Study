@@ -1,4 +1,7 @@
-export const lightingOptions={session:'Follow timer',day:'Day',night:'Night'};
+import {loadSoundSettings} from './garden-audio.js';
+
+export const lightingOptions={session:'Follow timer',day:'Day',dusk:'Dusk',night:'Night'};
+export const gardenPalettes={seasonal:'Seasonal',jade:'Jade',amber:'Amber',ink:'Blue ink'};
 export const sceneryMotionOptions={still:'Still',gentle:'Gentle',lively:'Lively'};
 export const seasonOptions={
   spring:{name:'Spring',detail:'Blossoms',colors:['#83a78a','#d992a0']},
@@ -28,7 +31,19 @@ export function loadAppearance(value,now=Date.now()) {
   const weather=Object.hasOwn(weatherBySeason[season],value?.weather)?value.weather:'auto';
   const weatherSince=Number.isFinite(value?.weatherSince)?value.weatherSince:now;
   const motion=Object.hasOwn(sceneryMotionOptions,value?.motion)?value.motion:'gentle';
-  return {lighting,season,weather,weatherSince,motion};
+  const palette=Object.hasOwn(gardenPalettes,value?.palette)?value.palette:'seasonal';
+  return {lighting,season,weather,weatherSince,motion,palette};
+}
+
+export function loadGardenLooks(value){
+  const looks=new Map();
+  for(const item of Array.isArray(value)?value:[]){
+    if(typeof item?.id!=='string'||!item.id||typeof item.name!=='string'||!item.name.trim())continue;
+    const {lighting,season,weather,motion,palette}=loadAppearance(item.appearance);
+    const {rain,water,wind}=loadSoundSettings(item.ambient);
+    looks.set(item.id,{id:item.id,name:item.name.trim().slice(0,80),appearance:{lighting,season,weather,motion,palette},ambient:{rain,water,wind}});
+  }
+  return [...looks.values()];
 }
 
 export function gardenWeather({season,weather,weatherSince},now=Date.now()) {
@@ -41,8 +56,8 @@ export function loadGardenSchedule(value){
   const presets=new Map();
   for(const item of Array.isArray(value?.presets)?value.presets:[]){
     if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(item?.time))continue;
-    const {lighting,season,weather}=loadAppearance(item);
-    presets.set(item.time,{time:item.time,lighting,season,weather});
+    const {lighting,season,weather,palette}=loadAppearance(item);
+    presets.set(item.time,{time:item.time,lighting,season,weather,palette});
   }
   return {enabled:value?.enabled===true,presets:[...presets.values()].sort((a,b)=>a.time.localeCompare(b.time))};
 }
@@ -59,6 +74,7 @@ export function scheduledAppearance(base,schedule,now=new Date()){
 
 export function sceneProgress(progress,lighting,reduced,motion='gentle') {
   if (lighting==='day') return .43;
+  if (lighting==='dusk') return .87;
   if (lighting==='night') return 1;
   if(motion==='still')return .43;
   return reduced&&progress>0&&progress<1?.43:progress;

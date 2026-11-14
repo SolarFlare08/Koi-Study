@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'2.7.0',date:'2026-11-13',title:'Saved Garden looks and postcards',changes:[
+    'Save named looks with lighting, palette, weather, motion, and optional ambient sound levels.',
+    'Download the Garden as a clean PNG postcard with an optional month, semester, or milestone caption.'
+  ]},
   {version:'2.6.0',date:'2026-11-13',title:'Seasonal weather and scenery motion',changes:[
     'Rain eases into lake mist, cloud cover opens gradually, and each season has its own animated detail.',
     'Choose Still, Gentle, or Lively in Garden Appearance. The setting applies across saved looks and respects reduced-motion preferences.'

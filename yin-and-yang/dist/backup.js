@@ -217,6 +217,7 @@ export function planBackupRestore(storage,current,incoming,sections){
   section('garden','Garden & focus','Focus history, landscape, and preferences.',apply=>{
     stateList(apply,'history','Focus and rest sessions');stateList(apply,'routines','Timer routines');
     stateList(apply,'gardenGrowth','Garden landmarks',item=>JSON.stringify([item.kind,item.sourceId]));
+    stateList(apply,'gardenLooks','Saved Garden looks');
     const keys=['settings','appearance','gardenSchedule','sounds','notifications','intention','spotify','focusMode','replanCutoff','studyCapacity','planningCooldown','shutdownSteps','shutdownProgress'];
     const changes=keys.filter(key=>comparable(current[key])!==comparable(incoming.state[key]))
       .map(key=>backupConflict(fieldLabel(key),current[key],incoming.state[key]));
