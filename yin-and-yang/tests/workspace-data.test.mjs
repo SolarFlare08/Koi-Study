@@ -9,8 +9,28 @@ import {dayKey,STORAGE_KEY,freshState,loadState} from '../dist/state.js';
 import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
-import {earnGardenDetail} from '../dist/garden-growth.js';
+import {earnGardenDetail,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
 import {gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
+
+test('the Field Guide uses inclusive dates and snapshots keep original landmark coordinates',()=>{
+  let history=earnGardenDetail([],'book','a','Early book','2026-09-01');
+  history=earnGardenDetail(history,'book','b','Late book','2026-11-15');
+  assert.deepEqual(gardenRange(history,'2026-09-01','2026-09-01').map(entry=>entry.index),[0]);
+  assert.equal(gardenGrowthMarkup(history,{through:'2026-10-31'}).lanterns,gardenGrowthMarkup(history.slice(0,1)).lanterns);
+});
+
+test('course skies connect earned exams in date order and keep legacy and standalone stars',()=>{
+  let history=earnGardenDetail([],'test','later','Final','2026-11-12');
+  history=earnGardenDetail(history,'test','earlier','Midterm','2026-10-01',{courseId:'course',courseName:'Calculus'});
+  history=earnGardenDetail(history,'test','manual','Placement test','2026-09-01');
+  const projects=[{id:'course',name:'Calculus II',exams:[{id:'later'}]}];
+  const courses=gardenCourses(history,projects);
+  assert.equal(courses[0].name,'Calculus II');
+  assert.deepEqual(courses[0].stars.map(entry=>entry.index),[1,0]);
+  assert.equal(gardenCourses(loadGardenGrowth(history),[])[0].name,'Calculus');
+  assert.match(gardenGrowthMarkup(history,{courses}).stars,/<polyline /);
+  assert.doesNotMatch(gardenGrowthMarkup(history,{courses,through:'2026-10-01'}).stars,/<polyline /);
+});
 import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from '../dist/day-recap.js';
 import {remainingProjectWork} from '../dist/project-planning.js';
 import {reviewChapter} from '../dist/reading-progress.js';

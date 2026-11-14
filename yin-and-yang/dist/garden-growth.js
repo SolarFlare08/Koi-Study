@@ -30,13 +30,37 @@ export function loadGardenGrowth(value) {
     for(const [field,limit] of [['result',100],['detail',1000]]){
       if(typeof item[field]==='string'&&item[field].trim())entry[field]=item[field].trim().slice(0,limit);
     }
+    if(kind==='test'&&typeof item.courseId==='string'&&item.courseId){
+      entry.courseId=item.courseId;
+      if(typeof item.courseName==='string')entry.courseName=item.courseName.trim().slice(0,200);
+    }
     history.push(entry);
   }
   return history;
 }
 
-export function earnGardenDetail(history, kind, sourceId, title, day, {result,detail}={}) {
+export function earnGardenDetail(history, kind, sourceId, title, day, metadata={}) {
   if (gardenReward(history, kind, sourceId)) return history;
-  const [entry] = loadGardenGrowth([{kind, sourceId, title, day, result, detail}]);
+  const [entry] = loadGardenGrowth([{...metadata,kind,sourceId,title,day}]);
   return entry ? [...history, entry] : history;
+}
+
+export function gardenRange(history,from='',through=''){
+  return history.map((item,index)=>({item,index})).filter(({item})=>
+    (!from||item.day>=from)&&(!through||item.day<=through));
+}
+
+export function gardenCourses(history,projects){
+  const byProject=new Map(projects.map(project=>[project.id,project]));
+  const byExam=new Map(projects.flatMap(project=>(project.exams||[]).map(exam=>[exam.id,project])));
+  const courses=new Map();
+  history.forEach((item,index)=>{
+    if(item.kind!=='test')return;
+    const project=byExam.get(item.sourceId)||byProject.get(item.courseId);
+    const id=project?.id||item.courseId;
+    if(!id)return;
+    if(!courses.has(id))courses.set(id,{id,name:project?.name||item.courseName||'Course',stars:[]});
+    courses.get(id).stars.push({item,index});
+  });
+  return [...courses.values()].map(course=>({...course,stars:course.stars.sort((a,b)=>a.item.day.localeCompare(b.item.day)||a.index-b.index)}));
 }

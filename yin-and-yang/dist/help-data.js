@@ -129,16 +129,17 @@ export const helpTopics = [
     action:'day-recap', actionLabel:'Open end-of-day recap', related:['progress','tomorrow','weekly-review']
   },
   {
-    id:'garden-growth', group:'Focus & rest', title:'Grow the Garden and see its history',
+    id:'garden-growth', group:'Focus & rest', title:'Explore the Garden Field Guide',
     summary:'Explore trees for projects, lanterns for books, stars for tests, and cairns for milestones.',
     steps:['Open a project in Planner. In Project overview, choose `Mark project finished` to plant its tree.',
       'Open a book in Reading and choose `Mark book finished` to add its lantern to the lake. Lanterns glow after dark.',
-      'In Garden, open `Today` → `View Garden history`, or search for `Garden history` with `Ctrl+K`. Filter by landmark type and choose an entry to highlight its place in the landscape.',
+      'In Garden, open `Today` → `Open Garden Field Guide`, or find it with `Ctrl+K`. Filter the illustrated entries by landmark type and date range. Choose an entry to highlight it in the landscape.',
+      'Set an end date and choose `View Garden at end date` to see all landmarks earned through that day. Use `Return to today` to exit the historical view.',
       'Click or tab to a landmark in Garden to open its details. A book lantern shows the finish date, first logged reading date if available, and final rating. Choose `Open in Reading` for the full entry.',
-      'Save the final result of a Planner exam plan to add a star with the score, reflection, and a link back to the plan.',
+      'Save a Planner exam result to add a star to the project’s course constellation. Open a constellation from the sky or the Field Guide to see its exams in date order.',
       'In Garden history, choose `Record a test or milestone`. Add a title and date, plus a result or note if you want one. Tests add stars and personal milestones add cairns.'],
     tip:'Each project or book earns one landmark. Garden history is included in backups.',
-    action:'garden-history', actionLabel:'Open Garden history', related:['progress','projects','exam-plans','reading-shelf','backup']
+    action:'garden-history', actionLabel:'Open Garden Field Guide', related:['progress','projects','exam-plans','reading-shelf','backup']
   },
   {
     id:'tasks', group:'Tasks & projects', title:'Create and edit tasks',

@@ -1,6 +1,6 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites} from './state.js';
-import {renderLandscape,objects,blossomMarkup,animateLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from './scenery.js';
-import {earnGardenDetail,gardenReward,landmarkTypes} from './garden-growth.js';
+import {renderLandscape,objects,blossomMarkup,animateLandscape,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions} from './scenery.js';
+import {earnGardenDetail,gardenCourses,gardenRange,gardenReward,landmarkTypes} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
 import {handoffLink} from './session-handoff.js';
@@ -84,7 +84,8 @@ let capturePointer=null,nativeNotes=[],captureApiAvailable=true,syncingCaptures=
 let activeCaptureContext;
 let reopenTasksAfterCalendar=false;
 let effectiveAppearance=state.appearance, resumeTaskId=null, captureActionKey=null;
-let renderedGardenGrowth, selectedLandmark=null, gardenHistoryFilter='all', recapOrigin=null;
+let renderedGardenGrowth, renderedGardenProjects, selectedLandmark=null, gardenHistoryFilter='all', recapOrigin=null;
+let gardenFrom='',gardenThrough='',snapshotThrough='',selectedCourse='';
 let handoffMarkup='', actualCalendar=false, replayRenderKey='', returnToCalendarMonth=false;
 let renderedBundle='';
 let savedSchedule=snapshotSchedule(state), captureInboxTab='inbox', returnToCaptureInbox=false, captureInboxIndex=0;
@@ -130,7 +131,7 @@ function saveExamPlan(projectId,exam){
   project.exams=prior?exams.map(item=>item===prior?exam:item):[...exams,exam];
   if(exam.result){
     const {takenOn,score,reflection}=exam.result;
-    const updated=earnGardenDetail([],'test',exam.id,exam.title,takenOn,{result:score,detail:reflection})[0];
+    const updated=earnGardenDetail([],'test',exam.id,exam.title,takenOn,{result:score,detail:reflection,courseId:project.id,courseName:project.name})[0];
     state.gardenGrowth=star?growth.map(item=>item===star?updated:item):[...growth,updated];
   }
   if(!persist()){project.exams=exams;state.gardenGrowth=growth;return false;}
@@ -139,18 +140,26 @@ function saveExamPlan(projectId,exam){
   return true;
 }
 function renderGardenGrowth(){
-  if(renderedGardenGrowth===state.gardenGrowth)return;
-  const art=gardenGrowthMarkup(state.gardenGrowth);
+  if(renderedGardenGrowth===state.gardenGrowth&&renderedGardenProjects===state.projects)return;
+  const courses=gardenCourses(state.gardenGrowth,state.projects);
+  const art=gardenGrowthMarkup(state.gardenGrowth,{courses,through:snapshotThrough});
   for(const [part,markup] of Object.entries(art))$(`#garden-growth-${part}`).innerHTML=markup;
-  $('#garden-landmarks').innerHTML=gardenLandmarkPositions(state.gardenGrowth).map(({item,position},index)=>{
+  const courseAnchors=new Map(courses.flatMap(course=>{
+    const star=course.stars.find(({item})=>!snapshotThrough||item.day<=snapshotThrough);
+    return star?[[star.index,course]]:[];
+  }));
+  $('#garden-landmarks').innerHTML=gardenLandmarkPositions(state.gardenGrowth,courses).map(({item,index,position})=>{
+    if(snapshotThrough&&item.day>snapshotThrough)return '';
     const type=landmarkTypes[item.kind], [x,y,scale]=position;
     const center=y-({project:93,book:5,milestone:10,test:0}[item.kind]*scale);
-    const label=escape(`${type.name} · ${item.title}`);
-    return `<button type="button" data-garden-landmark="${index}" data-x="${x}" data-y="${center}"
+    const course=courseAnchors.get(index);
+    const label=escape(course?`Constellation · ${course.name}`:`${type.name} · ${item.title}`);
+    return `<button type="button" data-garden-landmark="${index}" ${course?`data-sky-course="${escape(course.id)}"`:''} data-x="${x}" data-y="${center}"
       aria-label="${label}" title="${label}" aria-haspopup="dialog" aria-expanded="false"></button>`;
   }).join('');
   positionGardenLandmarks();
   renderedGardenGrowth=state.gardenGrowth;
+  renderedGardenProjects=state.projects;
 }
 function positionGardenLandmarks(){
   const {clientWidth:width,clientHeight:height}=app;
@@ -276,8 +285,10 @@ new ResizeObserver(()=>{
 }).observe(app);
 $('#garden-landmarks').addEventListener('click',event=>{
   const button=event.target.closest('[data-garden-landmark]');
-  if(button)openGardenLandmark(Number(button.dataset.gardenLandmark));
+  if(button?.dataset.skyCourse)openGardenCourse(button.dataset.skyCourse,button);
+  else if(button)openGardenLandmark(Number(button.dataset.gardenLandmark));
 });
+$('#garden-snapshot-close').onclick=()=>setGardenSnapshot('');
 $('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",music:"music",notes:"spark",progress:"target",appearance:"appearance"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",music:"Music",notes:"Notes",progress:"Today",appearance:"Appearance"})[o.id]}</span></button>`).join('');
 const crochet=installCrochet({root:$('#crochet-workspace'),storage,notify:message=>{toast(message);announce(message);}});
 const journal=installJournal({root:$('#journal-workspace'),storage,projects:()=>loadCrochet(storage).projects,notify:confirmChange,
@@ -445,7 +456,7 @@ function commandEntries(){
   return [
     action('Help','Browse searchable instructions and keyboard shortcuts','guide how to tutorial features',()=>helpGuide.open()),
     action('Version history','See what changed in each release','versions updates changelog release notes',()=>runHelpAction('versions')),
-    action('Garden history','See the projects and books that shaped your Garden','growth trees lanterns milestones finished',()=>runHelpAction('garden-history')),
+    action('Garden Field Guide','Browse landmarks, historical views, and course constellations','garden history semester stars trees lanterns cairns',()=>runHelpAction('garden-history')),
     action('End-of-day recap','Review today’s work and tomorrow’s plans','daily recap finished moved tomorrow',()=>runHelpAction('day-recap')),
     action('Focus session replay','See actual focus time in Calendar','actual timeline pause switch',()=>runHelpAction('focus-replay')),
     action('Fit a task today','Compare which calendar blocks could move','tradeoffs trade-offs schedule today',()=>runHelpAction('tradeoffs')),
@@ -896,10 +907,35 @@ function landmarkAnchor(index){
   return $(`[data-garden-landmark="${index}"]:not([hidden])`)||$('[data-panel="progress"]');
 }
 function openGardenLandmark(index){
-  if(!state.gardenGrowth[index])return;
+  const item=state.gardenGrowth[index];
+  if(!item)return;
+  if(snapshotThrough&&item.day>snapshotThrough)setGardenSnapshot('');
   openPanel('garden-landmark',landmarkAnchor(index),index);
 }
 const landmarkDate=day=>new Date(`${day}T12:00:00`).toLocaleDateString([],{dateStyle:'medium'});
+function setGardenSnapshot(through){
+  snapshotThrough=through;
+  renderedGardenGrowth=null;renderGardenGrowth();
+  $('#garden-snapshot').hidden=!through;
+  $('#garden-snapshot-date').textContent=through?`Garden on ${landmarkDate(through)}`:'';
+  closePanel(false);
+  (through?$('#garden-snapshot-close'):$('[data-panel="progress"]')).focus({preventScroll:true});
+  announce(through?`Showing landmarks earned through ${landmarkDate(through)}.`:'Showing today’s Garden.');
+}
+function openGardenCourse(id,anchor){
+  selectedCourse=id;
+  openPanel('garden-course',anchor?.isConnected?anchor:$('[data-panel="progress"]'));
+}
+function gardenCourseMarkup(){
+  const course=gardenCourses(state.gardenGrowth,state.projects).find(item=>item.id===selectedCourse);
+  if(!course)return header('CONSTELLATION','Course unavailable');
+  const stars=course.stars.filter(({item})=>!snapshotThrough||item.day<=snapshotThrough);
+  return `${header('COURSE CONSTELLATION',escape(course.name))}
+    <ol class="garden-growth-history">${stars.map(({item,index})=>`<li><button type="button" data-history-landmark="${index}" aria-haspopup="dialog">
+      <span class="field-sketch">${gardenFieldSketch('test')}</span><span><strong>${escape(item.title)}</strong>
+      ${item.result?`<small>${escape(item.result)}</small>`:''}</span><time datetime="${item.day}">${landmarkDate(item.day)}</time></button></li>`).join('')}</ol>
+    <button type="button" class="text-button" data-garden-history-open>Garden Field Guide</button>`;
+}
 function hasHandoff(task){return Boolean(task?.resumeNote||task?.resumeLocation||task?.resumeResource);}
 function handoffDetails(task){
   const resource=handoffLink(task.resumeResource);
@@ -922,12 +958,14 @@ function readHandoff(form){
 }
 function gardenLandmarkMarkup(){
   const item=state.gardenGrowth[selectedLandmark];
+  if(!item)return header('GARDEN','Landmark unavailable');
   const type=landmarkTypes[item.kind];
   const book=item.kind==='book'?readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks)
     .find(book=>book.finished?.id===item.sourceId):null;
   const project=item.kind==='project'&&state.projects.find(project=>project.id===item.sourceId);
   const examProject=item.kind==='test'&&state.projects.find(project=>project.exams?.some(exam=>exam.id===item.sourceId));
   const exam=examProject?.exams.find(exam=>exam.id===item.sourceId);
+  const courseId=examProject?.id||item.courseId;
   const finished=book?.finished;
   const firstLog=book?.entries.filter(entry=>entry.date<=finished.finishedOn).at(-1)?.date;
   return `${header(type.event,escape(book?.title||project?.name||exam?.title||item.title))}
@@ -941,31 +979,43 @@ function gardenLandmarkMarkup(){
     <div class="panel-actions">${book?`<button type="button" class="panel-primary" data-landmark-book="${escape(book.id)}">Open in Reading</button>`:''}
       ${examProject?`<button type="button" class="panel-primary" data-landmark-exam="${escape(item.sourceId)}" data-exam-project="${escape(examProject.id)}">Open exam plan</button>`:''}
       ${project?`<button type="button" class="panel-primary" data-view-project="${escape(project.id)}">Open project</button>`:''}
-      <button type="button" class="text-button" data-garden-history-open>Garden history</button></div>`;
+      ${courseId?`<button type="button" class="text-button" data-guide-course="${escape(courseId)}">View constellation</button>`:''}
+      <button type="button" class="text-button" data-garden-history-open>Garden Field Guide</button></div>`;
 }
 function gardenHistoryMarkup(){
-  const history=state.gardenGrowth;
+  const history=gardenRange(state.gardenGrowth,gardenFrom,gardenThrough);
+  const matching=new Set(history.map(({index})=>index));
+  const courses=gardenCourses(state.gardenGrowth,state.projects).filter(course=>course.stars.some(({index})=>matching.has(index)));
   const types=Object.entries(landmarkTypes);
-  const counts=Object.fromEntries(types.map(([kind])=>[kind,history.filter(item=>item.kind===kind).length]));
-  const entries=history.map((item,index)=>({item,index})).reverse()
+  const counts=Object.fromEntries(types.map(([kind])=>[kind,history.filter(({item})=>item.kind===kind).length]));
+  const entries=history.sort((a,b)=>b.item.day.localeCompare(a.item.day)||b.index-a.index)
     .filter(({item})=>gardenHistoryFilter==='all'||gardenHistoryFilter===item.kind)
     .map(({item,index})=>{
       const type=landmarkTypes[item.kind];
       return `<li><button type="button" data-history-landmark="${index}" aria-haspopup="dialog">
-        <span class="landmark-emblem">${icon(type.mark)}</span>
+        <span class="field-sketch">${gardenFieldSketch(item.kind)}</span>
         <span><strong>${escape(item.title)}</strong><small>${type.event}</small></span>
         <time datetime="${item.day}">${landmarkDate(item.day)}</time></button></li>`;
     }).join('');
-  return `${header('GARDEN','Garden history')}
-    ${history.length?`<div class="garden-history-filters" role="group" aria-label="Landmark type">
+  return `${header('GARDEN','Garden Field Guide')}
+    <form id="garden-range"><label>From<input type="date" name="from" max="${dayKey()}" value="${gardenFrom}"></label>
+      <label>Through<input type="date" name="through" max="${dayKey()}" value="${gardenThrough}"></label>
+      <div class="panel-actions"><button class="text-button" type="submit">Filter dates</button>
+      <button class="panel-primary" type="submit" value="snapshot">View Garden at end date</button>
+      ${gardenFrom||gardenThrough?'<button class="text-button" type="button" data-garden-clear-range>Clear dates</button>':''}</div>
+      <p id="garden-range-error" role="alert" hidden></p></form>
+    ${courses.length?`<div class="field-courses"><h3>Course constellations</h3><ul>${courses.map(course=>
+      `<li><button type="button" data-guide-course="${escape(course.id)}">${icon('spark')} ${escape(course.name)}</button></li>`).join('')}</ul></div>`:''}
+    ${state.gardenGrowth.length?`<div class="garden-history-filters" role="group" aria-label="Landmark type">
       ${[['all',{name:'All'}],...types].map(([kind,type])=>`<button type="button" data-history-filter="${kind}" aria-pressed="${kind===gardenHistoryFilter}">${type.name} · ${kind==='all'?history.length:counts[kind]}</button>`).join('')}
-    </div>${entries?`<ol class="garden-growth-history">${entries}</ol>`:'<p>No landmarks of this type yet.</p>'}`:
+    </div>${entries?`<ol class="garden-growth-history">${entries}</ol>`:'<p>No landmarks match these filters.</p>'}`:
     '<p>Finish a project to plant a tree, finish a book to light a lantern, or record a test or milestone below.</p>'}
     <details class="landmark-record"><summary>Record a test or milestone</summary>
       <form id="landmark-form"><div class="landmark-form-fields">
         <label>Type<select name="kind"><option value="test">Test · Star</option><option value="milestone">Milestone · Cairn</option></select></label>
         <label>Date<input type="date" name="day" value="${dayKey()}" max="${dayKey()}" required></label></div>
         <label>Title<input name="title" maxlength="120" required></label>
+        ${state.projects.some(project=>!project.archived)?`<label>Course <span>(optional for tests)</span><select name="course"><option value="">Unassigned</option>${state.projects.filter(project=>!project.archived).map(project=>`<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('')}</select></label>`:''}
         <label>Result <span>(optional)</span><input name="result" maxlength="100" placeholder="e.g. 92%"></label>
         <label>Note <span>(optional)</span><textarea name="detail" maxlength="1000" rows="2"></textarea></label>
         <button class="panel-primary">Add to Garden</button></form></details>
@@ -1841,9 +1891,10 @@ function panelContent(id){
     <p class="note-caption"><kbd>Ctrl+Alt+N</kbd> for quick capture</p>
     <div id="notes-captures">${captureCards()}</div>`;
   if(id==='progress'){
-    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time>${focusReviewDetails(h)}</span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p><div class="panel-actions"><button type="button" class="text-button" id="open-day-recap">End-of-day recap</button><button type="button" class="text-button" id="open-garden-history">View Garden history</button></div>`;
+    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time>${focusReviewDetails(h)}</span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p><div class="panel-actions"><button type="button" class="text-button" id="open-day-recap">End-of-day recap</button><button type="button" class="text-button" id="open-garden-history">Open Garden Field Guide</button></div>`;
   }
   if(id==='garden-history')return gardenHistoryMarkup();
+  if(id==='garden-course')return gardenCourseMarkup();
   if(id==='garden-landmark')return gardenLandmarkMarkup();
   if(id==='day-recap')return dayRecapMarkup();
   return `${header('BY THE LAKE','Your own soundtrack.')}<label class="field-label" for="spotify-link">Spotify playlist, album, or track link</label><form id="spotify-form" class="music-link"><input id="spotify-link" type="url" value="${escape(state.spotify)}" placeholder="https://open.spotify.com/playlist/…" required><button class="panel-primary" type="submit">Load</button></form><div id="music-player-wrap"></div><p id="spotify-error" role="status" class="panel-subtle"></p><div class="panel-actions"><a class="panel-primary" id="open-spotify-external" href="https://open.spotify.com/" target="_blank" rel="noopener noreferrer">Open Spotify ${icon('external')}</a><button class="text-button" id="remove-player" ${state.spotify?'':'hidden'}>Remove player</button></div><p class="music-tip">The embedded player pauses app sounds automatically. Open Spotify enables the outside music switch below.</p>${soundControls()}`;
@@ -3456,6 +3507,11 @@ root.addEventListener('click',e=>{
   }
   const history=e.target.closest('#open-garden-history,#garden-history-today,[data-garden-history-open]');
   if(history){openPanel(history.id==='garden-history-today'?'progress':'garden-history',$('[data-panel="progress"]'));return;}
+  if(e.target.closest('[data-garden-clear-range]')){
+    gardenFrom='';gardenThrough='';refreshPanel();$('#garden-range input')?.focus();return;
+  }
+  const course=e.target.closest('[data-guide-course]');
+  if(course){openGardenCourse(course.dataset.guideCourse,$('[data-panel="progress"]'));return;}
   const historyFilter=e.target.closest('[data-history-filter]');
   if(historyFilter){
     gardenHistoryFilter=historyFilter.dataset.historyFilter;refreshPanel();
@@ -3821,15 +3877,28 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='garden-range'){
+    const {from,through}=Object.fromEntries(new FormData(e.target));
+    const snapshot=e.submitter?.value==='snapshot';
+    if((from&&through&&from>through)||(snapshot&&!through)){
+      const error=$('#garden-range-error');
+      error.hidden=false;error.textContent=snapshot&&!through?'Choose an end date for the Garden view.':'Choose an end date on or after the start date.';return;
+    }
+    gardenFrom=from;gardenThrough=through;
+    if(snapshot)setGardenSnapshot(through);
+    else{refreshPanel();$('#garden-range input')?.focus();}
+    return;
+  }
   if(e.target.id==='tradeoff-form'){
     tradeoffTaskId=e.target.elements.task.value;tradeoffPreview=findTradeoffs();refreshPanel();
     ($('[data-apply-tradeoff]')||$('#tradeoff-task'))?.focus({preventScroll:true});return;
   }
   if(e.target.id==='landmark-form'){
-    const {kind,day,title,result,detail}=Object.fromEntries(new FormData(e.target));
+    const {kind,day,title,result,detail,course}=Object.fromEntries(new FormData(e.target));
     if(!['test','milestone'].includes(kind)||day>dayKey())return;
     if(!title.trim()){e.target.elements.title.focus();return;}
-    if(recordGardenGrowth(kind,crypto.randomUUID(),title,day,{result,detail}))openGardenLandmark(state.gardenGrowth.length-1);
+    const project=kind==='test'&&state.projects.find(item=>item.id===course);
+    if(recordGardenGrowth(kind,crypto.randomUUID(),title,day,{result,detail,courseId:project?.id,courseName:project?.name}))openGardenLandmark(state.gardenGrowth.length-1);
     return;
   }
   if(e.target.id==='availability-form'){saveAvailability(e.target,e.submitter?.value==='remove');return;}

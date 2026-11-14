@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'2.4.0',date:'2026-11-13',title:'Garden Field Guide and course constellations',changes:[
+    'Browse illustrated landmark entries by type and date. Preview the Garden with the landmarks earned through a selected day.',
+    'Open course constellations to see exam stars in date order. Existing Planner exam stars join their course automatically.'
+  ]},
   {version:'2.3.0',date:'2026-11-13',title:'Task bundles and journal patterns',changes:[
     'Group existing tasks in Planner and work through them in Garden. Bundles remember their place across focus sessions.',
     'Filter journal entries by mood, tags, and themes. Browse weekly patterns and write reflections that link to individual entries.',

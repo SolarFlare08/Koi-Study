@@ -45,19 +45,35 @@ function growthPosition(slots,index){
   return [x+Math.cos(angle)*radius,y+Math.sin(angle)*radius/3,scale*Math.max(.32,.72-layer*.04)];
 }
 
-export function gardenLandmarkPositions(history){
+export function gardenLandmarkPositions(history,courses=[]){
+  const positions=new Map();
+  courses.forEach((course,index)=>{
+    const column=index%5, row=Math.floor(index/5)%3, layer=Math.floor(index/15);
+    const center=[470,650,790,1080,1250][column];
+    [...course.stars].sort((a,b)=>a.index-b.index).forEach(({index:star},i)=>{
+      const orbit=Math.floor(i/7), angle=i*2.4+column, radius=i?15+(i%7)*4+orbit*5:0;
+      positions.set(star,[center+Math.cos(angle)*radius+layer*11,85+row*81+Math.sin(angle)*radius*.65+layer*9,.86]);
+    });
+  });
   const counts=new Map();
-  return history.map(item=>{
+  return history.map((item,originalIndex)=>{
+    if(positions.has(originalIndex))return {item,index:originalIndex,position:positions.get(originalIndex)};
     const index=counts.get(item.kind)||0;
     counts.set(item.kind,index+1);
-    return {item,position:growthPosition(landmarkSlots[item.kind],index)};
+    return {item,index:originalIndex,position:growthPosition(landmarkSlots[item.kind],index)};
   });
 }
 
-export function gardenGrowthMarkup(history){
+export function gardenGrowthMarkup(history,{courses=[],through=''}={}){
   const trees=[],lanterns=[],lights=[];
   const stars=[],cairns=[];
-  for(const {item,position} of gardenLandmarkPositions(history)){
+  const layout=gardenLandmarkPositions(history,courses);
+  for(const course of courses){
+    const points=course.stars.filter(({item})=>!through||item.day<=through).map(({index})=>layout[index].position.slice(0,2).join(','));
+    if(points.length>1)stars.push(`<polyline points="${points.join(' ')}" fill="none" stroke="#9ec6d8" stroke-width="1.4" opacity=".75"/>`);
+  }
+  for(const {item,position} of layout){
+    if(through&&item.day>through)continue;
     const [x,y,scale]=position;
     const transform=`translate(${x} ${y}) scale(${scale})`;
     if(item.kind==='project'){
@@ -88,6 +104,16 @@ export function gardenGrowthMarkup(history){
     <path d="M689 681q17-7 39-9t51 8q-32 3-52 2t-38-1Z" fill="url(#shore)"/>`:'';
   return {trees:island+trees.sort((a,b)=>a.y-b.y).map(tree=>tree.art).join(''),
     lanterns:lanterns.join(''),lights:lights.join(''),stars:stars.join(''),cairns:cairns.join('')};
+}
+
+const fieldSketches={
+  project:'<path d="M24 33q4-9 2-20" stroke="#b28d6c" stroke-width="2" fill="none"/><path d="M9 19q5-5 9-6 4-8 10-7 5 1 8 7l7 4q-5 5-15 3-8 3-19-1Zm4 7q8-8 15-5 7-3 13 4-13 5-28 1Z" fill="#7aaa97"/><path d="M7 34q16-5 35 0" stroke="#9ac2a8" fill="none" opacity=".6"/>',
+  book:'<ellipse cx="25" cy="29" rx="17" ry="6" fill="#99b9ba" opacity=".24"/><path d="M17 26l-1-13h17l-1 13Z" fill="#e8b17e" stroke="#a87860"/><path d="M24 14v11m-10 2h21l-4 4H18Z" stroke="#ffe1a4" fill="none"/><path d="M12 34h25" stroke="#efd09f" opacity=".55"/>',
+  test:'<path d="m10 27 13-14 14 8" fill="none" stroke="#9ec6d8"/><circle cx="10" cy="27" r="2" fill="#dceaf0"/><circle cx="37" cy="21" r="2" fill="#dceaf0"/><path d="M23 5q1 7 8 8-7 1-8 8-1-7-8-8 7-1 8-8Z" fill="#fff1cb"/>',
+  milestone:'<ellipse cx="25" cy="32" rx="15" ry="4" fill="#54766c"/><path d="M11 30q3-7 15-6 9 0 13 5l-3 4H16Z" fill="#86988c"/><path d="M16 24q1-6 10-8 7 1 8 6l-3 3Z" fill="#aab398"/><path d="M21 16q-2-5 3-9 6-1 8 6l-3 4Z" fill="#ceaf89"/>'
+};
+export function gardenFieldSketch(kind){
+  return `<svg viewBox="0 0 50 40" aria-hidden="true">${fieldSketches[kind]}</svg>`;
 }
 function rock(x,y,scale,flip=1){
   return `<g transform="translate(${x} ${y}) scale(${scale*flip} ${scale})">
