@@ -59,7 +59,17 @@ export const helpTopics = [
       'Use the finish-current-task control beside the task to end early. Choose `Take a break` or `Keep going` to continue with the next task.',
       'Set a task’s estimate and optional `Energy` in the task editor. In Garden, choose `Find a task by time`, enter your available minutes, and pick Light, Moderate, Demanding, or Any energy level. Garden shows ready tasks that fit, with higher priorities first.'],
     tip:'Your pinned order is for today. A session started from a calendar block keeps that block’s task selected.',
-    action:'focus', actionLabel:'Open Garden', related:['resume','tomorrow','block-focus']
+    action:'focus', actionLabel:'Open Garden', related:['resume','tomorrow','block-focus','task-bundles']
+  },
+  {
+    id:'task-bundles', group:'Tasks & projects', title:'Work through a task bundle in order',
+    summary:'Group existing tasks and pick up where you left off across focus sessions.',
+    steps:['Open Planner → `Task bundles` → `New bundle`. Name it and add saved tasks in the order you want. Use the arrows to change the order.',
+      'Choose `Start in Garden`, then `Begin focus`. Complete the current task to advance. Ending a focus session by itself keeps your place.',
+      'Select the bundle name near the timer to see the order, pause the bundle, or return to Planner. Choosing a different task pauses the bundle. Resume it from Planner or Garden.',
+      'If the next task is blocked or scheduled for later, the bundle waits there. Remove a deleted or archived task from the bundle with `Edit order`.'],
+    tip:'Bundles share the original tasks. Finished non-repeating tasks stay complete. A completed bundle can start again when its repeating tasks are ready for a new occurrence.',
+    action:'bundles', actionLabel:'Open Task bundles', related:['focus-queue','resume','projects']
   },
   {
     id:'focus-outcome', group:'Focus & rest', title:'Set and review a focus outcome',
@@ -528,11 +538,20 @@ export const helpTopics = [
     summary:'Use a spacious editor with visible date, mood, and project fields.',
     steps:['Open Journal → `New entry`, or click a date’s Journal ritual in Calendar.',
       'Start blank or choose a template and select `Insert template`. Use `Save as template` to reuse the current draft text in another entry.',
-      'Add a title and write your entry. Choose the date, optional mood, and an optional crochet project above the writing area.',
+      'Add a title and write your entry. Choose the date, optional mood, and an optional crochet project above the writing area. Add comma-separated tags and themes to make entries easier to find.',
       'Your draft saves as you type. Reopen it from the library after closing or refreshing. Choose `Mark complete` when you want it to count toward that date’s Journal ritual.',
       'Search the journal library or Ctrl+K to find an entry. Click its title to edit it. Deleting asks for confirmation and offers Undo after deletion.'],
     tip:'Drafts and completed entries are saved locally and included in backups.',
-    action:'journal', actionLabel:'Open Journal', related:['daily-rituals','backup']
+    action:'journal', actionLabel:'Open Journal', related:['daily-rituals','journal-patterns','backup']
+  },
+  {
+    id:'journal-patterns', group:'Reading & journal', title:'Find journal patterns and write weekly reflections',
+    summary:'Browse entries by mood, tag, or a theme you label yourself.',
+    steps:['In Journal → `Entries`, use the Mood, Tag, and Theme filters. Search and filters can be combined.',
+      'Open `Patterns & reflections`. Move between Monday-to-Sunday weeks and select a label to browse matching entries.',
+      'Choose `Write reflection`, write your notes, and check the completed entries you want to reference. Choose `Save reflection`.',
+      'Reopen a week with `Saved reflections`. Select a referenced entry to jump back into its editor. Weekly reflections are saved separately from daily Journal completions.'],
+    action:'journal-patterns', actionLabel:'Open Patterns & reflections', related:['journal','weekly-review','backup']
   },
   {
     id:'crochet-projects', group:'Stitchbook', title:'Track crochet projects, rows, and time',

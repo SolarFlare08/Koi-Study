@@ -10,7 +10,7 @@ import {exportCalendar} from './calendar-export.js';
 import {cleanCaptureContext} from './capture.js';
 import {projectHealth} from './scheduling.js';
 
-const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',review:'Weekly review',workload:'Workload',health:'Project health',filters:'Filters & Labels',reporting:'Reporting'};
+const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',review:'Weekly review',workload:'Workload',health:'Project health',bundles:'Task bundles',filters:'Filters & Labels',reporting:'Reporting'};
 const workViewPresets={
   short:{name:'30 minutes or less',query:'estimate<=30 & !completed'},
   week:{name:'Due this week',query:'due-this-week & !completed'}
@@ -39,7 +39,7 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>'',nextProjectTask,resumeProject,projectTimerLocked,projectReward,finishProject,openExamPlans,isActualCalendar}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>'',nextProjectTask,resumeProject,projectTimerLocked,projectReward,finishProject,openExamPlans,isActualCalendar,bundleStatus,startBundle,stopBundle,editBundle}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
@@ -119,7 +119,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const projects=state().projects.filter(project=>!project.archived).sort((a,b)=>Number(b.favorite)-Number(a.favorite));
     const count={inbox:tasks.filter(task=>!projectFor(task)).length,today:tasks.filter(task=>todayDate(task,now)||overdueDate(task,now)).length};
     const plan=['inbox','today','upcoming','review','workload','health'].map(key=>navItem(key,views[key],count[key],'',key==='health'?icon('reporting'):icon(key))).join('');
-    const organize=['filters','reporting'].map(key=>navItem(key,views[key])).join('');
+    const organize=['bundles','filters','reporting'].map(key=>navItem(key,views[key],key==='bundles'?state().taskBundles.length:'','',icon(key==='bundles'?'review':key))).join('');
     const pinned=state().plannerFilters.filter(filter=>filter.pinned);
     const saved=state().plannerFilters.filter(filter=>!filter.pinned);
     const scroll=sidebar.querySelector('.planner-rail-sections')?.scrollTop||0;
@@ -448,6 +448,20 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       </section>`).join('')||'<p>Add a project to see its health here.</p>'}</div>`;
   }
 
+  function bundlesMarkup(){
+    const bundles=state().taskBundles;
+    return `<div class="planner-bundles"><p>Work through saved tasks in order. Checking off a task advances the bundle.</p>
+      ${bundles.length?bundles.map(bundle=>{
+        const {steps,next,done,run,restart}=bundleStatus(bundle);
+        const status=!next?'Complete':run?.paused||!run&&bundle.startedOn?'Paused':run?'Active':'Ready to start';
+        return `<section class="planner-bundle"><header><h3>${escape(bundle.name)}</h3><span>${status} · ${done}/${steps.length}</span></header>
+          <ol>${steps.map(step=>`<li><span>${step.task?`<button type="button" data-report-task="${escape(step.id)}">${escape(step.task.text)}</button>`:'Unavailable task'}</span>
+            <small>${step.done?'Complete':step===next?(step.ready?'Next':'Waiting'):'Queued'}</small></li>`).join('')}</ol>
+          <footer><button type="button" class="planner-primary" data-bundle-start="${escape(bundle.id)}" ${next||restart?'':'disabled'}>${restart?'Start again in Garden':run||bundle.startedOn?'Resume in Garden':'Start in Garden'}</button>
+          ${run&&next&&!run.paused?'<button type="button" data-bundle-stop>Pause bundle</button>':''}
+          <button type="button" data-bundle-edit="${escape(bundle.id)}" aria-haspopup="dialog">Edit order</button></footer></section>`;
+      }).join(''):'<p>Create a bundle to group tasks from any project.</p>'}</div>`;
+  }
   function renderContent() {
     const left=content.scrollLeft, top=content.scrollTop;
     const columns=[...content.querySelectorAll('.planner-column-body')].map(column=>column.scrollTop);
@@ -458,6 +472,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     else if (view==='reporting') content.innerHTML=reportingMarkup();
     else if (view==='review'||view==='workload') content.innerHTML=weekMarkup();
     else if (view==='health') content.innerHTML=healthMarkup();
+    else if (view==='bundles') content.innerHTML=bundlesMarkup();
     else if (month) content.innerHTML=monthMarkup(calendarTasks());
     else if (layout==='list'&&view==='inbox') content.innerHTML=inboxMarkup(tasks);
     else if (layout==='list'&&view==='today') content.innerHTML=todayMarkup(tasks);
@@ -543,7 +558,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const actual=standalone&&isActualCalendar();
     sidebar.hidden=standalone;
     if (!standalone) renderSidebar();
-    const sectionView=['filters','reporting','search','review','workload','health'].includes(view);
+    const sectionView=['filters','reporting','search','review','workload','health','bundles'].includes(view);
     const calendar=timeLayout()&&!sectionView;
     root.dataset.plannerView=view;
     root.dataset.plannerLayout=layout;
@@ -565,6 +580,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if(!actual)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-availability aria-haspopup="dialog">Availability</button>');
     if(!actual&&(standalone||view==='today'))$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-tradeoffs aria-haspopup="dialog">Fit a task today</button>');
     if(!standalone)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-mistakes aria-haspopup="dialog">Mistake notebook</button>');
+    if(view==='bundles')$('#planner-heading-actions').innerHTML='<button type="button" class="planner-heading-add" data-bundle-new aria-haspopup="dialog">+ New bundle</button>';
     if(standalone&&!actual||project)$('#planner-heading-actions').insertAdjacentHTML('beforeend',
       `<button type="button" data-manage="calendar-export" data-value="${escape(project?.id)}">Export .ics</button>`);
     if(project)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="milestones" aria-haspopup="dialog">Milestones</button>');
@@ -985,6 +1001,9 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     }
     if (!button) return;
     const data=button.dataset;
+    if('bundleNew' in data||data.bundleEdit)return editBundle(data.bundleEdit);
+    if(data.bundleStart)return startBundle(data.bundleStart);
+    if('bundleStop' in data)return stopBundle(button);
     if(data.projectExams)return openExamPlans(data.projectExams,button);
     if('finishProject' in data){
       const project=state().projects.find(item=>item.id===selection&&!item.archived);
@@ -1175,11 +1194,12 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if (event.key.toLowerCase()==='q') {
       if(view==='calendar'&&isActualCalendar())return;
       event.preventDefault();
+      if(view==='bundles'){editBundle();return;}
       if (view==='calendar') $('#planner-heading-actions [data-calendar-new]').click(); else add();
     }
     if (view==='calendar') return;
     if (event.key==='/'&&view!=='search') { event.preventDefault(); setView('search'); }
-    if (event.shiftKey&&event.key.toLowerCase()==='v'&&!['filters','reporting','search'].includes(view)) {
+    if (event.shiftKey&&event.key.toLowerCase()==='v'&&!['filters','reporting','search','bundles'].includes(view)) {
       event.preventDefault(); selectLayout({board:'list',list:'calendar',calendar:'3days','3days':'month',month:'board'}[layout]); render();
     }
   });

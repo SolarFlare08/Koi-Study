@@ -21,6 +21,19 @@
 .backup-restore { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--surface-line); }
 #backup-dialog { width: min(720px,calc(100% - 26px)); }
 #exam-dialog, #mistake-dialog { width: min(680px,calc(100% - 26px)); }
+#bundle-dialog { width: min(520px,calc(100% - 26px)); }
+#bundle-dialog label { display: grid; gap: 4px; font-size: 12px; }
+#bundle-dialog input { padding: 8px; border: 1px solid var(--surface-line); border-radius: 8px; background: var(--surface-field); color: inherit; }
+.bundle-task-add, .bundle-editor-actions { display: flex; align-items: center; gap: 7px; }
+.bundle-task-add button, #bundle-order button, [data-bundle-delete] { padding: 5px 8px; border: 1px solid var(--surface-line); border-radius: 6px; font-size: 13px; }
+#bundle-order { margin: 0; padding-left: 20px; }
+#bundle-order li { padding: 5px 0; border-top: 1px solid var(--surface-line); font-size: 13px; overflow-wrap: anywhere; }
+#bundle-order li div { display: inline-flex; margin-left: 7px; gap: 4px; }
+#bundle-editor-error { color: var(--surface-danger); }
+#bundle-editor-error:empty { display: none; }
+.focus-bundle-steps { padding-left: 20px; font-size: 13px; }
+.focus-bundle-steps li { padding: 4px 0; overflow-wrap: anywhere; }
+.focus-bundle-steps small { margin-left: 6px; color: var(--surface-muted); }
 #exam-dialog header { position: sticky; top: -24px; padding: 10px 0; z-index: 1; background: var(--surface-paper); }
 #exam-dialog header small, #exam-dialog label span, .exam-plan-summary { color: var(--surface-muted); }
 #exam-dialog form { padding: 13px 0; margin-top: 10px; border-top: 1px solid var(--surface-line); }

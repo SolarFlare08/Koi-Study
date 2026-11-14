@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'2.3.0',date:'2026-11-13',title:'Task bundles and journal patterns',changes:[
+    'Group existing tasks in Planner and work through them in Garden. Bundles remember their place across focus sessions.',
+    'Filter journal entries by mood, tags, and themes. Browse weekly patterns and write reflections that link to individual entries.',
+    'Planner and Journal backups include the new records and still open earlier saves.'
+  ]},
   {version:'2.2.0',date:'2026-11-13',title:'Scheduling trade-offs, project health, and mistake review',changes:[
     'Compare ways to fit an unscheduled task today, including which booking would move. Apply and undo the whole change together.',
     'See next actions, stalled prerequisites, and shared deadline capacity across projects.',

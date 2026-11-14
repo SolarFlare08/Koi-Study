@@ -373,6 +373,18 @@
 .project-health ul { margin: 5px 0 0; padding-left: 18px; }
 .project-health [data-report-task] { padding: 0; color: var(--planner-ink); text-align: left; text-decoration: underline; }
 .project-health button:hover { color: var(--planner-accent); }
+.planner-bundles { display: grid; gap: 11px; max-width: 760px; }
+.planner-bundles > p { margin: 0; color: var(--planner-muted); font-size: 13px; }
+.planner-bundle { display: grid; gap: 8px; padding: 13px; border: 1px solid var(--planner-line); border-radius: 10px; }
+.planner-bundle header, .planner-bundle footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; }
+.planner-bundle h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.planner-bundle header span, .planner-bundle li small { color: var(--planner-muted); font-size: 12px; }
+.planner-bundle ol { margin: 0; padding-left: 20px; font-size: 13px; }
+.planner-bundle li { padding: 4px 0; border-top: 1px solid var(--planner-line); }
+.planner-bundle li small { margin-left: 8px; }
+.planner-bundle [data-report-task] { padding: 0; text-align: left; text-decoration: underline; overflow-wrap: anywhere; }
+.planner-bundle footer { justify-content: flex-start; }
+.planner-bundle footer button:not(.planner-primary) { padding: 5px 8px; border: 1px solid var(--planner-line); border-radius: 6px; font-size: 12px; }
 #tradeoff-form { display: grid; gap: 6px; font-size: 13px; }
 #tradeoff-form button { justify-self: start; }
 .tradeoff-options { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }

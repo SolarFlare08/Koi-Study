@@ -48,6 +48,7 @@
         <button id="finish-current-task" type="button" aria-label="Finish current task early" aria-haspopup="dialog" aria-expanded="false" title="Finish current task early" hidden>Finish</button>
       </div>
       <button id="resume-task" class="resume-task" type="button" aria-haspopup="dialog" hidden></button>
+      <button id="focus-bundle" class="resume-task" type="button" aria-haspopup="dialog" hidden></button>
       <button id="focus-project-context" class="resume-task" type="button" aria-haspopup="dialog" title="Open project context" hidden></button>
       <button id="focus-linked-notes" class="resume-task" type="button" aria-controls="focus-notes-panel" aria-expanded="false" hidden>Task notes</button>
       <p id="routine-phase" class="routine-phase-caption" aria-live="polite" hidden></p>
@@ -180,6 +181,7 @@
     <footer class="sr-only"><span id="saved-status">Saved on this device</span></footer>
     <div id="panel-root"></div>
     <dialog id="mistake-dialog" class="workspace-dialog" aria-labelledby="mistake-title"></dialog>
+    <dialog id="bundle-dialog" class="workspace-dialog" aria-labelledby="bundle-editor-title"></dialog>
     <div id="task-menu" role="menu" aria-label="Task actions" hidden></div>
     <div id="toast" role="status" aria-live="polite"></div>
     <div id="undo-toast" hidden><span id="undo-message"></span><button id="undo-action" type="button">Undo</button></div>

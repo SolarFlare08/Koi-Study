@@ -6,6 +6,7 @@ import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
 import {handoffLink} from './session-handoff.js';
 import {installExamPlans} from './exam-plans.js';
 import {installMistakeNotebook,needsRetry} from './mistake-notebook.js';
+import {bundleProgress,installBundleEditor} from './task-bundles.js';
 import {CAPTURE_PREFIX, cleanCaptureContext, readCaptures, saveCapture, storeCapture} from './capture.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from './day-recap.js';
 import {installPlanner} from './planner.js';
@@ -85,6 +86,7 @@ let reopenTasksAfterCalendar=false;
 let effectiveAppearance=state.appearance, resumeTaskId=null, captureActionKey=null;
 let renderedGardenGrowth, selectedLandmark=null, gardenHistoryFilter='all', recapOrigin=null;
 let handoffMarkup='', actualCalendar=false, replayRenderKey='', returnToCalendarMonth=false;
+let renderedBundle='';
 let savedSchedule=snapshotSchedule(state), captureInboxTab='inbox', returnToCaptureInbox=false, captureInboxIndex=0;
 const gardenAudio=createGardenAudio();
 let spotifyPlayback='idle';
@@ -236,12 +238,14 @@ const mistakeNotebook=installMistakeNotebook({dialog:$('#mistake-dialog'),getSta
 }});
 const examPlans=installExamPlans({dialog:$('#exam-dialog'),projects:()=>state.projects,today:dayKey,save:saveExamPlan,
   openMistakes:(context,anchor)=>mistakeNotebook.open(context,anchor)});
+const bundleEditor=installBundleEditor({dialog:$('#bundle-dialog'),tasks:gardenTasks,save:item=>saveBundle(item),remove:id=>saveBundle(null,id)});
 const planner=installPlanner({
   root:calendarPanel,getState:()=>state,commit:()=>{const saved=persist();refreshTasks();return saved;},
   editTask:openTaskEditor,openBlock:openCalendarBlock,taskMenu:openTaskMenu,
   linkedNotes:id=>linkedStickyNotes('project',id),
   nextProjectTask, resumeProject, projectTimerLocked,
   openExamPlans:(project,anchor)=>examPlans.open(project,null,anchor),
+  bundleStatus:taskBundleStatus, startBundle, stopBundle, editBundle,
   isActualCalendar:()=>actualCalendar,
   projectReward:id=>gardenReward(state.gardenGrowth,'project',id),
   finishProject:project=>recordGardenGrowth('project',project.id,project.name),
@@ -281,6 +285,12 @@ const journal=installJournal({root:$('#journal-workspace'),storage,projects:()=>
     const previous=state.journalTemplates;state.journalTemplates=templates;
     if(persist())return true;
     state.journalTemplates=previous;return false;
+  },
+  getReflections:()=>state.weeklyReflections,saveReflection:record=>{
+    const previous=state.weeklyReflections;
+    state.weeklyReflections=[...previous.filter(item=>item.week!==record.week),record];
+    if(persist())return true;
+    state.weeklyReflections=previous;return false;
   },
   linkedNotes:id=>linkedStickyNotes('journal',id),
   onChange:()=>{if(inSchedule())renderCalendar();}
@@ -441,6 +451,8 @@ function commandEntries(){
     action('Fit a task today','Compare which calendar blocks could move','tradeoffs trade-offs schedule today',()=>runHelpAction('tradeoffs')),
     action('Project health','Find missing next actions, prerequisites, and deadline risks','blocked stalled capacity',()=>runHelpAction('health')),
     action('Mistake notebook','Review corrected reasoning and retry mistakes','practice errors exam topics',()=>runHelpAction('mistakes')),
+    action('Task bundles','Arrange tasks and work through them in order','ordered batch routine sequence',()=>runHelpAction('bundles')),
+    action('Journal patterns','Browse journal moods, tags, themes, and weekly reflections','weekly journal reflection patterns',()=>runHelpAction('journal-patterns')),
     action('Note inbox','File, link, or archive captured thoughts','capture ideas notes archive',()=>runHelpAction('capture-inbox')),
     action('Plan to deadline','Suggest focus blocks before a task is due','backward schedule estimate capacity',()=>{
       visitWorkspace('planner');$('[data-plan-deadline]')?.click();
@@ -478,7 +490,7 @@ function runHelpAction(action){
   if(action==='capture-inbox'){
     visitWorkspace('notes');openCaptureInbox();return;
   }
-  const views={filters:'filters',review:'review',workload:'workload',reporting:'reporting',health:'health'};
+  const views={filters:'filters',review:'review',workload:'workload',reporting:'reporting',health:'health',bundles:'bundles'};
   if(views[action]){
     visitWorkspace('planner');
     calendarPanel.querySelector(`[data-planner-view="${views[action]}"]`)?.click();
@@ -493,6 +505,7 @@ function runHelpAction(action){
   if(action==='mistakes'){
     visitWorkspace('planner');$('[data-open-mistakes]')?.click();return;
   }
+  if(action==='journal-patterns'){visitWorkspace('journal');journal.openPatterns();return;}
   if(action==='tomorrow'){
     visitWorkspace('planner');$('[data-plan-tomorrow]')?.click();return;
   }
@@ -523,13 +536,79 @@ function gardenFocusQueue(date=new Date(),tasks=gardenTasks(),tasksById=taskInde
   const pins=state.focusPins?.day===day&&state.focusPins.ids.length?state.focusPins.ids:state.tomorrowPlan?.day===day?[state.tomorrowPlan.taskId]:[];
   return focusTaskQueue(tasks,date,pins,tasksById);
 }
+function taskBundleStatus(bundle,date=new Date(),queue=gardenFocusQueue(date)){
+  const run=state.activeBundle?.id===bundle.id?state.activeBundle:null;
+  const tasks=new Map(gardenTasks().map(task=>[task.id,task]));
+  return bundleStatusFor(bundle,date,tasks,queue,run);
+}
+function bundleStatusFor(bundle,date,tasks,queue,run){
+  const ready=new Set(queue.map(task=>task.id));
+  const startedOn=run?.startedOn||bundle.startedOn||dayKey(date);
+  const progress=bundleProgress(bundle,tasks,ready,startedOn);
+  const fresh=progress.next?null:bundleProgress(bundle,tasks,ready,dayKey(date));
+  return {...progress,bundle,run,restart:Boolean(fresh?.next?.ready)};
+}
+function activeBundleStatus(date,queue){
+  const bundle=state.activeBundle&&state.taskBundles.find(item=>item.id===state.activeBundle.id);
+  return bundle?taskBundleStatus(bundle,date,queue):null;
+}
+function editBundle(id){
+  const bundle=state.taskBundles.find(item=>item.id===id);
+  bundleEditor.open(bundle,()=>bundle&&$(`[data-bundle-edit="${CSS.escape(bundle.id)}"]`)||$('[data-bundle-new]'));
+}
+function saveBundle(item,id=item?.id){
+  const {taskBundles,activeBundle}=state;
+  const exists=taskBundles.some(bundle=>bundle.id===id);
+  state.taskBundles=item?(exists?taskBundles.map(bundle=>bundle.id===id?item:bundle):[...taskBundles,item]):taskBundles.filter(bundle=>bundle.id!==id);
+  if(!item&&activeBundle?.id===id)state.activeBundle=null;
+  if(!persist()){Object.assign(state,{taskBundles,activeBundle});return false;}
+  refreshTasks();confirmChange(item?'Task bundle saved.':'Task bundle deleted.');return true;
+}
+function startBundle(id){
+  checkCompletion();
+  const bundle=state.taskBundles.find(item=>item.id===id);
+  if(!bundle)return;
+  if(projectTimerLocked()){confirmChange('Finish or reset the current focus timer before starting a bundle.');return;}
+  const status=taskBundleStatus(bundle);
+  if(!status.next&&!status.restart){confirmChange('Every task in this bundle is complete.');return;}
+  const {taskBundles,activeBundle,activeTask,activeTaskDay}=state;
+  const startedOn=status.restart?dayKey():status.run?.startedOn||bundle.startedOn||dayKey();
+  state.taskBundles=taskBundles.map(item=>item===bundle?{...item,startedOn}:item);
+  state.activeBundle={id,startedOn,paused:false};
+  state.activeTask=null;state.activeTaskDay=null;
+  if(!persist()){Object.assign(state,{taskBundles,activeBundle,activeTask,activeTaskDay});return;}
+  closePanel(false);visitWorkspace('focus');refreshTasks();
+  const next=activeBundleStatus()?.next;
+  if(next?.ready){timerButton.focus({preventScroll:true});announce(`Bundle ready. Next: ${next.task.text}.`);}
+  else openPanel('focus-bundle',$('#focus-bundle'));
+}
+function stopBundle(anchor){
+  const previous=state.activeBundle;
+  if(!previous||previous.paused)return;
+  const {activeTask,activeTaskDay}=state;
+  const current=focusedTask();
+  state.activeBundle={...previous,paused:true};
+  if(current){state.activeTask=current.id;state.activeTaskDay=dayKey();}
+  if(!persist()){Object.assign(state,{activeBundle:previous,activeTask,activeTaskDay});return;}
+  const fromGarden=anchor.closest('#panel-root');
+  if(fromGarden)closePanel(false);
+  refreshTasks();
+  (fromGarden?$('#focus-bundle'):$(`[data-bundle-start="${CSS.escape(previous.id)}"]`))?.focus({preventScroll:true});
+  confirmChange('Bundle paused. Resume it to continue in order.');
+}
+function pauseBundleForTask(taskId){
+  const status=activeBundleStatus();
+  if(status?.next&&!status.run.paused&&status.next.id!==taskId)state.activeBundle={...status.run,paused:true};
+}
 function taskIndex(){return new Map(state.tasks.map(task=>[task.id,task]));}
 function waitingOn(task){return task?.prerequisiteIds?.length?unfinishedPrerequisites(task,taskIndex()):[];}
 function focusedTask(date=new Date()){
   if(state.timer.block)return state.tasks.find(task=>task.id===state.timer.block.taskId);
   const queue=gardenFocusQueue(date);
-  const sessionId=state.timer.mode==='focus'?state.timer.taskSnapshot?.id:null;
+  const sessionId=state.timer.mode==='focus'?state.timer.replay?.at(-1)?.taskId||state.timer.taskSnapshot?.id:null;
   const day=dayKey(date);
+  const bundle=activeBundleStatus(date,queue);
+  if(bundle?.next&&!bundle.run.paused)return bundle.next.ready||bundle.next.id===sessionId?bundle.next.task:undefined;
   const snoozedSession=state.tasks.find(task=>task.id===sessionId&&task.snoozedUntil>day);
   if(snoozedSession)return snoozedSession;
   const selectedId=(state.tomorrowPlan?.day!==day||state.activeTaskDay===day?state.activeTask:null)||sessionId;
@@ -544,10 +623,11 @@ function resumeProject(projectId){
   if(projectTimerLocked()){confirmChange('Finish or reset the current focus timer before switching projects.');return;}
   const task=nextProjectTask(projectId);
   if(!task){confirmChange('This project has no task ready in the focus queue.');return;}
-  const {activeTask,activeTaskDay}=state;
+  const {activeTask,activeTaskDay,activeBundle}=state;
+  pauseBundleForTask(task.id);
   state.activeTask=task.id;
   state.activeTaskDay=dayKey();
-  if(!persist()){Object.assign(state,{activeTask,activeTaskDay});return;}
+  if(!persist()){Object.assign(state,{activeTask,activeTaskDay,activeBundle});return;}
   visitWorkspace('focus');
   refreshTasks();
   const context=$('#focus-project-context');
@@ -582,8 +662,13 @@ function render(){
   $('#wall-clock').dateTime=clock.toISOString();
   if(planner.checkReminders(clock))persist();
   const task=focusedTask(clock);
+  const bundle=activeBundleStatus(clock),bundleButton=$('#focus-bundle');
+  bundleButton.hidden=!bundle;
+  const bundleText=bundle?`${bundle.bundle.name} · ${bundle.done}/${bundle.steps.length}${bundle.run.paused?' · Paused':!bundle.next?' · Complete':!bundle.next.ready?' · Waiting':''}`:'';
+  if(renderedBundle!==bundleText){bundleButton.textContent=bundleText;renderedBundle=bundleText;}
   focusNotes.update(task,workspace==='focus');
-  const taskName=task?.text||'Choose a task';
+  const bundleWaiting=bundle?.next&&!bundle.run.paused&&!bundle.next.ready;
+  const taskName=task?.text||(bundleWaiting?'Bundle waiting':'Choose a task');
   if(currentTaskName.textContent!==taskName)currentTaskName.textContent=taskName;
   currentTaskButton.title=task?task.text:'Choose a task';
   finishTaskButton.hidden=!task||t.mode!=='focus';
@@ -624,6 +709,9 @@ function render(){
   if(workspace==='calendar'&&actualCalendar)updateActualCalendar(clock);
   if(activePanel==='calendar-block')updateBlockPreview(clock.getTime());
   const running=t.status==='running';
+  const waitingForBundle=t.mode==='focus'&&!t.id&&bundleWaiting;
+  timerButton.disabled=Boolean(waitingForBundle);
+  timerButton.title=waitingForBundle?'The next bundle task is unavailable':'Start or pause (Space)';
   const sequence=t.sequence;
   const phase=sequence?.phases[sequence.index];
   const routineCaption=$('#routine-phase');
@@ -700,6 +788,8 @@ async function toggleNotifications(){
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
 function toggleFocusTimer(task,now=Date.now()){
   const freshFocus=!state.timer.id&&state.timer.mode==='focus';
+  const bundle=freshFocus&&!task?activeBundleStatus(new Date(now)):null;
+  if(bundle?.next&&!bundle.run.paused)return;
   replayTaskSwitch(state.timer,task,now);
   startPause(state,now,task?.id||null);
   if(!freshFocus||!task)return;
@@ -751,6 +841,7 @@ miniCalendar.addEventListener('click',event=>{
 $('#close-calendar').onclick=()=>closeCalendar();
 $('#planner-appearance').onclick=()=>openPanel('appearance',$('#planner-appearance'));
 $('#resume-task').onclick=()=>openPanel('resume',$('#resume-task'));
+$('#focus-bundle').onclick=()=>openPanel('focus-bundle',$('#focus-bundle'));
 $('#focus-project-context').onclick=()=>openPanel('project-context',$('#focus-project-context'));
 $('#close-task-sidebar').onclick=()=>{setTaskSidebar(false);taskToggle.focus();};
 document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>{
@@ -1546,6 +1637,28 @@ function focusTaskPicker(){
     <div class="panel-actions"><button type="button" class="panel-primary" id="focus-task-add">Add task</button>${edit}${pinned?'<button type="button" class="text-button" id="reset-focus-order">Use calendar order</button>':''}</div>`;
 }
 
+function focusBundleMarkup(){
+  const status=activeBundleStatus();
+  if(!status)return header('TASK BUNDLE','No active bundle');
+  const {bundle,steps,next,run,restart}=status;
+  return `${header('TASK BUNDLE',escape(bundle.name))}
+    <ol class="focus-bundle-steps">${steps.map(step=>`<li><strong>${escape(step.task?.text||'Unavailable task')}</strong>
+      <small>${step.done?'Complete':step===next?(step.ready?'Next':'Next · waiting'):'Queued'}</small></li>`).join('')}</ol>
+    ${next&&!next.ready?`<p>${!next.task?'Edit the bundle to remove the unavailable task.':waitingOn(next.task).length?'Finish the prerequisites to continue.':'The next task is scheduled for later or snoozed.'}</p>`:''}
+    <div class="panel-actions"><button type="button" class="text-button" data-bundle-planner>Manage bundles</button>
+      ${run.paused&&next||restart?`<button type="button" class="panel-primary" data-resume-bundle="${escape(bundle.id)}">${restart?'Start again':'Resume bundle'}</button>`:
+        next?'<button type="button" class="text-button" data-pause-bundle>Pause bundle</button>':''}</div>`;
+}
+
+function finishTaskOccurrence(task,date,timer=state.timer){
+  const block=timer.block||timer.calendarBlock||focusCalendarBlock(task,date);
+  const started=Number.isFinite(timer.startedAt)&&new Date(timer.startedAt);
+  const startedOccurrence=state.activeBundle&&!state.activeBundle.paused&&started&&
+    taskStatus(task,date)==='upcoming'&&taskStatus(task,started)==='todo'?dayKey(started):null;
+  const day=block?.taskDay||block?.occurrence||startedOccurrence;
+  return /^\d{4}-\d{2}-\d{2}$/.test(day)?new Date(day+'T12:00:00'):date;
+}
+
 function saveFocusOrder(ids,focusId,step){
   const previous=state.focusPins, activeTask=state.activeTask;
   state.focusPins=ids.length?{day:dayKey(),ids}:null;
@@ -1598,6 +1711,7 @@ function timerNotificationControls(){
     <button type="button" class="text-button" id="timer-open-sounds">Adjust chimes and ambience</button></section>`;
 }
 function panelContent(id){
+  if(id==='focus-bundle')return focusBundleMarkup();
   if(id==='availability')return availabilityMarkup();
   if(id==='routine-editor')return routineEditor();
   if(id==='focus-review')return focusReviewMarkup();
@@ -1654,13 +1768,21 @@ function panelContent(id){
   if(id==='finish-task'){
     const task=focusedTask();
     if(!task)return header('CURRENT TASK','Nothing to finish');
-    const afterCompletion=taskIndex();
-    afterCompletion.set(task.id,{...task,done:true});
-    const next=gardenFocusQueue(new Date(),gardenTasks(),afterCompletion).find(item=>item.id!==task.id);
+    const date=new Date(),afterCompletion=taskIndex(),copy={...task,done:true};
+    afterCompletion.set(task.id,copy);
+    const tasks=gardenTasks().map(item=>item===task?copy:item);
+    const queue=gardenFocusQueue(date,tasks,afterCompletion);
+    const active=activeBundleStatus(date);
+    const nextStep=active?.next?.id===task.id&&!active.run.paused?
+      bundleStatusFor(active.bundle,date,new Map(tasks.map(item=>[item.id,item])),queue,active.run).next:null;
+    const inBundle=active?.next?.id===task.id&&!active.run.paused;
+    const next=inBundle?nextStep?.task:queue[0];
+    const message=next?`Up next · <strong>${escape(next.text)}</strong>${nextStep&&!nextStep.ready?' · Waiting':''}`:
+      nextStep?'The next bundle task is unavailable.':inBundle?'This finishes the bundle.':'Your task queue is clear after this.';
     return `${header('CURRENT TASK','Finish early?')}<p>Mark <strong>${escape(task.text)}</strong> complete.</p>
       ${state.timer.sequence?'<p>This also ends the current routine.</p>':''}
-      <p>${next?`Up next · <strong>${escape(next.text)}</strong>`:'Your task queue is clear after this.'}</p>
-      <div class="panel-actions"><button type="button" class="text-button" data-finish-task="break" data-task-id="${escape(task.id)}">Take a break</button><button type="button" class="panel-primary" data-finish-task="focus" data-task-id="${escape(task.id)}">Keep going</button></div>`;
+      <p>${message}</p>
+      <div class="panel-actions"><button type="button" class="text-button" data-finish-task="break" data-task-id="${escape(task.id)}">Take a break</button><button type="button" class="panel-primary" data-finish-task="focus" data-task-id="${escape(task.id)}">${inBundle&&(!nextStep||!nextStep.ready)?'Finish task':'Keep going'}</button></div>`;
   }
   if(id==='event-editor')return calendarEventEditor();
   if(id==='replan-today')return replanMarkup();
@@ -2243,16 +2365,16 @@ function finishCurrentTask(button){
   const now=Date.now();
   const priorTimer=state.timer, priorSelection=state.activeTask, priorHistoryLength=state.history.length;
   const today=new Date(now);
-  const timerBlock=priorTimer.block||priorTimer.calendarBlock;
-  const queueBlock=focusCalendarBlock(task,today);
-  const plannedDay=timerBlock?.taskDay||timerBlock?.occurrence||queueBlock?.taskDay||queueBlock?.occurrence;
-  const occurrence=/^\d{4}-\d{2}-\d{2}$/.test(plannedDay)?new Date(plannedDay+'T12:00:00'):today;
+  const wasBundle=activeBundleStatus(today);
+  const occurrence=finishTaskOccurrence(task,today,priorTimer);
   const undo=taskStatus(task,occurrence)!=='done'?recordTaskCompletion(state,task,true,occurrence,now):null;
   if(priorTimer.mode==='focus')record(state,'completed',now,{early:true});
   state.activeTask=null;
   reset(state,button.dataset.finishTask);
-  const next=focusedTask();
-  toggleFocusTimer(next,now);
+  const active=activeBundleStatus(today);
+  const finishedBundle=wasBundle?.next?.id===task.id&&!wasBundle.run.paused&&!active?.next;
+  const next=finishedBundle?undefined:focusedTask();
+  if(next||state.timer.mode==='break'||!finishedBundle&&(!active?.next||active.run.paused))toggleFocusTimer(next,now);
   if(!persist()){
     undo?.(state);
     state.timer=priorTimer;state.activeTask=priorSelection;state.history.length=priorHistoryLength;
@@ -2262,7 +2384,8 @@ function finishCurrentTask(button){
   resumeTaskId=null;
   closePanel(false);refreshTasks();wake();
   timerButton.focus({preventScroll:true});
-  const activity=state.timer.mode==='break'?'Break started.':'Focus started.';
+  const activity=state.timer.mode==='break'?'Break started.':state.timer.status==='running'?'Focus started.':
+    activeBundleStatus()?.next?'Bundle is waiting on the next task.':'Bundle complete.';
   confirmChange(`Task finished. ${activity}${next?` Up next: ${next.text}.`:''}`,undo);
 }
 
@@ -2292,6 +2415,7 @@ taskMenu.addEventListener('click',event=>{
   }
   if(action==='focus'){
     if(waitingOn(task).length){announce('Finish the prerequisites before focusing on this task.');return;}
+    pauseBundleForTask(task.id);
     state.activeTask=state.activeTask===task.id?null:task.id;
     if(state.activeTask)state.activeTaskDay=dayKey();
   }
@@ -3261,6 +3385,7 @@ taskSidebar.addEventListener('click',event=>{
   if(button.classList.contains('task-active')){
     const task=state.tasks.find(item=>item.id===card.dataset.task);
     if(!task||waitingOn(task).length)return;
+    pauseBundleForTask(task.id);
     state.activeTask=card.dataset.task;
     state.activeTaskDay=dayKey();
     persist();refreshTasks();
@@ -3290,6 +3415,11 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const resumeBundle=e.target.closest('[data-resume-bundle]');
+  if(resumeBundle){startBundle(resumeBundle.dataset.resumeBundle);return;}
+  const pauseBundle=e.target.closest('[data-pause-bundle]');
+  if(pauseBundle){stopBundle(pauseBundle);return;}
+  if(e.target.closest('[data-bundle-planner]')){runHelpAction('bundles');return;}
   const tradeoff=e.target.closest('[data-apply-tradeoff]');
   if(tradeoff){applyTradeoff(Number(tradeoff.dataset.applyTradeoff));return;}
   const mistake=e.target.closest('[data-task-mistakes]');
@@ -3386,9 +3516,10 @@ root.addEventListener('click',e=>{
     const minutes=Number($('#fit-minutes').value);
     const task=tasksWithinTime(gardenFocusQueue(),minutes,fitEnergy).find(item=>item.id===fit.dataset.fitTask);
     if(!task||state.timer.block||state.timer.mode==='focus'&&state.timer.id)return;
-    const previous=state.activeTask,previousDay=state.activeTaskDay;
+    const {activeTask,activeTaskDay,activeBundle}=state;
+    pauseBundleForTask(task.id);
     state.activeTask=task.id;state.activeTaskDay=dayKey();
-    if(!persist()){state.activeTask=previous;state.activeTaskDay=previousDay;return;}
+    if(!persist()){Object.assign(state,{activeTask,activeTaskDay,activeBundle});return;}
     closePanel(false);refreshTasks();timerButton.focus({preventScroll:true});
     announce(`Current task: ${task.text}`);return;
   }
@@ -3445,6 +3576,7 @@ root.addEventListener('click',e=>{
   if(btn.dataset.focusTask){
     const task=gardenFocusQueue().find(item=>item.id===btn.dataset.focusTask);
     if(!task||state.timer.block)return;
+    pauseBundleForTask(task.id);
     state.activeTask=task.id;
     state.activeTaskDay=dayKey();
     closePanel(false);persist();refreshTasks();
@@ -3464,6 +3596,7 @@ root.addEventListener('click',e=>{
     if(!timing?.available||waitingOn(state.tasks.find(task=>task.id===id)).length){updateBlockPreview(now);return;}
     const skipped=record(state,'skipped',now);
     const {occurrence,block,taskDay}=lastAnchor.dataset;
+    pauseBundleForTask(id);
     startBlockFocus(state,id,timing.available,timing.split,now,occurrence,block||null,taskDay||occurrence);
     closePanel(false);
     if(inSchedule())closeCalendar();
@@ -4089,6 +4222,7 @@ window.addEventListener('storage',e=>{
   if(e.key===STORAGE_KEY){
     state=loadState(storage);savedSchedule=snapshotSchedule(state);syncSound();checkCompletion();refreshTasks();stickyBoard.render();renderCaptures();
     if(workspace==='reading')reading.render();
+    if(workspace==='journal')journal.refresh();
     if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();
   }
   if(e.key===null||e.key?.startsWith(CAPTURE_PREFIX))renderCaptures();

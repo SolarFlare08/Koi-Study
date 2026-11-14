@@ -153,11 +153,19 @@ export function planBackupRestore(storage,current,incoming,sections){
     for(const {date,entry} of merged)state.dailyRituals[date]={...state.dailyRituals[date],[kind]:entry};
     stateChanged=true;
   }
-  section('planner','Planner','Tasks, scheduled blocks, project exam plans, and the mistake notebook.',apply=>{
+  section('planner','Planner','Tasks, bundles, scheduled blocks, exam plans, and the mistake notebook.',apply=>{
     stateList(apply,'tasks','Tasks');stateList(apply,'projects','Projects');stateList(apply,'taskTemplates','Task templates');
     stateList(apply,'plannerFilters','Saved views');stateList(apply,'plannerLabels','Labels',item=>item);
     stateList(apply,'taskActivity','Task completions');stateList(apply,'scheduleMoves','Schedule moves');
     stateList(apply,'mistakes','Mistake notebook');
+    stateList(apply,'taskBundles','Task bundles');
+    const run=incoming.state.activeBundle;
+    if(run){
+      const local=current.activeBundle;
+      const changes=local&&comparable(local)!==comparable(run)?[backupConflict('Active task bundle',local,run)]:[];
+      details.push({label:'Active task bundle',added:local?0:1,replaced:changes.length,unchanged:local&&!changes.length?1:0,changes});
+      if(apply)state.activeBundle=run;
+    }
     for(const [key,label] of [['tomorrowPlan','First focus reservation'],['focusPins','Pinned focus order']]){
       const local=current[key], backup=incoming.state[key];
       if(!backup||local?.day>backup.day)continue;
@@ -193,9 +201,10 @@ export function planBackupRestore(storage,current,incoming,sections){
     stateList(apply,'finishedBooks','Finished books and reviews');
     stateList(apply,'readingCollections','Reading collections');
   });
-  section('journal','Journal','Entries, templates, and daily completion marks.',apply=>{
+  section('journal','Journal','Entries, weekly reflections, templates, and daily completion marks.',apply=>{
     const records=merge('Journal entries',loadJournal(storage),incoming.journal);
     rituals(apply,'journal','Journal completion marks');stateList(apply,'journalTemplates','Journal templates');
+    stateList(apply,'weeklyReflections','Weekly reflections',item=>item.week);
     if(apply)writes.set(JOURNAL_KEY,JSON.stringify(records));
   });
   section('stitchbook','Stitchbook','Projects, yarn, usage, and crochet logs.',apply=>{

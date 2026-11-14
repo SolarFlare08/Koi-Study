@@ -15,6 +15,55 @@ import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from 
 import {remainingProjectWork} from '../dist/project-planning.js';
 import {reviewChapter} from '../dist/reading-progress.js';
 import {needsRetry} from '../dist/mistake-notebook.js';
+import {bundleProgress,loadTaskBundles} from '../dist/task-bundles.js';
+import {entriesInWeek,journalFacets,journalLabels,journalWeek,matchingJournal} from '../dist/journal-patterns.js';
+
+test('a bundle keeps its order and waits for the first unfinished occurrence',()=>{
+  const [bundle]=loadTaskBundles([{id:'lab',name:'Lab',taskIds:['reading','setup','setup','quiz']}]);
+  const tasks=new Map([['reading',{id:'reading',repeat:'daily',completions:['2026-11-10','2026-11-12']}],
+    ['setup',{id:'setup',done:false}],['quiz',{id:'quiz',done:false}]]);
+  const ready=new Set(['quiz']);
+  const status=bundleProgress(bundle,tasks,ready,'2026-11-11');
+  assert.deepEqual(bundle.taskIds,['reading','setup','quiz']);
+  assert.equal(status.done,1);
+  assert.equal(status.next.id,'setup');
+  assert.equal(status.next.ready,false);
+  assert.equal(bundleProgress(bundle,tasks,ready,'2026-11-13').next.id,'reading');
+  assert.equal(bundleProgress(bundle,new Map([['quiz',tasks.get('quiz')]]),ready,'2026-11-13').next.task,undefined);
+});
+
+test('weekly journal patterns use completed entries and filter labels without case sensitivity',()=>{
+  const week=journalWeek('2026-11-13');
+  const entries=[{id:'a',date:'2026-11-09',title:'A',body:'First proof',mood:'Calm',tags:journalLabels('Study, STUDY'),themes:['Momentum']},
+    {id:'b',date:'2026-11-15',title:'B',body:'Second proof',mood:'Tired',tags:['study']},
+    {id:'draft',date:'2026-11-13',draft:true},{id:'other',date:'2026-11-16'}];
+  assert.equal(week,'2026-11-09');
+  const items=entriesInWeek(entries,week);
+  assert.deepEqual(items.map(item=>item.id),['a','b']);
+  assert.deepEqual(journalFacets(items).tags,[{key:'study',label:'Study',count:2}]);
+  assert.deepEqual(matchingJournal(items,'proof',{mood:'calm',tags:'study',themes:'momentum'}).map(item=>item.id),['a']);
+});
+
+test('selective Planner and Journal backup restores keep bundle and reflection references',()=>{
+  const state=freshState(),entry={id:'entry',title:'Friday',date:'2026-11-13',body:'Useful examples',tags:['Study'],themes:['Momentum']};
+  const source=memoryStorage([[JOURNAL_KEY,JSON.stringify([entry])]]);
+  state.tasks=[{id:'lab',text:'Lab',done:false}];
+  state.taskBundles=[{id:'prep',name:'Prep',taskIds:['lab'],startedOn:'2026-11-12'}];
+  state.activeBundle={id:'prep',startedOn:'2026-11-12',paused:true};
+  state.weeklyReflections=[{week:'2026-11-09',body:'Weekly thoughts',entryIds:['entry'],updatedAt:5}];
+  const backup=readBackup(JSON.stringify(createBackup(state,source,[])));
+  const target=memoryStorage();
+  applyBackupRestore(target,planBackupRestore(target,freshState(),backup,new Set(['journal'])));
+  let restored=loadState(target);
+  assert.deepEqual(restored.weeklyReflections,state.weeklyReflections);
+  assert.deepEqual(restored.taskBundles,[]);
+  assert.deepEqual(loadJournal(target),[entry]);
+  applyBackupRestore(target,planBackupRestore(target,restored,backup,new Set(['planner'])));
+  restored=loadState(target);
+  assert.deepEqual(restored.activeBundle,state.activeBundle);
+  assert.deepEqual(restored.taskBundles,state.taskBundles);
+  assert.deepEqual(restored.weeklyReflections,state.weeklyReflections);
+});
 
 test('selective Planner restore includes mistake corrections and retry status',()=>{
   const state=freshState(), storage=memoryStorage();

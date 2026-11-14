@@ -13,6 +13,8 @@ import {addReplayEvent,loadReplay} from './focus-replay.js';
 import {loadExamPlans} from './exam-plans.js';
 import {handoffLink} from './session-handoff.js';
 import {loadMistakes} from './mistake-notebook.js';
+import {loadTaskBundles} from './task-bundles.js';
+import {loadWeeklyReflections} from './journal-patterns.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const taskEnergyLevels={light:'Light',moderate:'Moderate',demanding:'Demanding'};
@@ -165,6 +167,7 @@ export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],
+    taskBundles:[],activeBundle:null,weeklyReflections:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -194,6 +197,11 @@ export function loadState(storage) {
     base.readingCollections=loadReadingCollections(raw.readingCollections);
     base.availability=loadAvailability(raw.availability);
     base.mistakes=loadMistakes(raw.mistakes);
+    base.taskBundles=loadTaskBundles(raw.taskBundles);
+    base.weeklyReflections=loadWeeklyReflections(raw.weeklyReflections);
+    if(isDay(raw.activeBundle?.startedOn)&&base.taskBundles.some(bundle=>bundle.id===raw.activeBundle.id)){
+      base.activeBundle={id:raw.activeBundle.id,startedOn:raw.activeBundle.startedOn,paused:raw.activeBundle.paused===true};
+    }
     if(Array.isArray(raw.journalTemplates))base.journalTemplates=raw.journalTemplates.filter(item=>
       typeof item?.id==='string'&&typeof item.name==='string'&&item.name.trim()&&typeof item.body==='string'&&item.body.trim())
       .map(({id,name,body})=>({id,name:name.slice(0,80),body:body.slice(0,6000)}));
