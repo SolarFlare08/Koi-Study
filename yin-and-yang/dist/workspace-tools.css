@@ -20,6 +20,40 @@
 }
 .backup-restore { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--surface-line); }
 #backup-dialog { width: min(720px,calc(100% - 26px)); }
+#exam-dialog { width: min(680px,calc(100% - 26px)); }
+#exam-dialog header { position: sticky; top: -24px; padding: 10px 0; z-index: 1; background: var(--surface-paper); }
+#exam-dialog header small, #exam-dialog label span, .exam-plan-summary { color: var(--surface-muted); }
+#exam-dialog form { padding: 13px 0; margin-top: 10px; border-top: 1px solid var(--surface-line); }
+#exam-dialog h3 { margin: 0; font-size: 15px; }
+#exam-dialog label { display: grid; align-content: start; gap: 4px; font-size: 12px; min-width: 0; }
+#exam-dialog label span { display: inline; }
+#exam-dialog :is(input:not([type="checkbox"]),textarea) {
+  width: 100%; min-width: 0; padding: 8px; font: inherit; color: inherit; background: var(--surface-field);
+  border: 1px solid var(--surface-line); border-radius: 8px;
+}
+#exam-dialog [data-exam-error] { color: var(--surface-danger); }
+#exam-dialog [data-exam-error]:empty, .exam-plan-list:empty, .exam-topics:empty { display: none; }
+.exam-fields, .exam-topic { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.exam-topics { display: grid; gap: 7px; }
+.exam-topic { grid-template-columns: minmax(0,1fr) minmax(110px,.75fr) auto; align-items: end; }
+#exam-dialog .exam-remove { display: flex; align-items: center; padding: 6px 0; }
+.exam-back { font-size: 12px; padding: 5px 0; }
+.exam-back:hover { text-decoration: underline; }
+.exam-plan-summary { display: flex; flex-wrap: wrap; gap: 6px 15px; padding: 7px 0 2px; font-size: 12px; }
+.exam-plan-list, .exam-score-list { margin: 5px 0 0; padding: 0; list-style: none; }
+.exam-plan-list button, .exam-score-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  padding: 8px 6px; border-bottom: 1px solid var(--surface-line); text-align: left; font-size: 13px; overflow-wrap: anywhere;
+}
+.exam-plan-list button:hover { background: var(--surface-raised); }
+.exam-plan-list small, .exam-score-list small { display: block; color: var(--surface-muted); }
+.exam-score-list b { margin-left: auto; white-space: nowrap; }
+.exam-score-list button { flex: none; padding: 4px 8px; }
+@media (max-width:420px) {
+  .exam-topic { grid-template-columns: minmax(0,1fr) minmax(94px,.7fr); }
+  #exam-dialog .exam-remove { grid-column: 1/-1; justify-self: end; padding: 0; }
+  .exam-plan-list button { flex-wrap: wrap; }
+}
 #restore-points-heading { margin: 0; font-size: 15px; }
 #restore-points-list { list-style: none; padding: 0; margin: 0; }
 #restore-points-list button { padding: 5px 0; color: var(--surface-accent); text-decoration: underline; }
@@ -70,6 +104,20 @@
   background: var(--surface-paper); color: var(--surface-ink); box-shadow: 0 10px 28px #09162145;
 }
 #focus-notes-panel h2 { font-size: 21px; }
+#focus-handoff {
+  position: absolute; z-index: 3; left: clamp(12px,3vw,45px); top: 41%; width: min(280px,calc(50vw - 185px)); max-height: 29%;
+  overflow: auto; padding: 12px 14px; border: 1px solid var(--surface-line); border-radius: 12px;
+  background: var(--surface-paper); color: var(--surface-ink); box-shadow: 0 8px 26px #09162125; overflow-wrap: anywhere;
+}
+#focus-handoff h2 { margin: 0 0 5px; color: var(--surface-accent); font-size: 12px; }
+#focus-handoff p { margin: 3px 0; font-size: 12px; }
+.handoff-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+.handoff-resource { display: inline-flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 12px; }
+.handoff-resource svg { width: 13px; height: 13px; }
+#resume-form .field-label span { color: var(--surface-muted); }
+@media (max-width:850px) {
+  #focus-handoff { top: 62px; left: 12px; max-height: 17%; width: min(270px,calc(100% - 24px)); padding: 8px 10px; }
+}
 .focus-notes-list { display: grid; gap: 10px; margin-top: 8px; }
 .focus-notes-list label { display: grid; gap: 4px; color: var(--surface-muted); font-size: 12px; overflow-wrap: anywhere; }
 .focus-notes-list textarea {

@@ -1,4 +1,10 @@
 export const releases = [
+  {version:'2.1.0',date:'2026-11-13',title:'Focus replay, exam prep, and session handoffs',changes:[
+    'Switch Calendar to Actual to see focus intervals and replay starts, pauses, resumptions, task switches, and early finishes. Older sessions display estimated times.',
+    'Create exam plans inside projects, rate topic confidence, and log practice scores. Saving the result adds a Garden star with your score and reflection.',
+    'Save a stopping point, next step, and resource link beside the timer. End focus from the handoff while keeping the task open.',
+    'Existing saves and backups remain compatible.'
+  ]},
   {version:'2.0.0',date:'2026-11-12',title:'Garden landmarks and a more connected workspace',changes:[
     'Move or resize a weekly draft block, recover a skipped block, and see the hours awaiting approval.',
     'See estimated work remaining and tasks without estimates beside the next project milestone.',

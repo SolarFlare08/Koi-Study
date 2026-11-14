@@ -9,6 +9,9 @@ import {loadAvailability} from './availability.js';
 import {loadStickyNotes} from './sticky-notes.js';
 import {projectDecision,projectMilestone,taskTemplate} from './project-planning.js';
 import {loadGardenGrowth} from './garden-growth.js';
+import {addReplayEvent,loadReplay} from './focus-replay.js';
+import {loadExamPlans} from './exam-plans.js';
+import {handoffLink} from './session-handoff.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
 export const taskEnergyLevels={light:'Light',moderate:'Moderate',demanding:'Demanding'};
@@ -113,6 +116,8 @@ function loadTask(task) {
     id:task.id, text:task.text, done:task.done,
     description:typeof task.description === 'string' ? task.description : '',
     resumeNote:typeof task.resumeNote==='string'?task.resumeNote.slice(0,500):'',
+    resumeLocation:typeof task.resumeLocation==='string'?task.resumeLocation.trim().slice(0,240):'',
+    resumeResource:handoffLink(task.resumeResource),
     date:/^\d{4}-\d{2}-\d{2}$/.test(task.date) ? task.date : repeat === 'none' ? '' : dayKey(),
     time:isTime(task.time) ? task.time : '',
     occurrenceTimes:Object.fromEntries(Object.entries(task.occurrenceTimes||{}).filter(([day,time])=>isDay(day)&&(time===''||isTime(time)))),
@@ -228,6 +233,7 @@ export function loadState(storage) {
       sections:Array.isArray(project.sections)?project.sections.filter(section=>section&&typeof section.id==='string'&&typeof section.name==='string'):[],
       milestones:Array.isArray(project.milestones)?project.milestones.map(projectMilestone).filter(Boolean):[],
       decisions:Array.isArray(project.decisions)?project.decisions.map(projectDecision).filter(Boolean):[],
+      exams:loadExamPlans(project.exams),
       weeklyGoals:Object.fromEntries(['focusMinutes','chapters'].filter(key=>
         Number.isInteger(project.weeklyGoals?.[key])&&project.weeklyGoals[key]>0&&project.weeklyGoals[key]<=(key==='focusMinutes'?10080:1000))
         .map(key=>[key,project.weeklyGoals[key]])),
@@ -244,11 +250,14 @@ export function loadState(storage) {
         (plan.blockId===null||typeof plan.blockId==='string')){
       base.tomorrowPlan={day:plan.day,taskId:plan.taskId,blockId:plan.blockId,ownsBlock:plan.ownsBlock===true&&Boolean(plan.blockId)};
     }
-    if (Array.isArray(raw.history)) base.history=raw.history.filter(h=>h && typeof h.id==='string' && ['completed','skipped'].includes(h.outcome) && ['focus','break'].includes(h.mode) && Number.isFinite(h.finishedAt) && Number.isFinite(h.focusMs));
+    if (Array.isArray(raw.history)) base.history=raw.history.filter(h=>h && typeof h.id==='string' && ['completed','skipped'].includes(h.outcome) && ['focus','break'].includes(h.mode) && Number.isFinite(h.finishedAt) && Number.isFinite(h.focusMs))
+      .map(h=>Array.isArray(h.replay)?{...h,replay:loadReplay(h.replay)}:h);
     base.focusMode=raw.focusMode===true;
     const t=raw.timer;
     if (t && ['focus','break'].includes(t.mode) && ['idle','running','paused'].includes(t.status) && Number.isFinite(t.remaining) && t.remaining>=0 && t.remaining<=10800000 && Number.isFinite(t.total) && t.total>0 && t.total<=10800000 && (t.status!=='running' || (Number.isFinite(t.endAt) && typeof t.id==='string' && Number.isFinite(t.startedAt)))) {
       base.timer={...t};
+      if(Array.isArray(t.replay))base.timer.replay=loadReplay(t.replay);
+      else delete base.timer.replay;
       const sequence=t.sequence, phases=routinePhases(sequence?.phases);
       if(phases&&typeof sequence.name==='string'&&Number.isInteger(sequence.index)&&phases[sequence.index]?.mode===t.mode){
         base.timer.sequence={name:sequence.name,phases,index:sequence.index};
@@ -279,14 +288,19 @@ export function consumeTimerWarning(state,now=Date.now()) {
 }
 export function startPause(state, now=Date.now(), taskId=state.activeTask) {
   const t=state.timer;
-  if(t.status==='running') { t.remaining=remaining(state,now); t.endAt=null; t.status='paused'; }
+  if(t.status==='running') {
+    addReplayEvent(t,'pause',Math.min(now,t.endAt));
+    t.remaining=remaining(state,now);t.endAt=null;t.status='paused';
+  }
   else {
-    if (!t.id) {
+    const fresh=!t.id;
+    if (fresh) {
       t.id=globalThis.crypto.randomUUID();
       t.startedAt=now;
       const task=state.tasks.find(item=>item.id===(t.block?.taskId||taskId));
       if (task) t.taskSnapshot={id:task.id,text:task.text,projectId:task.projectId||''};
     }
+    addReplayEvent(t,fresh?'start':'resume',now);
     t.endAt=now+t.remaining;
     t.status='running';
   }
@@ -334,6 +348,12 @@ export function record(state, outcome, now=Date.now(), {early=false}={}) {
   const task=t.taskSnapshot||state.tasks.find(task=>task.id===t.block?.taskId);
   const intention=t.block?(task?.text||state.intention):(state.intention||task?.text||'');
   const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention,taskTitle:task?.text||'',taskId:task?.id||'',projectId:task?task.projectId||'':null};
+  if(t.replay?.length){
+    // Record the closing event on the snapshot so a failed save can restore the running timer.
+    const snapshot={...t};
+    addReplayEvent(snapshot,outcome==='skipped'?'skip':early?'early':'finish',finish);
+    h.replay=snapshot.replay;
+  }
   if(t.mode==='focus'&&outcome==='completed'&&t.goal)h.goal=t.goal;
   const block=t.block||t.calendarBlock;
   if(t.mode==='focus'&&isDay(block?.occurrence)&&Object.hasOwn(block,'blockId')){

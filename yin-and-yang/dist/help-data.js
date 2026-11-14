@@ -72,11 +72,11 @@ export const helpTopics = [
   },
   {
     id:'resume', group:'Focus & rest', title:'Pick up where you left off',
-    summary:'Leave a concrete next step for the next time you work on a task.',
-    steps:['Choose the task in Garden, then click `Leave a next step` below the current task.',
-      'Write the first thing you want to do next time. For example: “Continue the proof from equation 4.”',
-      'Choose `Save next step` or press `Ctrl+Enter`.',
-      'When you return to that task, its saved next step appears beneath the timer. You can also edit it in the task editor.'],
+    summary:'Save the exact problem, page, or file where you stopped and pick up there next time.',
+    steps:['Choose the task in Garden, then click `Leave a handoff` or `Edit handoff` beside the timer.',
+      'Enter where you stopped, the next step, and an optional web link to your resource. A local filename or path can go in Where you stopped.',
+      'Choose `Save handoff` or press `Ctrl+Enter`. During focus, `Save and end focus` records the elapsed work, leaves the task open, and prepares a break.',
+      'When the task is selected again in focus, its handoff appears in the Pick up here panel beside the timer. You can also edit it in the task editor.'],
     action:'focus', actionLabel:'Open Garden', related:['focus-queue','linked-notes']
   },
   {
@@ -125,9 +125,10 @@ export const helpTopics = [
       'Open a book in Reading and choose `Mark book finished` to add its lantern to the lake. Lanterns glow after dark.',
       'In Garden, open `Today` → `View Garden history`, or search for `Garden history` with `Ctrl+K`. Filter by landmark type and choose an entry to highlight its place in the landscape.',
       'Click or tab to a landmark in Garden to open its details. A book lantern shows the finish date, first logged reading date if available, and final rating. Choose `Open in Reading` for the full entry.',
+      'Save the final result of a Planner exam plan to add a star with the score, reflection, and a link back to the plan.',
       'In Garden history, choose `Record a test or milestone`. Add a title and date, plus a result or note if you want one. Tests add stars and personal milestones add cairns.'],
     tip:'Each project or book earns one landmark. Garden history is included in backups.',
-    action:'garden-history', actionLabel:'Open Garden history', related:['progress','projects','reading-shelf','backup']
+    action:'garden-history', actionLabel:'Open Garden history', related:['progress','projects','exam-plans','reading-shelf','backup']
   },
   {
     id:'tasks', group:'Tasks & projects', title:'Create and edit tasks',
@@ -200,6 +201,15 @@ export const helpTopics = [
     action:'planner', actionLabel:'Open Planner', related:['projects','linked-notes','focus-queue']
   },
   {
+    id:'exam-plans', group:'Tasks & projects', title:'Prepare for exams and log results',
+    summary:'Keep prep topics, confidence ratings, practice scores, and your final reflection in a project.',
+    steps:['Open a project in Planner and choose Exam prep in Project overview. Add an exam with a name and an optional date.',
+      'Add topics one per line and save the prep plan. Set confidence on each topic as you practice. Use Remove to drop a topic when you save.',
+      'Under Practice scores, give each attempt a name, date, score, and maximum. Log each attempt separately.',
+      'After the test, save the date taken, result, and reflection. Select its star in Garden or Garden history to see the result or reopen the plan. Editing the result updates the same star.'],
+    action:'planner', actionLabel:'Open Planner', related:['projects','garden-growth']
+  },
+  {
     id:'filters', group:'Tasks & projects', title:'Use filters, labels, and priorities',
     summary:'Create saved views of the work you want to see.',
     steps:['Open Planner → `Filters & Labels`. Use the plus beside Filters or Labels to add one.',
@@ -227,7 +237,15 @@ export const helpTopics = [
       'Open `Task shelf` to find a task. Drag it onto a time slot, or choose it to set its schedule. A task without an estimate defaults to a one-hour block.',
       'Garden’s separate 5-hour calendar shows the same schedule. Its arrows let you inspect earlier and later hours; `Open calendar` opens the full view.'],
     tip:'Overlapping blocks are supported. Planner and Calendar share your tasks and bookings.',
-    action:'calendar', actionLabel:'Open Calendar', related:['multiple-blocks','events','block-focus']
+    action:'calendar', actionLabel:'Open Calendar', related:['multiple-blocks','events','block-focus','focus-replay']
+  },
+  {
+    id:'focus-replay', group:'Calendar & planning', title:'Replay actual focus sessions',
+    summary:'Compare your planned schedule with the timer activity you recorded.',
+    steps:['Open Calendar and choose `Actual`. Use Day, 3 days, or Week, then navigate to the dates you want.',
+      'Select a focus block to see its start, pauses, resumptions, task switches, and how the session ended. Gaps between blocks show paused time.',
+      'Choose `Planned` to return to scheduling. Older sessions with only a duration and finish time are marked Estimated.'],
+    action:'focus-replay', actionLabel:'Open Actual calendar', related:['calendar','block-focus','resume','reporting']
   },
   {
     id:'schedule-preview', group:'Calendar & planning', title:'Check free time and scheduling overlaps',

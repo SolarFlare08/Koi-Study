@@ -330,7 +330,7 @@ export function applyCalendarReplan(task,sourceDay,move){
   }
 }
 
-function layoutBlocks(blocks) {
+export function layoutBlocks(blocks) {
   blocks.sort((a, b) => a.start - b.start || b.end - a.end);
   let group = [];
   let laneEnds = [];

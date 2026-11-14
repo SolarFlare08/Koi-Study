@@ -58,6 +58,7 @@
         <button id="end-routine" class="resume-task" type="button" hidden>End routine</button>
       </div>
     </section>
+    <aside id="focus-handoff" aria-labelledby="focus-handoff-title" hidden></aside>
     <aside id="focus-notes-panel" aria-labelledby="focus-notes-title" hidden>
       <header><h2 id="focus-notes-title">Task notes</h2><button type="button" data-focus-notes-close aria-label="Close task notes">×</button></header>
       <div class="focus-notes-list"></div>
@@ -122,6 +123,10 @@
         <div id="calendar-toolbar" hidden>
           <div id="calendar-range" aria-live="polite"></div>
           <div class="calendar-toolbar-actions">
+            <div id="calendar-activity-mode" role="group" aria-label="Calendar activity" hidden>
+              <button type="button" data-calendar-activity="planned" aria-pressed="true">Planned</button>
+              <button type="button" data-calendar-activity="actual" aria-pressed="false">Actual</button>
+            </div>
             <button id="calendar-queue-toggle" type="button" aria-expanded="false" aria-controls="calendar-queue"><span data-icon="list"></span> Task shelf <small id="calendar-queue-count"></small></button>
             <input id="calendar-jump-date" type="date" aria-label="Jump to calendar date">
             <nav class="calendar-nav" aria-label="Calendar dates">
@@ -131,6 +136,7 @@
             </nav>
           </div>
         </div>
+        <p id="actual-calendar-message" hidden></p>
         <div id="planner-board-tools">
           <input id="planner-jump-date" type="date" aria-label="Jump to date">
           <span id="planner-month"></span>
@@ -151,6 +157,7 @@
         </div>
       </div>
       <dialog id="planner-dialog"></dialog>
+      <dialog id="exam-dialog" class="workspace-dialog" aria-labelledby="exam-dialog-title"></dialog>
     </section>
     <section id="crochet-workspace" aria-labelledby="crochet-heading" hidden></section>
     <section id="journal-workspace" aria-labelledby="journal-heading" hidden></section>

@@ -1,7 +1,10 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from './scenery.js';
 import {earnGardenDetail,gardenReward,landmarkTypes} from './garden-growth.js';
-import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
+import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
+import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
+import {handoffLink} from './session-handoff.js';
+import {installExamPlans} from './exam-plans.js';
 import {CAPTURE_PREFIX, cleanCaptureContext, readCaptures, saveCapture, storeCapture} from './capture.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from './day-recap.js';
 import {installPlanner} from './planner.js';
@@ -80,6 +83,7 @@ let activeCaptureContext;
 let reopenTasksAfterCalendar=false;
 let effectiveAppearance=state.appearance, resumeTaskId=null, captureActionKey=null;
 let renderedGardenGrowth, selectedLandmark=null, gardenHistoryFilter='all', recapOrigin=null;
+let handoffMarkup='', actualCalendar=false, replayRenderKey='', returnToCalendarMonth=false;
 let savedSchedule=snapshotSchedule(state), captureInboxTab='inbox', returnToCaptureInbox=false, captureInboxIndex=0;
 const gardenAudio=createGardenAudio();
 let spotifyPlayback='idle';
@@ -88,12 +92,15 @@ const undoToast=$('#undo-toast'),undoButton=$('#undo-action');
 let pendingUndo,undoTimeout,undoReturn;
 function persist(){
   const previous=state.scheduleMoves, schedule=snapshotSchedule(state);
+  const replay=state.timer.replay;
+  if(state.timer.mode==='focus'&&state.timer.replay?.length)replayTaskSwitch(state.timer,focusedTask(),Date.now());
   state.scheduleMoves=recordScheduleMoves(previous,savedSchedule,schedule);
   try{
     storage.setItem(STORAGE_KEY,JSON.stringify(state));savedSchedule=schedule;
     $('#saved-status').innerHTML='<span class="tiny-dot"></span>Saved on this device';return true;
   }catch{
     state.scheduleMoves=previous;
+    if(replay)state.timer.replay=replay;
     $('#saved-status').textContent='Storage unavailable — keep this tab open';
     toast('Your browser could not save changes. Keep this tab open.');return false;
   }
@@ -109,6 +116,23 @@ function recordGardenGrowth(kind,id,title,day=dayKey(),metadata){
   renderGardenGrowth();
   const type=landmarkTypes[kind];
   confirmChange(`${type.event}. A ${type.name.toLowerCase()} has joined the Garden.`);
+  return true;
+}
+function saveExamPlan(projectId,exam){
+  const project=state.projects.find(item=>item.id===projectId);
+  if(!project)return false;
+  const exams=project.exams||[], growth=state.gardenGrowth;
+  const prior=exams.find(item=>item.id===exam.id);
+  const star=gardenReward(growth,'test',exam.id);
+  project.exams=prior?exams.map(item=>item===prior?exam:item):[...exams,exam];
+  if(exam.result){
+    const {takenOn,score,reflection}=exam.result;
+    const updated=earnGardenDetail([],'test',exam.id,exam.title,takenOn,{result:score,detail:reflection})[0];
+    state.gardenGrowth=star?growth.map(item=>item===star?updated:item):[...growth,updated];
+  }
+  if(!persist()){project.exams=exams;state.gardenGrowth=growth;return false;}
+  renderGardenGrowth();planner.render();
+  confirmChange(exam.result&&!star?'Exam result saved. A star has joined the Garden.':'Exam plan saved.');
   return true;
 }
 function renderGardenGrowth(){
@@ -198,11 +222,14 @@ undoButton.onclick=()=>{
   const message=reverted?'Change undone.':'This item changed before it could be undone.';
   toast(message);announce(message);
 };
+const examPlans=installExamPlans({dialog:$('#exam-dialog'),projects:()=>state.projects,today:dayKey,save:saveExamPlan});
 const planner=installPlanner({
   root:calendarPanel,getState:()=>state,commit:()=>{const saved=persist();refreshTasks();return saved;},
   editTask:openTaskEditor,openBlock:openCalendarBlock,taskMenu:openTaskMenu,
   linkedNotes:id=>linkedStickyNotes('project',id),
   nextProjectTask, resumeProject, projectTimerLocked,
+  openExamPlans:(project,anchor)=>examPlans.open(project,null,anchor),
+  isActualCalendar:()=>actualCalendar,
   projectReward:id=>gardenReward(state.gardenGrowth,'project',id),
   finishProject:project=>recordGardenGrowth('project',project.id,project.name),
   previewSchedule:previewTaskSchedule,
@@ -315,6 +342,7 @@ function showWorkspace(next){
   workspace=next;
   app.dataset.workspace=next;
   $('.sky').hidden=next!=='focus';
+  if(next!=='focus')$('#focus-handoff').hidden=true;
   $('#crochet-workspace').hidden=next!=='crochet';
   $('#journal-workspace').hidden=next!=='journal';
   $('#notes-workspace').hidden=next!=='notes';
@@ -396,6 +424,7 @@ function commandEntries(){
     action('Version history','See what changed in each release','versions updates changelog release notes',()=>runHelpAction('versions')),
     action('Garden history','See the projects and books that shaped your Garden','growth trees lanterns milestones finished',()=>runHelpAction('garden-history')),
     action('End-of-day recap','Review today’s work and tomorrow’s plans','daily recap finished moved tomorrow',()=>runHelpAction('day-recap')),
+    action('Focus session replay','See actual focus time in Calendar','actual timeline pause switch',()=>runHelpAction('focus-replay')),
     action('Note inbox','File, link, or archive captured thoughts','capture ideas notes archive',()=>runHelpAction('capture-inbox')),
     action('Plan to deadline','Suggest focus blocks before a task is due','backward schedule estimate capacity',()=>{
       visitWorkspace('planner');$('[data-plan-deadline]')?.click();
@@ -410,7 +439,7 @@ function commandEntries(){
       timerButton.focus({preventScroll:true});
     }),
     action('Replan today','Find new times for missed calendar blocks','schedule calendar',()=>{
-      visitWorkspace('calendar');$('[data-replan-today]')?.click();
+      runHelpAction('replan');
     }),
     action('Plan tomorrow','Choose your first task and reserve time','next day schedule',()=>{
       visitWorkspace('planner');$('[data-plan-tomorrow]')?.click();
@@ -426,6 +455,9 @@ function runHelpAction(action){
   if(workspaces.includes(action)){visitWorkspace(action);return;}
   if(action==='search'){commandPalette.open();return;}
   if(action==='backup'){backup.open();return;}
+  if(action==='focus-replay'){
+    visitWorkspace('calendar');$('[data-calendar-activity="actual"]').click();return;
+  }
   if(action==='versions'){openVersionHistory();return;}
   if(action==='capture-inbox'){
     visitWorkspace('notes');openCaptureInbox();return;
@@ -437,7 +469,7 @@ function runHelpAction(action){
     return;
   }
   if(action==='replan'){
-    visitWorkspace('calendar');$('[data-replan-today]')?.click();return;
+    visitWorkspace('calendar');$('[data-calendar-activity="planned"]').click();$('[data-replan-today]')?.click();return;
   }
   if(action==='tomorrow'){
     visitWorkspace('planner');$('[data-plan-tomorrow]')?.click();return;
@@ -449,7 +481,7 @@ function runHelpAction(action){
     visitWorkspace('planner');$('[data-build-week]')?.click();return;
   }
   if(action==='calendar-import'){
-    visitWorkspace('calendar');$('[data-manage="calendar-import"]')?.click();return;
+    visitWorkspace('calendar');$('[data-calendar-activity="planned"]').click();$('[data-manage="calendar-import"]')?.click();return;
   }
   if(action==='csv-import'){
     visitWorkspace('planner');$('[data-manage="import"]')?.click();return;
@@ -533,12 +565,21 @@ function render(){
   if(currentTaskName.textContent!==taskName)currentTaskName.textContent=taskName;
   currentTaskButton.title=task?task.text:'Choose a task';
   finishTaskButton.hidden=!task||t.mode!=='focus';
-  const resume=state.tasks.find(item=>item.id===resumeTaskId&&t.mode==='break')||task;
+  const recent=t.mode==='break'?state.history.findLast(item=>item.mode==='focus'&&item.outcome==='completed'):null;
+  const previousFocus=t.mode==='break'?(resumeTaskId||recent?.replay?.at(-1)?.taskId||recent?.taskId):null;
+  const resume=(previousFocus&&state.tasks.find(item=>item.id===previousFocus))||task;
   const resumeButton=$('#resume-task');
   resumeButton.hidden=!resume;
-  const nextStep=resume?.resumeNote?`Next step · ${resume.resumeNote}`:'Leave a next step';
+  const nextStep=hasHandoff(resume)?'Edit handoff':'Leave a handoff';
   if(resumeButton.textContent!==nextStep)resumeButton.textContent=nextStep;
   resumeButton.dataset.resumeId=resume?.id||'';
+  const handoff=$('#focus-handoff');
+  const showHandoff=workspace==='focus'&&t.mode==='focus'&&hasHandoff(task);
+  handoff.hidden=!showHandoff;
+  if(showHandoff){
+    const html=`<h2 id="focus-handoff-title">Pick up here</h2>${handoffDetails(task)}`;
+    if(handoffMarkup!==html){handoff.innerHTML=html;handoffMarkup=html;}
+  }
   const projectButton=$('#focus-project-context');
   const project=task?.projectId&&state.projects.find(item=>item.id===task.projectId);
   projectButton.hidden=!project;
@@ -558,6 +599,7 @@ function render(){
     syncCalendarProgress(clock.getTime());
   }
   if(calendarHistory!==state.history||calendarHistoryLength!==state.history.length)syncCalendarProgress(clock.getTime());
+  if(workspace==='calendar'&&actualCalendar)updateActualCalendar(clock);
   if(activePanel==='calendar-block')updateBlockPreview(clock.getTime());
   const running=t.status==='running';
   const sequence=t.sequence;
@@ -587,7 +629,7 @@ function checkCompletion(){
   let focused=false;
   for(let phase=settle(state,now);phase;phase=settle(state,now)){
     completed=phase;
-    if(phase.mode==='focus'){focused=true;resumeTaskId=phase.taskId||null;}
+    if(phase.mode==='focus'){focused=true;resumeTaskId=phase.replay?.at(-1)?.taskId??phase.taskId??null;}
   }
   const warning=completed?null:consumeTimerWarning(state,now);
   if(!completed&&!warning)return;
@@ -636,6 +678,7 @@ async function toggleNotifications(){
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
 function toggleFocusTimer(task,now=Date.now()){
   const freshFocus=!state.timer.id&&state.timer.mode==='focus';
+  replayTaskSwitch(state.timer,task,now);
   startPause(state,now,task?.id||null);
   if(!freshFocus||!task)return;
   const date=new Date(now);
@@ -744,23 +787,46 @@ function openGardenLandmark(index){
   openPanel('garden-landmark',landmarkAnchor(index),index);
 }
 const landmarkDate=day=>new Date(`${day}T12:00:00`).toLocaleDateString([],{dateStyle:'medium'});
+function hasHandoff(task){return Boolean(task?.resumeNote||task?.resumeLocation||task?.resumeResource);}
+function handoffDetails(task){
+  const resource=handoffLink(task.resumeResource);
+  return `${task.resumeLocation?`<p><strong>${escape(task.resumeLocation)}</strong></p>`:''}
+    ${task.resumeNote?`<p class="handoff-note">${escape(task.resumeNote)}</p>`:''}
+    ${resource?`<a class="handoff-resource" href="${escape(resource)}" target="_blank" rel="noopener noreferrer">Open resource ${icon('external')}</a>`:''}`;
+}
+function handoffFields(task){
+  return `<label class="field-label" for="handoff-location">Where you stopped</label>
+    <input id="handoff-location" name="resumeLocation" maxlength="240" value="${escape(task.resumeLocation)}" placeholder="Problem 8, page 42, or chapter3.md">
+    <label class="field-label" for="handoff-resource">Resource link <span>(optional)</span></label>
+    <input id="handoff-resource" name="resumeResource" type="url" maxlength="2000" value="${escape(task.resumeResource)}" placeholder="https://…">`;
+}
+function readHandoff(form){
+  const fields=form.elements;
+  const resource=handoffLink(fields.resumeResource.value);
+  fields.resumeResource.setCustomValidity(fields.resumeResource.value.trim()&&!resource?'Enter an http or https link.':'');
+  if(!fields.resumeResource.reportValidity())return null;
+  return {resumeNote:fields.resumeNote.value.trim(),resumeLocation:fields.resumeLocation.value.trim(),resumeResource:resource};
+}
 function gardenLandmarkMarkup(){
   const item=state.gardenGrowth[selectedLandmark];
   const type=landmarkTypes[item.kind];
   const book=item.kind==='book'?readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks)
     .find(book=>book.finished?.id===item.sourceId):null;
   const project=item.kind==='project'&&state.projects.find(project=>project.id===item.sourceId);
+  const examProject=item.kind==='test'&&state.projects.find(project=>project.exams?.some(exam=>exam.id===item.sourceId));
+  const exam=examProject?.exams.find(exam=>exam.id===item.sourceId);
   const finished=book?.finished;
   const firstLog=book?.entries.filter(entry=>entry.date<=finished.finishedOn).at(-1)?.date;
-  return `${header(type.event,escape(book?.title||project?.name||item.title))}
+  return `${header(type.event,escape(book?.title||project?.name||exam?.title||item.title))}
     <div class="landmark-memento"><div class="landmark-emblem" aria-hidden="true">${icon(type.mark)}</div>
       <div>${book?.author?`<p>${escape(book.author)}</p>`:''}
         ${firstLog?`<p>First logged ${landmarkDate(firstLog)}</p>`:''}
-        <p>${item.kind==='book'?'Finished':item.kind==='test'?'Completed':item.kind==='milestone'?'Reached':'Finished'} ${landmarkDate(finished?.finishedOn||item.day)}</p>
+        <p>${item.kind==='test'?'Completed':item.kind==='milestone'?'Reached':'Finished'} ${landmarkDate(finished?.finishedOn||exam?.result?.takenOn||item.day)}</p>
         ${finished?`<strong>${finished.rating?`Final rating · ${finished.rating} / 5`:'Unrated'}</strong>`:''}
-        ${item.result?`<strong>${escape(item.result)}</strong>`:''}</div></div>
-    ${item.detail||finished?.takeaway?`<p class="landmark-detail">${escape(item.detail||finished.takeaway)}</p>`:''}
+        ${(exam?.result?.score??item.result)?`<strong>${escape(exam?.result?.score??item.result)}</strong>`:''}</div></div>
+    ${(exam?.result?.reflection??item.detail)||finished?.takeaway?`<p class="landmark-detail">${escape((exam?.result?.reflection??item.detail)||finished.takeaway)}</p>`:''}
     <div class="panel-actions">${book?`<button type="button" class="panel-primary" data-landmark-book="${escape(book.id)}">Open in Reading</button>`:''}
+      ${examProject?`<button type="button" class="panel-primary" data-landmark-exam="${escape(item.sourceId)}" data-exam-project="${escape(examProject.id)}">Open exam plan</button>`:''}
       ${project?`<button type="button" class="panel-primary" data-view-project="${escape(project.id)}">Open project</button>`:''}
       <button type="button" class="text-button" data-garden-history-open>Garden history</button></div>`;
 }
@@ -1313,6 +1379,7 @@ function taskEditor(){
           <label class="field-label" for="task-description">Description</label>
           <textarea id="task-description" name="description" rows="3" maxlength="2000" placeholder="Add a description…">${escape(values.description)}</textarea>
           <label class="field-label" for="task-resume">Next step</label><textarea id="task-resume" name="resumeNote" rows="2" maxlength="500" placeholder="Pick up here next time…">${escape(values.resumeNote)}</textarea>
+          ${handoffFields(values)}
           <section class="task-detail-section" aria-labelledby="task-subtask-heading">
             <h3 id="task-subtask-heading">Subtasks ${subtasks.length?`<small>${subtasks.filter(sub=>sub.done).length}/${subtasks.length}</small>`:''}</h3>
             ${subtasks.map(sub=>`<div class="task-editor-subtask"><input type="checkbox" name="done:${escape(sub.id)}" aria-label="Complete ${escape(sub.text)}" ${sub.done?'checked':''}><input name="sub:${escape(sub.id)}" aria-label="Edit subtask ${escape(sub.text)}" maxlength="160" value="${escape(sub.text)}"></div>`).join('')}
@@ -1586,20 +1653,25 @@ function panelContent(id){
   }
   if(id==='resume'){
     const task=state.tasks.find(item=>item.id===lastAnchor?.dataset.resumeId);
-    return task?`${header('PICK UP WHERE YOU LEFT OFF',escape(task.text))}<form id="resume-form" data-task-id="${escape(task.id)}"><label class="field-label" for="resume-text">Next step</label><textarea id="resume-text" maxlength="500" rows="3" placeholder="What should you do first next time?">${escape(task.resumeNote)}</textarea><div class="panel-actions"><button class="panel-primary" aria-keyshortcuts="Control+Enter" title="Save next step (Ctrl+Enter)">Save next step</button></div></form>`:header('NEXT STEP','Task unavailable');
+    return task?`${header('SESSION HANDOFF',escape(task.text))}<form id="resume-form" data-task-id="${escape(task.id)}">
+      ${handoffFields(task)}
+      <label class="field-label" for="resume-text">Next step</label><textarea id="resume-text" name="resumeNote" maxlength="500" rows="3" placeholder="What should you do first next time?">${escape(task.resumeNote)}</textarea>
+      <div class="panel-actions"><button class="panel-primary" aria-keyshortcuts="Control+Enter Meta+Enter" title="Save handoff (Ctrl+Enter)">Save handoff</button>
+      ${state.timer.mode==='focus'&&state.timer.id&&focusedTask()?.id===task.id?`<button class="text-button" type="submit" value="end">Save and end focus</button>`:''}</div></form>`:header('SESSION HANDOFF','Task unavailable');
   }
   if(id==='project-context'){
     const task=focusedTask();
     const project=task&&state.projects.find(item=>item.id===task.projectId);
     if(!project)return header('PROJECT','Project unavailable');
     return `${header(escape(project.name),escape(task.text))}
-      ${task.resumeNote?`<p><strong>Next step</strong><br>${escape(task.resumeNote)}</p>`:''}
+      ${hasHandoff(task)?handoffDetails(task):''}
       ${task.description?`<p class="imported-description">${escape(task.description)}</p>`:''}
       ${linkedStickyNotes('project',project.id)}
       <div class="panel-actions"><button type="button" class="panel-primary" id="project-context-ready">Back to timer</button>
       <button type="button" class="text-button" data-view-project="${escape(project.id)}">Open project</button></div>`;
   }
   if(id==='calendar-block')return calendarBlockPreview();
+  if(id==='focus-replay')return focusReplayMarkup();
   if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><button type="button" class="text-button" id="open-backup">Backup and restore</button><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}${timerRoutines()}`;
   if(id==='task-editor')return taskEditor();
   if(id==='block-editor')return blockEditor();
@@ -1783,13 +1855,16 @@ function renderCalendar(){
 
 function calendarStartMinute(date,visibleDays){
   const tasks=planner.calendarTasks();
-  let minute=8*60;
+  const sessions=workspace==='calendar'&&actualCalendar?replaySessions(state.history,state.timer,Date.now()):null;
+  let minute=sessions?Infinity:8*60;
   for(let offset=0;offset<visibleDays;offset++){
-    for(const block of calendarBlocks(tasks,shiftDay(date,offset),state.calendarEvents)){
+    const day=shiftDay(date,offset);
+    const blocks=sessions?replayBlocks(sessions,day,$('#calendar-project').value):calendarBlocks(tasks,day,state.calendarEvents);
+    for(const block of blocks){
       minute=Math.min(minute,Math.max(0,block.start-30));
     }
   }
-  return minute;
+  return Number.isFinite(minute)?minute:8*60;
 }
 
 function showPlannerCalendar(date,visibleDays,enteringTimeline){
@@ -1840,21 +1915,73 @@ function renderDailyRituals(date){
   const showReading=day?.annotate?.title||date===dayKey(now)||date===dayKey(shiftDay(now,1));
   return dailyRitualMarkup(date,day,journal.completedAt(date),showReading?annotationContext(state.dailyRituals,date):null);
 }
-function renderPlannerDays(){
-  const now=new Date(),today=dayKey(now),minute=now.getHours()*60+now.getMinutes();
+const replayLabels={start:'Started',pause:'Paused',resume:'Resumed',switch:'Switched to',finish:'Timer finished',early:'Finished early',skip:'Skipped'};
+const replayClock=at=>new Date(at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
+function focusReplayMarkup(){
+  const session=replaySessions(state.history,state.timer,Date.now()).find(item=>item.id===lastAnchor?.dataset.replaySession);
+  if(!session)return header('CALENDAR','Session unavailable');
+  const status=session.live==='running'?'In progress':session.live==='paused'?'Paused':session.events.at(-1)?.action==='early'?'Finished early':
+    session.outcome==='skipped'?'Skipped':'Completed';
+  const duration=formatDuration(session.focusMs);
+  return `${header('ACTUAL FOCUS',escape(session.events[0]?.title||session.taskTitle||'Focus session'))}
+    <p class="replay-summary"><strong>${duration} focused</strong><span>${status}</span></p>
+    ${session.estimated?`<p>Estimated ${replayClock(session.finishedAt-session.focusMs)}–${replayClock(session.finishedAt)}. This older session only saved its duration and finish time.</p>`:
+      `<ol class="replay-events">${session.events.map(item=>`<li><time datetime="${new Date(item.at).toISOString()}">${escape(replayClock(item.at))}</time>
+        <span>${replayLabels[item.action]}${item.action==='switch'||item.action==='start'&&item.title?` · ${escape(item.title||'Unassigned focus')}`:''}</span></li>`).join('')}</ol>`}
+    ${session.goal?`<p>Outcome · ${escape(session.goal)}</p>`:''}`;
+}
+function actualBlockMarkup(block){
+  const {session,segment,start,end,lane,lanes}=block;
+  const title=segment.title||'Unassigned focus';
+  const note=session.estimated?'Estimated':session.live==='running'?'In progress':session.live==='paused'?'Paused':session.outcome==='skipped'?'Skipped':'Actual';
+  const label=`${title}, ${replayClock(segment.at)} to ${replayClock(segment.end)}, ${note}`;
+  return `<button type="button" class="calendar-block replay-block" data-replay-session="${escape(session.id)}"
+    data-replay-segment="${block.index}" data-replay-status="${note.toLowerCase()}" aria-haspopup="dialog" title="${escape(label)}" aria-label="${escape(label)}"
+    style="--start:${start};--length:${end-start};--lane:${lane};--lanes:${lanes}"><strong>${escape(title)}</strong>
+    <span>${timeLabel(start)} – ${timeLabel(end)} · ${note}</span></button>`;
+}
+function actualReplayKey(now){
+  const t=state.timer;
+  return JSON.stringify([state.history.length,state.history.at(-1)?.id,t.id,t.status,t.replay?.length,t.replay?.at(-1)?.at,t.status==='running'?Math.floor(+now/60000):null]);
+}
+function updateActualCalendar(now){
+  if(!planner.calendarVisible()||!plannerDays.length||actualReplayKey(now)===replayRenderKey||activePanel==='focus-replay')return;
+  const focused=document.activeElement.closest('[data-replay-session]');
+  const parent=focused?.closest('.calendar-day');
+  renderPlannerDays(now);
+  updatePlannerViewport();
+  if(focused){
+    const replacement=[...calendarGrid.querySelectorAll('[data-replay-session]')].find(button=>
+      button.dataset.replaySession===focused.dataset.replaySession&&button.dataset.replaySegment===focused.dataset.replaySegment&&
+      button.closest('.calendar-day').dataset.date===parent.dataset.date);
+    (replacement||calendarScroll).focus({preventScroll:true});
+  }
+}
+function setCalendarActivity(actual){
+  actualCalendar=actual;
+  for(const button of $('#calendar-activity-mode').children){
+    button.setAttribute('aria-pressed',String((button.dataset.calendarActivity==='actual')===actual));
+  }
+}
+function renderPlannerDays(now=new Date()){
+  const today=dayKey(now),minute=now.getHours()*60+now.getMinutes();
   const tasks=planner.calendarTasks(),showCompleted=$('#planner-completed').checked;
+  const actual=workspace==='calendar'&&actualCalendar;
+  const sessions=actual?replaySessions(state.history,state.timer,+now):null;
+  replayRenderKey=actual?actualReplayKey(now):'';
   const headers=plannerDays.map(date=>{
     const key=dayKey(date),current=key===today;
-    const allDay=tasks.filter(task=>!task.time&&(taskOccursOn(task,date)||!task.date&&task.deadline===key)&&(showCompleted||taskStatus(task,date)!=='done'));
-    const imports=allDayEvents(state.calendarEvents,date);
+    const allDay=actual?[]:tasks.filter(task=>!task.time&&(taskOccursOn(task,date)||!task.date&&task.deadline===key)&&(showCompleted||taskStatus(task,date)!=='done'));
+    const imports=actual?[]:allDayEvents(state.calendarEvents,date);
     const stamp=`<span>${current?'Today':date.toLocaleDateString([],{weekday:'short'})}</span><strong>${date.getDate()}</strong>`;
     const dayLabel=escape(date.toLocaleDateString([],{dateStyle:'full'}));
     const heading=workspace==='calendar'?`<button class="calendar-day-heading" type="button" data-calendar-day="${key}" aria-label="Open day view for ${dayLabel}">${stamp}</button>`:`<div class="calendar-day-heading">${stamp}</div>`;
-    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${renderDailyRituals(key)}${allDay.length||imports.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task${taskStatus(task,date)==='done'?' all-day-done':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
+    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${actual?'':renderDailyRituals(key)}${allDay.length||imports.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task${taskStatus(task,date)==='done'?' all-day-done':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
   }).join('');
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
   const columns=plannerDays.map(date=>{
-    const blocks=calendarBlocks(tasks,date,state.calendarEvents).filter(block=>block.event||showCompleted||openFocusBlock(block)||progressForBlock(block).focusMs).map(block=>calendarBlockMarkup(block,date)).join('');
+    const blocks=actual?layoutBlocks(replayBlocks(sessions,date,$('#calendar-project').value)).map(actualBlockMarkup).join(''):
+      calendarBlocks(tasks,date,state.calendarEvents).filter(block=>block.event||showCompleted||openFocusBlock(block)||progressForBlock(block).focusMs).map(block=>calendarBlockMarkup(block,date)).join('');
     const nowLine=dayKey(date)===today?`<div class="mini-now calendar-now" style="--now-minute:${minute}" title="Current time"></div>`:'';
     return `<div class="calendar-day${dayKey(date)===today?' calendar-day-current':''}" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${blocks}${nowLine}</div>`;
   }).join('');
@@ -1906,6 +2033,11 @@ function updatePlannerViewport(){
   const start=dateLabel(plannerDays[first]),end=dateLabel(plannerDays[last]);
   $('#calendar-range').textContent=first===last?plannerDays[first].toLocaleDateString([],{dateStyle:'full'}):`${start} – ${end}, ${plannerDays[last].getFullYear()}`;
   $('#calendar-jump-date').value=dayKey(plannerDays[first]);
+  if(workspace==='calendar'&&actualCalendar){
+    const columns=calendarGrid.querySelectorAll('.calendar-day');
+    const hasVisible=[...columns].slice(first,last+1).some(column=>column.querySelector('[data-replay-session]'));
+    $('#actual-calendar-message').textContent=hasVisible?'Select a session to replay its timer events.':'No recorded focus for these dates.';
+  }
   for(const selector of ['.calendar-day','.calendar-date']){
     calendarGrid.querySelectorAll(selector).forEach((column,index)=>{
       const visible=index>=first&&index<=last;
@@ -1961,6 +2093,9 @@ function openSchedule(destination,anchor,date=new Date(),minute){
   calendarPanel.inert=false;
   calendarPanel.hidden=false;
   showWorkspace(destination);
+  if(destination==='calendar'&&minute!==undefined&&actualCalendar){
+    setCalendarActivity(false);returnToCalendarMonth=false;
+  }
   $('#sidebar-calendar').setAttribute('aria-expanded',String(destination==='calendar'));
   calendarLayoutDay='';
   calendarOpenMinute=minute;
@@ -2197,6 +2332,7 @@ function dropMinute(event,column){
 }
 
 function onCalendarDragOver(event){
+  if(workspace==='calendar'&&actualCalendar)return;
   const column=event.target.closest('.calendar-day');
   if(!column||!event.dataTransfer?.types.includes(calendarDragType))return;
   event.preventDefault();
@@ -2242,6 +2378,7 @@ function saveScheduleDrop(){
   commitCalendarDrop(task,drag,date,start);
 }
 function onCalendarDrop(event){
+  if(workspace==='calendar'&&actualCalendar)return;
   const column=event.target.closest('.calendar-day');
   if(!column||!event.dataTransfer?.types.includes(calendarDragType))return;
   event.preventDefault();clearDropTarget();
@@ -2915,6 +3052,26 @@ $('#calendar-jump-date').addEventListener('change',event=>{
   else planner.jumpMonth(date);
 });
 calendarPanel.addEventListener('click',event=>{
+  const activity=event.target.closest('button[data-calendar-activity]');
+  if(activity){
+    const actual=activity.dataset.calendarActivity==='actual';
+    if(actualCalendar===actual)return;
+    const wasTimeline=planner.calendarVisible();
+    const date=wasTimeline?leadingPlannerDay():planner.calendarAnchor();
+    setCalendarActivity(actual);
+    if(actual&&!calendarShelf.hidden){setCalendarShelf(false);activity.focus();}
+    if(actual&&!wasTimeline){
+      returnToCalendarMonth=true;planner.setCalendarLayout('day',date);
+    }else if(!actual&&returnToCalendarMonth){
+      returnToCalendarMonth=false;planner.setCalendarLayout('month',date);
+    }else if(wasTimeline){
+      renderCalendar();scrollCalendarTo(date,calendarStartMinute(date,Number(calendarPanel.dataset.visibleDays)));
+    }
+    return;
+  }
+  if(actualCalendar&&event.target.closest('[data-calendar-layout]'))returnToCalendarMonth=false;
+  const replay=event.target.closest('[data-replay-session]');
+  if(replay){openPanel('focus-replay',replay);return;}
   const recap=event.target.closest('[data-day-recap]');
   if(recap){openPanel('day-recap',recap);return;}
   const buildWeek=event.target.closest('[data-build-week]');
@@ -2990,6 +3147,7 @@ calendarPanel.addEventListener('click',event=>{
   if(trayTask)openBlockEditor(trayTask.dataset.task,trayTask,null,workspace==='calendar'?calendarDraft():null);
 });
 calendarScroll.addEventListener('dblclick',event=>{
+  if(workspace==='calendar'&&actualCalendar)return;
   const day=event.target.closest('.calendar-day');
   if(!day||event.target.closest('button'))return;
   openTaskEditor(null,calendarScroll,{date:day.dataset.date,time:timeValue(dropMinute(event,day))});
@@ -3070,6 +3228,11 @@ root.addEventListener('click',e=>{
   if(landmark){openGardenLandmark(Number(landmark.dataset.historyLandmark));return;}
   const book=e.target.closest('[data-landmark-book]');
   if(book){visitWorkspace('reading');reading.openBook(book.dataset.landmarkBook);return;}
+  const exam=e.target.closest('[data-landmark-exam]');
+  if(exam){
+    visitWorkspace('planner');planner.openProject(exam.dataset.examProject);
+    examPlans.open(exam.dataset.examProject,exam.dataset.landmarkExam,$('[data-project-exams]'));return;
+  }
   const approval=e.target.closest('[data-approve-week-day]');
   if(approval){approveWeekDay(approval.dataset.approveWeekDay);return;}
   const restoreWeek=e.target.closest('[data-restore-week-slot]');
@@ -3277,6 +3440,7 @@ root.addEventListener('click',e=>{
   }
 });
 root.addEventListener('input',e=>{
+  if(e.target.name==='resumeResource')e.target.setCustomValidity('');
   if(e.target.form?.id==='build-week-form'){
     const results=$('#week-draft-results');
     if(results)results.hidden=true;
@@ -3553,10 +3717,21 @@ root.addEventListener('submit',e=>{
     return;
   }
   if(e.target.id==='resume-form'){
+    checkCompletion();
     const task=state.tasks.find(item=>item.id===e.target.dataset.taskId);
     if(!task)return;
-    task.resumeNote=$('#resume-text').value.trim();
-    if(persist()){closePanel();render();toast('Next step saved.');}
+    const handoff=readHandoff(e.target);
+    if(!handoff)return;
+    const previous=Object.fromEntries(Object.keys(handoff).map(key=>[key,task[key]]));
+    const priorTimer=state.timer, historyLength=state.history.length;
+    const end=e.submitter?.value==='end'&&priorTimer.mode==='focus'&&priorTimer.id&&focusedTask()?.id===task.id;
+    Object.assign(task,handoff);
+    if(end){record(state,'completed',Date.now(),{early:true});reset(state,'break');}
+    if(!persist()){Object.assign(task,previous);state.timer=priorTimer;state.history.length=historyLength;return;}
+    if(end)resumeTaskId=task.id;
+    closePanel();render();planner.refreshReporting();
+    if(end)timerButton.focus({preventScroll:true});
+    confirmChange(end?'Focus ended early. Your task is still open.':hasHandoff(task)?'Session handoff saved.':'Session handoff cleared.');
     return;
   }
   if(e.target.id==='save-routine'){
@@ -3591,6 +3766,8 @@ root.addEventListener('submit',e=>{
     persist();render();toast('Your rhythm is saved.');closePanel();
   }
   if(e.target.id==='task-editor-form'){
+    const handoff=readHandoff(e.target);
+    if(!handoff)return;
     const fields=new FormData(e.target);
     const text=fields.get('title').replace(/\s*\n\s*/g,' ').trim();
     if(!text){const title=$('#task-title');title.setCustomValidity('Enter a task name.');title.reportValidity();return;}
@@ -3627,7 +3804,7 @@ root.addEventListener('submit',e=>{
     const task={
       id, text, prerequisiteIds,snoozedUntil:fields.get('snoozedUntil'),
       description:fields.get('description').trim(),
-      resumeNote:String(fields.get('resumeNote')||'').trim(),
+      ...handoff,
       date:fields.get('date')||(repeat!=='none'||fields.get('time')?dayKey():''),
       time:fields.get('time'), estimate:Number(fields.get('estimate'))||null,
       energy:Object.hasOwn(taskEnergyLevels,fields.get('energy'))?fields.get('energy'):'',repeat,
