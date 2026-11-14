@@ -1,6 +1,6 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites} from './state.js';
-import {renderLandscape,objects,blossomMarkup,animateLandscape,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions} from './scenery.js';
-import {earnGardenDetail,gardenCourses,gardenRange,gardenReward,landmarkTypes} from './garden-growth.js';
+import {renderLandscape,objects,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions} from './scenery.js';
+import {earnGardenDetail,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
 import {handoffLink} from './session-handoff.js';
@@ -171,6 +171,14 @@ function positionGardenLandmarks(){
     button.style.left=`${x}px`;button.style.top=`${y}px`;
   }
 }
+function positionEveningCamera(){
+  const {x,y,zoom,width,height}=eveningCamera(app.clientWidth,app.clientHeight);
+  app.style.setProperty('--evening-x',`${x}px`);
+  app.style.setProperty('--evening-y',`${y}px`);
+  app.style.setProperty('--evening-zoom',zoom);
+  app.style.setProperty('--evening-width',`${width}px`);
+  app.style.setProperty('--evening-height',`${height}px`);
+}
 function finishReadingBook(book){
   const record=finishedBook({id:crypto.randomUUID(),title:book.title,author:book.author,finishedOn:dayKey(),
     totalPages:book.entries.find(entry=>entry.totalPages)?.totalPages});
@@ -281,6 +289,7 @@ $('#penguin-next').onclick=()=>announce(nextPenguinThought());
 $('#landscape').innerHTML=renderLandscape();
 new ResizeObserver(()=>{
   positionGardenLandmarks();
+  positionEveningCamera();
   if(activePanel==='garden-landmark')positionPanel(visiblePanel(),landmarkAnchor(selectedLandmark));
 }).observe(app);
 $('#garden-landmarks').addEventListener('click',event=>{
@@ -457,6 +466,7 @@ function commandEntries(){
     action('Help','Browse searchable instructions and keyboard shortcuts','guide how to tutorial features',()=>helpGuide.open()),
     action('Version history','See what changed in each release','versions updates changelog release notes',()=>runHelpAction('versions')),
     action('Garden Field Guide','Browse landmarks, historical views, and course constellations','garden history semester stars trees lanterns cairns',()=>runHelpAction('garden-history')),
+    action('Evening lights','Open the shutdown checklist by the lake','night sunset tomorrow shutdown',()=>runHelpAction('evening-lights')),
     action('End-of-day recap','Review today’s work and tomorrow’s plans','daily recap finished moved tomorrow',()=>runHelpAction('day-recap')),
     action('Focus session replay','See actual focus time in Calendar','actual timeline pause switch',()=>runHelpAction('focus-replay')),
     action('Fit a task today','Compare which calendar blocks could move','tradeoffs trade-offs schedule today',()=>runHelpAction('tradeoffs')),
@@ -489,6 +499,7 @@ function commandEntries(){
 }
 
 function runHelpAction(action){
+  if(action==='evening-lights'){openEveningLights();return;}
   closePanel(false);closeTaskMenu(false);
   const workspaces=['focus','planner','calendar','crochet','journal','notes','reading'];
   if(workspaces.includes(action)){visitWorkspace(action);return;}
@@ -964,7 +975,7 @@ function gardenLandmarkMarkup(){
     .find(book=>book.finished?.id===item.sourceId):null;
   const project=item.kind==='project'&&state.projects.find(project=>project.id===item.sourceId);
   const examProject=item.kind==='test'&&state.projects.find(project=>project.exams?.some(exam=>exam.id===item.sourceId));
-  const exam=examProject?.exams.find(exam=>exam.id===item.sourceId);
+  const exam=examProject?.exams?.find(exam=>exam.id===item.sourceId);
   const courseId=examProject?.id||item.courseId;
   const finished=book?.finished;
   const firstLog=book?.entries.filter(entry=>entry.date<=finished.finishedOn).at(-1)?.date;
@@ -980,7 +991,21 @@ function gardenLandmarkMarkup(){
       ${examProject?`<button type="button" class="panel-primary" data-landmark-exam="${escape(item.sourceId)}" data-exam-project="${escape(examProject.id)}">Open exam plan</button>`:''}
       ${project?`<button type="button" class="panel-primary" data-view-project="${escape(project.id)}">Open project</button>`:''}
       ${courseId?`<button type="button" class="text-button" data-guide-course="${escape(courseId)}">View constellation</button>`:''}
-      <button type="button" class="text-button" data-garden-history-open>Garden Field Guide</button></div>`;
+      <button type="button" class="text-button" data-garden-history-open>Garden Field Guide</button></div>
+    ${item.kind!=='test'?`<details class="landmark-record"><summary>Place landmark${item.zone?` · ${gardenZones[item.zone]}`:''}</summary>
+      <form id="landmark-place">${placementFields(item)}<button class="panel-primary">Save placement</button></form></details>`:''}`;
+}
+function placementFields(item={}){
+  const groups=new Map(state.gardenGrowth.filter(entry=>entry.group&&entry.zone).map(entry=>[entry.group.toLowerCase(),entry]));
+  return `<label>Area<select name="zone"><option value="">Automatic</option>${Object.entries(gardenZones).map(([id,name])=>
+    `<option value="${id}" ${item.zone===id?'selected':''}>${name}</option>`).join('')}</select></label>
+    <label>Group <span>(optional)</span><input name="group" maxlength="80" list="landmark-groups" value="${escape(item.group)}" placeholder="Project or semester"></label>
+    <datalist id="landmark-groups">${[...groups.values()].map(entry=>`<option value="${escape(entry.group)}">${gardenZones[entry.zone]}</option>`).join('')}</datalist>`;
+}
+function selectedPlacement(kind,zone,group){
+  const name=group?.trim();
+  const prior=state.gardenGrowth.find(item=>item.group?.toLowerCase()===name?.toLowerCase()&&item.zone);
+  return landmarkPlacement(kind,zone||prior?.zone||(name?'island':''),name);
 }
 function gardenHistoryMarkup(){
   const history=gardenRange(state.gardenGrowth,gardenFrom,gardenThrough);
@@ -994,7 +1019,7 @@ function gardenHistoryMarkup(){
       const type=landmarkTypes[item.kind];
       return `<li><button type="button" data-history-landmark="${index}" aria-haspopup="dialog">
         <span class="field-sketch">${gardenFieldSketch(item.kind)}</span>
-        <span><strong>${escape(item.title)}</strong><small>${type.event}</small></span>
+        <span><strong>${escape(item.title)}</strong><small>${type.event}${item.zone?` · ${gardenZones[item.zone]}`:''}${item.group?` · ${escape(item.group)}`:''}</small></span>
         <time datetime="${item.day}">${landmarkDate(item.day)}</time></button></li>`;
     }).join('');
   return `${header('GARDEN','Garden Field Guide')}
@@ -1018,6 +1043,7 @@ function gardenHistoryMarkup(){
         ${state.projects.some(project=>!project.archived)?`<label>Course <span>(optional for tests)</span><select name="course"><option value="">Unassigned</option>${state.projects.filter(project=>!project.archived).map(project=>`<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('')}</select></label>`:''}
         <label>Result <span>(optional)</span><input name="result" maxlength="100" placeholder="e.g. 92%"></label>
         <label>Note <span>(optional)</span><textarea name="detail" maxlength="1000" rows="2"></textarea></label>
+        <fieldset class="landmark-placement-fields"><legend>Cairn placement</legend>${placementFields()}</fieldset>
         <button class="panel-primary">Add to Garden</button></form></details>
     <button type="button" class="text-button" id="garden-history-today">Back to today’s progress</button>`;
 }
@@ -1066,7 +1092,7 @@ function dayRecapMarkup(){
       ${firstTask?entry(firstTask.text,'First focus task',taskTarget(firstTask.id,tomorrow)):''}${list(upcoming,'Nothing lined up yet.')}
       <button type="button" class="text-button" id="recap-open-tomorrow">Plan tomorrow</button></section>
       ${thoughts.length?`<section><h3>Captured today</h3>${list(thoughts,'')}</section>`:''}
-      ${shutdownMarkup(today)}
+      <button type="button" class="text-button" data-evening-lights>Evening lights</button>${shutdownMarkup(today)}
     </div>`;
 }
 function shutdownMarkup(today){
@@ -1076,6 +1102,21 @@ function shutdownMarkup(today){
     <details id="shutdown-edit"><summary>Edit recurring steps</summary>
       <form id="shutdown-form"><label>One step per line<textarea name="steps" rows="4" maxlength="2100">${escape(state.shutdownSteps.map(step=>step.text).join('\n'))}</textarea></label>
       <button type="submit" class="text-button">Save steps</button><p role="alert" id="shutdown-error" hidden></p></form></details></section>`;
+}
+function eveningLightsMarkup(){
+  const {today,tomorrow,firstTask}=summarizeDay(state,gardenTasks());
+  return `${header(shortScheduleDate(today),'Evening lights')}
+    <div class="evening-next"><h3>Tomorrow’s first task</h3><p>${firstTask?escape(firstTask.text):'No first task reserved.'}</p>
+    <button type="button" class="text-button" id="recap-open-tomorrow">${firstTask?'Edit tomorrow’s plan':'Plan tomorrow'}</button></div>
+    ${shutdownMarkup(today)}`;
+}
+function openEveningLights(){
+  if(state.focusMode)toggleFocusMode();
+  visitWorkspace('focus');
+  positionEveningCamera();
+  openPanel('evening-lights',$('[data-panel="progress"]'));
+  app.classList.add('evening-view');
+  const heading=$('#panel-title');heading.tabIndex=-1;heading.focus({preventScroll:true});
 }
 function saveShutdownSteps(form){
   const text=[...new Set(form.elements.steps.value.split(/\r?\n/).map(step=>step.trim()).filter(Boolean))];
@@ -1761,6 +1802,7 @@ function timerNotificationControls(){
     <button type="button" class="text-button" id="timer-open-sounds">Adjust chimes and ambience</button></section>`;
 }
 function panelContent(id){
+  if(id==='evening-lights')return eveningLightsMarkup();
   if(id==='focus-bundle')return focusBundleMarkup();
   if(id==='availability')return availabilityMarkup();
   if(id==='routine-editor')return routineEditor();
@@ -1891,7 +1933,7 @@ function panelContent(id){
     <p class="note-caption"><kbd>Ctrl+Alt+N</kbd> for quick capture</p>
     <div id="notes-captures">${captureCards()}</div>`;
   if(id==='progress'){
-    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time>${focusReviewDetails(h)}</span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p><div class="panel-actions"><button type="button" class="text-button" id="open-day-recap">End-of-day recap</button><button type="button" class="text-button" id="open-garden-history">Open Garden Field Guide</button></div>`;
+    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time>${focusReviewDetails(h)}</span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p><div class="panel-actions"><button type="button" class="text-button" id="open-day-recap">End-of-day recap</button><button type="button" class="text-button" data-evening-lights>Evening lights</button><button type="button" class="text-button" id="open-garden-history">Open Garden Field Guide</button></div>`;
   }
   if(id==='garden-history')return gardenHistoryMarkup();
   if(id==='garden-course')return gardenCourseMarkup();
@@ -1951,6 +1993,7 @@ function closePanel(restore=true){
   if(restore&&returnToCaptureInbox&&(['capture-project','capture-link'].includes(activePanel)||activePanel==='task-editor'&&taskDraft?.captureKey)){
     returnToCaptureInbox=false;openCaptureInbox(false);return;
   }
+  app.classList.remove('evening-view');
   const p=visiblePanel();if(p){if(p.id==='music-panel'){p.classList.add('music-hidden');p.setAttribute('aria-hidden','true');p.inert=true;p.querySelector('h2').id='music-hidden-title';p.setAttribute('aria-labelledby','music-hidden-title');}else p.remove();}
   if(lastAnchor){
     lastAnchor.setAttribute('aria-expanded','false');
@@ -1966,7 +2009,6 @@ function closePanel(restore=true){
 }
 function refreshPanel(){
   if(!activePanel||activePanel==='music')return;
-  const p=visiblePanel();
   if(!p)return;
   const focusId=p.contains(document.activeElement)?document.activeElement.id:null;
   p.innerHTML=panelContent(activePanel);
@@ -3466,6 +3508,7 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  if(e.target.closest('[data-evening-lights]')){openEveningLights();return;}
   const resumeBundle=e.target.closest('[data-resume-bundle]');
   if(resumeBundle){startBundle(resumeBundle.dataset.resumeBundle);return;}
   const pauseBundle=e.target.closest('[data-pause-bundle]');
@@ -3877,6 +3920,16 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='landmark-place'){
+    const index=selectedLandmark,item=state.gardenGrowth[index];
+    if(!item)return;
+    const {zone,group}=Object.fromEntries(new FormData(e.target));
+    const {zone:oldZone,group:oldGroup,...record}=item;
+    const previous=state.gardenGrowth;
+    state.gardenGrowth=previous.map((entry,i)=>i===index?{...record,...selectedPlacement(item.kind,zone,group)}:entry);
+    if(!persist()){state.gardenGrowth=previous;return;}
+    renderGardenGrowth();openGardenLandmark(index);confirmChange('Landmark placement saved.');return;
+  }
   if(e.target.id==='garden-range'){
     const {from,through}=Object.fromEntries(new FormData(e.target));
     const snapshot=e.submitter?.value==='snapshot';
@@ -3894,11 +3947,11 @@ root.addEventListener('submit',e=>{
     ($('[data-apply-tradeoff]')||$('#tradeoff-task'))?.focus({preventScroll:true});return;
   }
   if(e.target.id==='landmark-form'){
-    const {kind,day,title,result,detail,course}=Object.fromEntries(new FormData(e.target));
+    const {kind,day,title,result,detail,course,zone,group}=Object.fromEntries(new FormData(e.target));
     if(!['test','milestone'].includes(kind)||day>dayKey())return;
     if(!title.trim()){e.target.elements.title.focus();return;}
     const project=kind==='test'&&state.projects.find(item=>item.id===course);
-    if(recordGardenGrowth(kind,crypto.randomUUID(),title,day,{result,detail,courseId:project?.id,courseName:project?.name}))openGardenLandmark(state.gardenGrowth.length-1);
+    if(recordGardenGrowth(kind,crypto.randomUUID(),title,day,{result,detail,courseId:project?.id,courseName:project?.name,...selectedPlacement(kind,zone,group)}))openGardenLandmark(state.gardenGrowth.length-1);
     return;
   }
   if(e.target.id==='availability-form'){saveAvailability(e.target,e.submitter?.value==='remove');return;}
@@ -4353,5 +4406,5 @@ durationForm.onsubmit=e=>{
 
 
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
-function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:1-remaining(state)/t.total,motionPreference.matches,effectiveAppearance.lighting);requestAnimationFrame(environmentFrame);}
+function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:1-remaining(state)/t.total,motionPreference.matches,activePanel==='evening-lights'?'night':effectiveAppearance.lighting);requestAnimationFrame(environmentFrame);}
 requestAnimationFrame(environmentFrame);

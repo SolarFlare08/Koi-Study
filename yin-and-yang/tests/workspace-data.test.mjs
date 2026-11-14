@@ -10,7 +10,22 @@ import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
-import {gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
+import {eveningCamera,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
+
+test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
+  let history=earnGardenDetail([],'project','a','Project','2026-09-01',{zone:'east',group:'Fall'});
+  history=earnGardenDetail(history,'book','b','Book','2026-09-02',{zone:'east',group:'Fall'});
+  history=earnGardenDetail(history,'test','c','Test','2026-09-03',{zone:'east',group:'Fall'});
+  const loaded=loadGardenGrowth(history);
+  assert.equal(loaded[1].group,'Fall');
+  assert.equal(loaded[2].zone,undefined);
+  assert.ok(gardenLandmarkPositions(loaded).slice(0,2).every(item=>item.position[0]>1000));
+  for(const [width,height] of [[390,844],[1440,900],[1600,600]]){
+    const view=eveningCamera(width,height);
+    assert.ok(Math.abs(view.x)<=(view.width*view.zoom-width)/2);
+    assert.ok(Math.abs(view.y)<=(view.height*view.zoom-height)/2);
+  }
+});
 
 test('the Field Guide uses inclusive dates and snapshots keep original landmark coordinates',()=>{
   let history=earnGardenDetail([],'book','a','Early book','2026-09-01');

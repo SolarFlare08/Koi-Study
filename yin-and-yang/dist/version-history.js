@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'2.5.0',date:'2026-11-13',title:'Landmark placement and Evening lights',changes:[
+    'Place trees, lanterns, and cairns in three areas and reuse an area across landmarks with the same group name.',
+    'Wind down beside the lit pagoda with the shutdown checklist and tomorrow’s first task.'
+  ]},
   {version:'2.4.0',date:'2026-11-13',title:'Garden Field Guide and course constellations',changes:[
     'Browse illustrated landmark entries by type and date. Preview the Garden with the landmarks earned through a selected day.',
     'Open course constellations to see exam stars in date order. Existing Planner exam stars join their course automatically.'

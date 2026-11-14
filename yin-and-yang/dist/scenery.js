@@ -36,6 +36,20 @@ const landmarkSlots = {
   test:[[922,215,1],[674,191,.9],[949,153,.8],[704,105,.85],[893,100,.75],[625,240,.74],[1000,249,.84]],
   milestone:[[792,681,.9],[689,689,.8],[1149,638,.88],[1295,626,1],[1353,837,1],[706,681,.76]]
 };
+const placementSlots={
+  west:{project:[[204,827,.31],[253,839,.27],[144,803,.25]],book:[[276,763,.95],[331,796,.85],[380,812,.9]],milestone:[[188,854,1],[231,861,.86],[125,845,.88]]},
+  island:{project:groveSlots.slice(0,5),book:[[836,702,.83],[870,713,.85],[852,755,.9]],milestone:[[765,686,.86],[699,685,.78],[779,682,.76]]},
+  east:{project:groveSlots.slice(5,10),book:lanternSlots.slice(-4),milestone:[[1149,638,.88],[1235,629,.82],[1295,626,1]]}
+};
+export function eveningCamera(width,height){
+  const scale=Math.max(width/1600,height/900);
+  const compact=width<650,zoom=compact?1.65:1.28;
+  const targetX=width*(compact?.5:.66), targetY=height*(compact?.43:.62);
+  const limit=(value,size,extent)=>Math.max(-(extent*zoom-size)/2,Math.min((extent*zoom-size)/2,value));
+  return {zoom,width:1600*scale,height:900*scale,
+    x:limit(targetX-width/2-(1096-800)*scale*zoom,width,1600*scale),
+    y:limit(targetY-height/2-(615-450)*scale*zoom,height,900*scale)};
+}
 
 function growthPosition(slots,index){
   const [x,y,scale]=slots[index%slots.length];
@@ -56,17 +70,25 @@ export function gardenLandmarkPositions(history,courses=[]){
     });
   });
   const counts=new Map();
+  const occupied=new Set();
   return history.map((item,originalIndex)=>{
     if(positions.has(originalIndex))return {item,index:originalIndex,position:positions.get(originalIndex)};
-    const index=counts.get(item.kind)||0;
-    counts.set(item.kind,index+1);
-    return {item,index:originalIndex,position:growthPosition(landmarkSlots[item.kind],index)};
+    const key=`${item.kind}:${item.zone||''}`;
+    let index=counts.get(key)||0,position,spot;
+    const slots=placementSlots[item.zone]?.[item.kind]||landmarkSlots[item.kind];
+    do{
+      position=growthPosition(slots,index++);
+      spot=`${item.kind}:${position[0]}:${position[1]}`;
+    }while(occupied.has(spot));
+    counts.set(key,index);occupied.add(spot);
+    return {item,index:originalIndex,position};
   });
 }
 
 export function gardenGrowthMarkup(history,{courses=[],through=''}={}){
   const trees=[],lanterns=[],lights=[];
   const stars=[],cairns=[];
+  let hasIsland=false;
   const layout=gardenLandmarkPositions(history,courses);
   for(const course of courses){
     const points=course.stars.filter(({item})=>!through||item.day<=through).map(({index})=>layout[index].position.slice(0,2).join(','));
@@ -78,6 +100,7 @@ export function gardenGrowthMarkup(history,{courses=[],through=''}={}){
     const transform=`translate(${x} ${y}) scale(${scale})`;
     if(item.kind==='project'){
       trees.push({y,art:shoreTree(x,y,scale)});
+      if(x>=684&&x<=786)hasIsland=true;
     }else if(item.kind==='book'){
       lanterns.push(`<g transform="${transform}">
         <ellipse rx="12" ry="3" fill="#385e5b" opacity=".35"/>
@@ -94,13 +117,14 @@ export function gardenGrowthMarkup(history,{courses=[],through=''}={}){
       stars.push(`<g transform="${transform}"><circle r="17" fill="url(#halo)" opacity=".6"/>
         <path d="M0-8Q1-1 7 0Q1 1 0 8Q-1 1-7 0Q-1-1 0-8Z" fill="#fff1cb" stroke="#a7785d" stroke-width=".65"/></g>`);
     }else if(item.kind==='milestone'){
+      if(item.zone==='island')hasIsland=true;
       cairns.push(`<g transform="${transform}"><ellipse cy="2" rx="14" ry="4" fill="#335653" opacity=".45"/>
         <path d="M-13 0Q-11-6-3-6Q8-7 13-2L10 1H-9Z" fill="#6e8075"/>
         <path d="M-9-6Q-10-10-3-13Q3-14 8-9L5-6Z" fill="#9aa389"/>
         <path d="M-5-13Q-6-17-1-20Q4-20 6-15L4-13Z" fill="#c2a688"/></g>`);
     }
   }
-  const island=trees.length?`<path d="M684 682q24-7 48-6t54 5q-19 7-51 7t-51-6Z" fill="var(--shore-lower,#527e70)" opacity=".76"/>
+  const island=hasIsland?`<path d="M684 682q24-7 48-6t54 5q-19 7-51 7t-51-6Z" fill="var(--shore-lower,#527e70)" opacity=".76"/>
     <path d="M689 681q17-7 39-9t51 8q-32 3-52 2t-38-1Z" fill="url(#shore)"/>`:'';
   return {trees:island+trees.sort((a,b)=>a.y-b.y).map(tree=>tree.art).join(''),
     lanterns:lanterns.join(''),lights:lights.join(''),stars:stars.join(''),cairns:cairns.join('')};

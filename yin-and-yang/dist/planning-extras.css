@@ -279,6 +279,30 @@
 }
 #garden-snapshot button { white-space: nowrap; text-decoration: underline; }
 #app:not([data-workspace="focus"]) #garden-snapshot { visibility: hidden; }
+#landmark-place, #landmark-place label, .landmark-placement-fields { display: grid; gap: 6px; }
+#landmark-place { margin-top: 8px; }
+#landmark-place button { justify-self: start; }
+.landmark-placement-fields { margin: 0; border: 1px solid var(--surface-line); border-radius: 7px; }
+#landscape .world {
+  position: absolute; left: 50%; top: 50%; width: var(--evening-width); height: var(--evening-height);
+  transform: translate(-50%,-50%); transition: transform 1.1s cubic-bezier(.22,.7,.22,1);
+}
+.evening-view #landscape .world {
+  transform: translate(calc(-50% + var(--evening-x)),calc(-50% + var(--evening-y))) scale(var(--evening-zoom));
+}
+.evening-view :is(.sky,#task-sidebar,#garden-landmarks,#garden-snapshot,#penguin,#focus-handoff,#focus-notes-panel) { visibility: hidden; }
+.evening-view .panel:has(.evening-next) {
+  left: clamp(14px,5vw,76px) !important; top: 50% !important; transform: translateY(-50%); max-height: 76vh;
+}
+.evening-next { padding: 9px 10px; margin: 6px 0 11px; border-radius: 8px; background: var(--surface-raised); }
+.evening-next h3, .evening-view #shutdown-checklist h3 { margin: 0 0 6px; font-size: 13px; }
+.evening-next p { margin: 0 0 5px; overflow-wrap: anywhere; }
+.evening-view #shutdown-checklist ul { list-style: none; padding: 0; }
+.evening-view #shutdown-checklist li + li { margin-top: 6px; }
+@media(max-width:649px){
+  .evening-view .panel:has(.evening-next) { left: 12px !important; top: auto !important; bottom: 68px; transform: none; max-height: 46svh; }
+}
+@media(prefers-reduced-motion:reduce){#landscape .world{transition:none}}
 .project-overview-next p, .project-overview-sections p { margin: 4px 0 0; color: var(--planner-muted); font-size: 12px; }
 .project-overview-sections { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(160px,100%),1fr)); gap: 12px; }
 .project-overview-sections section { min-width: 0; border-top: 1px solid var(--planner-line); padding-top: 8px; }

@@ -4,6 +4,13 @@ export const landmarkTypes = {
   test:{name:'Star',event:'Test completed',mark:'spark'},
   milestone:{name:'Cairn',event:'Milestone reached',mark:'target'}
 };
+export const gardenZones={west:'West shore',island:'Lake island',east:'Pagoda shore'};
+
+export function landmarkPlacement(kind,zone,group){
+  if(kind==='test'||!Object.hasOwn(gardenZones,zone))return {};
+  const name=typeof group==='string'?group.trim().slice(0,80):'';
+  return {zone,...(name?{group:name}:{})};
+}
 
 function validDay(day) {
   if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
@@ -27,6 +34,7 @@ export function loadGardenGrowth(value) {
     if (seen.has(key)) continue;
     seen.add(key);
     const entry={kind, sourceId, title: title.trim().slice(0, 500), day};
+    Object.assign(entry,landmarkPlacement(kind,item.zone,item.group));
     for(const [field,limit] of [['result',100],['detail',1000]]){
       if(typeof item[field]==='string'&&item[field].trim())entry[field]=item[field].trim().slice(0,limit);
     }
