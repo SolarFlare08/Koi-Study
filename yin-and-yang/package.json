@@ -1,4 +1,4 @@
 {
-  "name": "yin-and-yang", "version": "2.5.0", "private": true, "type": "module",
+  "name": "yin-and-yang", "version": "2.6.0", "private": true, "type": "module",
   "scripts": { "dev": "node server.mjs", "start": "node server.mjs", "capture-hotkey": "node hotkey.mjs", "test": "node --test tests/*.test.mjs", "build": "node check-syntax.mjs" }
 }

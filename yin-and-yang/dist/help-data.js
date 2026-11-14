@@ -599,6 +599,8 @@ export const helpTopics = [
     steps:['In Garden, open `Appearance` from the top tools.',
       'Choose lighting. `Follow timer` ties sunrise and sunset to focus progress; fixed day or night looks keep a steady atmosphere.',
       'Choose Spring, Summer, Autumn, or Winter. Set weather manually or choose `Rotate every 8 minutes` for seasonal changes.',
+      'Watch showers crossfade into lake mist and the cloud cover pull apart as skies clear. Each season has a signature detail: spring petals, summer fireflies, autumn leaves, or winter flurries.',
+      'Under `Scenery motion`, choose Still for a static scene, Gentle for slow movement, or Lively for faster movement. Still also holds the timer-driven sun in place. This setting applies across all saved looks.',
       'For timed looks, choose the appearance you want, set a start time under `Daily Garden presets`, and choose `Save preset`. Enable `Switch looks by time of day`.'],
     tip:'Changing the look manually pauses the schedule until you save or enable it again. Resetting a timer returns its sun directly to the beginning of the cycle. Click the penguin for another thought.',
     action:'appearance', actionLabel:'Open Appearance', related:['focus-mode','music'], keywords:'theme garden snow rain fog sun sunset sunrise night day seasons presets'

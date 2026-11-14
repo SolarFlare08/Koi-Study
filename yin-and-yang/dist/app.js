@@ -10,7 +10,7 @@ import {bundleProgress,installBundleEditor} from './task-bundles.js';
 import {CAPTURE_PREFIX, cleanCaptureContext, readCaptures, saveCapture, storeCapture} from './capture.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from './day-recap.js';
 import {installPlanner} from './planner.js';
-import {lightingOptions,seasonOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
+import {lightingOptions,seasonOptions,sceneryMotionOptions,sceneryWeatherLayers,weatherBySeason,gardenWeather,loadAppearance,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
@@ -662,9 +662,12 @@ function render(){
   const clock=new Date();
   effectiveAppearance=scheduledAppearance(state.appearance,state.gardenSchedule,clock);
   app.dataset.lighting=effectiveAppearance.lighting;
-  app.dataset.season=effectiveAppearance.season;
-  const weather=gardenWeather(effectiveAppearance,clock.getTime());
-  if(app.dataset.weather!==weather)app.dataset.weather=weather;
+  const {season,motion}=effectiveAppearance,weather=gardenWeather(effectiveAppearance,clock.getTime());
+  if(app.dataset.motion!==motion)app.dataset.motion=motion;
+  if(app.dataset.weather!==weather||app.dataset.season!==season){
+    app.dataset.season=season;app.dataset.weather=weather;
+    for(const [layer,opacity] of Object.entries(sceneryWeatherLayers(season,weather)))app.style.setProperty(`--scene-${layer}`,opacity);
+  }
   const weatherCurrent=$('#garden-weather-current');
   if(weatherCurrent){
     const label=weatherBySeason[effectiveAppearance.season][weather];
@@ -1839,7 +1842,7 @@ function panelContent(id){
     <p class="capture-shortcuts"><kbd>N</kbd> Next <kbd>P</kbd> Previous${captureInboxTab==='inbox'?' <kbd>F</kbd> File <kbd>L</kbd> Link <kbd>A</kbd> Archive':''}</p>
     <div id="capture-inbox-list">${captureInboxList()}</div>`;
   if(id==='appearance'){
-    const {lighting,season}=state.appearance;
+    const {lighting,season,motion}=state.appearance;
     return `${header('GARDEN APPEARANCE','Light and seasons')}
       <fieldset class="appearance-options"><legend>Lighting</legend><div class="lighting-options">
         ${Object.entries(lightingOptions).map(([value,label])=>`<label><input class="sr-only" type="radio" name="garden-lighting" value="${value}" ${lighting===value?'checked':''}><span>${label}</span></label>`).join('')}
@@ -1851,6 +1854,9 @@ function panelContent(id){
         <select id="garden-weather" name="garden-weather" aria-label="Weather">${gardenWeatherOptions()}</select>
         <p>Now in the Garden <strong id="garden-weather-current">${weatherBySeason[season][gardenWeather(state.appearance)]}</strong></p>
       </fieldset>
+      <fieldset class="appearance-options"><legend>Scenery motion</legend><div class="lighting-options">
+        ${Object.entries(sceneryMotionOptions).map(([value,label])=>`<label><input class="sr-only" type="radio" name="garden-motion" value="${value}" ${motion===value?'checked':''}><span>${label}</span></label>`).join('')}
+      </div><p>Still keeps the full scene in view. Gentle drifts slowly. Lively moves faster.</p></fieldset>
       <section class="garden-schedule"><h3>Daily Garden presets</h3><label><input type="checkbox" id="garden-schedule-enabled" ${state.gardenSchedule.enabled?'checked':''}> Switch looks by time of day</label>
       <p id="garden-active-preset"></p><p>Choose a look above, then save its start time. Changing the look pauses the schedule until you save or turn it back on.</p>
       <form id="garden-preset-form"><label for="garden-preset-time">Start time</label><input id="garden-preset-time" name="time" type="time" required><button class="panel-primary">Save preset</button></form>
@@ -3893,6 +3899,12 @@ root.addEventListener('change',event=>{
     state.gardenSchedule.enabled=event.target.checked;
     persist();render();
   }
+  if(event.target.name==='garden-motion'){
+    const previous=state.appearance;
+    state.appearance=loadAppearance({...previous,motion:event.target.value});
+    if(!persist()){state.appearance=previous;refreshPanel();}
+    render();return;
+  }
   if(event.target.dataset.soundLevel)persist();
   if(event.target.id==='mute-garden'||event.target.id==='outside-music'){
     changeSound(event.target.id==='mute-garden'?'muted':'musicMode',event.target.checked);
@@ -4406,5 +4418,5 @@ durationForm.onsubmit=e=>{
 
 
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
-function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:1-remaining(state)/t.total,motionPreference.matches,activePanel==='evening-lights'?'night':effectiveAppearance.lighting);requestAnimationFrame(environmentFrame);}
+function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:1-remaining(state)/t.total,motionPreference.matches,activePanel==='evening-lights'?'night':effectiveAppearance.lighting,effectiveAppearance.motion);requestAnimationFrame(environmentFrame);}
 requestAnimationFrame(environmentFrame);

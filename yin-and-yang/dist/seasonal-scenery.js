@@ -125,7 +125,11 @@ export function weatherMarkup(){
   const floating=(shape,count)=>particles(count,(x,y,i)=>`<g transform="${pos(x,y,.44+(i%4)*.21)}"><path class="weather-drift" style="--weather-delay:-${i%17}s" d="${shape}"/></g>`);
   const fallingSnow=particles(58,(x,y,i)=>`<circle class="weather-snowflake" style="--weather-delay:-${i%15}s" cx="${x}" cy="${y}" r="${.85+i%4*.46}"/>`);
   const rain=particles(76,(x,y,i)=>`<path class="weather-raindrop" style="--weather-delay:-${(i%19)*.12}s" d="M${x} ${y}l-3 ${9+i%8}"/>`);
+  const fireflies=particles(23,(x,y,i)=>`<g class="summer-firefly" style="--weather-delay:-${i*.53}s">
+    <circle cx="${175+x*.79}" cy="${635+y*.19}" r="8" fill="url(#lamp-halo)"/>
+    <circle cx="${175+x*.79}" cy="${635+y*.19}" r="${1+i%3*.3}" fill="#fff1b0"/></g>`);
   return `<g class="weather-layer weather-petals" fill="#e9aeb6">${floating('M-4 2Q-5-2 5-3Q4 3-4 2Z',23)}</g>
+    <g class="season-layer summer-scene firefly-layer">${fireflies}</g>
     <g class="weather-layer weather-leaves" fill="#d99156">${floating(maple,20)}</g>
     <g class="weather-layer weather-rain"><path fill="#557383" opacity=".12" d="M0 0h1600v900H0z"/><g stroke="#c2d6d9" stroke-linecap="round" stroke-width="1.2">${rain}</g><g class="weather-ripple" fill="none" stroke="#dae6dc" opacity=".45"><ellipse cx="475" cy="698" rx="13" ry="2.6"/><ellipse cx="917" cy="626" rx="12" ry="2.4"/><ellipse cx="1069" cy="790" rx="21" ry="3"/></g></g>
     <g class="weather-layer weather-mist"><path class="weather-cloudbank" fill="url(#mist)" opacity=".68" d="M0 397h1600v262H0z"/><path fill="url(#mist)" opacity=".39" d="M0 544h1600v177H0z"/></g>

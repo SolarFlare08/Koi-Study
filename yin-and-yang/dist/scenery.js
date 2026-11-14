@@ -178,6 +178,10 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
   <g class="cloud-drift cloud-east"><path d="M1033 146C1090 143 1114 130 1153 133C1184 135 1205 111 1241 114C1270 116 1278 131 1308 134C1350 139 1378 134 1428 140C1386 149 1356 147 1325 150C1272 155 1242 146 1199 149C1136 153 1086 151 1033 146Z"/><path d="M1194 165C1239 165 1264 157 1308 159C1340 160 1366 162 1400 156C1367 171 1321 167 1286 168Q1239 172 1194 165Z" opacity=".56"/></g>
   <path class="cloud-drift cloud-high" d="M572 84C612 83 639 75 667 77C692 78 718 85 754 81C727 91 690 88 655 88Q610 90 572 84Z" opacity=".33"/>
 </g>
+<g class="weather-overcast" fill="url(#mist)" aria-hidden="true">
+  <path class="weather-cover-west" d="M-140 104Q45 71 245 109T660 112Q706 122 740 162Q543 204 309 183T-140 207Z"/>
+  <path class="weather-cover-east" d="M858 114Q1026 64 1253 102T1720 112L1720 218Q1505 202 1327 219T858 198Z"/>
+</g>
 <g class="sky-flock" fill="none" stroke="#5f8586" stroke-width="1.5" stroke-linecap="round" opacity="0">
   <path d="M492 195q4-4 8 0 4-5 8-3M520 180q3-4 7-1 3-4 7-2M538 201q3-4 7-1 3-4 7-2"/>
 </g>
@@ -312,10 +316,11 @@ nodes.shine.setAttribute('opacity',(1-light.night)*light.sunlight);nodes.sun.set
 nodes.app.style.setProperty('--scene-ink',blend('#34565a','#f1e6d3',light.night));
 nodes.app.style.setProperty('--scene-muted',blend('#55726c','#c9cdd1',light.night));
 nodes.app.style.setProperty('--scene-paper',blend('#e7eadc','#26394a',light.night));
+nodes.app.style.setProperty('--scene-twilight',Math.min(1,Math.max(.22,(light.night-.16)*1.4)));
 }
-export function animateLandscape(_now,progress,reduced,lighting='session'){
+export function animateLandscape(_now,progress,reduced,lighting='session',motion='gentle'){
 // Progress already comes from an end timestamp at animation-frame precision.
 // Drawing it directly also makes resets and mode changes instant.
-paintDay(sceneProgress(progress,lighting,reduced),lighting);
+paintDay(sceneProgress(progress,lighting,reduced,motion),lighting);
 }
 

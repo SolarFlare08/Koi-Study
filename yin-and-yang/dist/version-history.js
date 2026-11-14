@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'2.6.0',date:'2026-11-13',title:'Seasonal weather and scenery motion',changes:[
+    'Rain eases into lake mist, cloud cover opens gradually, and each season has its own animated detail.',
+    'Choose Still, Gentle, or Lively in Garden Appearance. The setting applies across saved looks and respects reduced-motion preferences.'
+  ]},
   {version:'2.5.0',date:'2026-11-13',title:'Landmark placement and Evening lights',changes:[
     'Place trees, lanterns, and cairns in three areas and reuse an area across landmarks with the same group name.',
     'Wind down beside the lit pagoda with the shutdown checklist and tomorrow’s first task.'

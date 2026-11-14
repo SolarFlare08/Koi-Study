@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {daylight,sunPosition} from '../dist/daylight.js';
 import {animateLandscape} from '../dist/scenery.js';
-import {gardenWeather,loadAppearance,sceneProgress,weatherInterval} from '../dist/garden-appearance.js';
+import {gardenWeather,loadAppearance,sceneProgress,sceneryWeatherLayers,scheduledAppearance,weatherInterval} from '../dist/garden-appearance.js';
 
 test('sunrise brightens into day; sunset darkens into night',()=>{
   assert.ok(daylight(0).shade>daylight(.12).shade);
@@ -66,12 +66,24 @@ test('sun follows a circular arc on standard and wide screens',()=>{
   }
 });
 test('fixed lighting stays still and saved seasons load independently',()=>{
-  assert.deepEqual(loadAppearance({lighting:'day',season:'winter'},0),{lighting:'day',season:'winter',weather:'auto',weatherSince:0});
-  assert.deepEqual(loadAppearance({lighting:'unknown',season:'spring'},0),{lighting:'session',season:'spring',weather:'auto',weatherSince:0});
+  assert.deepEqual(loadAppearance({lighting:'day',season:'winter'},0),{lighting:'day',season:'winter',weather:'auto',weatherSince:0,motion:'gentle'});
+  assert.deepEqual(loadAppearance({lighting:'unknown',season:'spring'},0),{lighting:'session',season:'spring',weather:'auto',weatherSince:0,motion:'gentle'});
   assert.equal(sceneProgress(.12,'day',false),sceneProgress(.86,'day',false));
   assert.equal(sceneProgress(.12,'night',false),1);
   assert.equal(sceneProgress(.12,'session',false),.12);
   assert.equal(sceneProgress(.12,'session',true),sceneProgress(.86,'session',true));
+});
+test('rain carries mist into the next weather and scenery motion survives timed looks',()=>{
+  const base=loadAppearance({season:'summer',motion:'still'},0);
+  const schedule={enabled:true,presets:[{time:'08:00',season:'autumn',lighting:'night',weather:'auto'}]};
+  assert.equal(scheduledAppearance(base,schedule,new Date(2026,10,13,9)).motion,'still');
+  assert.equal(sceneProgress(.9,'session',false,'still'),.43);
+  assert.equal(sceneProgress(.9,'night',false,'still'),1);
+  assert.equal(gardenWeather(base,weatherInterval*2),'rain');
+  assert.equal(gardenWeather(base,weatherInterval*3),'mist');
+  assert.ok(sceneryWeatherLayers('summer','rain').mist>0);
+  assert.equal(sceneryWeatherLayers('summer','clear').overcast,0);
+  assert.ok(sceneryWeatherLayers('summer','clear').fireflies>0);
 });
 test('seasonal weather rotates every eight minutes and manual weather holds across reloads',()=>{
   const start=1000;
