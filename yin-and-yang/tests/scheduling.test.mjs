@@ -1,11 +1,49 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {focusTaskQueue,planningEventRanges,tasksWithinTime} from '../dist/calendar.js';
-import {draftStudyWeek,planDeadline,scheduleImpact} from '../dist/scheduling.js';
+import {applyCalendarReplan,calendarFocusKey,focusTaskQueue,planningEventRanges,tasksWithinTime} from '../dist/calendar.js';
+import {draftStudyWeek,planDeadline,projectHealth,scheduleImpact,todayTradeoffs} from '../dist/scheduling.js';
 import {createsDependencyCycle,freshState,loadState,recordTaskCompletion} from '../dist/state.js';
 
 const date = (day,hour=0,minute=0) => new Date(2026,10,day,hour,minute);
 const event = (title,start,end) => ({title,start:+start,end:+end});
+
+test('trade-offs name distinct future bookings and preserve deadlines and worked blocks',()=>{
+  const day='2026-11-13', task={id:'new',text:'New reading',estimate:60};
+  const booked=(id,time,deadline)=>({id,text:id,estimate:60,date:day,time,deadline});
+  const a=booked('a','10:00'),b=booked('b','11:05'),due=booked('due','12:10',day);
+  const focus=new Map([[calendarFocusKey('b',day,null),1000]]);
+  const args={task,tasks:[task,a,b,due],events:[],availability:[],focus,cutoff:13*60+10,capacity:180,cooldown:5};
+  const options=todayTradeoffs(args,date(13,9,30));
+  assert.deepEqual(options.map(item=>item.move?.taskId),['a']);
+  assert.deepEqual(options[0].parts,[{start:570,minutes:60}]);
+  assert.equal(options[0].move.day,'2026-11-14');
+  applyCalendarReplan(a,day,options[0].move);
+  assert.equal(a.date,'2026-11-14');
+  assert.equal(a.time,'09:00');
+});
+
+test('trade-offs can use two short gaps without moving commitments',()=>{
+  const task={id:'review',estimate:50};
+  const result=todayTradeoffs({task,tasks:[task],events:[event('Seminar',date(13,9,30),date(13,10))],
+    availability:[],focus:new Map(),cutoff:630,capacity:120,cooldown:0},date(13,9));
+  assert.deepEqual(result,[{parts:[{start:540,minutes:30},{start:600,minutes:20}]}]);
+});
+
+test('project health shares deadline capacity and uses dates from linked milestones',()=>{
+  const state=freshState();
+  state.replanCutoff='10:00';state.studyCapacity=60;state.planningCooldown=0;
+  state.projects=[{id:'a',name:'A'},{id:'b',name:'B',milestones:[{date:'2026-11-13',taskIds:['b1','b2']}]}];
+  state.tasks=[{id:'a1',projectId:'a',text:'First deadline',estimate:45,deadline:'2026-11-13'},
+    {id:'b1',projectId:'b',text:'Blocked draft',estimate:40,prerequisiteIds:['a1']},
+    {id:'b2',projectId:'b',text:'No estimate',snoozedUntil:'2026-11-14'}];
+  const [a,b]=projectHealth(state,date(13,9));
+  assert.equal(a.available,45);
+  assert.equal(b.next,undefined);
+  assert.equal(b.stalled[0].waiting[0].id,'a1');
+  assert.equal(b.available,15);
+  assert.equal(b.risks[0].minutes,25);
+  assert.equal(b.unestimated,1);
+});
 
 test('a travel buffer can reserve time on the day before its event',()=>{
   const meeting={...event('Lab',date(13,0,15),date(13,1)),bufferBefore:45,bufferAfter:20};

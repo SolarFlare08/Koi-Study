@@ -206,8 +206,27 @@ export const helpTopics = [
     steps:['Open a project in Planner and choose Exam prep in Project overview. Add an exam with a name and an optional date.',
       'Add topics one per line and save the prep plan. Set confidence on each topic as you practice. Use Remove to drop a topic when you save.',
       'Under Practice scores, give each attempt a name, date, score, and maximum. Log each attempt separately.',
+      'Choose `Review mistakes` to log mistakes against the exam’s topics and retry the ones you have yet to solve.',
       'After the test, save the date taken, result, and reflection. Select its star in Garden or Garden history to see the result or reopen the plan. Editing the result updates the same star.'],
-    action:'planner', actionLabel:'Open Planner', related:['projects','garden-growth']
+    action:'planner', actionLabel:'Open Planner', related:['projects','garden-growth','mistake-notebook']
+  },
+  {
+    id:'mistake-notebook', group:'Tasks & projects', title:'Log mistakes and practice them again',
+    summary:'Save corrected reasoning and revisit mistakes until you solve them.',
+    steps:['Open an existing task and choose `Mistake notebook`, or open a project exam and choose `Review mistakes`.',
+      'Expand `Log a mistake`. Describe what went wrong and how to reason through it correctly. In an exam, select the topic.',
+      'Try the problem before choosing `Reveal reasoning`. Choose `Solved it` to clear it from To retry or `Still stuck` to keep it queued.',
+      'Choose `All` to revisit successful retries. Open the notebook from Planner to review mistakes across tasks and exams.'],
+    action:'mistakes', actionLabel:'Open Mistake notebook', related:['tasks','exam-plans','backup']
+  },
+  {
+    id:'project-health', group:'Tasks & projects', title:'Check project health and deadline risks',
+    summary:'Find projects with no next action, tasks waiting on prerequisites, and estimated work that exceeds available time.',
+    steps:['Open Planner → `Project health`. Select a project or task name to open it.',
+      'Expand the prerequisite list to see which tasks are waiting and what needs to be finished first.',
+      'Expand Deadline risk to see the remaining minutes that do not fit before a task deadline or a linked milestone. Projects share the same time, allocated from the earliest deadlines first.',
+      'Add estimates where they are missing. The forecast checks up to one year and uses your availability, daily study limit, cutoff, cooldowns, and calendar commitments.'],
+    action:'health', actionLabel:'Open Project health', related:['projects','workload','deadline-plan','availability']
   },
   {
     id:'filters', group:'Tasks & projects', title:'Use filters, labels, and priorities',
@@ -304,6 +323,15 @@ export const helpTopics = [
       'For a timed event, set `Minutes before` and `Minutes after` under `Planning buffers` to reserve travel, setup, or recovery time. On an imported event, open its details and choose `Save buffers`.',
       'Week drafts and deadline plans protect the longer of the event buffer and the regular cooldown on each side. The event retains its original calendar times.'],
     action:'calendar', actionLabel:'Open Calendar', related:['calendar-import','tomorrow','workload']
+  },
+  {
+    id:'task-tradeoffs', group:'Calendar & planning', title:'Make room for a task today',
+    summary:'Compare open time, a split session, and moves that make room for your task.',
+    steps:['In Calendar → `Planned` or Planner → Today, choose `Fit a task today`. Save the task first so it can appear in the picker.',
+      'Select an unscheduled task and choose `Compare options`. Each move shows the existing task’s original time and its proposed new time today or tomorrow.',
+      'Choose `Apply option` to update the calendar. The confirmation’s Undo button reverses the whole change.'],
+    tip:'Options use your study cutoff, daily capacity, recurring availability, and event buffers. A task without an estimate uses one hour.',
+    action:'tradeoffs', actionLabel:'Open Fit a task today', related:['calendar','replan','availability','project-health']
   },
   {
     id:'replan', group:'Calendar & planning', title:'Replan missed work before a cutoff',

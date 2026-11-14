@@ -14,6 +14,20 @@ import {gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from '../dist/day-recap.js';
 import {remainingProjectWork} from '../dist/project-planning.js';
 import {reviewChapter} from '../dist/reading-progress.js';
+import {needsRetry} from '../dist/mistake-notebook.js';
+
+test('selective Planner restore includes mistake corrections and retry status',()=>{
+  const state=freshState(), storage=memoryStorage();
+  state.mistakes=[{id:'m',examId:'e',topicId:'topic',mistake:'Used the wrong sign',correction:'Check the orientation',createdAt:1,
+    retries:[{at:3,passed:true},{at:2,passed:false}]}];
+  const backup=readBackup(JSON.stringify(createBackup(state,storage,[])));
+  const plan=planBackupRestore(storage,freshState(),backup,new Set(['planner']));
+  applyBackupRestore(storage,plan);
+  const [item]=loadState(storage).mistakes;
+  assert.equal(item.topicId,'topic');
+  assert.equal(item.correction,'Check the orientation');
+  assert.equal(needsRetry(item),false);
+});
 
 test('scheduled reviews space out and a reread stays separate through a Reading restore',()=>{
   const state=freshState(), storage=memoryStorage(), date=new Date(2026,10,12,10);

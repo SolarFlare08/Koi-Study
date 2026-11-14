@@ -153,10 +153,11 @@ export function planBackupRestore(storage,current,incoming,sections){
     for(const {date,entry} of merged)state.dailyRituals[date]={...state.dailyRituals[date],[kind]:entry};
     stateChanged=true;
   }
-  section('planner','Planner','Tasks include their scheduled blocks.',apply=>{
+  section('planner','Planner','Tasks, scheduled blocks, project exam plans, and the mistake notebook.',apply=>{
     stateList(apply,'tasks','Tasks');stateList(apply,'projects','Projects');stateList(apply,'taskTemplates','Task templates');
     stateList(apply,'plannerFilters','Saved views');stateList(apply,'plannerLabels','Labels',item=>item);
     stateList(apply,'taskActivity','Task completions');stateList(apply,'scheduleMoves','Schedule moves');
+    stateList(apply,'mistakes','Mistake notebook');
     for(const [key,label] of [['tomorrowPlan','First focus reservation'],['focusPins','Pinned focus order']]){
       const local=current[key], backup=incoming.state[key];
       if(!backup||local?.day>backup.day)continue;

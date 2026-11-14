@@ -20,7 +20,7 @@
 }
 .backup-restore { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--surface-line); }
 #backup-dialog { width: min(720px,calc(100% - 26px)); }
-#exam-dialog { width: min(680px,calc(100% - 26px)); }
+#exam-dialog, #mistake-dialog { width: min(680px,calc(100% - 26px)); }
 #exam-dialog header { position: sticky; top: -24px; padding: 10px 0; z-index: 1; background: var(--surface-paper); }
 #exam-dialog header small, #exam-dialog label span, .exam-plan-summary { color: var(--surface-muted); }
 #exam-dialog form { padding: 13px 0; margin-top: 10px; border-top: 1px solid var(--surface-line); }
@@ -40,6 +40,31 @@
 .exam-back { font-size: 12px; padding: 5px 0; }
 .exam-back:hover { text-decoration: underline; }
 .exam-plan-summary { display: flex; flex-wrap: wrap; gap: 6px 15px; padding: 7px 0 2px; font-size: 12px; }
+.exam-plan-summary button, .mistake-actions > button:not(.workspace-primary) {
+  padding: 4px 7px; color: var(--surface-accent); border: 1px solid var(--surface-line); border-radius: 6px;
+}
+.exam-plan-summary button:hover, .mistake-actions > button:not(.workspace-primary):hover { background: var(--surface-raised); }
+.exam-plan-summary { align-items: center; }
+.task-mistake-link { margin: 10px 0 0; }
+.mistake-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin: 12px 0; }
+.mistake-tabs button { padding: 5px 9px; border: 1px solid var(--surface-line); border-radius: 16px; font-size: 12px; }
+.mistake-tabs button[aria-pressed="true"] { background: var(--surface-raised); color: var(--surface-accent); }
+.mistake-editor { margin-bottom: 12px; padding: 10px; border: 1px solid var(--surface-line); border-radius: 8px; }
+.mistake-editor summary { cursor: pointer; font-size: 13px; }
+#mistake-form { margin-top: 9px; }
+#mistake-form label { display: grid; gap: 4px; font-size: 12px; }
+#mistake-form textarea {
+  width: 100%; padding: 8px; resize: vertical; color: inherit;
+  background: var(--surface-field); border: 1px solid var(--surface-line); border-radius: 7px;
+}
+#mistake-error { color: var(--surface-danger); }
+#mistake-error:empty { display: none; }
+.mistake-list { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.mistake-list > li { padding: 10px; border: 1px solid var(--surface-line); border-radius: 8px; overflow-wrap: anywhere; }
+.mistake-source small { display: block; color: var(--surface-muted); }
+.mistake-list .mistake-text { margin: 6px 0; white-space: pre-wrap; color: var(--surface-ink); }
+.mistake-correction { margin: 8px 0; padding: 8px 10px; background: var(--surface-raised); border-radius: 7px; font-size: 12px; }
+.mistake-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; font-size: 12px; }
 .exam-plan-list, .exam-score-list { margin: 5px 0 0; padding: 0; list-style: none; }
 .exam-plan-list button, .exam-score-list li {
   display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;

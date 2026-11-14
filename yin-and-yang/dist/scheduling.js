@@ -1,4 +1,4 @@
-import {allDayEvents, calendarBlocks, calendarTaskBlock, openFocusBlock, planningEventRanges, shiftDay, withCooldown} from './calendar.js';
+import {allDayEvents, calendarBlocks, calendarFocusKey, calendarTaskBlock, openFocusBlock, planningEventRanges, shiftDay, timeMinutes, withCooldown} from './calendar.js';
 import {dayKey, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
 import {unavailableRanges} from './availability.js';
 
@@ -84,6 +84,142 @@ function studyDay(tasks,events,availability,day,from,end,capacity,cooldown){
     commitments:[...allDay.map(event=>({title:event.title,allDay:true})),...busy.map(block=>({title:block.task.text,start:block.start,end:block.end})),
       ...eventRanges,...unavailable.map(block=>({title:block.name,start:block.start,end:block.end}))].filter(block=>block.allDay||block.end+cooldown>from&&block.start-cooldown<end)};
   return {date:dayKey(day),ranges,context,remaining:Math.max(0,capacity-booked),slots:[]};
+}
+
+export function todayTradeoffs({task,tasks,events,availability,focus,locked,cutoff,capacity,cooldown,protectedBlock},now=new Date()){
+  const today=dayKey(now),tomorrowDate=shiftDay(now,1),tomorrow=dayKey(tomorrowDate);
+  const minutes=task.estimate||60;
+  if(task.done||task.snoozedUntil>today||task.deadline&&task.deadline<today||
+    task.repeat&&task.repeat!=='none'&&taskStatus(task,now)!=='todo'||
+    unfinishedPrerequisites(task,new Map(tasks.map(item=>[item.id,item]))).length)return [];
+  const from=Math.max(workdayStart,Math.ceil(minuteOfDay(now)));
+  if(allDayEvents(events,now).length||from>=cutoff||minutes>capacity)return [];
+  const scheduled=commitments(tasks,[],now);
+  if(scheduled.some(block=>block.task.id===task.id&&block.end>minuteOfDay(now)))return [];
+  const fixed=new Map([now,tomorrowDate].map(date=>[date,[...planningEventRanges(events,date,cooldown),...unavailableRanges(availability,date)]]));
+  function free(blocks,day,start,extra=[]){
+    const busy=[...fixed.get(day),...withCooldown([...blocks,...extra],cooldown)].sort((a,b)=>a.start-b.start);
+    return freeRanges(busy,start,cutoff);
+  }
+  const find=(ranges,length)=>ranges.find(range=>range.end-range.start>=length)?.start;
+  const enough=(blocks,additional)=>blocks.reduce((sum,block)=>sum+block.end-block.start,additional)<=capacity;
+  const options=[];
+  const open=free(scheduled,now,from);
+  if(enough(scheduled,minutes)){
+    const start=find(open,minutes);
+    if(start!==undefined)return [{parts:[{start,minutes}]}];
+    for(const [index,first] of open.entries()){
+      const firstMinutes=Math.min(first.end-first.start,minutes-15);
+      if(firstMinutes<15)continue;
+      const second=find(open.slice(index+1),minutes-firstMinutes);
+      if(second!==undefined){
+        options.push({parts:[{start:first.start,minutes:firstMinutes},{start:second,minutes:minutes-firstMinutes}]});
+        break;
+      }
+    }
+  }
+  const nextBlocks=commitments(tasks,[],tomorrowDate);
+  const nextOpen=allDayEvents(events,tomorrowDate).length?[]:free(nextBlocks,tomorrowDate,workdayStart);
+  const moved=new Set();
+  for(const block of scheduled){
+    const {task:other,blockId,occurrence,start,end}=block;
+    if(block.continues||occurrence!==today||start<=minuteOfDay(now)||other.id===locked||other.id===task.id||moved.has(other.id)||
+      (protectedBlock?.taskId===other.id&&protectedBlock.blockId===(blockId||null)&&protectedBlock.day===today)||
+      focus.get(calendarFocusKey(other.id,occurrence,blockId)))continue;
+    const booking=calendarTaskBlock(other,blockId,occurrence);
+    const length=end-start;
+    if(!booking||booking.minutes!==length||other.deadline&&other.deadline<today)continue;
+    const remaining=scheduled.filter(item=>item!==block);
+    if(!enough(remaining,minutes))continue;
+    const openWithoutBlock=free(remaining,now,from).filter(range=>range.end-range.start>=minutes);
+    if(!openWithoutBlock.length)continue;
+    const nextStart=other.deadline&&other.deadline<tomorrow||other.snoozedUntil>tomorrow||!enough(nextBlocks,length)?undefined:find(nextOpen,length);
+    let startNew=openWithoutBlock[0].start, sameStart;
+    if(enough(scheduled,minutes)){
+      for(const range of openWithoutBlock){
+        for(const start of [range.start,range.end-minutes]){
+          sameStart=find(free(remaining,now,from,[{start,end:start+minutes}]),length);
+          if(sameStart!==undefined){startNew=start;break;}
+        }
+        if(sameStart!==undefined)break;
+      }
+    }
+    const startMoved=sameStart??nextStart;
+    if(startMoved===undefined)continue;
+    options.push({parts:[{start:startNew,minutes}],move:{taskId:other.id,title:other.text,blockId:blockId||null,from:start,
+      day:sameStart===undefined?tomorrow:today,parts:[{to:startMoved,minutes:length}]}});
+    moved.add(other.id);
+    if(options.length===3)break;
+  }
+  return options;
+}
+
+export function projectHealth(state,now=new Date()){
+  const {tasks,projects,calendarEvents,availability,history,studyCapacity,planningCooldown}=state;
+  const today=dayKey(now), cutoff=timeMinutes(state.replanCutoff)||dayMinutes;
+  const horizon=shiftDay(now,365), lastDay=dayKey(horizon);
+  const activeProjects=projects.filter(project=>!project.archived);
+  const archived=new Set(projects.filter(project=>project.archived).map(project=>project.id));
+  const activeTasks=tasks.filter(task=>!archived.has(task.projectId));
+  const byId=new Map(tasks.map(task=>[task.id,task]));
+  const ready=new Set(activeTasks.filter(task=>taskStatus(task,now)==='todo'&&!(task.snoozedUntil>today)&&
+    !unfinishedPrerequisites(task,byId).length).map(task=>task.id));
+  const deadlineByTask=new Map(activeTasks.filter(task=>task.deadline).map(task=>[task.id,task.deadline]));
+  for(const project of activeProjects){
+    for(const milestone of project.milestones||[]){
+      for(const id of milestone.taskIds){
+        const task=byId.get(id);
+        if(task?.projectId!==project.id||task.repeat&&task.repeat!=='none'&&(task.completedOn||task.completions?.length))continue;
+        const existing=deadlineByTask.get(id);
+        if(!existing||milestone.date<existing)deadlineByTask.set(id,milestone.date);
+      }
+    }
+  }
+  const timed=activeTasks.filter(task=>!task.done&&deadlineByTask.has(task.id))
+    .map(task=>({...task,deadline:deadlineByTask.get(task.id)}))
+    .sort((a,b)=>a.deadline.localeCompare(b.deadline)||taskPriority(a)-taskPriority(b));
+  const days=new Map(), shortfalls=new Map(), capacityByTask=new Map();
+  for(const task of timed){
+    if(!canPlanDeadline(task)||task.deadline>lastDay)continue;
+    const deadline=new Date(task.deadline+'T00:00:00');
+    if(!Number.isFinite(+deadline)||dayKey(deadline)!==task.deadline)continue;
+    const work=deadlineWork(task,history,now,shiftDay(now,0),deadline);
+    let left=work.unplaced;
+    if(work.noOccurrence&&task.deadline>=today)continue;
+    const original=left;
+    for(let date=shiftDay(now,0);left>0&&date<=deadline;date=shiftDay(date,1)){
+      const key=dayKey(date);
+      if(task.snoozedUntil>key)continue;
+      if(!days.has(key)){
+        const from=key===today?Math.max(workdayStart,Math.ceil(minuteOfDay(now))):workdayStart;
+        days.set(key,studyDay(activeTasks,calendarEvents,availability,date,from,cutoff,studyCapacity,planningCooldown));
+      }
+      const day=days.get(key);
+      while(left>0&&day.remaining>0&&day.ranges.length){
+        const range=day.ranges[0];
+        const minutes=Math.min(left,day.remaining,range.end-range.start,focusBlockMinutes);
+        left-=minutes;day.remaining-=minutes;range.start+=minutes+planningCooldown;
+        if(range.start>=range.end)day.ranges.shift();
+      }
+    }
+    capacityByTask.set(task.id,{required:original,available:original-left});
+    if(left)shortfalls.set(task.id,{task,minutes:left});
+  }
+  return activeProjects.map(project=>{
+    const open=activeTasks.filter(task=>task.projectId===project.id&&!task.done);
+    const next=open.find(task=>ready.has(task.id));
+    const stalled=open.flatMap(task=>{
+      const waiting=unfinishedPrerequisites(task,byId);
+      return waiting.length?[{task,waiting}]:[];
+    });
+    const risks=open.flatMap(task=>shortfalls.has(task.id)?[shortfalls.get(task.id)]:[]);
+    const {required,available}=open.reduce((total,task)=>{
+      const capacity=capacityByTask.get(task.id);
+      return capacity?{required:total.required+capacity.required,available:total.available+capacity.available}:total;
+    },{required:0,available:0});
+    const unestimated=open.filter(task=>deadlineByTask.has(task.id)&&!task.estimate).length;
+    return {project,open:open.length,next,stalled,risks,required,available,unestimated};
+  });
 }
 
 export function canPlanDeadline(task) {

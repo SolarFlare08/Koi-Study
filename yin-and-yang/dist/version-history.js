@@ -1,4 +1,10 @@
 export const releases = [
+  {version:'2.2.0',date:'2026-11-13',title:'Scheduling trade-offs, project health, and mistake review',changes:[
+    'Compare ways to fit an unscheduled task today, including which booking would move. Apply and undo the whole change together.',
+    'See next actions, stalled prerequisites, and shared deadline capacity across projects.',
+    'Log corrected reasoning against a task or exam topic and retry mistakes from a shared notebook.',
+    'Planner backups include the mistake notebook. Existing saves and backups still open.'
+  ]},
   {version:'2.1.0',date:'2026-11-13',title:'Focus replay, exam prep, and session handoffs',changes:[
     'Switch Calendar to Actual to see focus intervals and replay starts, pauses, resumptions, task switches, and early finishes. Older sessions display estimated times.',
     'Create exam plans inside projects, rate topic confidence, and log practice scores. Saving the result adds a Garden star with your score and reflection.',

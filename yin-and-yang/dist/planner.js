@@ -8,8 +8,9 @@ import {activityLabels,estimateAccuracy,estimateCsv,estimateSummary,reportCsv,re
 import {milestoneProgress,projectDecision,projectMilestone,remainingProjectWork} from './project-planning.js';
 import {exportCalendar} from './calendar-export.js';
 import {cleanCaptureContext} from './capture.js';
+import {projectHealth} from './scheduling.js';
 
-const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',review:'Weekly review',workload:'Workload',filters:'Filters & Labels',reporting:'Reporting'};
+const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',review:'Weekly review',workload:'Workload',health:'Project health',filters:'Filters & Labels',reporting:'Reporting'};
 const workViewPresets={
   short:{name:'30 minutes or less',query:'estimate<=30 & !completed'},
   week:{name:'Due this week',query:'due-this-week & !completed'}
@@ -117,7 +118,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const now=new Date(), tasks=activeTasks().filter(task=>taskStatus(task,now)!=='done');
     const projects=state().projects.filter(project=>!project.archived).sort((a,b)=>Number(b.favorite)-Number(a.favorite));
     const count={inbox:tasks.filter(task=>!projectFor(task)).length,today:tasks.filter(task=>todayDate(task,now)||overdueDate(task,now)).length};
-    const plan=['inbox','today','upcoming','review','workload'].map(key=>navItem(key,views[key],count[key])).join('');
+    const plan=['inbox','today','upcoming','review','workload','health'].map(key=>navItem(key,views[key],count[key],'',key==='health'?icon('reporting'):icon(key))).join('');
     const organize=['filters','reporting'].map(key=>navItem(key,views[key])).join('');
     const pinned=state().plannerFilters.filter(filter=>filter.pinned);
     const saved=state().plannerFilters.filter(filter=>!filter.pinned);
@@ -428,6 +429,25 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       ${listGroup('review-next','Next week',rows(week.next),{count:week.next.length})}`;
   }
 
+  function healthMarkup(){
+    const rows=projectHealth(state()).sort((a,b)=>Number(Boolean(b.risks.length))-Number(Boolean(a.risks.length))||
+      Number(Boolean(b.stalled.length))-Number(Boolean(a.stalled.length))||a.project.name.localeCompare(b.project.name));
+    const link=task=>`<button type="button" data-report-task="${escape(task.id)}">${escape(task.text)}</button>`;
+    const minutes=value=>value>=60?`${Math.floor(value/60)} h ${value%60?value%60+' min':''}`:`${value} min`;
+    return `<div class="project-health"><p>Deadline estimates share available time across projects, starting with the earliest deadline.</p>
+      ${rows.map(({project,open,next,stalled,risks,required,available,unestimated})=>`<section>
+        <header><button type="button" data-planner-view="project" data-value="${escape(project.id)}">${escape(project.name)}</button>
+          <span>${open} open</span></header>
+        <p>${next?`Next action · ${link(next)}`:open?'No next action ready today':'No open tasks'}</p>
+        ${stalled.length?`<details><summary>${stalled.length} waiting on prerequisites</summary><ul>${stalled.map(({task,waiting})=>`<li>${link(task)} waits for ${waiting.map(link).join(', ')}</li>`).join('')}</ul></details>`:''}
+        ${risks.length?`<details open><summary>Deadline risk · ${minutes(required-available)} short</summary>
+          <p>${minutes(required)} to schedule · ${minutes(available)} fits before the deadlines</p>
+          <ul>${risks.map(({task,minutes:left})=>`<li>${link(task)} · ${plainDate(task.deadline)} · ${minutes(left)} short</li>`).join('')}</ul></details>`:
+          required?`<p>${minutes(required)} of estimated work fits before its deadlines.</p>`:''}
+        ${unestimated?`<p>${unestimated} dated ${unestimated===1?'task needs an estimate':'tasks need estimates'}.</p>`:''}
+      </section>`).join('')||'<p>Add a project to see its health here.</p>'}</div>`;
+  }
+
   function renderContent() {
     const left=content.scrollLeft, top=content.scrollTop;
     const columns=[...content.querySelectorAll('.planner-column-body')].map(column=>column.scrollTop);
@@ -437,6 +457,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if (view==='filters') content.innerHTML=filtersMarkup();
     else if (view==='reporting') content.innerHTML=reportingMarkup();
     else if (view==='review'||view==='workload') content.innerHTML=weekMarkup();
+    else if (view==='health') content.innerHTML=healthMarkup();
     else if (month) content.innerHTML=monthMarkup(calendarTasks());
     else if (layout==='list'&&view==='inbox') content.innerHTML=inboxMarkup(tasks);
     else if (layout==='list'&&view==='today') content.innerHTML=todayMarkup(tasks);
@@ -522,7 +543,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const actual=standalone&&isActualCalendar();
     sidebar.hidden=standalone;
     if (!standalone) renderSidebar();
-    const sectionView=['filters','reporting','search','review','workload'].includes(view);
+    const sectionView=['filters','reporting','search','review','workload','health'].includes(view);
     const calendar=timeLayout()&&!sectionView;
     root.dataset.plannerView=view;
     root.dataset.plannerLayout=layout;
@@ -542,6 +563,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if(!standalone)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-build-week aria-haspopup="dialog">Build my week</button>');
     if(view==='today')$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-day-recap aria-haspopup="dialog">End-of-day recap</button>');
     if(!actual)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-availability aria-haspopup="dialog">Availability</button>');
+    if(!actual&&(standalone||view==='today'))$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-tradeoffs aria-haspopup="dialog">Fit a task today</button>');
+    if(!standalone)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-mistakes aria-haspopup="dialog">Mistake notebook</button>');
     if(standalone&&!actual||project)$('#planner-heading-actions').insertAdjacentHTML('beforeend',
       `<button type="button" data-manage="calendar-export" data-value="${escape(project?.id)}">Export .ics</button>`);
     if(project)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="milestones" aria-haspopup="dialog">Milestones</button>');
