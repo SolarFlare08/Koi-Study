@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'2.11.0',date:'2026-11-14',title:'Journal past years and reading discussion sheets',changes:[
+    'Revisit the same week in earlier years and jump straight to saved weekly reflections.',
+    'Select chapter quotes, questions, and insights to print or save as a discussion sheet.'
+  ]},
   {version:'2.10.0',date:'2026-11-14',title:'Focus retries, warm-ups, and project timelines',changes:[
     'Start a focus timer from a mistake and record the retry after working through the prompt.',
     'Warm up with your last handoff, a linked sticky note, and an outcome before starting.',

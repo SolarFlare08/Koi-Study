@@ -51,7 +51,7 @@ import {remainingProjectWork} from '../dist/project-planning.js';
 import {reviewChapter} from '../dist/reading-progress.js';
 import {needsRetry} from '../dist/mistake-notebook.js';
 import {bundleProgress,loadTaskBundles} from '../dist/task-bundles.js';
-import {entriesInWeek,journalFacets,journalLabels,journalWeek,matchingJournal} from '../dist/journal-patterns.js';
+import {entriesInWeek,journalAnniversaries,journalFacets,journalLabels,journalWeek,matchingJournal} from '../dist/journal-patterns.js';
 
 test('a bundle keeps its order and waits for the first unfinished occurrence',()=>{
   const [bundle]=loadTaskBundles([{id:'lab',name:'Lab',taskIds:['reading','setup','setup','quiz']}]);
@@ -380,4 +380,20 @@ test('command search finds text inside records and ranks matching titles first',
   assert.deepEqual(matchCommands(entries,''),[action]);
   assert.deepEqual(matchCommands(entries,'resume'),[task,note,journal]);
   assert.deepEqual(matchCommands(entries,'journal resume'),[journal]);
+});
+
+test('past journal weeks follow the anniversary across leap days and year boundaries',()=>{
+  const entries=[
+    {id:'jan',date:'2025-01-01'},{id:'dec',date:'2024-12-30'},{id:'draft',date:'2025-01-02',draft:true},
+    {id:'before',date:'2024-12-29'},{id:'after',date:'2025-01-06'},
+    {id:'leap',date:'2024-02-29'},{id:'feb',date:'2027-02-28'},{id:'march',date:'2027-03-01'}
+  ];
+  const reflections=[{week:'2024-12-30'},{week:'2023-12-25'}];
+  const anniversary=journalAnniversaries(entries,reflections,'2026-01-01');
+  assert.deepEqual(anniversary.map(({year,week,reflection,entries})=>[year,week,reflection,entries.map(entry=>entry.id)]),[
+    [2025,'2024-12-30',true,['dec','jan']]
+  ]);
+  const leap=journalAnniversaries(entries,[],'2028-02-29');
+  assert.deepEqual(leap.map(group=>[group.year,group.entries.map(entry=>entry.id)]),[[2027,['feb']],[2024,['leap']]]);
+  assert.deepEqual(journalAnniversaries([],[],'2026-01-01'),[]);
 });

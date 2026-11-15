@@ -28,6 +28,34 @@ export function entriesInWeek(entries,week){
   return entries.filter(entry=>!entry.draft&&journalWeek(entry.date)===week)
     .sort((a,b)=>a.date.localeCompare(b.date)||(a.updatedAt||0)-(b.updatedAt||0));
 }
+export function journalAnniversaries(entries,reflections,today){
+  const date=validDate(today);
+  if(!date)return [];
+  const byWeek=new Map();
+  for(const entry of entries){
+    const week=!entry.draft&&journalWeek(entry.date);
+    if(!week)continue;
+    if(!byWeek.has(week))byWeek.set(week,{entries:[],reflection:false});
+    byWeek.get(week).entries.push(entry);
+  }
+  for(const {week} of reflections){
+    if(!byWeek.has(week))byWeek.set(week,{entries:[],reflection:false});
+    byWeek.get(week).reflection=true;
+  }
+  if(!byWeek.size)return [];
+  const oldest=Math.min(...Array.from(byWeek.keys(),week=>Number(week.slice(0,4))));
+  const month=date.getMonth(),day=date.getDate(),currentYear=date.getFullYear(),groups=[];
+  for(let year=currentYear-1;year>=oldest-1&&year>=1;year--){
+    const anniversary=new Date(date);
+    anniversary.setFullYear(year,month,1);
+    const endOfMonth=new Date(anniversary);
+    endOfMonth.setMonth(month+1,0);
+    anniversary.setDate(Math.min(day,endOfMonth.getDate()));
+    const week=journalWeek(localDay(anniversary)),group=byWeek.get(week);
+    if(group)groups.push({year,week,reflection:group.reflection,entries:entriesInWeek(group.entries,week)});
+  }
+  return groups;
+}
 export function weeklyReflection(value){
   if(typeof value?.week!=='string'||!value.week||journalWeek(value.week)!==value.week||typeof value.body!=='string'||!value.body.trim())return null;
   return {week:value.week,body:value.body.trim().slice(0,12000),

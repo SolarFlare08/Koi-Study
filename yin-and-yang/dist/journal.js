@@ -1,5 +1,5 @@
 import {dayKey} from './state.js';
-import {entriesInWeek,journalFacets,journalLabels,journalWeek,matchingJournal,weeklyReflection} from './journal-patterns.js';
+import {entriesInWeek,journalAnniversaries,journalFacets,journalLabels,journalWeek,matchingJournal,weeklyReflection} from './journal-patterns.js';
 export const JOURNAL_KEY='yin-and-yang.journal.v1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const moods=['Calm','Energized','Steady','Tired','Overwhelmed'];
@@ -20,11 +20,13 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
   const filters={mood:'',tags:'',themes:''}, facetTitles={mood:'Mood',tags:'Tag',themes:'Theme'};
   root.innerHTML=`<div class="journal-wrap"><header class="journal-hero"><div><span class="journal-kicker">THE QUIET COAST</span><h2 id="journal-heading">Journal</h2><p>Daily reflections, study notes, and crochet progress.</p></div><button id="journal-add" type="button"><span aria-hidden="true">+</span> New entry</button></header>
     <nav class="journal-views" aria-label="Journal views"><button type="button" data-journal-view="entries" aria-pressed="true">Entries</button>
-      <button type="button" data-journal-view="patterns" aria-pressed="false">Patterns &amp; reflections</button></nav>
+      <button type="button" data-journal-view="patterns" aria-pressed="false">Patterns &amp; reflections</button>
+      <button type="button" data-journal-view="anniversaries" aria-pressed="false">Past years</button></nav>
     <section class="journal-library" aria-labelledby="journal-library-title"><div class="journal-library-bar"><div><h3 id="journal-library-title">Your entries</h3><p id="journal-count"></p></div><label class="journal-search"><span class="sr-only">Search journal</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5"/></svg><input id="journal-search" type="search" placeholder="Search entries"></label></div>
       <div class="journal-filters">${Object.entries(facetTitles).map(([key,label])=>`<label>${label}<select data-journal-filter="${key}"></select></label>`).join('')}
         <button type="button" id="journal-clear-filters">Clear filters</button></div><div id="journal-entries"></div></section>
-    <section class="journal-library" id="journal-patterns" aria-labelledby="journal-patterns-title" hidden></section></div><dialog id="journal-dialog"></dialog>`;
+    <section class="journal-library" id="journal-patterns" aria-labelledby="journal-patterns-title" hidden></section>
+    <section class="journal-library" id="journal-anniversaries" aria-labelledby="journal-anniversaries-title" hidden></section></div><dialog id="journal-dialog"></dialog>`;
   const $=selector=>root.querySelector(selector);
   const dialog=$('#journal-dialog'), add=$('#journal-add');
   root.parentElement.append(dialog);
@@ -36,6 +38,7 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
   }
   function render(){
     if(view==='patterns'){if(!editingReflection)renderPatterns();return;}
+    if(view==='anniversaries'){renderAnniversaries();return;}
     const facets=journalFacets(entries);
     for(const select of root.querySelectorAll('[data-journal-filter]')){
       const key=select.dataset.journalFilter;
@@ -59,8 +62,25 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
     view=next;editingReflection=false;
     $('.journal-library[aria-labelledby="journal-library-title"]').hidden=next!=='entries';
     $('#journal-patterns').hidden=next!=='patterns';
+    $('#journal-anniversaries').hidden=next!=='anniversaries';
     for(const button of root.querySelectorAll('[data-journal-view]'))button.setAttribute('aria-pressed',String(button.dataset.journalView===next));
     render();
+  }
+  function renderAnniversaries(){
+    const groups=journalAnniversaries(entries,getReflections(),dayKey());
+    const short=new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric'});
+    $('#journal-anniversaries').innerHTML=`<h3 id="journal-anniversaries-title" tabindex="-1">This week in past years</h3>
+      ${groups.length?groups.map(({year,week,reflection,entries})=>{
+        const start=new Date(week+'T12:00:00'),end=new Date(start);
+        end.setDate(end.getDate()+6);
+        return `<section class="journal-anniversary"><header><div><h4>${year}</h4>
+          <p>${esc(short.formatRange(start,end))}</p></div>
+          ${reflection?`<button type="button" data-open-reflection-week="${esc(week)}">Open weekly reflection</button>`:''}</header>
+          ${entries.map(entry=>`<article class="journal-entry"><div><time datetime="${esc(entry.date)}">${esc(short.format(new Date(entry.date+'T12:00:00')))}</time>
+            ${entry.mood?`<span>${esc(entry.mood)}</span>`:''}</div>
+            <h4><button type="button" data-journal-edit="${esc(entry.id)}">${esc(entry.title)}</button></h4>
+            <p>${esc(entry.body.slice(0,480))}</p></article>`).join('')}</section>`;
+      }).join(''):'<p class="journal-empty">No completed entries or weekly reflections from this week in past years yet.</p>'}`;
   }
   function renderPatterns(){
     const records=getReflections(),reflection=records.find(item=>item.week===week);
@@ -78,7 +98,7 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
     const links=list=>list.map(({entry})=>`<li>${entry?`<button type="button" data-journal-edit="${esc(entry.id)}">${esc(entry.title)}</button><small>${esc(short(new Date(entry.date+'T12:00:00')))}</small>`:'<span>Unavailable entry</span>'}</li>`).join('');
     const facets=Object.entries(summary).filter(([,values])=>values.length).map(([key,values])=>`<div>
       <strong>${facetTitles[key]}</strong><ul>${values.map(value=>`<li><button type="button" data-pattern-filter="${key}" data-pattern-value="${esc(value.key)}">${esc(value.label)} <span>${value.count}</span></button></li>`).join('')}</ul></div>`).join('');
-    $('#journal-patterns').innerHTML=`<header class="journal-patterns-heading"><div><h3 id="journal-patterns-title">Weekly reflection</h3><p>${esc(period)} · ${items.length} completed ${items.length===1?'entry':'entries'}</p></div>
+    $('#journal-patterns').innerHTML=`<header class="journal-patterns-heading"><div><h3 id="journal-patterns-title" tabindex="-1">Weekly reflection</h3><p>${esc(period)} · ${items.length} completed ${items.length===1?'entry':'entries'}</p></div>
       <div class="journal-week-nav" aria-label="Reflection week"><button type="button" data-journal-week="-1" aria-label="Previous week">‹</button>
       <button type="button" data-journal-week="0">This week</button><button type="button" data-journal-week="1" aria-label="Next week" ${week>=journalWeek(dayKey())?'disabled':''}>›</button></div></header>
       ${saved}
@@ -170,6 +190,11 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
       query='';$('#journal-search').value='';setView('entries');
       $(`[data-journal-filter="${facet.dataset.patternFilter}"]`)?.focus();return;
     }
+    const savedWeek=event.target.closest('[data-open-reflection-week]');
+    if(savedWeek){
+      week=savedWeek.dataset.openReflectionWeek;setView('patterns');
+      $('#journal-patterns-title').focus();return;
+    }
     const move=event.target.closest('[data-journal-week]');
     if(move){
       const direction=Number(move.dataset.journalWeek);
@@ -190,6 +215,8 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
         if(inWeekList&&list)list.open=true;
         const target=(inWeekList?list:$('.journal-reflection-copy'))?.querySelector(`[data-journal-edit="${CSS.escape(id)}"]`);
         (target||$('[data-journal-reflection="edit"]'))?.focus({preventScroll:true});
+      }:view==='anniversaries'?()=>{
+        ($('#journal-anniversaries').querySelector(`[data-journal-edit="${CSS.escape(id)}"]`)||$('#journal-anniversaries-title')).focus({preventScroll:true});
       }:undefined);
     }
   });
@@ -276,6 +303,7 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
   new MutationObserver(()=>{if(!root.hidden)render();}).observe(root,{attributes:true,attributeFilter:['hidden']});
   render();
   return {
+    openAnniversaries(){setView('anniversaries');$('#journal-anniversaries-title').focus();},
     openPatterns(){setView('patterns');$('[data-journal-view="patterns"]').focus();},
     refresh:render,
     openEntry(id){

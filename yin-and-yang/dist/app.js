@@ -592,6 +592,7 @@ function runHelpAction(action){
   if(action==='mistakes'){
     visitWorkspace('planner');$('[data-open-mistakes]')?.click();return;
   }
+  if(action==='journal-anniversaries'){visitWorkspace('journal');journal.openAnniversaries();return;}
   if(action==='journal-patterns'){visitWorkspace('journal');journal.openPatterns();return;}
   if(action==='tomorrow'){
     visitWorkspace('planner');$('[data-plan-tomorrow]')?.click();return;

@@ -1,3 +1,4 @@
+import {installReadingDiscussion} from './reading-discussion.js';
 import {collectionKinds,loadReadingCollections,readingDay,relinkReadingCollections,rereadRecord,reviewChapter,validReadingDay} from './reading-progress.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -235,6 +236,8 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
   const finishedButton=root.querySelector('#reading-finished');
   const status=root.querySelector('#reading-note-status');
   const shelf=()=>readingShelf(getRituals(),getNotes(),getFinished());
+  const discussion=installReadingDiscussion(root,noteKinds);
+  const notesForBook=(book,notes=getNotes())=>notes.filter(note=>bookKey(note.bookTitle,note.bookAuthor)===book.id);
 
   function collectionMarkup(books){
     const groups=getCollections();
@@ -320,7 +323,8 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
   function noteEditor(book,notes){
     const note=notes.find(item=>item.id===editingNote);
     const chapter=note?.chapter||book.entries.find(entry=>entry.chapters.length)?.chapters.at(-1)||'';
-    return `<section class="reading-notes"><h4>Chapter notes</h4>
+    return `<section class="reading-notes"><div class="reading-chapter-heading"><h4>Chapter notes</h4>
+      <button type="button" data-reading-discussion aria-haspopup="dialog">Discussion sheet</button></div>
       <details ${note?'open':''}><summary>${note?'Edit chapter note':'Add chapter note'}</summary>
         <form id="reading-note-form">
           <label>Chapter<input name="chapter" maxlength="120" required list="reading-note-chapters" value="${escape(chapter)}"></label>
@@ -380,7 +384,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
       ${current.finished?'':forecastMarkup(current)}
       ${chips?`<h4>Chapters annotated</h4><ul class="reading-chapters">${chips}</ul>`:''}
       ${linkedNotes(current.id)}
-      ${noteEditor(current,notes.filter(note=>bookKey(note.bookTitle,note.bookAuthor)===current.id))}
+      ${noteEditor(current,notesForBook(current,notes))}
       <h4>History</h4><ol class="reading-timeline">${current.entries.map(entry=>`<li>
         <time datetime="${entry.date}">${escape(formatDay(entry.date))}</time>
         ${entry.chapters.length?`<ul>${entry.chapters.map(chapter=>`<li>${escape(chapter)}</li>`).join('')}</ul>`:''}
@@ -495,6 +499,11 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,openCale
   history.addEventListener('click',event=>{
     const button=event.target.closest('button');
     if(!button)return;
+    if('readingDiscussion' in button.dataset){
+      const book=shelf().find(item=>item.id===selected);
+      if(book)discussion.open(book,notesForBook(book),button);
+      return;
+    }
     if('editReread' in button.dataset||'cancelReread' in button.dataset){
       editingReread=button.dataset.editReread??null;editingBook=false;render();
       (history.querySelector('#reading-reread-form input')||history.querySelector('[data-edit-reread=""]'))?.focus();return;

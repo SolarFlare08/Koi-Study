@@ -552,7 +552,7 @@ export const helpTopics = [
       'Use `Add chapter note` on a book to save a question, quote, or insight. Choose `Schedule review` on a note to see it again in three days.',
       'Use `Open Calendar` and the daily Annotate item to add your next log or goal. Ctrl+K can also find a book and open its history directly.'],
     tip:'Books are grouped by title and author. Keeping those consistent keeps your history together.',
-    action:'reading', actionLabel:'Open Reading', related:['reading-collections','chapter-reviews','finished-books','reading-goal','search']
+    action:'reading', actionLabel:'Open Reading', related:['reading-collections','chapter-reviews','reading-discussion','finished-books','reading-goal','search']
   },
   {
     id:'reading-collections', group:'Reading & journal', title:'Arrange books in collections',
@@ -569,6 +569,14 @@ export const helpTopics = [
       'Open Reading → `Review queue` to see what is due now and what is coming up.',
       'Choose `Remembered` for a longer interval, or `Again tomorrow` to revisit it the next day. Use `Remove from queue` to stop scheduling a note.'],
     action:'reading', actionLabel:'Open Reading', related:['reading-shelf','reading-collections']
+  },
+  {
+    id:'reading-discussion', group:'Reading & journal', title:'Build a printable reading discussion sheet',
+    summary:'Gather selected quotes, questions, and insights with their chapter references.',
+    steps:['Open Reading and pick a book. Add any missing quotes, questions, or insights under Chapter notes.',
+      'Choose `Discussion sheet` in Chapter notes. Check the items you want to share and review the preview.',
+      'Choose `Print / Save PDF` and select a printer or a PDF destination in the browser dialog.'],
+    action:'reading', actionLabel:'Open Reading', related:['reading-shelf','chapter-reviews']
   },
   {
     id:'finished-books', group:'Reading & journal', title:'Edit finished books and write reviews',
@@ -589,7 +597,7 @@ export const helpTopics = [
       'Your draft saves as you type. Reopen it from the library after closing or refreshing. Choose `Mark complete` when you want it to count toward that date’s Journal ritual.',
       'Search the journal library or Ctrl+K to find an entry. Click its title to edit it. Deleting asks for confirmation and offers Undo after deletion.'],
     tip:'Drafts and completed entries are saved locally and included in backups.',
-    action:'journal', actionLabel:'Open Journal', related:['daily-rituals','journal-patterns','backup']
+    action:'journal', actionLabel:'Open Journal', related:['daily-rituals','journal-patterns','journal-anniversaries','backup']
   },
   {
     id:'journal-patterns', group:'Reading & journal', title:'Find journal patterns and write weekly reflections',
@@ -599,6 +607,14 @@ export const helpTopics = [
       'Choose `Write reflection`, write your notes, and check the completed entries you want to reference. Choose `Save reflection`.',
       'Reopen a week with `Saved reflections`. Select a referenced entry to jump back into its editor. Weekly reflections are saved separately from daily Journal completions.'],
     action:'journal-patterns', actionLabel:'Open Patterns & reflections', related:['journal','weekly-review','backup']
+  },
+  {
+    id:'journal-anniversaries', group:'Reading & journal', title:'Revisit this week in past years',
+    summary:'Find completed entries from the same time of year and open the corresponding weekly reflections.',
+    steps:['Open Journal → `Past years`. Each year shows the Monday-to-Sunday week containing the anniversary of today’s date.',
+      'Select an entry title to read or edit it. Select `Open weekly reflection` when that week has a saved reflection.',
+      'Choose `Past years` again to return to the comparison.'],
+    action:'journal-anniversaries', actionLabel:'Open Past years', related:['journal','journal-patterns']
   },
   {
     id:'crochet-projects', group:'Stitchbook', title:'Track crochet projects, rows, and time',
