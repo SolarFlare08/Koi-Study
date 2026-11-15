@@ -31,6 +31,7 @@ import {taskTemplate} from './project-planning.js';
 import {estimateSummary,suggestTaskEstimate} from './planner-report.js';
 import {loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime} from './calendar.js';
+import {blockFlexibility,waitingForRecord} from './task-readiness.js';
 
 const $=s=>document.querySelector(s);
 const icons={
@@ -532,6 +533,7 @@ function commandEntries(){
     action('End-of-day recap','Review today’s work and tomorrow’s plans','daily recap finished moved tomorrow',()=>runHelpAction('day-recap')),
     action('Focus session replay','See actual focus time in Calendar','actual timeline pause switch',()=>runHelpAction('focus-replay')),
     action('Fit a task today','Compare which calendar blocks could move','tradeoffs trade-offs schedule today',()=>runHelpAction('tradeoffs')),
+    action('Waiting for','Review tasks on hold and due follow-ups','waiting blocked response follow-up',()=>runHelpAction('waiting')),
     action('Project health','Find missing next actions, prerequisites, and deadline risks','blocked stalled capacity',()=>runHelpAction('health')),
     action('Mistake notebook','Review corrected reasoning and retry mistakes','practice errors exam topics',()=>runHelpAction('mistakes')),
     action('Task bundles','Arrange tasks and work through them in order','ordered batch routine sequence',()=>runHelpAction('bundles')),
@@ -575,7 +577,7 @@ function runHelpAction(action){
   if(action==='capture-inbox'){
     visitWorkspace('notes');openCaptureInbox();return;
   }
-  const views={filters:'filters',review:'review',workload:'workload',reporting:'reporting',health:'health',bundles:'bundles'};
+  const views={filters:'filters',review:'review',workload:'workload',reporting:'reporting',health:'health',bundles:'bundles',waiting:'waiting'};
   if(views[action]){
     visitWorkspace('planner');
     calendarPanel.querySelector(`[data-planner-view="${views[action]}"]`)?.click();
@@ -697,13 +699,13 @@ function pauseBundleForTask(taskId){
 function taskIndex(){return new Map(state.tasks.map(task=>[task.id,task]));}
 function waitingOn(task){return task?.prerequisiteIds?.length?unfinishedPrerequisites(task,taskIndex()):[];}
 function focusedTask(date=new Date()){
-  if(state.timer.block)return state.tasks.find(task=>task.id===state.timer.block.taskId);
+  if(state.timer.block)return state.tasks.find(task=>task.id===state.timer.block.taskId&&!task.waitingFor);
   const queue=gardenFocusQueue(date);
   const sessionId=state.timer.mode==='focus'?state.timer.replay?.at(-1)?.taskId||state.timer.taskSnapshot?.id:null;
   const day=dayKey(date);
   const bundle=activeBundleStatus(date,queue);
-  if(bundle?.next&&!bundle.run.paused)return bundle.next.ready||bundle.next.id===sessionId?bundle.next.task:undefined;
-  const snoozedSession=state.tasks.find(task=>task.id===sessionId&&task.snoozedUntil>day);
+  if(bundle?.next&&!bundle.run.paused)return bundle.next.ready||bundle.next.id===sessionId&&!bundle.next.task?.waitingFor?bundle.next.task:undefined;
+  const snoozedSession=state.tasks.find(task=>task.id===sessionId&&!task.waitingFor&&task.snoozedUntil>day);
   if(snoozedSession)return snoozedSession;
   const selectedId=(state.tomorrowPlan?.day!==day||state.activeTaskDay===day?state.activeTask:null)||sessionId;
   return queue.find(task=>task.id===selectedId)||queue[0];
@@ -1283,7 +1285,7 @@ function taskCard(task,status,date,currentId,prerequisites){
 function renderTasks(date=new Date()){
   const upcomingOpen=$('.task-upcoming')?.open;
   const groups={todo:[],done:[],upcoming:[]};
-  const tasks=gardenTasks();
+  const tasks=gardenTasks().filter(task=>!task.waitingFor);
   const queue=gardenFocusQueue(date,tasks);
   const queued=new Set(queue);
   const currentId=focusedTask(date)?.id;
@@ -1345,6 +1347,24 @@ function openBlockEditor(id,anchor,blockId=null,defaults=null){
   openPanel('block-editor',anchor);
 }
 
+function flexibilityFields(value){
+  return `<details class="schedule-flexibility" ${value?'open':''}><summary>Scheduling flexibility</summary>
+    <label>Move policy<select name="flexMode">${[['automatic','Automatic'],['fixed','Keep fixed'],['flexible','Use limits below']].map(([id,label])=>
+    `<option value="${id}" ${(value?.mode||'automatic')===id?'selected':''}>${label}</option>`).join('')}</select></label>
+    <div class="task-editor-grid"><label>Earliest start<input type="time" name="flexEarliest" value="${escape(value?.earliest)}"></label>
+    <label>Latest finish<input type="time" name="flexLatest" value="${escape(value?.latest)}"></label></div>
+    <label class="flex-tomorrow"><input type="checkbox" name="flexTomorrow" ${value?.tomorrow?'checked':''}> Can move to tomorrow</label>
+    <p>Fit a task today uses these limits for suggested moves. Automatic uses the existing scheduling rules.</p>
+    <p data-flex-error role="alert" hidden></p></details>`;
+}
+function readFlexibility(form,fields){
+  const mode=fields.get('flexMode'),earliest=fields.get('flexEarliest'),latest=fields.get('flexLatest');
+  if(mode==='flexible'&&earliest&&latest&&earliest>=latest){
+    const error=form.querySelector('[data-flex-error]');error.hidden=false;error.textContent='Latest finish must be after earliest start.';
+    error.closest('details').open=true;form.elements.flexLatest.focus();return undefined;
+  }
+  return blockFlexibility({mode,earliest,latest,tomorrow:fields.has('flexTomorrow')});
+}
 function blockEditor(){
   const task=state.tasks.find(item=>item.id===editingTaskId);
   if(!task)return header('PLANNER','Task unavailable');
@@ -1360,6 +1380,7 @@ function blockEditor(){
       <input id="block-minutes" name="minutes" type="number" min="1" max="1440" value="${block?.minutes||task.estimate||60}" required>
       <div class="estimate-suggestion" data-estimate-suggestion hidden></div>
       ${schedulePreviewRegion()}
+      ${flexibilityFields(block?.flexibility)}
       <div class="panel-actions"><button class="panel-primary" type="submit">Save block</button>${block?'<button type="button" class="text-button" id="delete-block">Remove block</button>':''}</div>
     </form>`;
 }
@@ -1736,12 +1757,18 @@ function taskEditor(){
             <p id="task-repeat-hint" ${values.repeat&&values.repeat!=='none'?'':'hidden'}>The date sets the first occurrence. Leave it blank to start today.</p>
             <div id="task-interval-field" ${values.repeat==='interval'?'':'hidden'}><label class="field-label" for="task-interval">Days between occurrences</label><input id="task-interval" name="repeatEvery" type="number" min="2" max="365" value="${values.repeatEvery||2}" ${values.repeat==='interval'?'':'disabled'}></div>
             ${schedulePreviewRegion()}
+            ${flexibilityFields(values.flexibility)}
           </fieldset>
           <div class="task-detail-property">
             <label class="field-label" for="task-deadline">Deadline</label><input id="task-deadline" name="deadline" type="date" value="${escape(values.deadline)}">
             <button type="submit" value="plan-deadline" id="task-plan-deadline" class="text-button" hidden>Save and plan to deadline</button>
           </div>
           ${taskDependencies(values)}
+          <div class="task-detail-property"><label class="field-label" for="task-waiting-for">Waiting for</label>
+            <input id="task-waiting-for" name="waitingFor" maxlength="200" value="${escape(values.waitingFor?.subject)}" placeholder="Person, reply, or material">
+            <label class="field-label" for="task-follow-up">Follow up on</label>
+            <input id="task-follow-up" name="followUp" type="date" value="${escape(values.waitingFor?.followUp)}">
+            <p>Clear Waiting for to return the task to Garden when it is ready.</p></div>
           <div class="task-detail-property"><label class="field-label" for="task-snooze">Snooze until</label>
             <input id="task-snooze" name="snoozedUntil" type="date" value="${escape(values.snoozedUntil)}">
             <p>Leave blank to keep this task in the focus queue when it’s ready.</p></div>
@@ -1804,10 +1831,10 @@ function updateBlockPreview(now){
   const {task:id,block,occurrence}=lastAnchor.dataset;
   const task=state.tasks.find(item=>item.id===id);
   const prerequisites=waitingOn(task);
-  start.disabled=!timing?.available||Boolean(prerequisites.length);
+  start.disabled=!timing?.available||Boolean(task?.waitingFor||prerequisites.length);
   const waiting=$('#block-prerequisites');
-  waiting.hidden=!prerequisites.length;
-  const waitingText=prerequisites.length?`Waiting on ${prerequisites.map(item=>item.text).join(', ')}`:'';
+  waiting.hidden=!task?.waitingFor&&!prerequisites.length;
+  const waitingText=task?.waitingFor?`Waiting for ${task.waitingFor.subject}`:prerequisites.length?`Waiting on ${prerequisites.map(item=>item.text).join(', ')}`:'';
   if(waiting.textContent!==waitingText)waiting.textContent=waitingText;
   const message=!timing?.available?'This block has ended or is no longer scheduled.':
     `${formatDuration(timing.available)} ${timing.early?'if you start now':'left in this block'}.${timing.split&&timing.available>50*60000?' The timer alternates up to 50 minutes of focus with 10 minutes of rest.':''}`;
@@ -2172,7 +2199,7 @@ function renderAgenda(now=new Date()){
   for(let day=firstDay;day<=lastDay;day++){
     const date=shiftDay(now,day);
     const from=Math.max(0,start-day*1440),to=Math.min(1440,end-day*1440);
-    const blocks=calendarBlocks(gardenTasks(),date,state.calendarEvents).filter(block=>block.start<to&&block.end>from);
+    const blocks=calendarBlocks(gardenTasks().filter(task=>!task.waitingFor),date,state.calendarEvents).filter(block=>block.start<to&&block.end>from);
     columns.push(`<div class="calendar-day mini-calendar-day" data-date="${dayKey(date)}" data-from="${from}" data-span="${to-from}" style="--slice-offset:${day*1440+from-start};--slice-span:${to-from}">${blocks.map(block=>calendarBlockMarkup(block,date,Math.max(block.start,from)-from,Math.min(block.end,to)-from)).join('')}</div>`);
   }
   const nowLine=minute>=start&&minute<end?`<div class="mini-now" style="--now-minute:${minute-start}" title="Current time"></div>`:'';
@@ -2516,8 +2543,8 @@ function openTaskMenu(id,anchor,x,y){
   actions.push(['duplicate','Duplicate task']);
   if(anchor.classList.contains('calendar-block'))actions.unshift(['block-focus','Start focus…']);
   if(anchor.dataset.block)actions.push(['edit-block','Edit block'],['remove-block','Remove block']);
-  if(taskStatus(task)==='todo'&&!waitingOn(task).length&&!(task.snoozedUntil>dayKey()))actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
-  if(canPlanDeadline(task))actions.push(['plan-deadline','Plan to deadline…']);
+  if(taskStatus(task)==='todo'&&!task.waitingFor&&!waitingOn(task).length&&!(task.snoozedUntil>dayKey()))actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
+  if(!task.waitingFor&&canPlanDeadline(task))actions.push(['plan-deadline','Plan to deadline…']);
   if(status!=='upcoming')actions.push(['complete',status==='done'?'Reopen task':'Mark done']);
   if(task.date&&task.time&&!anchor.dataset.block)actions.push(['unschedule','Remove scheduled time']);
   actions.push(['delete','Delete task']);
@@ -2881,7 +2908,7 @@ function updateScheduleEditor(form){
   const markup=preview?.markup||'';
   if(region.innerHTML!==markup)region.innerHTML=markup;
   if(isTask){
-    $('#task-plan-deadline').hidden=!canPlanDeadline({done:task?.done,estimate:Number(fields.estimate.value),deadline:fields.deadline.value,repeat:fields.repeat.value});
+    $('#task-plan-deadline').hidden=Boolean(fields.waitingFor.value.trim())||!canPlanDeadline({done:task?.done,estimate:Number(fields.estimate.value),deadline:fields.deadline.value,repeat:fields.repeat.value});
   }else{
     form.querySelector('button[type="submit"]').textContent=preview?.overlaps.length?'Save with overlap':'Save block';
   }
@@ -3001,6 +3028,7 @@ function weekRiskText({reason,unplaced}){
   if(reason==='overdue')return `${minutesLabel(unplaced)} unplanned · deadline passed`;
   if(reason==='occurrence')return 'No open occurrence before the deadline';
   if(reason==='prerequisite')return `${minutesLabel(unplaced)} unplanned · waiting on a prerequisite`;
+  if(reason==='waiting')return `${minutesLabel(unplaced)} unplanned · waiting for a follow-up`;
   if(reason==='unplanned')return `${minutesLabel(unplaced)} still unplanned before the deadline`;
   return `${minutesLabel(unplaced)} couldn’t fit before the deadline`;
 }
@@ -3199,7 +3227,7 @@ function tradeoffChoices(now){
   const occupied=new Set(calendarBlocks(tasks,now).filter(block=>openFocusBlock(block)&&
     block.end>now.getHours()*60+now.getMinutes()).map(block=>block.task.id));
   const byId=taskIndex();
-  return tasks.filter(task=>!task.done&&task.id!==locked&&!occupied.has(task.id)&&!unfinishedPrerequisites(task,byId).length&&
+  return tasks.filter(task=>!task.done&&!task.waitingFor&&task.id!==locked&&!occupied.has(task.id)&&!unfinishedPrerequisites(task,byId).length&&
     !(task.snoozedUntil>today)&&!(task.deadline&&task.deadline<today)&&
     (!task.repeat||task.repeat==='none'||taskStatus(task,now)==='todo'));
 }
@@ -3235,6 +3263,14 @@ function applyTradeoff(index){
     confirmChange('The schedule changed. Review the updated options.');return;
   }
   const task=state.tasks.find(item=>item.id===tradeoffTaskId), displaced=option.move&&state.tasks.find(item=>item.id===option.move.taskId);
+  const previousEvents=state.calendarEvents;
+  const event=previousEvents.find(item=>item.id===option.move?.eventId);
+  let movedEvent;
+  if(event){
+    const start=+new Date(`${option.move.day}T${timeValue(option.move.parts[0].to)}`);
+    movedEvent={...event,start,end:start+event.end-event.start};
+    state.calendarEvents=previousEvents.map(item=>item===event?movedEvent:item);
+  }
   const finishAdd=captureTaskChange(task,['blocks']);
   const finishMove=displaced&&captureTaskChange(displaced,['date','time','blocks','occurrenceTimes']);
   if(displaced)applyCalendarReplan(displaced,today,option.move);
@@ -3247,6 +3283,8 @@ function applyTradeoff(index){
     // Check both records before changing either one.
     const copy={tasks:structuredClone(latest.tasks.filter(item=>item.id===task.id||item.id===displaced?.id))};
     if(!undoAdd(copy)||undoMove&&!undoMove(copy))return false;
+    if(movedEvent&&JSON.stringify(latest.calendarEvents.find(item=>item.id===event.id))!==JSON.stringify(movedEvent))return false;
+    if(movedEvent)latest.calendarEvents=latest.calendarEvents.map(item=>item.id===event.id?event:item);
     undoAdd(latest);undoMove?.(latest);return true;
   };
   if(!persist()){undo(state);return;}
@@ -3256,7 +3294,7 @@ function applyTradeoff(index){
     scrollCalendarTo(now,Math.max(0,option.parts[0].start-30));
   }
   $('[data-open-tradeoffs]')?.focus({preventScroll:true});
-  confirmChange(displaced?`Scheduled ${task.text} and moved ${displaced.text}.`:`Scheduled ${task.text}.`,undo);
+  confirmChange(option.move?`Scheduled ${task.text} and moved ${option.move.title}.`:`Scheduled ${task.text}.`,undo);
 }
 function replanMarkup(){
   const {day,moves,unplaced}=replanPreview;
@@ -3505,6 +3543,7 @@ function calendarEventEditor(){
       </div>
       <label class="event-field">Notes <textarea name="description" rows="3" maxlength="3000" placeholder="Optional">${escape(event?.description)}</textarea></label>
       ${eventBufferFields(event,allDay)}
+      ${flexibilityFields(event?.flexibility)}
       <p class="event-error" role="alert" hidden></p>
       <div class="panel-actions">${event?'<button type="button" class="text-button event-delete" id="delete-calendar-event">Delete event</button>':''}<button class="panel-primary">Save event</button></div>
     </form>`;
@@ -3879,7 +3918,8 @@ root.addEventListener('click',e=>{
     checkCompletion();
     const now=Date.now(),timing=selectedBlockTiming(now);
     const id=lastAnchor.dataset.task;
-    if(!timing?.available||waitingOn(state.tasks.find(task=>task.id===id)).length){updateBlockPreview(now);return;}
+    const task=state.tasks.find(task=>task.id===id);
+    if(!timing?.available||task?.waitingFor||waitingOn(task).length){updateBlockPreview(now);return;}
     const skipped=record(state,'skipped',now);
     const {occurrence,block,taskDay}=lastAnchor.dataset;
     pauseBundleForTask(id);
@@ -4243,10 +4283,13 @@ root.addEventListener('submit',e=>{
     const form=e.target, fields=new FormData(form), editing=form.dataset.eventId, prior=state.calendarEvents;
     if(editing&&!prior.some(item=>item.id===editing&&item.manual))return;
     const error=form.querySelector('.event-error');
+    const flexibility=fields.has('allDay')?null:readFlexibility(form,fields);
+    if(flexibility===undefined)return;
     let event;
     try{
       event=calendarEventFromFields({...Object.fromEntries(fields),allDay:fields.has('allDay')},editing||`manual:${crypto.randomUUID()}`);
     }catch(err){error.textContent=err.message;error.hidden=false;return;}
+    if(flexibility)event.flexibility=flexibility;
     state.calendarEvents=editing?prior.map(item=>item.id===editing?event:item):[...prior,event];
     if(!persist()){state.calendarEvents=prior;return;}
     finishCalendarEventChange(event);
@@ -4349,6 +4392,16 @@ root.addEventListener('submit',e=>{
     if(!text){const title=$('#task-title');title.setCustomValidity('Enter a task name.');title.reportValidity();return;}
     const existing=state.tasks.find(task=>task.id===editingTaskId);
     if(editingTaskId&&!existing){toast('This task was removed in another tab.');return;}
+    const flexibility=readFlexibility(e.target,fields);
+    if(flexibility===undefined)return;
+    const waitingFor=waitingForRecord({subject:fields.get('waitingFor'),followUp:fields.get('followUp')});
+    if(waitingFor&&waitingFor.subject===existing?.waitingFor?.subject&&waitingFor.followUp===existing.waitingFor.followUp)
+      waitingFor.notified=existing.waitingFor.notified;
+    const timer=state.timer;
+    const timerTaskId=timer.block?.taskId||timer.replay?.at(-1)?.taskId||timer.taskSnapshot?.id;
+    if(waitingFor&&existing&&timer.id&&timerTaskId===existing.id){
+      toast('Finish or reset this task’s timer before putting it on hold.');return;
+    }
     const id=existing?.id??crypto.randomUUID();
     const tasksById=taskIndex();
     const prerequisiteIds=[...new Set(fields.getAll('prerequisite').filter(id=>tasksById.has(id)))];
@@ -4378,7 +4431,7 @@ root.addEventListener('submit',e=>{
     const comment=fields.get('comment').trim();
     if(comment)comments.push({id:crypto.randomUUID(),text:comment,at:Date.now()});
     const task={
-      id, text, prerequisiteIds,snoozedUntil:fields.get('snoozedUntil'),
+      id, text, prerequisiteIds,snoozedUntil:fields.get('snoozedUntil'),waitingFor,flexibility,
       description:fields.get('description').trim(),
       ...handoff,
       date:fields.get('date')||(repeat!=='none'||fields.get('time')?dayKey():''),
@@ -4401,7 +4454,7 @@ root.addEventListener('submit',e=>{
     const prior=existing&&{...existing};
     if(existing)Object.assign(existing,task);else state.tasks.push(task);
     const status=taskStatus(task);
-    if(state.activeTask===task.id && status!=='todo')state.activeTask=null;
+    if(state.activeTask===task.id && (status!=='todo'||waitingFor))state.activeTask=null;
     const fromCurrentTask=lastAnchor===currentTaskButton;
     if(captureKey){
       if(!saveCaptureDestination(captureKey,()=>{},()=>{
@@ -4422,7 +4475,7 @@ root.addEventListener('submit',e=>{
     }
     closePanel(false);refreshTasks();
     if(captureKey&&returnToCaptureInbox){finishCaptureFiling('Thought filed as a task.');return;}
-    if(e.submitter?.value==='plan-deadline'&&canPlanDeadline(task)){
+    if(e.submitter?.value==='plan-deadline'&&!waitingFor&&canPlanDeadline(task)){
       const anchor=inSchedule()?$('#planner-heading'):taskButton(task.id)||$('#sidebar-add-task');
       openDeadlinePlanner(task.id,anchor);return;
     }
@@ -4444,10 +4497,14 @@ root.addEventListener('submit',e=>{
     if(!task)return;
     const fields=new FormData(e.target);
     const date=fields.get('date'),time=fields.get('time'),minutes=Number(fields.get('minutes'));
+    const flexibility=readFlexibility(e.target,fields);
+    if(flexibility===undefined)return;
     const existing=task.blocks?.find(item=>item.id===editingBlockId);
     if(editingBlockId&&!existing){toast('This block was removed in another tab.');return;}
     const finishUndo=captureTaskChange(task,['blocks']);
-    if(existing)Object.assign(existing,{date,time,minutes});else addTaskBlock(task,date,time,minutes);
+    const block=existing||addTaskBlock(task,date,time,minutes);
+    Object.assign(block,{date,time,minutes});
+    if(flexibility)block.flexibility=flexibility;else delete block.flexibility;
     const undo=finishUndo();
     if(!persist()){undo?.(state);return;}
     closePanel(false);refreshTasks();

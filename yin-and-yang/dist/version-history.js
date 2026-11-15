@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'2.9.0',date:'2026-11-14',title:'Flexible commitments and waiting-for tasks',changes:[
+    'Set move windows for task blocks and timed events. Fit a task today respects those limits and permission to move to tomorrow.',
+    'Track who or what you are waiting for, get follow-up prompts, and mark tasks ready from Planner.'
+  ]},
   {version:'2.8.0',date:'2026-11-14',title:'Exam study blocks, bundle checkpoints, and weekly draft comparisons',changes:[
     'Plan study blocks for low-confidence exam topics and unsolved mistakes, then approve the blocks you want.',
     'Checkpoint a bundle and switch routines without losing your place.',

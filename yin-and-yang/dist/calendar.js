@@ -112,7 +112,7 @@ export function calendarTaskBlock(task,blockId,occurrence){
   const start = new Date(`${occurrence}T${time}`);
   const end = new Date(date);
   end.setMinutes(timeMinutes(time) + minutes);
-  return {start,end,minutes,taskDay:entry.taskDay||occurrence};
+  return {start,end,minutes,taskDay:entry.taskDay||occurrence,...(entry.flexibility?{flexibility:entry.flexibility}:{})};
 }
 
 export function blockFocusTiming(task, blockId, occurrence, now = Date.now()) {
@@ -195,7 +195,7 @@ export function focusCalendarBlock(task,date=new Date()){
 
 export function focusTaskQueue(tasks,date=new Date(),pinnedIds=[],tasksById=new Map(tasks.map(task=>[task.id,task]))){
   const day=dayKey(date);
-  const ready=tasks.filter(task=>!(task.snoozedUntil>day)&&!unfinishedPrerequisites(task,tasksById).length);
+  const ready=tasks.filter(task=>!task.waitingFor&&!(task.snoozedUntil>day)&&!unfinishedPrerequisites(task,tasksById).length);
   const scheduled=[...new Set(calendarBlocks(ready,date).filter(openFocusBlock).map(block=>block.task))];
   const queued=new Set(scheduled);
   const unscheduled=ready.filter(task=>!queued.has(task)&&taskStatus(task,date)==='todo');
@@ -284,7 +284,8 @@ export function replanToday(tasks,events,now=new Date(),lockedTaskId,options){
     busy.sort((a,b)=>a.start-b.start);
     busyTomorrow.sort((a,b)=>a.start-b.start);
   }
-  const missed=blocks.filter(block=>block.task&&!block.continues&&block.end<=elapsed&&block.task.id!==lockedTaskId&&openFocusBlock(block)&&
+  const missed=blocks.filter(block=>block.task&&!block.task.waitingFor&&!block.continues&&block.end<=elapsed&&block.task.id!==lockedTaskId&&openFocusBlock(block)&&
+    calendarTaskBlock(block.task,block.blockId,block.occurrence)?.flexibility?.mode!=='fixed'&&
     !focus.get(calendarFocusKey(block.task.id,block.occurrence,block.blockId)));
   const moves=[], unplaced=[];
   for(const block of missed){
@@ -327,6 +328,8 @@ export function applyCalendarReplan(task,sourceDay,move){
   for(const part of existing?parts.slice(1):parts){
     const block=addTaskBlock(task,day,timeValue(part.to),part.minutes);
     if(taskDay)block.taskDay=taskDay;
+    const flexibility=existing?.flexibility||task.flexibility;
+    if(flexibility)block.flexibility=flexibility;
   }
 }
 

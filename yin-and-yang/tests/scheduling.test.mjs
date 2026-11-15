@@ -7,6 +7,27 @@ import {createsDependencyCycle,freshState,loadState,recordTaskCompletion} from '
 const date = (day,hour=0,minute=0) => new Date(2026,10,day,hour,minute);
 const event = (title,start,end) => ({title,start:+start,end:+end});
 
+test('trade-offs honor fixed blocks and event move windows',()=>{
+  const day='2026-11-13',task={id:'new',estimate:60};
+  const held={id:'held',text:'Booked',estimate:60,date:day,time:'10:00',flexibility:{mode:'fixed'}};
+  const meetup={...event('Meetup',date(13,11),date(13,12)),id:'event',manual:true,flexibility:{mode:'flexible',earliest:'10:10',latest:'11:10',tomorrow:false}};
+  const settings={task,tasks:[task,held],events:[meetup],availability:[],focus:new Map(),cutoff:12*60,capacity:180,cooldown:0};
+  assert.deepEqual(todayTradeoffs(settings,date(13,9,40)),[]);
+  meetup.flexibility.tomorrow=true;
+  const options=todayTradeoffs(settings,date(13,9,40));
+  assert.deepEqual(options.map(item=>[item.move.eventId,item.move.day,item.move.parts[0].to]),[['event','2026-11-14',610]]);
+});
+
+test('waiting tasks preserve follow-ups and stay out of focus until ready',()=>{
+  const state=freshState();
+  state.tasks=[{id:'pending',text:'Edit',done:false,waitingFor:{subject:' Feedback ',followUp:'2026-11-12'}},{id:'ready',text:'Read',done:false}];
+  const loaded=loadState({getItem:()=>JSON.stringify(state)});
+  assert.deepEqual(loaded.tasks[0].waitingFor,{subject:'Feedback',followUp:'2026-11-12',notified:false});
+  assert.deepEqual(focusTaskQueue(loaded.tasks,date(13)).map(task=>task.id),['ready']);
+  loaded.tasks[0].waitingFor=null;
+  assert.equal(focusTaskQueue(loaded.tasks,date(13)).length,2);
+});
+
 test('exam blocks prioritize unresolved mistakes, avoid commitments and stop before exam day',()=>{
   const exam={id:'exam',date:'2026-11-14',topics:[{id:'a',title:'Series',confidence:0},{id:'b',title:'Proofs',confidence:3}]};
   const slots=examStudyBlocks({exam,mistakes:[{examId:'exam',topicId:'b',retries:[{passed:false}]}],tasks:[],

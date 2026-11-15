@@ -89,7 +89,7 @@ function studyDay(tasks,events,availability,day,from,end,capacity,cooldown){
 export function todayTradeoffs({task,tasks,events,availability,focus,locked,cutoff,capacity,cooldown,protectedBlock},now=new Date()){
   const today=dayKey(now),tomorrowDate=shiftDay(now,1),tomorrow=dayKey(tomorrowDate);
   const minutes=task.estimate||60;
-  if(task.done||task.snoozedUntil>today||task.deadline&&task.deadline<today||
+  if(task.done||task.waitingFor||task.snoozedUntil>today||task.deadline&&task.deadline<today||
     task.repeat&&task.repeat!=='none'&&taskStatus(task,now)!=='todo'||
     unfinishedPrerequisites(task,new Map(tasks.map(item=>[item.id,item]))).length)return [];
   const from=Math.max(workdayStart,Math.ceil(minuteOfDay(now)));
@@ -97,8 +97,9 @@ export function todayTradeoffs({task,tasks,events,availability,focus,locked,cuto
   const scheduled=commitments(tasks,[],now);
   if(scheduled.some(block=>block.task.id===task.id&&block.end>minuteOfDay(now)))return [];
   const fixed=new Map([now,tomorrowDate].map(date=>[date,[...planningEventRanges(events,date,cooldown),...unavailableRanges(availability,date)]]));
-  function free(blocks,day,start,extra=[]){
-    const busy=[...fixed.get(day),...withCooldown([...blocks,...extra],cooldown)].sort((a,b)=>a.start-b.start);
+  function free(blocks,day,start,extra=[],excludedEvent){
+    const limits=excludedEvent?[...planningEventRanges(events.filter(event=>event!==excludedEvent),day,cooldown),...unavailableRanges(availability,day)]:fixed.get(day);
+    const busy=[...limits,...withCooldown([...blocks,...extra],cooldown)].sort((a,b)=>a.start-b.start);
     return freeRanges(busy,start,cutoff);
   }
   const find=(ranges,length)=>ranges.find(range=>range.end-range.start>=length)?.start;
@@ -128,17 +129,20 @@ export function todayTradeoffs({task,tasks,events,availability,focus,locked,cuto
       focus.get(calendarFocusKey(other.id,occurrence,blockId)))continue;
     const booking=calendarTaskBlock(other,blockId,occurrence);
     const length=end-start;
-    if(!booking||booking.minutes!==length||other.deadline&&other.deadline<today)continue;
+    if(!booking||booking.minutes!==length||booking.flexibility?.mode==='fixed'||other.deadline&&other.deadline<today)continue;
+    const policy=booking.flexibility;
+    const fitMoved=ranges=>find(ranges.map(range=>({start:Math.max(range.start,policy?.earliest?timeMinutes(policy.earliest):0),
+      end:Math.min(range.end,policy?.latest?timeMinutes(policy.latest):dayMinutes)})),length);
     const remaining=scheduled.filter(item=>item!==block);
     if(!enough(remaining,minutes))continue;
     const openWithoutBlock=free(remaining,now,from).filter(range=>range.end-range.start>=minutes);
     if(!openWithoutBlock.length)continue;
-    const nextStart=other.deadline&&other.deadline<tomorrow||other.snoozedUntil>tomorrow||!enough(nextBlocks,length)?undefined:find(nextOpen,length);
+    const nextStart=policy&&!policy.tomorrow||other.deadline&&other.deadline<tomorrow||other.snoozedUntil>tomorrow||!enough(nextBlocks,length)?undefined:fitMoved(nextOpen);
     let startNew=openWithoutBlock[0].start, sameStart;
     if(enough(scheduled,minutes)){
       for(const range of openWithoutBlock){
         for(const start of [range.start,range.end-minutes]){
-          sameStart=find(free(remaining,now,from,[{start,end:start+minutes}]),length);
+          sameStart=fitMoved(free(remaining,now,from,[{start,end:start+minutes}]));
           if(sameStart!==undefined){startNew=start;break;}
         }
         if(sameStart!==undefined)break;
@@ -151,6 +155,32 @@ export function todayTradeoffs({task,tasks,events,availability,focus,locked,cuto
     moved.add(other.id);
     if(options.length===3)break;
   }
+  if(enough(scheduled,minutes))for(const event of events){
+    if(options.length>=3)break;
+    const policy=event.flexibility;
+    if(!event.manual||event.day||policy?.mode!=='flexible'||event.start<=+now)continue;
+    const startDate=new Date(event.start),endDate=new Date(event.end),length=(event.end-event.start)/60000;
+    if(dayKey(startDate)!==today||dayKey(endDate)!==today||!Number.isInteger(length)||length<1)continue;
+    const before=Math.max(event.bufferBefore||0,cooldown),after=Math.max(event.bufferAfter||0,cooldown);
+    const earliest=policy.earliest?timeMinutes(policy.earliest):0,latest=policy.latest?timeMinutes(policy.latest):dayMinutes;
+    const findEvent=ranges=>find(ranges.map(range=>({start:Math.max(range.start+before,earliest),
+      end:Math.min(range.end-after,latest)})),length);
+    const nextStart=policy.tomorrow&&!allDayEvents(events,tomorrowDate).length?findEvent(free(nextBlocks,tomorrowDate,workdayStart,[],event)):undefined;
+    const available=free(scheduled,now,from,[],event);
+    let proposal;
+    for(const range of available){
+      if(range.end-range.start<minutes)continue;
+      for(const start of [range.start,range.end-minutes]){
+        const same=findEvent(free(scheduled,now,from,[{start,end:start+minutes}],event));
+        if(same===undefined&&nextStart===undefined)continue;
+        proposal={parts:[{start,minutes}],move:{eventId:event.id,title:event.title,from:minuteOfDay(startDate),day:same===undefined?tomorrow:today,
+          parts:[{to:same??nextStart,minutes:length}]}};
+        break;
+      }
+      if(proposal)break;
+    }
+    if(proposal)options.push(proposal);
+  }
   return options;
 }
 
@@ -162,7 +192,7 @@ export function projectHealth(state,now=new Date()){
   const archived=new Set(projects.filter(project=>project.archived).map(project=>project.id));
   const activeTasks=tasks.filter(task=>!archived.has(task.projectId));
   const byId=new Map(tasks.map(task=>[task.id,task]));
-  const ready=new Set(activeTasks.filter(task=>taskStatus(task,now)==='todo'&&!(task.snoozedUntil>today)&&
+  const ready=new Set(activeTasks.filter(task=>!task.waitingFor&&taskStatus(task,now)==='todo'&&!(task.snoozedUntil>today)&&
     !unfinishedPrerequisites(task,byId).length).map(task=>task.id));
   const deadlineByTask=new Map(activeTasks.filter(task=>task.deadline).map(task=>[task.id,task.deadline]));
   for(const project of activeProjects){
@@ -257,7 +287,7 @@ function deadlineWork(task, history, now, firstDay, deadline) {
 }
 
 export function planDeadline(task, tasks, events, history, now, cutoff, dailyCapacity, {availability=[],cooldown=0}={}) {
-  if (!canPlanDeadline(task)) return null;
+  if (!canPlanDeadline(task)||task.waitingFor) return null;
   const deadline = new Date(`${task.deadline}T00:00:00`);
   if (!Number.isFinite(+deadline) || dayKey(deadline) !== task.deadline) return null;
   const today = shiftDay(now, 0);
@@ -329,7 +359,7 @@ export function draftStudyWeek({tasks, events, history, availability, tasksById}
       const minutes=slot.minutes,start=slot.start;
       const fits=day.ranges.some(range=>range.start<=start&&start+minutes<=range.end);
       const overlaps=day.slots.some(other=>other!==slot&&other.start+other.minutes+cooldown>start);
-      if(!task||!work||work.noOccurrence||slot.occurrence!==work.occurrence||task.deadline<slot.date||task.snoozedUntil>slot.date||
+      if(!task||task.waitingFor||!work||work.noOccurrence||slot.occurrence!==work.occurrence||task.deadline<slot.date||task.snoozedUntil>slot.date||
         unfinishedPrerequisites(task,tasksById).length||!Number.isInteger(start)||!Number.isInteger(minutes)||minutes<1||
         minutes>focusBlockMinutes||minutes>day.remaining||!fits||overlaps){invalid.push(slot);continue;}
       day.remaining-=minutes;
@@ -350,6 +380,7 @@ export function draftStudyWeek({tasks, events, history, availability, tasksById}
     if (!unplaced) continue;
     let reason = proposed?'unplanned':'capacity';
     if (task.deadline < today) reason = 'overdue';
+    else if (task.waitingFor) reason = 'waiting';
     else if (work.noOccurrence) reason = 'occurrence';
     else if (unfinishedPrerequisites(task, tasksById).length) reason = 'prerequisite';
     else if(!proposed){

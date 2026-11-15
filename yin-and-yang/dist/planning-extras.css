@@ -329,6 +329,13 @@ button.project-context-item:hover { color: var(--planner-accent); }
 #exam-study-dialog [name="budget"] { display: block; max-width: 150px; padding: 6px 8px; margin-top: 4px; }
 #exam-study-results > button { margin-top: 8px; }
 .bundle-checkpoint { margin: 0; font-size: 12px; }
+.schedule-flexibility { margin: 9px 0; padding: 8px; border: 1px solid var(--surface-line); border-radius: 7px; font-size: 12px; }
+.schedule-flexibility summary { cursor: pointer; }
+.schedule-flexibility label { min-width: 0; }
+.schedule-flexibility :is(select,input[type="time"]) { width: 100%; min-width: 0; }
+.schedule-flexibility .flex-tomorrow { display: flex; align-items: center; gap: 6px; }
+.schedule-flexibility p { margin: 6px 0 0; }
+[data-flex-error] { color: var(--surface-danger); }
 .week-draft-skipped { margin-top: 12px; padding: 10px; border: 1px solid var(--surface-line); border-radius: 9px; font-size: 12px; }
 .week-draft-skipped summary { cursor: pointer; }
 .week-draft-skipped ul { padding: 0; margin: 5px 0 0; list-style: none; }

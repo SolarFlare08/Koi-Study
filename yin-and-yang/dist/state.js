@@ -14,6 +14,7 @@ import {loadExamPlans} from './exam-plans.js';
 import {handoffLink} from './session-handoff.js';
 import {loadMistakes} from './mistake-notebook.js';
 import {loadTaskBundles} from './task-bundles.js';
+import {blockFlexibility,waitingForRecord} from './task-readiness.js';
 import {loadWeeklyReflections} from './journal-patterns.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
@@ -24,7 +25,8 @@ const isDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value);
 const isTime = value => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
 const dateNumber = date => Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())/86400000;
 const loadCalendarEvents=value=>Array.isArray(value)?value.filter(item=>typeof item?.id==='string'&&typeof item.title==='string'&&
-  (isDay(item.day)&&isDay(item.endDay)&&item.endDay>item.day||Number.isFinite(item.start)&&Number.isFinite(item.end)&&item.end>=item.start)):[];
+  (isDay(item.day)&&isDay(item.endDay)&&item.endDay>item.day||Number.isFinite(item.start)&&Number.isFinite(item.end)&&item.end>=item.start))
+  .map(item=>item.flexibility?{...item,flexibility:blockFlexibility(item.flexibility)}:item):[];
 
 export function taskOccursOn(task, date) {
   const day = dayKey(date);
@@ -134,6 +136,8 @@ function loadTask(task) {
     labels:Array.isArray(task.labels)?task.labels.filter(label=>typeof label==='string'&&label.length<=40):[],
     deadline:isDay(task.deadline)?task.deadline:'',
     snoozedUntil:isDay(task.snoozedUntil)?task.snoozedUntil:'',
+    ...(task.waitingFor?{waitingFor:waitingForRecord(task.waitingFor)}:{}),
+    ...(task.flexibility?{flexibility:blockFlexibility(task.flexibility)}:{}),
     prerequisiteIds:Array.isArray(task.prerequisiteIds)
       ? [...new Set(task.prerequisiteIds.filter(id=>typeof id==='string'&&id!==task.id))]
       : [],
@@ -143,7 +147,8 @@ function loadTask(task) {
     subtasks:Array.isArray(task.subtasks)?task.subtasks.filter(item=>item&&typeof item.id==='string'&&typeof item.text==='string'&&typeof item.done==='boolean'):[],
     comments:Array.isArray(task.comments)?task.comments.filter(item=>item&&typeof item.id==='string'&&typeof item.text==='string'&&Number.isFinite(item.at)):[],
     completions:Array.isArray(task.completions)?task.completions.filter(isDay):[],
-    blocks:Array.isArray(task.blocks) ? task.blocks.filter(block=>block && typeof block.id==='string' && /^\d{4}-\d{2}-\d{2}$/.test(block.date) && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(block.time) && Number.isInteger(block.minutes) && block.minutes>0 && block.minutes<=1440) : [],
+    blocks:Array.isArray(task.blocks) ? task.blocks.filter(block=>block && typeof block.id==='string' && /^\d{4}-\d{2}-\d{2}$/.test(block.date) && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(block.time) && Number.isInteger(block.minutes) && block.minutes>0 && block.minutes<=1440)
+      .map(block=>block.flexibility?{...block,flexibility:blockFlexibility(block.flexibility)}:block) : [],
     completedOn:/^\d{4}-\d{2}-\d{2}$/.test(task.completedOn) ? task.completedOn : ''
   };
 }

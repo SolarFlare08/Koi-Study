@@ -10,7 +10,7 @@ import {exportCalendar} from './calendar-export.js';
 import {cleanCaptureContext} from './capture.js';
 import {projectHealth} from './scheduling.js';
 
-const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',review:'Weekly review',workload:'Workload',health:'Project health',bundles:'Task bundles',filters:'Filters & Labels',reporting:'Reporting'};
+const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',review:'Weekly review',workload:'Workload',health:'Project health',bundles:'Task bundles',waiting:'Waiting for',filters:'Filters & Labels',reporting:'Reporting'};
 const workViewPresets={
   short:{name:'30 minutes or less',query:'estimate<=30 & !completed'},
   week:{name:'Due this week',query:'due-this-week & !completed'}
@@ -119,7 +119,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const projects=state().projects.filter(project=>!project.archived).sort((a,b)=>Number(b.favorite)-Number(a.favorite));
     const count={inbox:tasks.filter(task=>!projectFor(task)).length,today:tasks.filter(task=>todayDate(task,now)||overdueDate(task,now)).length};
     const plan=['inbox','today','upcoming','review','workload','health'].map(key=>navItem(key,views[key],count[key],'',key==='health'?icon('reporting'):icon(key))).join('');
-    const organize=['bundles','filters','reporting'].map(key=>navItem(key,views[key],key==='bundles'?state().taskBundles.length:'','',icon(key==='bundles'?'review':key))).join('');
+    const organize=['waiting','bundles','filters','reporting'].map(key=>navItem(key,views[key],key==='waiting'?tasks.filter(task=>task.waitingFor).length:key==='bundles'?state().taskBundles.length:'','',icon(['waiting','bundles'].includes(key)?'review':key))).join('');
     const pinned=state().plannerFilters.filter(filter=>filter.pinned);
     const saved=state().plannerFilters.filter(filter=>!filter.pinned);
     const scroll=sidebar.querySelector('.planner-rail-sections')?.scrollTop||0;
@@ -171,6 +171,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
           ${labels}
         </div>
         ${waiting.length?`<p class="task-waiting">Waiting on ${escape(waiting.map(item=>item.text).join(', '))}</p>`:''}
+        ${!complete&&task.waitingFor?`<p class="task-waiting">Waiting for ${escape(task.waitingFor.subject)}${task.waitingFor.followUp?` · Follow up ${plainDate(task.waitingFor.followUp)}`:''}</p>`:''}
         ${subtasks.length?`<details class="planner-subtasks" ${expanded.has(task.id)?'open':''}><summary>${done}/${subtasks.length} subtasks</summary>${subtasks.map(sub=>`<label><input type="checkbox" data-planner-subtask="${escape(sub.id)}" ${sub.done?'checked':''}> <span>${escape(sub.text)}</span></label>`).join('')}</details>`:''}
       </div>
       <button type="button" class="planner-task-more" data-task-menu aria-label="Actions for ${title}" aria-haspopup="menu">⋯</button>
@@ -463,6 +464,18 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
           <button type="button" data-bundle-edit="${escape(bundle.id)}" aria-haspopup="dialog">Edit order</button></footer></section>`;
       }).join(''):'<p>Create a bundle to group tasks from any project.</p>'}</div>`;
   }
+  function waitingMarkup(){
+    const today=dayKey();
+    const tasks=activeTasks().filter(task=>task.waitingFor&&!task.done).sort((a,b)=>
+      (a.waitingFor.followUp||'9999').localeCompare(b.waitingFor.followUp||'9999')||a.text.localeCompare(b.text));
+    return `<div class="project-health">${tasks.map(task=>{
+      const {subject,followUp}=task.waitingFor;
+      const due=followUp&&followUp<=today;
+      return `<section><header><button type="button" data-report-task="${escape(task.id)}">${escape(task.text)}</button>
+        <button type="button" class="planner-primary" data-waiting-ready="${escape(task.id)}">Mark ready</button></header>
+        <p>Waiting for ${escape(subject)}</p>${followUp?`<p>${due?'Follow-up due':'Follow up'} · ${plainDate(followUp)}</p>`:''}</section>`;
+    }).join('')||'<p>Nothing is waiting. Add a Waiting for detail in any task editor.</p>'}</div>`;
+  }
   function renderContent() {
     const left=content.scrollLeft, top=content.scrollTop;
     const columns=[...content.querySelectorAll('.planner-column-body')].map(column=>column.scrollTop);
@@ -473,6 +486,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     else if (view==='reporting') content.innerHTML=reportingMarkup();
     else if (view==='review'||view==='workload') content.innerHTML=weekMarkup();
     else if (view==='health') content.innerHTML=healthMarkup();
+    else if (view==='waiting') content.innerHTML=waitingMarkup();
     else if (view==='bundles') content.innerHTML=bundlesMarkup();
     else if (month) content.innerHTML=monthMarkup(calendarTasks());
     else if (layout==='list'&&view==='inbox') content.innerHTML=inboxMarkup(tasks);
@@ -559,7 +573,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const actual=standalone&&isActualCalendar();
     sidebar.hidden=standalone;
     if (!standalone) renderSidebar();
-    const sectionView=['filters','reporting','search','review','workload','health','bundles'].includes(view);
+    const sectionView=['filters','reporting','search','review','workload','health','bundles','waiting'].includes(view);
     const calendar=timeLayout()&&!sectionView;
     root.dataset.plannerView=view;
     root.dataset.plannerLayout=layout;
@@ -1002,6 +1016,19 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     }
     if (!button) return;
     const data=button.dataset;
+    if(data.waitingReady){
+      const task=state().tasks.find(item=>item.id===data.waitingReady);
+      if(!task?.waitingFor)return;
+      const previous=task.waitingFor;
+      task.waitingFor=null;
+      if(!commit()){task.waitingFor=previous;render();return;}
+      $('#planner-heading').focus({preventScroll:true});
+      notify('Task marked ready.',latest=>{
+        const item=latest.tasks.find(item=>item.id===task.id);
+        if(!item||item.waitingFor)return false;
+        item.waitingFor=previous;return true;
+      });return;
+    }
     if('bundleNew' in data||data.bundleEdit)return editBundle(data.bundleEdit);
     if(data.bundleStart)return startBundle(data.bundleStart);
     if('bundleStop' in data)return stopBundle(button);
@@ -1210,10 +1237,16 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const minute=Math.floor(now.getTime()/60000);
     if (minute===reminderMinute) return false;
     reminderMinute=minute;
-    const reminders=activeTasks().filter(task=>task.reminderAt&&!task.reminderShown&&task.reminderAt<=now.getTime()&&taskStatus(task,now)!=='done');
-    if (!reminders.length) return false;
+    const tasks=activeTasks(),today=dayKey(now);
+    const followUps=tasks.filter(task=>!task.done&&task.waitingFor?.followUp&&task.waitingFor.followUp<=today&&!task.waitingFor.notified);
+    const reminders=tasks.filter(task=>!task.waitingFor&&task.reminderAt&&!task.reminderShown&&task.reminderAt<=now.getTime()&&taskStatus(task,now)!=='done');
+    if (!reminders.length&&!followUps.length) return false;
     reminders.forEach(task=>{task.reminderShown=true;});
-    notify(reminders.length===1?`Reminder: ${reminders[0].text}`:`${reminders.length} task reminders are due.`);
+    followUps.forEach(task=>{task.waitingFor.notified=true;});
+    const messages=[];
+    if(reminders.length)messages.push(reminders.length===1?`Reminder: ${reminders[0].text}`:`${reminders.length} task reminders are due.`);
+    if(followUps.length)messages.push(followUps.length===1?`Follow up with ${followUps[0].waitingFor.subject} · ${followUps[0].text}`:`${followUps.length} waiting tasks are due for follow-up.`);
+    notify(messages.join(' · '));
     return true;
   }
 

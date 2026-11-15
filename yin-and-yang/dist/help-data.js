@@ -160,7 +160,15 @@ export const helpTopics = [
       'Expand `Task templates` and choose `Save as template` to reuse a task’s subtasks, labels, and estimate. In a new task, select a saved template and choose `Use template`. Review the draft and save it as a task.',
       'Save the task. Click its title to edit it again. Right-click a task for actions such as editing, prioritizing, focusing, and deleting.'],
     tip:'Task reminders are shown while the app is open. A task’s estimate is also useful for scheduling and estimate-accuracy reports.',
-    action:'planner', actionLabel:'Open Planner', related:['repeat','quick-add','completion']
+    action:'planner', actionLabel:'Open Planner', related:['repeat','quick-add','completion','waiting-for']
+  },
+  {
+    id:'waiting-for', group:'Tasks & projects', title:'Track waiting-for tasks and follow-ups',
+    summary:'Keep tasks on hold while you wait for a person, reply, or material.',
+    steps:['Open a task and fill in `Waiting for`. Add an optional `Follow up on` date and save.',
+      'Open Planner → `Waiting for` to see due follow-ups. The open app also shows a prompt when a follow-up date arrives.',
+      'Choose `Mark ready` when you can act. A follow-up date alone does not return a waiting task to Garden. Its calendar booking and deadline remain in Planner.'],
+    action:'waiting',actionLabel:'Open Waiting for',related:['tasks','focus-queue','project-health']
   },
   {
     id:'task-dependencies', group:'Tasks & projects', title:'Set task prerequisites',
@@ -351,6 +359,7 @@ export const helpTopics = [
     summary:'Compare open time, a split session, and moves that make room for your task.',
     steps:['In Calendar → `Planned` or Planner → Today, choose `Fit a task today`. Save the task first so it can appear in the picker.',
       'Select an unscheduled task and choose `Compare options`. Each move shows the existing task’s original time and its proposed new time today or tomorrow.',
+      'To constrain a move, edit the task block or a timed event you created and open `Scheduling flexibility`. Use `Keep fixed` or set the earliest start, latest finish, and whether it can move to tomorrow. Timed events are only offered as moves when you explicitly make them flexible.',
       'Choose `Apply option` to update the calendar. The confirmation’s Undo button reverses the whole change.'],
     tip:'Options use your study cutoff, daily capacity, recurring availability, and event buffers. A task without an estimate uses one hour.',
     action:'tradeoffs', actionLabel:'Open Fit a task today', related:['calendar','replan','availability','project-health']
