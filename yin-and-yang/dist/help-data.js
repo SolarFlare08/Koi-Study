@@ -21,10 +21,11 @@ export const helpTopics = [
   {
     id:'workspaces', group:'Start here', title:'Find your way around',
     summary:'What each workspace is for, and how to find features quickly.',
-    steps:['Use the bottom tabs to switch between Garden, Planner, Calendar, Crochet, Journal, Notes, and Reading.',
-      'Garden is your study space. Its top tools open Settings, Tasks, Music, quick Notes, Today’s progress, and Appearance.',
+    steps:['Use the bottom bar to switch between `Garden`, `Planner`, and `Calendar`. Notes, Reading, Journal, and Crochet are beside them on wide screens or under `More` on small screens.',
+      'In Garden, use `Tasks` to show or hide your task list and five-hour calendar, `Progress` to see today’s sessions, and `Edit landscape` to open Studio with your live design ready to edit.',
+      'Open `Tools` for timer settings, appearance, quick notes, music and sound, the Field Guide, and Help.',
       'Use Planner for task lists, projects, reviews, and reports. Calendar is the full schedule shared with Planner and the Garden’s 5-hour calendar.',
-      'Press `Ctrl+K` to search across tasks, sticky notes, books, and journal entries, or run a command.'],
+      'Choose `Search` or press `Ctrl+K` to search across tasks, sticky notes, books, and journal entries, or run a command.'],
     tip:'Open this guide from the floating Help button, press F1, or search for Help in Ctrl+K.',
     related:['search','calendar','backup']
   },
@@ -42,7 +43,7 @@ export const helpTopics = [
   {
     id:'routines', group:'Focus & rest', title:'Save timer routines and an intention',
     summary:'Keep favorite focus and break lengths ready to use.',
-    steps:['In Garden, open `Settings` from the top tools.',
+    steps:['In Garden, open `Tools` → `Timer settings`.',
       'Set Focus and Rest lengths and add a session intention under `What are you making space for?`. Choose `Save rhythm`.',
       'Use the routines section to apply Classic (25/5), Deep work (50/10), or a routine you saved.',
       'To save your own routine, give it a name and set its focus and rest lengths, then save it.',
@@ -91,7 +92,7 @@ export const helpTopics = [
   {
     id:'break-ideas', group:'Focus & rest', title:'Save break ideas that fit the timer',
     summary:'Keep a personal list of 2-, 5-, and 10-minute ways to take a break.',
-    steps:['In Garden, open `Settings` → `Manage break ideas`. Name the activity, choose 2, 5, or 10 minutes, and select `Add idea`.',
+    steps:['In Garden, open `Tools` → `Timer settings` → `Manage break ideas`. Name the activity, choose 2, 5, or 10 minutes, and select `Add idea`.',
       'During Rest, select `Break idea` beneath the timer. Garden suggests an activity at the longest saved length that fits the time left.',
       'Choose `Another idea` when more than one activity fits at that length. Use `Remove` to take an idea off your list.'],
     action:'focus', actionLabel:'Open Garden', related:['timer','backup']
@@ -118,7 +119,7 @@ export const helpTopics = [
   {
     id:'notifications', group:'Focus & rest', title:'Timer warnings and optional chimes',
     summary:'Get a five-minute focus warning and a 2:30 break warning.',
-    steps:['Open Garden → `Settings` → `Timer warnings`.',
+    steps:['Open Garden → `Tools` → `Timer settings` → `Timer warnings`.',
       'Choose `Enable browser notifications` and allow notifications when your browser asks.',
       'Focus sessions warn at `5:00` remaining; breaks warn at `2:30`. A phase shorter than its warning threshold does not produce that warning.',
       'Choose `Adjust chimes and ambience` to control the separate focus and break sound volumes.'],
@@ -128,7 +129,7 @@ export const helpTopics = [
   {
     id:'progress', group:'Focus & rest', title:'See today’s progress and blossoms',
     summary:'Check today’s completed sessions, focus minutes, and skipped sessions.',
-    steps:['In Garden, choose `Today` in the top tools.',
+    steps:['In Garden, choose `Progress` in the top tools.',
       'Read your completed-session count and total focus minutes. The list shows each session’s finish time, intention, and outcome.',
       'Each completed focus session adds a blossom. Skipped sessions are recorded separately and do not add to completed totals.',
       'For earlier dates or project-level statistics, use Planner → `Reporting`.'],
@@ -149,7 +150,7 @@ export const helpTopics = [
     summary:'Explore trees for projects, lanterns for books, stars for tests, and cairns for milestones.',
     steps:['Open a project in Planner. In Project overview, choose `Mark project finished` to plant its tree.',
       'Open a book in Reading and choose `Mark book finished` to add its lantern to the lake. Lanterns glow after dark.',
-      'In Garden, open `Today` → `Open Garden Field Guide`, or find it with `Ctrl+K`. Filter the illustrated entries by landmark type and date range. Choose an entry to highlight it in the landscape.',
+      'In Garden, open `Progress` → `Open Garden Field Guide`, or find it with `Ctrl+K`. Filter the illustrated entries by landmark type and date range. Choose an entry to highlight it in the landscape.',
       'Set an end date and choose `View Garden at end date` to see all landmarks earned through that day. Use `Return to today` to exit the historical view.',
       'Open a tree, lantern, or cairn and expand `Place landmark`. Choose West shore, Lake island, or Pagoda shore. Enter a group name and leave the area on Automatic to reuse that group’s area. A new group without an area starts at Lake island.',
       'Click or tab to a landmark in Garden to open its details. A book lantern shows the finish date, first logged reading date if available, and final rating. Choose `Open in Reading` for the full entry.',
@@ -494,7 +495,7 @@ export const helpTopics = [
   {
     id:'capture', group:'Thoughts & notes', title:'Capture a distracting thought',
     summary:'Get a thought out of your head without losing your place.',
-    steps:['Press `Ctrl+Alt+N` while using the app, or open Garden’s top `Notes` tool and choose `Quick capture`.',
+    steps:['Press `Ctrl+Alt+N` while using the app, or open Garden → `Tools` → `Quick notes` and choose `Quick capture`.',
       'Write the thought and press `Ctrl+Enter` or choose `Save note`. Escape closes capture without submitting it.',
       'When a task is selected in Garden, check `Remember` in the browser capture or its mini window to attach the task and any active calendar block.',
       'Open the `Note inbox` in Notes to sort your captured thoughts.',
@@ -677,7 +678,7 @@ export const helpTopics = [
   {
     id:'appearance', group:'Make it yours', title:'Lighting, seasons, weather, and saved looks',
     summary:'Customize the landscape and switch looks by time of day.',
-    steps:['In Garden, open `Appearance` from the top tools.',
+    steps:['In Garden, open `Tools` → `Appearance`.',
       'Choose lighting. `Follow timer` ties sunrise and sunset to focus progress; fixed day or night looks keep a steady atmosphere.',
       'Use the `Season wheel` to preview Spring, Summer, Autumn, or Winter on the same view of the lake. Choose `Apply season` to switch the live Garden, or save a named look directly from the preview.',
       'Set weather manually or choose `Rotate every 8 minutes` for seasonal changes.',
@@ -692,7 +693,7 @@ export const helpTopics = [
   {
     id:'garden-studio',group:'Make it yours',title:'Build a landscape in Garden Studio',
     summary:'Swap scenery, frame the lake, move landmarks, and save separate layouts.',
-    steps:['In Garden, open `Appearance` → `Open Garden Studio`. Start from the live Garden, a seasonal starter layout, or a saved layout. Choose mountains, shoreline, a building, and a path. Change `View` to frame the lake or pagoda shore. Preview a season, palette, lighting, and weather alongside the scenery.',
+    steps:['On the Garden home screen, choose `Edit landscape`. Start from the live Garden, a seasonal starter layout, or a saved layout. Choose mountains, shoreline, a building, and a path. Change `View` to frame the lake or pagoda shore. Preview a season, palette, lighting, and weather alongside the scenery.',
       'Under `Move a landmark`, select a tree, lantern, or cairn. Click the preview, drag its pin, or use the sliders with the arrow keys. `Reset this landmark` returns it to automatic placement. Studio positions apply to that layout.',
       'Enter a name and choose `Save layout` to keep it in your library. Use `Save and apply` to change the live Garden. Applying a layout pauses daily appearance presets. Use `Save a copy` to make a separate variation.',
       'Set `Archive landmarks through` to keep a semester view to the landmarks earned by that date. Applying that layout to the live Garden includes current landmarks. From the Field Guide, open a saved layout and use `Return to today` to leave the archived view.',
@@ -703,7 +704,7 @@ export const helpTopics = [
   {
     id:'garden-postcard',group:'Make it yours',title:'Export a Garden postcard',
     summary:'Download a 1600 × 900 PNG of the landscape with an optional caption.',
-    steps:['In Garden, open Appearance or the Field Guide and choose `Export postcard`.',
+    steps:['In Garden, open `Tools` → `Appearance` or `Garden Field Guide`, then choose `Export postcard`.',
       'Type a caption such as a semester title or milestone, choose `Use month`, or leave it blank.',
       'Choose `Download PNG`. To export an earlier Garden, first open a historical view from the Field Guide.'],
     action:'garden-postcard',actionLabel:'Open postcard export',related:['garden-growth','garden-inscriptions','garden-comparison','appearance']
@@ -711,7 +712,7 @@ export const helpTopics = [
   {
     id:'music', group:'Make it yours', title:'Spotify, optional ambience, and silence',
     summary:'Play your playlists and choose whether the app makes any sound.',
-    steps:['In Garden, open `Music`. Paste a Spotify playlist, album, or track link and choose `Load`.',
+    steps:['In Garden, open `Tools` → `Music & sound`. Paste a Spotify playlist, album, or track link and choose `Load`.',
       'Use the embedded player or `Open Spotify` to play music externally.',
       'Optional rain, water, and wind have independent volume sliders. Focus and break chimes have separate sliders too. Zero disables a channel; `Silence` clears the ambience mix.',
       'Use `Mute all app sounds` for silence. If music is playing outside the embedded player, turn on `Music playing elsewhere` to pause app sounds.'],

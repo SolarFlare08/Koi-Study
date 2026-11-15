@@ -1,5 +1,5 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit} from './state.js';
-import {renderLandscape,objects,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
+import {renderLandscape,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
@@ -374,7 +374,6 @@ $('#garden-landmarks').addEventListener('click',event=>{
 });
 $('#garden-snapshot-close').onclick=()=>setGardenSnapshot('');
 $('#garden-snapshot [data-open-postcard]').onclick=event=>openGardenPostcard(undefined,event.currentTarget);
-$('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",music:"music",notes:"spark",progress:"target",appearance:"appearance"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",music:"Music",notes:"Notes",progress:"Today",appearance:"Appearance"})[o.id]}</span></button>`).join('');
 const crochet=installCrochet({root:$('#crochet-workspace'),storage,notify:message=>{toast(message);announce(message);}});
 const journal=installJournal({root:$('#journal-workspace'),storage,projects:()=>loadCrochet(storage).projects,notify:confirmChange,
   getTemplates:()=>state.journalTemplates,saveTemplates:templates=>{
@@ -450,8 +449,29 @@ function setTaskSidebar(open){
 const taskToggle=$('[data-panel="tasks"]');
 taskToggle.removeAttribute('aria-haspopup');
 taskToggle.setAttribute('aria-controls','task-sidebar');
-taskToggle.setAttribute('aria-label','Show or hide tasks');
 const calendarToggle=$('#workspace-tabs [data-workspace="calendar"]');
+const workspaceNav=$('#workspace-tabs'),workspaceMore=$('#workspace-more'),workspaceLibrary=$('#workspace-library');
+const compactNavigation=matchMedia('(max-width:640px)');
+function setWorkspaceMenu(open,restore=false){
+  workspaceMore.setAttribute('aria-expanded',String(open));
+  if(restore)workspaceMore.focus({preventScroll:true});
+  if(open)(workspaceLibrary.querySelector('[aria-pressed="true"]')||workspaceLibrary.querySelector('button')).focus({preventScroll:true});
+}
+function workspaceMenuOpen(){return workspaceMore.getAttribute('aria-expanded')==='true';}
+workspaceMore.onclick=()=>{
+  const open=workspaceMenuOpen();
+  setWorkspaceMenu(!open,open);
+};
+workspaceNav.addEventListener('focusout',event=>{
+  if(workspaceMenuOpen()&&event.relatedTarget&&!workspaceNav.contains(event.relatedTarget))setWorkspaceMenu(false);
+});
+compactNavigation.addEventListener('change',()=>{
+  const focused=document.activeElement;
+  setWorkspaceMenu(false);
+  if(compactNavigation.matches&&workspaceLibrary.contains(focused))workspaceMore.focus({preventScroll:true});
+  if(!compactNavigation.matches&&focused===workspaceMore)workspaceButton(workspace).focus({preventScroll:true});
+});
+function gardenToolAnchor(id){return $('#objects [data-panel="'+id+'"]')||$('#garden-tools');}
 function inSchedule(){return workspace==='planner'||workspace==='calendar';}
 let sidebarBeforeFocus=desktopTasks.matches;
 setTaskSidebar(sidebarBeforeFocus);
@@ -470,14 +490,21 @@ function showWorkspace(next){
   if(next==='reading')reading.render();
   focusNotes.update(next==='focus'?focusedTask():null,next==='focus');
   $('#objects').hidden=next!=='focus';
+  $('#garden-tools').hidden=next!=='focus';
   $('#penguin').hidden=next!=='focus';
-  document.querySelectorAll('[data-workspace]').forEach(button=>{
-    if(button.tagName==='BUTTON')button.setAttribute('aria-pressed',String(button.dataset.workspace===next));
+  workspaceNav.querySelectorAll('button[data-workspace]').forEach(button=>{
+    button.setAttribute('aria-pressed',String(button.dataset.workspace===next));
   });
+  const current=workspaceLibrary.querySelector('[aria-pressed="true"] .workspace-label');
+  workspaceMore.classList.toggle('workspace-more-current',Boolean(current));
+  workspaceMore.setAttribute('aria-label',current?'More workspaces · Current: '+current.textContent:'More workspaces');
+  setWorkspaceMenu(false);
 }
 $('#workspace-tabs').addEventListener('click',event=>{
   const button=event.target.closest('button[data-workspace]');
-  if(!button||button.dataset.workspace===workspace)return;
+  if(!button)return;
+  const inMore=compactNavigation.matches&&workspaceLibrary.contains(button);
+  if(button.dataset.workspace===workspace){if(inMore)setWorkspaceMenu(false,true);return;}
   closePanel(false);closeTaskMenu(false);
   const next=button.dataset.workspace;
   if(next==='planner'||next==='calendar'){openSchedule(next,button);return;}
@@ -487,7 +514,7 @@ $('#workspace-tabs').addEventListener('click',event=>{
   }
   showWorkspace(next);
   setTaskSidebar(next==='focus'&&desktopTasks.matches);
-  button.focus({preventScroll:true});
+  (inMore?workspaceMore:button).focus({preventScroll:true});
 });
 
 function workspaceButton(name){return $(`#workspace-tabs [data-workspace="${name}"]`);}
@@ -631,7 +658,7 @@ function runHelpAction(action){
     visitWorkspace('focus');
     const panel=panels[action];
     const anchor=panel==='capture'?'notes':['garden-history','day-recap'].includes(panel)?'progress':panel;
-    openPanel(panel,$(`[data-panel="${anchor}"]`));
+    openPanel(panel,gardenToolAnchor(anchor));
   }
 }
 
@@ -1062,7 +1089,7 @@ function setGardenSnapshot(through,layoutId=''){
 function openGardenStudio(){
   if(state.focusMode)toggleFocusMode();
   visitWorkspace('focus');
-  openPanel('garden-studio',$('[data-panel="appearance"]'));
+  openPanel('garden-studio',$('#edit-current-landscape'));
 }
 function saveStudioLayouts(layouts,applied){
   const {gardenLayouts,gardenDesign,appearance,gardenSchedule}=state;
@@ -2287,6 +2314,19 @@ function panelContent(id){
     <p class="capture-shortcuts"><kbd>N</kbd> Next <kbd>P</kbd> Previous${captureInboxTab==='inbox'?' <kbd>F</kbd> File <kbd>L</kbd> Link <kbd>A</kbd> Archive':''}</p>
     <div id="capture-inbox-list">${captureInboxList()}</div>`;
   if(id==='garden-studio')return header('GARDEN','Garden Studio')+studio.markup();
+  if(id==='garden-tools'){
+    const tools=[
+      ['pagoda','focus','Timer settings','Durations, routines, chimes, and backups'],
+      ['appearance','appearance','Appearance','Light, seasons, weather, and saved looks'],
+      ['notes','note','Quick notes','Capture a distraction or open the note inbox'],
+      ['music','music','Music & sound','Spotify, ambience, and mute'],
+      ['garden-history','sprout','Garden Field Guide','Landmarks, saved layouts, and postcards'],
+      ['help','help','Help','How-to guides and shortcuts']
+    ];
+    return header('GARDEN','Tools')+`<div class="garden-tools-list">${tools.map(([id,symbol,label,description])=>
+      `<button type="button" data-home-tool="${id}" aria-haspopup="dialog">${icon(symbol)}
+        <span><strong>${label}</strong><small>${description}</small></span>${icon('down')}</button>`).join('')}</div>`;
+  }
   if(id==='appearance'){
     const {lighting,season,motion,palette}=state.appearance;
     return `${header('GARDEN APPEARANCE','Light and seasons')}
@@ -2421,7 +2461,7 @@ function positionPanel(panel,anchor){
   const placement=anchor.isConnected?anchor:anchor.classList.contains('recap-entry')&&recapOrigin?.isConnected?recapOrigin:anchor;
   const r=placement.getBoundingClientRect(),w=panel.offsetWidth,h=panel.offsetHeight,W=window.innerWidth,H=window.innerHeight;
   let x=r.left+r.width/2-w/2,y=r.top-h+15;
-  if(anchor.classList.contains('world-object')) y=r.bottom+12;
+  if(anchor.classList.contains('garden-action')) y=r.bottom+9;
   if(y<16)y=r.bottom-15;
   if(placement.matches('[data-garden-landmark]')){
     const right=r.right+12,left=r.left-w-12;
@@ -2452,7 +2492,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(id==='music')syncSound();
   positionPanel(panel,anchor);wake();
-  const firstControl=panel.querySelector(id==='appearance'?'input:checked':'input,textarea,select')||panel.querySelector('button');
+  const firstControl=panel.querySelector(id==='garden-tools'?'[data-home-tool]':id==='appearance'?'input:checked':'input,textarea,select')||panel.querySelector('button');
   const initialFocus=['replan-today','plan-tomorrow','plan-deadline','build-week','project-context','schedule-drop','garden-landmark','garden-comparison','garden-studio'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
   if(initialFocus.id==='panel-title')initialFocus.tabIndex=-1;
   initialFocus.focus({preventScroll:true});
@@ -4025,7 +4065,13 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
-  if(e.target.closest('#open-break-ideas')){openPanel('break-ideas',$('[data-panel="pagoda"]'));return;}
+  const homeTool=e.target.closest('[data-home-tool]');
+  if(homeTool){
+    const id=homeTool.dataset.homeTool;
+    if(id==='help'){closePanel();helpGuide.open();return;}
+    openPanel(id,gardenToolAnchor(id));return;
+  }
+  if(e.target.closest('#open-break-ideas')){openPanel('break-ideas',gardenToolAnchor('pagoda'));return;}
   if(e.target.closest('#next-break-idea')){breakIdeaIndex++;renderBreakSuggestion();return;}
   const removeIdea=e.target.closest('[data-remove-break-idea]');
   if(removeIdea){
@@ -4170,7 +4216,7 @@ root.addEventListener('click',e=>{
   const routineEditorButton=e.target.closest('#add-routine-sequence,[data-edit-routine]');
   if(routineEditorButton){
     editingRoutineId=routineEditorButton.dataset.editRoutine||null;
-    openPanel('routine-editor',$('[data-panel="pagoda"]'));return;
+    openPanel('routine-editor',gardenToolAnchor('pagoda'));return;
   }
   const fit=e.target.closest('[data-fit-task]');
   if(fit){
@@ -4270,7 +4316,7 @@ root.addEventListener('click',e=>{
   }
   if(btn.id==='panel-timer-toggle')$('#toggle-timer').click();
   if(btn.id==='timer-notifications')toggleNotifications();
-  if(btn.id==='timer-open-sounds')openPanel('music',$('[data-panel="music"]'));
+  if(btn.id==='timer-open-sounds')openPanel('music',gardenToolAnchor('music'));
   if(btn.dataset.removeGardenPreset){
     state.gardenSchedule.presets=state.gardenSchedule.presets.filter(item=>item.time!==btn.dataset.removeGardenPreset);
     persist();render();refreshPanel();$('#garden-preset-time')?.focus();
@@ -4279,7 +4325,7 @@ root.addEventListener('click',e=>{
     for(const kind of ['rain','water','wind'])changeSound(kind,0);
     persist();
   }
-  if(btn.id==='quick-capture')openPanel('capture',$('[data-panel="notes"]'));
+  if(btn.id==='quick-capture')openPanel('capture',gardenToolAnchor('notes'));
   if(btn.id==='capture-window'){
     const left=Math.round(capturePointer?.screenX??window.screenX);
     const top=Math.round(capturePointer?.screenY??window.screenY);
@@ -4588,7 +4634,7 @@ root.addEventListener('submit',e=>{
     const routine={id:editingRoutineId||crypto.randomUUID(),name,phases};
     state.routines=editingRoutineId?prior.map(item=>item.id===editingRoutineId?routine:item):[...prior,routine];
     if(!persist()){state.routines=prior;return;}
-    openPanel('pagoda',$('[data-panel="pagoda"]'));
+    openPanel('pagoda',gardenToolAnchor('pagoda'));
     root.querySelector(`[data-routine="${CSS.escape(routine.id)}"]`)?.focus({preventScroll:true});
     confirmChange('Routine saved.');return;
   }
@@ -4879,6 +4925,7 @@ root.addEventListener('submit',e=>{
 });
 document.addEventListener('click',()=>syncSound(true),{capture:true});
 document.addEventListener('pointerdown',e=>{
+  if(workspaceMenuOpen()&&!workspaceNav.contains(e.target))setWorkspaceMenu(false);
   if(!taskMenu.hidden&&!e.target.closest('#task-menu'))closeTaskMenu(false);
   if(activePanel&&!e.target.closest('.panel, dialog[open], #undo-toast, [data-garden-landmark]')&&!e.target.closest('[data-panel]')&&!e.target.closest('#music-shortcut')&&!e.target.closest('#current-task, #resume-task, #finish-current-task'))closePanel(false);
 });
@@ -4912,7 +4959,7 @@ document.addEventListener('click',event=>{
         stickyBoard.render();
         const input=$('#notes-input');
         toast('Thought saved as a sticky note.');
-        if(fromInbox)captureInboxFocus();else (input||$('[data-panel="notes"]')).focus({preventScroll:true});
+        if(fromInbox)captureInboxFocus();else (input||gardenToolAnchor('notes')).focus({preventScroll:true});
       }
     }
     return;
@@ -4930,7 +4977,8 @@ document.addEventListener('keydown',e=>{
   if(e.ctrlKey&&e.altKey&&e.code==='KeyN'&&!e.repeat){
     e.preventDefault();
     if(activePanel!=='capture'){
-      const fallback=state.focusMode?focusModeButton:$('#workspace-tabs button[aria-pressed="true"]');
+      const activeWorkspace=workspaceButton(workspace);
+      const fallback=state.focusMode?focusModeButton:activeWorkspace?.getClientRects().length?activeWorkspace:workspaceMore;
       openPanel('capture',document.activeElement===document.body?fallback:document.activeElement);
     }
     return;
@@ -4939,6 +4987,7 @@ document.addEventListener('keydown',e=>{
     const form=activePanel==='capture'?$('#capture-form'):activePanel==='resume'?$('#resume-form'):null;
     if(form){e.preventDefault();form.requestSubmit();return;}
   }
+  if(e.key==='Escape'&&workspaceMenuOpen()){e.preventDefault();setWorkspaceMenu(false,true);return;}
   if(e.key==='Escape'&&!taskMenu.hidden){e.preventDefault();closeTaskMenu();return;}
   if(e.key==='Escape'&&activePanel){e.preventDefault();closePanel();return;}
   if(e.key==='Escape'&&inSchedule()&&planner.calendarVisible()&&!calendarShelf.hidden){e.preventDefault();setCalendarShelf(false);return;}

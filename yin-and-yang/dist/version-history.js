@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'3.1.0',date:'2026-11-14',title:'Clearer Garden home navigation',changes:[
+    'Open the current Garden design directly with Edit landscape.',
+    'Use labeled Tasks, Progress, Tools, and Search controls on the Garden home screen, with clearer timer and task text at dusk.',
+    'Keep Garden, Planner, and Calendar visible on narrow screens and find Notes, Reading, Journal, and Crochet under More.'
+  ]},
   {version:'3.0.0',date:'2026-11-14',title:'Garden Studio',changes:[
     'Build a Garden from interchangeable mountains, shorelines, buildings, and paths. Choose a camera view and preview the season, light, palette, and weather.',
     'Place trees, lanterns, and cairns on the preview or use keyboard-accessible sliders. Save a custom placement in each layout.',

@@ -4,7 +4,6 @@ import {gardenFrame,gardenLandmarkKey,defaultGardenDesign} from './garden-layout
 import {gardenPieces} from './garden-pieces.js';
 import {gardenWeather,sceneProgress,sceneryWeatherLayers} from './garden-appearance.js';
 import {alternateBoats,alternateBoatLights,mountainSnowCut,seasonalTree,shoreDetails,snowbank,weatherMarkup} from './seasonal-scenery.js';
-export const objects=[['pagoda','Timer settings'],['tasks','Add tasks'],['music','Your Spotify'],['notes','Distraction notes'],['progress','Today’s progress'],['appearance','Appearance']].map(([id,hint])=>({id,hint,label:hint,className:'',art:''}));
 const boatOrigin='783 751';
 function pine(x,y,scale=1){
   return `<g transform="translate(${x} ${y}) scale(${scale})">
@@ -325,6 +324,10 @@ function paintLight(nodes,p,lighting,width,height){
   nodes.moon.setAttribute('transform',`translate(${800+Math.min(280,width/scale*.34)} ${Math.max(145,(900-height/scale)/2+83)})`);
   nodes.moon.setAttribute('opacity',lighting==='night'?'.94':'0');
   nodes.shine.setAttribute('opacity',(1-light.night)*light.sunlight);nodes.sun.setAttribute('opacity',light.sunlight);nodes.halo.setAttribute('opacity',light.sunlight);nodes.sun.setAttribute('fill',blend('#fff2ca','#eea177',Math.pow(Math.abs(k-.5)*2,3)));
+  const dark=light.night>=.58;
+  nodes.app.style.setProperty('--garden-ink',dark?'#f6edd7':'#263f43');
+  nodes.app.style.setProperty('--garden-muted',dark?'#e1ddd0':'#385359');
+  nodes.app.style.setProperty('--garden-paper',dark?'#26394a':'#e9e6d8');
   nodes.app.style.setProperty('--scene-ink',blend('#34565a','#f1e6d3',light.night));
   nodes.app.style.setProperty('--scene-muted',blend('#55726c','#c9cdd1',light.night));
   nodes.app.style.setProperty('--scene-paper',blend('#e7eadc','#26394a',light.night));

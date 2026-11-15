@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="./sticky-notes.css">
   <link rel="stylesheet" href="./workspace-tools.css">
   <link rel="stylesheet" href="./help.css">
+  <link rel="stylesheet" href="./garden-navigation.css">
 </head>
 <body>
   <main id="app" data-workspace="focus" aria-label="Yin and Yang study garden">
@@ -22,8 +23,17 @@
     <div id="garden-landmarks" role="group" aria-label="Garden landmarks"></div>
     <aside id="garden-snapshot" hidden><span id="garden-snapshot-date"></span><button type="button" data-open-postcard>Export view</button><button id="garden-snapshot-close" type="button">Return to today</button></aside>
     <header class="topbar">
-      <nav id="objects" aria-label="Garden tools"></nav>
-      <div class="top-actions"><button id="open-command-palette" data-command-launch class="icon-button" type="button" aria-label="Open command palette" title="Search and actions (Ctrl+K)" aria-keyshortcuts="Control+K Meta+K" aria-haspopup="dialog"><span data-icon="search"></span></button><button id="focus-mode" class="quiet-button" aria-pressed="false" title="Hide tasks, the planner, and garden tools"><span class="icon" data-icon="focus"></span><span id="focus-mode-label">Focus mode</span></button><button id="fullscreen" class="icon-button" aria-label="Enter fullscreen" title="Enter fullscreen"><span data-icon="expand"></span></button></div>
+      <nav id="objects" aria-label="Garden shortcuts">
+        <button id="garden-tasks" class="garden-action" type="button" data-panel="tasks" aria-controls="task-sidebar" aria-expanded="false"><span data-icon="list" aria-hidden="true"></span>Tasks</button>
+        <button class="garden-action" type="button" data-panel="progress" aria-haspopup="dialog" aria-expanded="false"><span data-icon="sprout" aria-hidden="true"></span>Progress</button>
+        <button id="edit-current-landscape" class="garden-action garden-edit" type="button" data-panel="garden-studio" aria-haspopup="dialog" aria-expanded="false"><span data-icon="appearance" aria-hidden="true"></span>Edit landscape</button>
+      </nav>
+      <div class="top-actions">
+        <button id="garden-tools" class="garden-action" type="button" data-panel="garden-tools" aria-haspopup="dialog" aria-expanded="false"><span data-icon="down" aria-hidden="true"></span>Tools</button>
+        <button id="open-command-palette" data-command-launch class="garden-action" type="button" aria-label="Search and actions" title="Search and actions (Ctrl+K)" aria-keyshortcuts="Control+K Meta+K" aria-haspopup="dialog"><span data-icon="search" aria-hidden="true"></span>Search</button>
+        <button id="focus-mode" class="garden-action quiet-button" aria-pressed="false" title="Hide tasks, the planner, and garden tools"><span class="icon" data-icon="focus" aria-hidden="true"></span><span id="focus-mode-label">Focus mode</span></button>
+        <button id="fullscreen" class="icon-button" aria-label="Enter fullscreen" title="Enter fullscreen"><span data-icon="expand" aria-hidden="true"></span></button>
+      </div>
     </header>
     <section class="sky" aria-label="Study timer">
       <div class="timer-readout">
@@ -169,14 +179,19 @@
     <section id="journal-workspace" aria-labelledby="journal-heading" hidden></section>
     <section id="notes-workspace" aria-labelledby="notes-heading" hidden></section>
     <section id="reading-workspace" aria-labelledby="reading-heading" hidden></section>
-    <nav id="workspace-tabs" aria-label="App workspace">
-      <button type="button" data-workspace="focus" aria-pressed="true"><span data-icon="sprout"></span>Garden</button>
-      <button type="button" data-workspace="planner" aria-controls="calendar-panel" aria-pressed="false"><span data-icon="list"></span>Planner</button>
-      <button type="button" data-workspace="calendar" aria-controls="calendar-panel" aria-pressed="false"><span data-icon="calendar"></span>Calendar</button>
-      <button type="button" data-workspace="crochet" aria-controls="crochet-workspace" aria-pressed="false"><span data-icon="yarn"></span>Crochet</button>
-      <button type="button" data-workspace="journal" aria-controls="journal-workspace" aria-pressed="false"><span data-icon="journal"></span>Journal</button>
-      <button type="button" data-workspace="notes" aria-controls="notes-workspace" aria-pressed="false"><span data-icon="note"></span>Notes</button>
-      <button type="button" data-workspace="reading" aria-controls="reading-workspace" aria-pressed="false"><span data-icon="book"></span>Reading</button>
+    <nav id="workspace-tabs" aria-label="Workspaces">
+      <div class="workspace-primary" role="group" aria-label="Study and plan">
+        <button type="button" data-workspace="focus" aria-pressed="true" title="Garden · Focus timer and today’s tasks"><span data-icon="sprout" aria-hidden="true"></span><span class="workspace-label">Garden</span></button>
+        <button type="button" data-workspace="planner" aria-controls="calendar-panel" aria-pressed="false" title="Planner · Tasks and projects"><span data-icon="list" aria-hidden="true"></span><span class="workspace-label">Planner</span></button>
+        <button type="button" data-workspace="calendar" aria-controls="calendar-panel" aria-pressed="false" title="Calendar · Schedule and focus blocks"><span data-icon="calendar" aria-hidden="true"></span><span class="workspace-label">Calendar</span></button>
+      </div>
+      <button id="workspace-more" type="button" aria-expanded="false" aria-controls="workspace-library"><span data-icon="down" aria-hidden="true"></span><span class="workspace-label">More</span></button>
+      <div id="workspace-library" role="group" aria-label="More workspaces">
+        <button type="button" data-workspace="notes" aria-controls="notes-workspace" aria-pressed="false" title="Notes · Sticky notes and captured thoughts"><span data-icon="note" aria-hidden="true"></span><span class="workspace-label">Notes</span><small>Sticky notes and captured thoughts</small></button>
+        <button type="button" data-workspace="reading" aria-controls="reading-workspace" aria-pressed="false" title="Reading · Books, annotations, and reviews"><span data-icon="book" aria-hidden="true"></span><span class="workspace-label">Reading</span><small>Books, annotations, and reviews</small></button>
+        <button type="button" data-workspace="journal" aria-controls="journal-workspace" aria-pressed="false" title="Journal · Entries and reflections"><span data-icon="journal" aria-hidden="true"></span><span class="workspace-label">Journal</span><small>Entries and reflections</small></button>
+        <button type="button" data-workspace="crochet" aria-controls="crochet-workspace" aria-pressed="false" title="Crochet · Stitchbook projects and yarn"><span data-icon="yarn" aria-hidden="true"></span><span class="workspace-label">Crochet</span><small>Stitchbook projects and yarn</small></button>
+      </div>
     </nav>
     <button id="open-help" class="help-launch secondary" type="button" aria-label="Open Help" aria-haspopup="dialog" aria-controls="help-guide" aria-keyshortcuts="F1" title="Help and how-to guides (F1)"><span data-icon="help"></span><span>Help</span></button>
     <dialog id="help-guide" aria-labelledby="help-title"></dialog>
