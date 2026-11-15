@@ -109,3 +109,18 @@
 .crochet-time-history h4 { margin: 0 0 5px; font-size: 13px; }
 .crochet-time-history ul { padding: 0; margin: 0; list-style: none; }
 .crochet-time-history li { padding-block: 3px; font-size: 12px; }
+
+.crochet-row-instruction {
+  margin: 4px 0 7px; padding: 7px 9px; border-inline-start: 2px solid #9a866e; border-radius: 5px;
+  background: #f4ece1; color: var(--stitch-ink); font-size: 12px; line-height: 1.5; white-space: pre-line;
+}
+.crochet-row-instruction:has([data-instruction-done]:not([hidden])) { color: var(--stitch-muted); }
+.crochet-row-instruction small { margin-inline-start: 5px; font-size: 10px; font-weight: 650; color: var(--stitch-green); }
+.crochet-instruction-fields { display: grid; gap: 8px; }
+.crochet-substitution { margin-bottom: 14px; border: 1px solid var(--stitch-line); border-radius: 9px; background: var(--stitch-card); }
+.crochet-substitution summary { padding: 10px 12px; color: var(--stitch-accent); font-size: 14px; font-weight: 650; cursor: pointer; }
+.crochet-substitution form { padding: 4px 12px 12px; max-width: 670px; }
+.crochet-substitution fieldset > label { margin-top: 6px; }
+.crochet-substitution fieldset > label input { max-width: 180px; }
+#crochet-substitution-result { display: grid; gap: 3px; padding: 9px 11px; border-radius: 7px; background: #eee8db; color: var(--stitch-muted); font-size: 12px; }
+#crochet-substitution-result strong { font-size: 17px; color: var(--stitch-green); }

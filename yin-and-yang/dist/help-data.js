@@ -623,6 +623,7 @@ export const helpTopics = [
       'Set a name, status, hook size, rows, optional row goal, pattern link, and notes. Link yarn already in your stash, then Save.',
       'Use the plus/minus row buttons as you work. Row goals show progress, and the status filter helps you find active or finished projects.',
       'Choose `Add counter` for separate counts such as a sleeve or a stitch repeat. Save a checkpoint with a resume note to record the current row and counter values.',
+      'Use `Edit` on a counter, or edit the project for its main Rows counter. Under Next row instruction, enter what to do and optionally set the row number. A blank row number uses the count plus one. The card shows the instruction and marks it Done once you count that row.',
       'Choose `Log time` on a project, enter the date and minutes worked, and save. The project shows its total hours and minutes and the time dialog shows recent sessions.',
       'Choose `Log pattern change` to record a date, row, and change. Open the same dialog to see earlier changes.'],
     tip:'Link a project from Calendar’s daily Crochet item for quick access. Time logs, row counts, and yarn use are separate, so you can update just what changed.',
@@ -634,13 +635,24 @@ export const helpTopics = [
     steps:['In Stitchbook, add yarn to the stash. Enter zero grams on hand for a colorway you still need to buy.',
       'Edit a planned or in-progress project. Link its yarn and enter the total grams needed for each yarn.',
       'Open `Shopping list` to see what to buy. The list credits yarn already logged as used and combines on-hand grams for matching yarn names, colorways, and weights.'],
-    action:'crochet', actionLabel:'Open Stitchbook', related:['crochet-projects','yarn']
+    action:'crochet', actionLabel:'Open Stitchbook', related:['crochet-projects','yarn','yarn-substitution']
+  },
+  {
+    id:'yarn-substitution', group:'Stitchbook', title:'Calculate skeins for a yarn substitution',
+    summary:'Use pattern yardage, replacement skein yardage, and the stash you can use.',
+    steps:['In Stitchbook → `Shopping list`, open `Yarn substitution calculator`.',
+      'Enter the pattern’s total yardage and the replacement yarn’s yards per skein. Stitchbook rounds up to whole skeins.',
+      'Select any usable yarn in the checklist. Add the yarn label’s yards and grams per skein in `Yarn stash` so Stitchbook can convert its remaining grams to estimated yards.',
+      'If you know the yardage of additional stash, enter only that amount under `Other usable stash (yards)`. Read the updated number of skeins to buy and yards left to cover.'],
+    tip:'Select only yarn you intend to use. The calculation leaves your inventory as it is.',
+    action:'crochet', actionLabel:'Open Stitchbook', related:['shopping-list','yarn']
   },
   {
     id:'yarn', group:'Stitchbook', title:'Manage yarn stash and usage',
     summary:'Track colorways, fiber, dye lots, grams remaining, and project use.',
     steps:['Open Crochet → `Yarn stash` → `Add yarn`.',
       'Enter the name, colorway, swatch, weight, grams on hand, fiber, and dye lot, then save.',
+      'Optional. Add the label’s yards per skein and grams per skein to include this yarn in the `Yarn substitution calculator`.',
       'Edit a project to link yarn from your stash.',
       'In Yarn stash, choose `Log use`, enter grams used, and optionally choose a linked project. Logging use reduces stock and adds to the project’s grams used.'],
     tip:'You cannot log more grams than are available. Removing a yarn also unlinks it from projects.',

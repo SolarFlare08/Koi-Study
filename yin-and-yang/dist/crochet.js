@@ -17,9 +17,18 @@ const patternUrl=value=>{
     return ['https:','http:'].includes(url.protocol)?url.href:'';
   } catch { return ''; }
 };
+function rowInstruction(value,count){
+  const text=clean(value?.text,500),row=Number(value?.row);
+  return text?{text,row:Number.isInteger(row)&&row>=1&&row<=100000?row:Math.min(count+1,100000)}:undefined;
+}
 function cleanProject(item){
+  const rows=whole(item.rows);
   const counters=Array.isArray(item.counters)?item.counters.filter(counter=>typeof counter?.id==='string'&&clean(counter.name,60))
-    .map(counter=>({id:counter.id,name:clean(counter.name,60),count:whole(counter.count)})):[];
+    .map(counter=>{
+      const count=whole(counter.count),instruction=rowInstruction(counter.instruction,count);
+      return {id:counter.id,name:clean(counter.name,60),count,...(instruction&&{instruction})};
+    }):[];
+  const instruction=rowInstruction(item.rowInstruction,rows);
   const checkpoints=Array.isArray(item.checkpoints)?item.checkpoints.filter(point=>typeof point?.id==='string'&&Number.isFinite(point.at)&&clean(point.note,1000))
     .map(point=>({id:point.id,at:point.at,note:clean(point.note,1000),rows:whole(point.rows),
       counters:Array.isArray(point.counters)?point.counters.filter(counter=>clean(counter?.name,60))
@@ -29,13 +38,18 @@ function cleanProject(item){
     .map(change=>({id:change.id,at:change.at,row:whole(change.row),note:clean(change.note,1000)})):[];
   const yarnIds=Array.isArray(item.yarnIds)?[...new Set(item.yarnIds.filter(id=>typeof id==='string'))]:[];
   return {id:item.id,name:clean(item.name,100),status:Object.hasOwn(statuses,item.status)?item.status:'planned',
-    rows:whole(item.rows),goal:whole(item.goal),hook:clean(item.hook,40),pattern:patternUrl(clean(item.pattern,1000)),
+    rows,...(instruction&&{rowInstruction:instruction}),goal:whole(item.goal),hook:clean(item.hook,40),pattern:patternUrl(clean(item.pattern,1000)),
     notes:clean(item.notes,3000),counters,checkpoints,patternChanges,yarnIds,
     yarnNeeds:Object.fromEntries(Object.entries(item.yarnNeeds||{}).filter(([id,grams])=>yarnIds.includes(id)&&Number.isInteger(grams)&&grams>0&&grams<=1000000))};
 }
+const skeinMeasure=value=>{
+  const amount=Number(value);
+  return amount>=0.01&&amount<=1000000?amount:0;
+};
 function cleanYarn(item){
+  const skeinYards=skeinMeasure(item.skeinYards),skeinGrams=skeinMeasure(item.skeinGrams);
   return {id:item.id,name:clean(item.name,100),colorway:clean(item.colorway,75),color:color(item.color),
-    grams:whole(item.grams,1000000),weight:weights.includes(item.weight)?item.weight:'',fiber:clean(item.fiber,80),lot:clean(item.lot,45)};
+    grams:whole(item.grams,1000000),weight:weights.includes(item.weight)?item.weight:'',fiber:clean(item.fiber,80),lot:clean(item.lot,45),...(skeinYards&&{skeinYards}),...(skeinGrams&&{skeinGrams})};
 }
 export function loadCrochet(storage){
   try {
@@ -64,6 +78,22 @@ export function logYarnUse(data,{yarnId,projectId='',grams},now=Date.now()){
   yarn.grams-=grams;
   data.usage.push({id:crypto.randomUUID(),yarnId,projectId,grams,at:now});
   return true;
+}
+
+export function yarnStashYards(yarn){
+  const yards=skeinMeasure(yarn.skeinYards),grams=skeinMeasure(yarn.skeinGrams);
+  return yards&&grams?whole(yarn.grams,1000000)*yards/grams:0;
+}
+export function yarnSubstitution(totalYards,yardsPerSkein,stashYards=0){
+  if(!skeinMeasure(totalYards)||!skeinMeasure(yardsPerSkein)||!Number.isFinite(stashYards)||stashYards<0)return null;
+  const skeins=yards=>{
+    const result=yards/yardsPerSkein;
+    const nearest=Math.round(result);
+    return nearest&&Math.abs(result-nearest)<=4*Number.EPSILON*result?nearest:Math.ceil(result);
+  };
+  const difference=totalYards-stashYards;
+  const remainingYards=difference<=4*Number.EPSILON*totalYards?0:difference;
+  return {totalSkeins:skeins(totalYards),remainingYards,toBuy:skeins(remainingYards)};
 }
 
 export function yarnShoppingList(data){
@@ -122,6 +152,16 @@ export function installCrochet({root,storage,notify}){
     data=next;
     return true;
   }
+  function instructionMarkup(instruction,count){
+    if(!instruction)return '';
+    return `<p class="crochet-row-instruction"><strong>Row ${number(instruction.row)}</strong> · ${escape(instruction.text)}
+      <small data-instruction-done ${count<instruction.row?'hidden':''}>Done</small></p>`;
+  }
+  function instructionFields(instruction){
+    return `<fieldset class="crochet-instruction-fields"><legend>Next row instruction</legend>
+      <label>Row number<input name="instructionRow" type="number" min="1" max="100000" step="1" value="${instruction?.row||''}" placeholder="Defaults to the next row"></label>
+      <label>Instruction<textarea name="instructionText" rows="2" maxlength="500" placeholder="e.g. Decrease at both ends">${escape(instruction?.text)}</textarea></label></fieldset>`;
+  }
   function projectCard(project){
     const yarn=project.yarnIds.flatMap(id=>data.yarn.find(item=>item.id===id)||[]);
     const used=data.usage.filter(item=>item.projectId===project.id).reduce((sum,item)=>sum+item.grams,0);
@@ -133,12 +173,13 @@ export function installCrochet({root,storage,notify}){
       <div class="crochet-card-heading"><div><span class="crochet-status" data-status="${project.status}">${statuses[project.status]}</span><h3>${escape(project.name)}</h3></div><button type="button" class="crochet-link" data-crochet-edit="projects" aria-label="Edit ${escape(project.name)}">Edit</button></div>
       <div class="crochet-project-meta">${[project.hook?`Hook ${escape(project.hook)}`:'',project.pattern?`<a href="${escape(project.pattern)}" target="_blank" rel="noopener noreferrer">Pattern ↗</a>`:'',used?`${number(used)} g used`:''].filter(Boolean).join('<span aria-hidden="true"> · </span>')||'Project details'}</div>
       <div class="crochet-counter"><div><span>Rows</span><output aria-label="Rows for ${escape(project.name)}">${number(project.rows)}${project.goal?` <small>/ ${number(project.goal)}</small>`:''}</output></div><div class="crochet-counter-buttons"><button type="button" data-row-step="-1" aria-label="Subtract a row from ${escape(project.name)}" ${project.rows?'':'disabled'}>−</button><button type="button" data-row-step="1" aria-label="Add a row to ${escape(project.name)}" ${project.rows>=100000?'disabled':''}>+</button></div></div>
+      ${instructionMarkup(project.rowInstruction,project.rows)}
       ${percent===null?'':`<progress aria-label="Row goal progress for ${escape(project.name)}" max="100" value="${percent}"></progress>`}
-      <div class="crochet-counters">${project.counters.map(counter=>`<div class="crochet-counter" data-counter-id="${escape(counter.id)}">
+      <div class="crochet-counters">${project.counters.map(counter=>`<div data-counter-id="${escape(counter.id)}"><div class="crochet-counter">
         <div><span>${escape(counter.name)}</span><output aria-label="${escape(counter.name)} count">${number(counter.count)}</output></div>
         <div class="crochet-counter-buttons"><button type="button" data-counter-step="-1" aria-label="Decrease ${escape(counter.name)}" ${counter.count?'':'disabled'}>−</button>
         <button type="button" data-counter-step="1" aria-label="Increase ${escape(counter.name)}" ${counter.count>=100000?'disabled':''}>+</button></div>
-        <button type="button" class="crochet-link" data-crochet-counter aria-label="Edit ${escape(counter.name)} counter">Edit</button></div>`).join('')}</div>
+        <button type="button" class="crochet-link" data-crochet-counter aria-label="Edit ${escape(counter.name)} counter">Edit</button></div>${instructionMarkup(counter.instruction,counter.count)}</div>`).join('')}</div>
       <div class="crochet-checkpoint-actions"><button type="button" class="crochet-link" data-crochet-counter>Add counter</button>
         <button type="button" class="crochet-link" data-crochet-checkpoint>${checkpoint?'Checkpoints':'Save checkpoint'}</button></div>
       ${checkpoint?`<div class="crochet-resume"><strong>Resume here</strong><p>${escape(checkpoint.note)}</p><small>${escape(checkpointCounts(checkpoint))}</small></div>`:''}
@@ -164,6 +205,7 @@ export function installCrochet({root,storage,notify}){
     if(view==='shopping'){
       const rows=yarnShoppingList(data);
       content.innerHTML=`<div class="crochet-list-heading"><p>Shortages for planned and in-progress projects</p></div>
+        ${substitutionMarkup()}
         ${rows.length?`<ul class="crochet-yarn-list shopping-shortages">${rows.map(row=>`<li>
           <h3>${escape(row.colorway||row.name)}</h3><p>${escape([row.colorway?row.name:'',row.weight].filter(Boolean).join(' · '))}</p>
           <strong>${number(row.shortage)} g to buy</strong><p>${number(row.needed)} g still needed · ${number(row.onHand)} g on hand</p>
@@ -180,6 +222,40 @@ export function installCrochet({root,storage,notify}){
       content.innerHTML=`<div class="crochet-list-heading"><p>${data.yarn.length} ${data.yarn.length===1?'yarn':'yarns'} <span>·</span> ${number(total)} g on hand</p></div>
         ${data.yarn.length?`<ul class="crochet-yarn-list">${data.yarn.map(yarnRow).join('')}</ul>`:'<div class="crochet-empty"><h3>Your yarn basket is empty</h3><p>Add a yarn to track its colorway, dye lot, and how much you have left.</p></div>'}`;
     }
+    if(view==='shopping')updateSubstitution();
+  }
+
+  function substitutionMarkup(){
+    const available=data.yarn.filter(item=>yarnStashYards(item)>0);
+    return `<details class="crochet-substitution"><summary>Yarn substitution calculator</summary>
+      <form id="crochet-substitution-form" class="crochet-dialog-fields">
+        <div class="crochet-fields"><label>Pattern total yardage<input name="total" type="number" min="0.01" max="1000000" step="any" inputmode="decimal" placeholder="e.g. 1200"></label>
+        <label>Replacement yards per skein<input name="skein" type="number" min="0.01" max="1000000" step="any" inputmode="decimal" placeholder="e.g. 220"></label></div>
+        <fieldset><legend>Usable stash</legend>
+          ${available.length?`<div class="crochet-yarn-choices">${available.map(item=>`<label class="crochet-yarn-choice">
+            <input type="checkbox" name="stash" value="${escape(item.id)}"><span>${escape([item.name,item.colorway,item.lot&&'Lot '+item.lot].filter(Boolean).join(' · '))} · approx. ${number(yarnStashYards(item))} yd</span></label>`).join('')}</div>`:
+            '<small>Add yards and grams per skein to a yarn in Yarn stash to include it here.</small>'}
+          <label>Other usable stash (yards)<input name="extra" type="number" min="0" max="1000000" step="any" inputmode="decimal" placeholder="0"></label>
+        </fieldset>
+        <output id="crochet-substitution-result" aria-live="polite"></output>
+      </form></details>`;
+  }
+  function updateSubstitution(){
+    const form=$('#crochet-substitution-form');
+    if(!form)return;
+    const {total,skein,extra}=form.elements;
+    const selected=new Set(new FormData(form).getAll('stash'));
+    const stash=(extra.valueAsNumber||0)+data.yarn.reduce((yards,item)=>yards+(selected.has(item.id)?yarnStashYards(item):0),0);
+    const result=extra.validity.valid?yarnSubstitution(total.valueAsNumber,skein.valueAsNumber,stash):null;
+    const output=$('#crochet-substitution-result');
+    if(!result){
+      output.textContent=[total,skein,extra].some(input=>!input.validity.valid)
+        ?'Check the yardage ranges.' : 'Enter both yardages to calculate how many skeins to buy.';
+      return;
+    }
+    const label=count=>`${number(count)} ${count===1?'skein':'skeins'}`;
+    output.innerHTML=`<strong>${label(result.toBuy)} to buy</strong>
+      <span>${label(result.totalSkeins)} without stash · approx. ${number(stash)} yd of usable stash · ${number(result.remainingYards)} yd left to cover</span>`;
   }
 
   function projectFields(item){
@@ -188,6 +264,7 @@ export function installCrochet({root,storage,notify}){
     return `<label>Project name<input name="name" required maxlength="100" value="${escape(item?.name)}" placeholder="e.g. Willow cardigan"></label>
       <div class="crochet-fields"><label>Status<select name="status">${Object.entries(statuses).map(([key,name])=>`<option value="${key}" ${item?.status===key?'selected':''}>${name}</option>`).join('')}</select></label><label>Hook size<input name="hook" maxlength="40" value="${escape(item?.hook)}" placeholder="e.g. 4 mm"></label>
       <label>Rows worked<input name="rows" type="number" min="0" max="100000" step="1" value="${item?.rows??0}"></label><label>Row goal (optional)<input name="goal" type="number" min="1" max="100000" step="1" value="${item?.goal||''}"></label></div>
+      ${instructionFields(item?.rowInstruction)}
       <label>Pattern link<input name="pattern" type="url" maxlength="1000" value="${escape(item?.pattern)}" placeholder="https://…"></label>
       <fieldset><legend>Yarn for this project</legend>${yarn?`<div class="crochet-yarn-choices">${yarn}</div>`:'<small>Add yarn to your stash to link it here.</small>'}</fieldset>
       <label>Project notes<textarea name="notes" maxlength="3000" rows="3" placeholder="Changes to the pattern, next steps…">${escape(item?.notes)}</textarea></label>`;
@@ -197,7 +274,11 @@ export function installCrochet({root,storage,notify}){
       <div class="crochet-fields"><label>Colorway<input name="colorway" maxlength="75" value="${escape(item?.colorway)}" placeholder="e.g. Dusty rose"></label><label>Swatch<input name="color" type="color" value="${color(item?.color)}"></label>
       <label>Yarn weight<select name="weight"><option value="">Choose a weight</option>${weights.map(weight=>`<option ${item?.weight===weight?'selected':''}>${weight}</option>`).join('')}</select></label>
       <label>Grams on hand<input name="grams" type="number" required min="0" max="1000000" step="1" value="${item?.grams??''}" placeholder="e.g. 100"></label>
-      <label>Fiber<input name="fiber" maxlength="80" value="${escape(item?.fiber)}" placeholder="e.g. Merino wool"></label><label>Dye lot<input name="lot" maxlength="45" value="${escape(item?.lot)}"></label></div>`;
+      <label>Fiber<input name="fiber" maxlength="80" value="${escape(item?.fiber)}" placeholder="e.g. Merino wool"></label><label>Dye lot<input name="lot" maxlength="45" value="${escape(item?.lot)}"></label></div>
+      <fieldset class="crochet-skein-fields"><legend>Skein label (optional)</legend><div class="crochet-fields">
+        <label>Yards per skein<input name="skeinYards" type="number" min="0.01" max="1000000" step="any" inputmode="decimal" value="${item?.skeinYards||''}"></label>
+        <label>Grams per skein<input name="skeinGrams" type="number" min="0.01" max="1000000" step="any" inputmode="decimal" value="${item?.skeinGrams||''}"></label></div>
+        <small>Enter both values to estimate usable yards from grams on hand.</small></fieldset>`;
   }
   function timeFields(project){
     const today=dayKey();
@@ -231,7 +312,7 @@ export function installCrochet({root,storage,notify}){
     editor={kind,id,counterId}; anchor=trigger;
     const title=kind==='pattern-change'?'Pattern changes':kind==='counter'?(counter?'Edit counter':'Add counter'):kind==='checkpoint'?'Checkpoints':kind==='time'?'Log crochet time':kind==='use'?'Log yarn used':kind==='projects'?(item?'Edit project':'New project'):(item?'Edit yarn':'Add yarn');
     const linked=kind==='use'?data.projects.filter(project=>project.yarnIds.includes(id)):[];
-    const fields=kind==='counter'?`<label>Counter name<input name="name" maxlength="60" value="${escape(counter?.name)}" required></label><label>Count<input name="count" type="number" min="0" max="100000" required value="${counter?.count??0}"></label>`:
+    const fields=kind==='counter'?`<label>Counter name<input name="name" maxlength="60" value="${escape(counter?.name)}" required></label><label>Count<input name="count" type="number" min="0" max="100000" required value="${counter?.count??0}"></label>${instructionFields(counter?.instruction)}`:
       kind==='pattern-change'?patternChangeFields(item):kind==='checkpoint'?checkpointFields(item):kind==='time'?timeFields(item):kind==='projects'?projectFields(item):kind==='yarn'?yarnFields(item):
       `<p class="crochet-use-context">${escape(item.name)} · ${number(item.grams)} g on hand</p><label>Grams used<input name="grams" type="number" min="1" max="${item.grams}" required step="1"></label>
       <label>Project (optional)<select name="projectId"><option value="">Stash only</option>${linked.map(project=>`<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('')}</select></label>`;
@@ -247,6 +328,7 @@ export function installCrochet({root,storage,notify}){
     const {kind,id,counterId}=editor;
     const fields=new FormData(form);
     const next=structuredClone(data);
+    const readInstruction=count=>rowInstruction({text:fields.get('instructionText'),row:fields.get('instructionRow')},count);
     const error=$('#crochet-form-error');
     const fail=message=>{error.hidden=false;error.textContent=message;};
     if(kind==='counter'||kind==='checkpoint'||kind==='pattern-change'){
@@ -268,7 +350,8 @@ export function installCrochet({root,storage,notify}){
         else{
           const name=clean(fields.get('name'),60);
           if(!name)return fail('Enter a counter name.');
-          const counter={id:counterId||crypto.randomUUID(),name,count:whole(fields.get('count'))};
+          const count=whole(fields.get('count')),instruction=readInstruction(count);
+          const counter={id:counterId||crypto.randomUUID(),name,count,...(instruction&&{instruction})};
           if(index<0)project.counters.push(counter);else project.counters[index]=counter;
         }
       }
@@ -289,7 +372,7 @@ export function installCrochet({root,storage,notify}){
       const index=next[kind].findIndex(record=>record.id===id);
       if (id&&index<0) return fail('This item was removed in another tab.');
       const yarnNeeds=Object.fromEntries(yarnIds.map(id=>[id,Number(fields.get(`need:${id}`))]));
-      const item=kind==='projects'?cleanProject({...next.projects[index],...values,yarnIds,yarnNeeds}):cleanYarn(values);
+      const item=kind==='projects'?cleanProject({...next.projects[index],...values,yarnIds,yarnNeeds,rowInstruction:readInstruction(whole(values.rows))}):cleanYarn(values);
       if (index<0) next[kind].unshift(item); else next[kind][index]=item;
     }
     if (!commit(next)) return fail('Changes could not be saved on this device.');
@@ -339,6 +422,7 @@ export function installCrochet({root,storage,notify}){
       counter.count=whole(counter.count+Number(action.counterStep));
       if(!commit(next))return;
       row.querySelector('output').textContent=number(counter.count);
+      if(counter.instruction)row.querySelector('[data-instruction-done]').hidden=counter.count<counter.instruction.row;
       row.querySelector('[data-counter-step="-1"]').disabled=counter.count===0;
       row.querySelector('[data-counter-step="1"]').disabled=counter.count>=100000;
       if(button.disabled)row.querySelector('[data-counter-step]:not(:disabled)')?.focus();
@@ -350,12 +434,19 @@ export function installCrochet({root,storage,notify}){
       if (!commit(next)) return;
       const card=button.closest('[data-crochet-id]');
       card.querySelector('output').innerHTML=`${number(project.rows)}${project.goal?` <small>/ ${number(project.goal)}</small>`:''}`;
+      if(project.rowInstruction)card.querySelector(':scope > .crochet-row-instruction [data-instruction-done]').hidden=project.rows<project.rowInstruction.row;
       const progress=card.querySelector('progress');
       if (progress) progress.value=Math.min(100,Math.floor(project.rows/project.goal*100));
       card.querySelector('[data-row-step="-1"]').disabled=project.rows===0;
       card.querySelector('[data-row-step="1"]').disabled=project.rows>=100000;
       if (button.disabled) card.querySelector('[data-row-step]:not(:disabled)')?.focus();
     }
+  });
+  content.addEventListener('input',event=>{
+    if(event.target.form?.id==='crochet-substitution-form')updateSubstitution();
+  });
+  content.addEventListener('submit',event=>{
+    if(event.target.id==='crochet-substitution-form')event.preventDefault();
   });
   content.addEventListener('change',event=>{
     if (event.target.id!=='crochet-filter') return;

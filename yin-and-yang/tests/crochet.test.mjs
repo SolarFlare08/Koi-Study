@@ -1,6 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {CROCHET_KEY,loadCrochet,logYarnUse,yarnShoppingList} from '../dist/crochet.js';
+import {CROCHET_KEY,loadCrochet,logYarnUse,yarnShoppingList,yarnStashYards,yarnSubstitution} from '../dist/crochet.js';
+import {createBackup,readBackup} from '../dist/backup.js';
+import {freshState} from '../dist/state.js';
 
 test('shopping combines matching dye lots and credits yarn already used without counting finished work',()=>{
   const storage={getItem:()=>JSON.stringify({
@@ -34,4 +36,32 @@ test('yarn use updates the stash and linked project together across reloads',()=
   assert.equal(saved.projects[0].rows,6);
   assert.equal(saved.usage[0].projectId,'swatch');
   assert.equal(saved.usage[0].grams,25);
+});
+
+test('row instructions keep their target numbers through Stitchbook backup and restore',()=>{
+  const storage={getItem:key=>key===CROCHET_KEY?JSON.stringify({
+    projects:[{id:'p',name:'Cardigan',rows:17,rowInstruction:{text:'  Decrease at both ends.  '},
+      counters:[{id:'s',name:'Sleeve',count:10,instruction:{row:12,text:'Switch to ribbing.'}},
+        {id:'legacy',name:'Hem',count:8}]}],
+    yarn:[{id:'a',name:'Wool',grams:75,skeinYards:220,skeinGrams:100}],usage:[]
+  }):null};
+  const {crochet}=readBackup(JSON.stringify(createBackup(freshState(),storage,[])));
+  const [project]=crochet.projects;
+  assert.deepEqual(project.rowInstruction,{row:18,text:'Decrease at both ends.'});
+  assert.deepEqual(project.counters[0].instruction,{row:12,text:'Switch to ribbing.'});
+  assert.equal(project.counters[1].instruction,undefined);
+  assert.equal(yarnStashYards(crochet.yarn[0]),165);
+});
+
+test('substitution credits partial skeins and rounds only the balance up to whole skeins',()=>{
+  const yarn={grams:75,skeinYards:220,skeinGrams:100};
+  const yards=yarnStashYards(yarn);
+  assert.equal(yards,165);
+  assert.equal(yarnStashYards({grams:100,skeinYards:220}),0);
+  assert.deepEqual(yarnSubstitution(1200,220,yards+155),{totalSkeins:6,remainingYards:880,toBuy:4});
+  assert.deepEqual(yarnSubstitution(165,220,yards),{totalSkeins:1,remainingYards:0,toBuy:0});
+  assert.equal(yarnSubstitution(0.1+0.2,0.1).toBuy,3);
+  assert.equal(yarnSubstitution(1200,0),null);
+  assert.equal(yarnSubstitution(1200,220,-1),null);
+  assert.equal(yarn.grams,75);
 });

@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'2.12.0',date:'2026-11-14',title:'Crochet row instructions and yarn substitutions',changes:[
+    'Save a row number and instruction on the project’s main counter or any named counter.',
+    'Calculate replacement skeins from pattern yardage and credit only the usable stash you choose.'
+  ]},
   {version:'2.11.0',date:'2026-11-14',title:'Journal past years and reading discussion sheets',changes:[
     'Revisit the same week in earlier years and jump straight to saved weekly reflections.',
     'Select chapter quotes, questions, and insights to print or save as a discussion sheet.'
