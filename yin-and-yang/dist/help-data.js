@@ -66,7 +66,7 @@ export const helpTopics = [
     summary:'Group existing tasks and pick up where you left off across focus sessions.',
     steps:['Open Planner → `Task bundles` → `New bundle`. Name it and add saved tasks in the order you want. Use the arrows to change the order.',
       'Choose `Start in Garden`, then `Begin focus`. Complete the current task to advance. Ending a focus session by itself keeps your place.',
-      'Select the bundle name near the timer to see the order, pause the bundle, or return to Planner. Choosing a different task pauses the bundle. Resume it from Planner or Garden.',
+      'Select the bundle name near the timer and choose `Checkpoint & pause` to save the current step. If focus is running, this records your elapsed time and leaves the task open. Resume either bundle from Planner.',
       'If the next task is blocked or scheduled for later, the bundle waits there. Remove a deleted or archived task from the bundle with `Edit order`.'],
     tip:'Bundles share the original tasks. Finished non-repeating tasks stay complete. A completed bundle can start again when its repeating tasks are ready for a new occurrence.',
     action:'bundles', actionLabel:'Open Task bundles', related:['focus-queue','resume','projects']
@@ -227,6 +227,7 @@ export const helpTopics = [
       'Add topics one per line and save the prep plan. Set confidence on each topic as you practice. Use Remove to drop a topic when you save.',
       'Under Practice scores, give each attempt a name, date, score, and maximum. Log each attempt separately.',
       'Choose `Review mistakes` to log mistakes against the exam’s topics and retry the ones you have yet to solve.',
+      'Choose `Plan study blocks`, enter your available minutes, and preview open times up to two weeks ahead and before the exam date. Suggestions prioritize unsolved mistakes and topics with low confidence. Approve only the blocks you want on Calendar.',
       'After the test, save the date taken, result, and reflection. Select its star in Garden or Garden history to see the result or reopen the plan. Editing the result updates the same star.'],
     action:'planner', actionLabel:'Open Planner', related:['projects','garden-growth','mistake-notebook']
   },
@@ -311,6 +312,7 @@ export const helpTopics = [
     steps:['Set deadlines and estimates on your tasks. In Planner, choose `Build my week` or find it with `Ctrl+K`.',
       'Choose the first day, available hours, daily study minutes, and cooldown between blocks. The cooldown defaults to five minutes and also applies to Plan to deadline, Plan tomorrow, and Replan today suggestions.',
       'Choose `Draft week` and review deadlines at risk. Expand `Why this time?` to see the deadline, free time, calendar commitments, and event buffers behind a suggestion.',
+      'Choose `Compare drafts` to preview Lighter week at two thirds of your daily limit and Earlier finish at the full limit. Compare deadlines covered, the last new block, and spare study capacity. Select one to load it into the editable draft.',
       'Use `Edit block` to change its day, start, or duration. Use `Skip block` to set it aside, or `Restore block` under Skipped blocks to bring it back. The draft shows pending blocks and planned time.',
       'Choose `Approve day` to add that date’s blocks to Calendar. Review or edit any remaining days separately.'],
     action:'build-week', actionLabel:'Open Build my week', related:['deadline-plan','availability','workload']

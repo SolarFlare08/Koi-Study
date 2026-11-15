@@ -4,7 +4,9 @@ export function loadTaskBundles(value){
     if(typeof item?.id!=='string'||!item.id||typeof item.name!=='string'||!item.name.trim()||!Array.isArray(item.taskIds))continue;
     const taskIds=[...new Set(item.taskIds.filter(id=>typeof id==='string'&&id))];
     if(taskIds.length&&!bundles.has(item.id))bundles.set(item.id,{id:item.id,name:item.name.trim().slice(0,100),taskIds,
-      ...(/^\d{4}-\d{2}-\d{2}$/.test(item.startedOn)?{startedOn:item.startedOn}:{})});
+      ...(/^\d{4}-\d{2}-\d{2}$/.test(item.startedOn)?{startedOn:item.startedOn}:{}),
+      ...(item.checkpoint&&typeof item.checkpoint==='object'&&Number.isFinite(item.checkpoint.at)&&
+        (item.checkpoint.taskId===null||taskIds.includes(item.checkpoint.taskId))?{checkpoint:{taskId:item.checkpoint.taskId,at:item.checkpoint.at}}:{})});
   }
   return [...bundles.values()];
 }

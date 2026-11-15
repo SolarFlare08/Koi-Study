@@ -457,8 +457,9 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         return `<section class="planner-bundle"><header><h3>${escape(bundle.name)}</h3><span>${status} · ${done}/${steps.length}</span></header>
           <ol>${steps.map(step=>`<li><span>${step.task?`<button type="button" data-report-task="${escape(step.id)}">${escape(step.task.text)}</button>`:'Unavailable task'}</span>
             <small>${step.done?'Complete':step===next?(step.ready?'Next':'Waiting'):'Queued'}</small></li>`).join('')}</ol>
+          ${bundle.checkpoint?`<p class="bundle-checkpoint">Checkpoint · ${escape(steps.find(step=>step.id===bundle.checkpoint.taskId)?.task?.text||'Bundle complete or step unavailable')} · ${shortDay(new Date(bundle.checkpoint.at))}</p>`:''}
           <footer><button type="button" class="planner-primary" data-bundle-start="${escape(bundle.id)}" ${next||restart?'':'disabled'}>${restart?'Start again in Garden':run||bundle.startedOn?'Resume in Garden':'Start in Garden'}</button>
-          ${run&&next&&!run.paused?'<button type="button" data-bundle-stop>Pause bundle</button>':''}
+          ${run&&next&&!run.paused?'<button type="button" data-bundle-stop>Checkpoint &amp; pause</button>':''}
           <button type="button" data-bundle-edit="${escape(bundle.id)}" aria-haspopup="dialog">Edit order</button></footer></section>`;
       }).join(''):'<p>Create a bundle to group tasks from any project.</p>'}</div>`;
   }

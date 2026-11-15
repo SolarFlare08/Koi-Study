@@ -1,11 +1,27 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {applyCalendarReplan,calendarFocusKey,focusTaskQueue,planningEventRanges,tasksWithinTime} from '../dist/calendar.js';
-import {draftStudyWeek,planDeadline,projectHealth,scheduleImpact,todayTradeoffs} from '../dist/scheduling.js';
+import {compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,projectHealth,scheduleImpact,todayTradeoffs} from '../dist/scheduling.js';
 import {createsDependencyCycle,freshState,loadState,recordTaskCompletion} from '../dist/state.js';
 
 const date = (day,hour=0,minute=0) => new Date(2026,10,day,hour,minute);
 const event = (title,start,end) => ({title,start:+start,end:+end});
+
+test('exam blocks prioritize unresolved mistakes, avoid commitments and stop before exam day',()=>{
+  const exam={id:'exam',date:'2026-11-14',topics:[{id:'a',title:'Series',confidence:0},{id:'b',title:'Proofs',confidence:3}]};
+  const slots=examStudyBlocks({exam,mistakes:[{examId:'exam',topicId:'b',retries:[{passed:false}]}],tasks:[],
+    events:[event('Class',date(13,9),date(13,10))],availability:[],cutoff:11*60,capacity:120,cooldown:5,budget:60},date(13,8));
+  assert.deepEqual(slots.map(({topicId,start,minutes})=>[topicId,start,minutes]),[['b',605,40]]);
+});
+
+test('weekly comparison makes the earlier-finish draft use more daily time',()=>{
+  const task={id:'task',estimate:150,deadline:'2026-11-15'};
+  const [light,early]=compareStudyWeeks({tasks:[task],events:[],history:[],availability:[],tasksById:new Map([[task.id,task]])},
+    {date:'2026-11-13',start:540,end:720,capacity:100,cooldown:5},date(13,8));
+  assert.equal(light.settings.capacity,66);
+  assert.equal(light.draft.days.filter(day=>day.slots.length).at(-1).date,'2026-11-15');
+  assert.equal(early.draft.days.filter(day=>day.slots.length).at(-1).date,'2026-11-14');
+});
 
 test('trade-offs name distinct future bookings and preserve deadlines and worked blocks',()=>{
   const day='2026-11-13', task={id:'new',text:'New reading',estimate:60};

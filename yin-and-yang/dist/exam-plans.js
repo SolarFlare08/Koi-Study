@@ -33,7 +33,7 @@ export function loadExamPlans(value){return unique(value,examPlan);}
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
 const dateLabel=date=>new Date(date+'T12:00:00').toLocaleDateString([],{dateStyle:'medium'});
-export function installExamPlans({dialog,projects,today,save,openMistakes}){
+export function installExamPlans({dialog,projects,today,save,openMistakes,openStudyBlocks}){
   let projectId='', examId='', anchor;
   const project=()=>projects().find(item=>item.id===projectId);
   const active=()=>project()?.exams?.find(item=>item.id===examId);
@@ -53,7 +53,8 @@ export function installExamPlans({dialog,projects,today,save,openMistakes}){
       dialog.innerHTML=header+`<button type="button" class="exam-back" data-exam-back>‹ All exams</button>
       <div class="exam-plan-summary"><span>${exam.result?`Taken ${dateLabel(exam.result.takenOn)}`:exam.date?`Scheduled ${dateLabel(exam.date)}`:'No exam date'}</span>
       <span>${exam.topics.filter(topic=>topic.confidence===3).length} / ${exam.topics.length} topics confident</span>
-      <button type="button" data-exam-mistakes aria-haspopup="dialog">Review mistakes</button></div>
+      <button type="button" data-exam-mistakes aria-haspopup="dialog">Review mistakes</button>
+      ${exam.result?'':'<button type="button" data-exam-study aria-haspopup="dialog">Plan study blocks</button>'}</div>
       <form data-exam-form="prep"><h3>Prep plan</h3>
         <div class="exam-fields"><label>Exam name<input name="title" maxlength="120" required value="${escape(exam.title)}"></label>
         <label>Exam date<input name="date" type="date" value="${exam.date}"></label></div>
@@ -120,6 +121,7 @@ export function installExamPlans({dialog,projects,today,save,openMistakes}){
   dialog.addEventListener('click',event=>{
     const button=event.target.closest('button');
     if(!button)return;
+    if(button.hasAttribute('data-exam-study')){openStudyBlocks(projectId,examId,button);return;}
     if(button.hasAttribute('data-exam-mistakes')){const exam=active();if(exam)openMistakes({examId:exam.id,title:exam.title},button);return;}
     if(button.hasAttribute('data-exam-close'))dialog.close();
     if(button.hasAttribute('data-exam-back')||button.dataset.examOpen){

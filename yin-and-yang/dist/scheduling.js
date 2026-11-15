@@ -370,5 +370,42 @@ export function draftStudyWeek({tasks, events, history, availability, tasksById}
     if (unplaced) risks.push({task, reason, unplaced});
   }
 
-  return {days: days.map(({date, slots, context}) => ({date, slots,context})), risks, invalid, deadlines: deadlines.length};
+  return {days: days.map(({date, slots, context,remaining,ranges}) => ({date, slots,context,
+    flexibility:Math.min(remaining,ranges.reduce((sum,range)=>sum+range.end-range.start,0))})), risks, invalid, deadlines: deadlines.length};
+}
+
+export function compareStudyWeeks(data,settings,now=new Date()){
+  return [
+    {id:'light',name:'Lighter week',settings:{...settings,capacity:Math.max(1,Math.floor(settings.capacity*2/3))}},
+    {id:'early',name:'Earlier finish',settings}
+  ].map(option=>({...option,draft:draftStudyWeek(data,option.settings,now)}));
+}
+
+export function examStudyBlocks({exam,mistakes,tasks,events,availability,cutoff,capacity,cooldown,budget},now=new Date()){
+  const today=dayKey(now);
+  if(exam.result||!Number.isInteger(budget)||budget<15||budget>600||exam.date&&exam.date<=today)return [];
+  const retryCounts=new Map();
+  for(const item of mistakes){
+    if(item.examId!==exam.id||item.retries?.at(-1)?.passed===true)continue;
+    retryCounts.set(item.topicId,(retryCounts.get(item.topicId)||0)+1);
+  }
+  const queue=exam.topics.map(topic=>({topic,retries:retryCounts.get(topic.id)||0}))
+    .filter(({topic,retries})=>topic.confidence<3||retries)
+    .sort((a,b)=>Number(Boolean(b.retries))-Number(Boolean(a.retries))||a.topic.confidence-b.topic.confidence||b.retries-a.retries);
+  const slots=[];
+  for(let offset=0;offset<14&&budget>=15&&queue.length;offset++){
+    const date=shiftDay(now,offset),key=dayKey(date);
+    if(exam.date&&key>=exam.date)break;
+    const from=offset?workdayStart:Math.max(workdayStart,Math.ceil(minuteOfDay(now)/15)*15);
+    const day=studyDay(tasks,events,availability,date,from,cutoff,capacity,cooldown);
+    for(const range of day.ranges){
+      while(queue.length&&budget>=15&&day.remaining>=15&&range.end-range.start>=15){
+        const {topic,retries}=queue.shift();
+        const minutes=Math.min(retries?40:30,budget,day.remaining,range.end-range.start);
+        slots.push({topicId:topic.id,title:topic.title,retries,date:key,start:range.start,minutes});
+        budget-=minutes;day.remaining-=minutes;range.start+=minutes+cooldown;
+      }
+    }
+  }
+  return slots;
 }

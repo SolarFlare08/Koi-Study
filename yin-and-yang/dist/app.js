@@ -24,7 +24,7 @@ import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-und
 import {installCommandPalette} from './command-palette.js';
 import {installHelp} from './help.js';
 import {installVersionHistory} from './version-history.js';
-import {canPlanDeadline,draftStudyWeek,planDeadline,scheduleImpact,todayTradeoffs} from './scheduling.js';
+import {canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,scheduleImpact,todayTradeoffs} from './scheduling.js';
 import {nextTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
 import {taskTemplate} from './project-planning.js';
@@ -255,7 +255,67 @@ const mistakeNotebook=installMistakeNotebook({dialog:$('#mistake-dialog'),getSta
   return true;
 }});
 const examPlans=installExamPlans({dialog:$('#exam-dialog'),projects:()=>state.projects,today:dayKey,save:saveExamPlan,
-  openMistakes:(context,anchor)=>mistakeNotebook.open(context,anchor)});
+  openMistakes:(context,anchor)=>mistakeNotebook.open(context,anchor),openStudyBlocks:openExamStudy});
+const examStudyDialog=$('#exam-study-dialog');
+let examStudyContext,examStudyPreview=[];
+function openExamStudy(projectId,examId,anchor){
+  examStudyContext={projectId,examId,anchor};examStudyPreview=[];
+  const exam=state.projects.find(item=>item.id===projectId)?.exams?.find(item=>item.id===examId);
+  if(!exam)return;
+  examStudyDialog.innerHTML=`<header><div><small>${escape(exam.title)}</small><h2 id="exam-study-title">Plan study blocks</h2></div>
+    <button type="button" data-close-exam-study aria-label="Close study blocks">×</button></header>
+    <form><label>Study minutes available <input name="budget" type="number" min="15" max="600" step="1" value="90" required></label>
+    <small>Looks up to two weeks ahead, before the exam date.</small>
+    <button class="workspace-primary" value="preview">Preview study blocks</button>
+    <div id="exam-study-results"></div><p id="exam-study-status" role="status"></p></form>`;
+  examStudyDialog.showModal();
+}
+function currentExamStudy(budget){
+  const {projectId,examId}=examStudyContext;
+  const project=state.projects.find(item=>item.id===projectId);
+  const exam=!project?.archived&&project?.exams?.find(item=>item.id===examId);
+  if(!exam)return [];
+  return examStudyBlocks({exam,mistakes:state.mistakes,tasks:gardenTasks(),events:state.calendarEvents,availability:state.availability,
+    cutoff:schedulingCutoff(),capacity:state.studyCapacity,cooldown:state.planningCooldown,budget});
+}
+function showExamStudy(slots,message){
+  examStudyPreview=slots;
+  examStudyDialog.querySelector('#exam-study-results').innerHTML=slots.length?`<ul class="tradeoff-options">${slots.map((slot,index)=>
+    `<li><label><input type="checkbox" name="slot" value="${index}" checked> <strong>${escape(slot.title)}</strong></label>
+    <span>${shortScheduleDate(slot.date)} · ${timeLabel(slot.start)} · ${slot.minutes} min · ${slot.retries?`${slot.retries} to retry`:'Topic practice'}</span></li>`).join('')}</ul>
+    <button class="workspace-primary" value="approve">Approve selected blocks</button>`:'';
+  examStudyDialog.querySelector('#exam-study-status').textContent=message||'';
+}
+examStudyDialog.addEventListener('click',event=>{if(event.target.closest('[data-close-exam-study]'))examStudyDialog.close();});
+examStudyDialog.addEventListener('close',()=>examStudyContext?.anchor.focus({preventScroll:true}));
+examStudyDialog.addEventListener('input',event=>{if(event.target.name==='budget')showExamStudy([]);});
+examStudyDialog.addEventListener('submit',event=>{
+  event.preventDefault();
+  const data=new FormData(event.target),slots=currentExamStudy(Number(data.get('budget')));
+  if(event.submitter?.value!=='approve'){
+    const remaining=Number(data.get('budget'))-slots.reduce((sum,slot)=>sum+slot.minutes,0);
+    showExamStudy(slots,slots.length?`${minutesLabel(remaining)} of your budget left unallocated.`:'No eligible topic and free slot fit this plan.');return;
+  }
+  const selected=data.getAll('slot').map(index=>examStudyPreview[Number(index)]).filter(Boolean);
+  if(!selected.length){examStudyDialog.querySelector('#exam-study-status').textContent='Select at least one block.';return;}
+  if(JSON.stringify(slots)!==JSON.stringify(examStudyPreview)){showExamStudy(slots,'The schedule changed. Review the new suggestions.');return;}
+  const {projectId,examId}=examStudyContext;
+  const exam=state.projects.find(item=>item.id===projectId).exams.find(item=>item.id===examId);
+  const previous=state.tasks;
+  const added=selected.map(slot=>{
+    const task={id:crypto.randomUUID(),done:false,text:`Study ${slot.title}`,description:`Exam prep for ${exam.title}${slot.retries?' · Review mistakes before the exam.':''}`,
+      projectId,estimate:slot.minutes,repeat:'none',date:slot.date,blocks:[]};
+    addTaskBlock(task,slot.date,timeValue(slot.start),slot.minutes);return task;
+  });
+  state.tasks=[...previous,...added];
+  const saved=new Map(added.map(task=>[task.id,JSON.stringify(task)]));
+  if(!persist()){state.tasks=previous;return;}
+  examStudyDialog.close();refreshTasks();
+  confirmChange(`Scheduled ${added.length} exam study ${added.length===1?'block':'blocks'}.`,latest=>{
+    if(added.some(task=>JSON.stringify(latest.tasks.find(item=>item.id===task.id))!==saved.get(task.id)))return false;
+    latest.tasks=latest.tasks.filter(task=>!added.includes(task));return true;
+  });
+});
 const bundleEditor=installBundleEditor({dialog:$('#bundle-dialog'),tasks:gardenTasks,save:item=>saveBundle(item),remove:id=>saveBundle(null,id)});
 const planner=installPlanner({
   root:calendarPanel,getState:()=>state,commit:()=>{const saved=persist();refreshTasks();return saved;},
@@ -582,6 +642,7 @@ function editBundle(id){
   bundleEditor.open(bundle,()=>bundle&&$(`[data-bundle-edit="${CSS.escape(bundle.id)}"]`)||$('[data-bundle-new]'));
 }
 function saveBundle(item,id=item?.id){
+  if(item?.checkpoint?.taskId&&!item.taskIds.includes(item.checkpoint.taskId))delete item.checkpoint;
   const {taskBundles,activeBundle}=state;
   const exists=taskBundles.some(bundle=>bundle.id===id);
   state.taskBundles=item?(exists?taskBundles.map(bundle=>bundle.id===id?item:bundle):[...taskBundles,item]):taskBundles.filter(bundle=>bundle.id!==id);
@@ -598,7 +659,9 @@ function startBundle(id){
   if(!status.next&&!status.restart){confirmChange('Every task in this bundle is complete.');return;}
   const {taskBundles,activeBundle,activeTask,activeTaskDay}=state;
   const startedOn=status.restart?dayKey():status.run?.startedOn||bundle.startedOn||dayKey();
-  state.taskBundles=taskBundles.map(item=>item===bundle?{...item,startedOn}:item);
+  const leaving=activeBundleStatus();
+  state.taskBundles=taskBundles.map(item=>item===bundle?{...item,startedOn,...(status.restart?{checkpoint:null}:{})}:
+    item.id===leaving?.bundle.id?{...item,checkpoint:{taskId:leaving.next?.id||null,at:Date.now()}}:item);
   state.activeBundle={id,startedOn,paused:false};
   state.activeTask=null;state.activeTaskDay=null;
   if(!persist()){Object.assign(state,{taskBundles,activeBundle,activeTask,activeTaskDay});return;}
@@ -610,16 +673,22 @@ function startBundle(id){
 function stopBundle(anchor){
   const previous=state.activeBundle;
   if(!previous||previous.paused)return;
-  const {activeTask,activeTaskDay}=state;
+  checkCompletion();
+  const {activeTask,activeTaskDay,taskBundles,timer}=state,historyLength=state.history.length;
+  const status=activeBundleStatus();
   const current=focusedTask();
+  state.taskBundles=taskBundles.map(item=>item.id===previous.id?{...item,checkpoint:{taskId:status?.next?.id||null,at:Date.now()}}:item);
+  if(timer.id&&timer.mode==='focus'&&current&&current.id===status?.next?.id){
+    record(state,'completed',Date.now(),{early:true});reset(state,'focus');
+  }
   state.activeBundle={...previous,paused:true};
   if(current){state.activeTask=current.id;state.activeTaskDay=dayKey();}
-  if(!persist()){Object.assign(state,{activeBundle:previous,activeTask,activeTaskDay});return;}
+  if(!persist()){Object.assign(state,{activeBundle:previous,activeTask,activeTaskDay,taskBundles,timer});state.history.length=historyLength;return;}
   const fromGarden=anchor.closest('#panel-root');
   if(fromGarden)closePanel(false);
   refreshTasks();
   (fromGarden?$('#focus-bundle'):$(`[data-bundle-start="${CSS.escape(previous.id)}"]`))?.focus({preventScroll:true});
-  confirmChange('Bundle paused. Resume it to continue in order.');
+  confirmChange('Bundle checkpoint saved. Resume it to continue in order.');
 }
 function pauseBundleForTask(taskId){
   const status=activeBundleStatus();
@@ -1786,7 +1855,7 @@ function focusBundleMarkup(){
     ${next&&!next.ready?`<p>${!next.task?'Edit the bundle to remove the unavailable task.':waitingOn(next.task).length?'Finish the prerequisites to continue.':'The next task is scheduled for later or snoozed.'}</p>`:''}
     <div class="panel-actions"><button type="button" class="text-button" data-bundle-planner>Manage bundles</button>
       ${run.paused&&next||restart?`<button type="button" class="panel-primary" data-resume-bundle="${escape(bundle.id)}">${restart?'Start again':'Resume bundle'}</button>`:
-        next?'<button type="button" class="text-button" data-pause-bundle>Pause bundle</button>':''}</div>`;
+        next?'<button type="button" class="text-button" data-pause-bundle>Checkpoint &amp; pause</button>':''}</div>`;
 }
 
 function finishTaskOccurrence(task,date,timer=state.timer){
@@ -2893,21 +2962,38 @@ function saveDeadlinePlan(form){
   confirmChange(`${slots.length} focus ${slots.length===1?'block':'blocks'} added.${missing?` ${minutesLabel(missing)} still unscheduled.`:''}`,finishUndo());
 }
 
-let weekSettings, weekDraft, weekSlots=[], skippedWeekSlots=[], weekEditId=null;
+let weekSettings, weekDraft, weekComparison=[], weekSlots=[], skippedWeekSlots=[], weekEditId=null;
 const approvedWeekDays=new Map();
 
 function openWeekBuilder(anchor){
   const end=Math.min(1439,schedulingCutoff());
   weekSettings={date:dayKey(),start:Math.min(9*60,end-1),end,capacity:state.studyCapacity,cooldown:state.planningCooldown};
   weekDraft=null;
+  weekComparison=[];
   weekSlots=[];skippedWeekSlots=[];weekEditId=null;
   approvedWeekDays.clear();
   openPanel('build-week',anchor);
 }
 
+function weekData(){
+  return {tasks:gardenTasks(),events:state.calendarEvents,history:state.history,availability:state.availability,tasksById:taskIndex()};
+}
 function currentWeekDraft(proposed){
-  return draftStudyWeek({tasks:gardenTasks(),events:state.calendarEvents,history:state.history,
-    availability:state.availability,tasksById:taskIndex()},{...weekSettings,proposed});
+  return draftStudyWeek(weekData(),{...weekSettings,proposed});
+}
+function weekComparisonMarkup(){
+  if(!weekComparison.length)return '';
+  return `<div class="week-comparison" aria-label="Weekly draft comparison">${weekComparison.map(({id,name,settings,draft})=>{
+    const used=draft.days.filter(day=>day.slots.length);
+    const planned=used.flatMap(day=>day.slots).reduce((sum,slot)=>sum+slot.minutes,0);
+    const flex=draft.days.reduce((sum,day)=>sum+day.flexibility,0);
+    const covered=draft.deadlines-draft.risks.length;
+    return `<section><h3>${name}</h3><p>${settings.capacity} min/day limit · ${minutesLabel(planned)} proposed</p>
+      <p>${covered} of ${draft.deadlines} deadlines covered · ${minutesLabel(flex)} spare study capacity</p>
+      <p>${used.length?`Last new block · ${shortScheduleDate(used.at(-1).date)}`:'No new blocks'}</p>
+      ${draft.risks.length?`<ul>${draft.risks.map(risk=>`<li>${escape(risk.task.text)} · ${weekRiskText(risk)}</li>`).join('')}</ul>`:''}
+      <button type="button" class="panel-primary" data-use-week-draft="${id}">Use ${name.toLowerCase()}</button></section>`;
+  }).join('')}</div>`;
 }
 
 function weekRiskText({reason,unplaced}){
@@ -2954,8 +3040,10 @@ function buildWeekMarkup(){
       <label>Study minutes per day<input name="capacity" type="number" min="1" max="1440" value="${capacity}" required></label>
       <label>Cooldown between blocks (min)<input name="cooldown" type="number" min="0" max="30" value="${cooldown}" required></label>
       <p id="week-draft-error" class="event-error" role="alert" hidden></p>
-      <div class="panel-actions"><button class="panel-primary" id="draft-week-button">${weekDraft?'Refresh draft':'Draft week'}</button></div>
+      <div class="panel-actions"><button class="panel-primary" id="draft-week-button">${weekDraft?'Refresh draft':'Draft week'}</button>
+      <button class="text-button" type="submit" value="compare">Compare drafts</button></div>
     </form>
+    ${weekComparisonMarkup()}
     ${weekDraft?`<div id="week-draft-results">
       <div class="week-draft-summary"><h3 id="week-draft-heading" tabindex="-1">Draft schedule</h3>
         <span>${weekSlots.length} pending · ${minutesLabel(weekSlots.reduce((sum,slot)=>sum+slot.minutes,0))} planned</span></div>
@@ -2969,7 +3057,7 @@ function buildWeekMarkup(){
           <button type="button" class="text-button" data-restore-week-slot="${slot.draftId}">Restore block</button></li>`).join('')}</ul></details>`:''}</div>`:''}`;
 }
 
-function draftWeek(form){
+function draftWeek(form,compare=false){
   const {date,start,end,capacity,cooldown}=form.elements;
   const previous=weekSettings;
   weekSettings={date:date.value,start:timeMinutes(start.value),end:timeMinutes(end.value),capacity:Number(capacity.value),cooldown:Number(cooldown.value)};
@@ -2980,10 +3068,23 @@ function draftWeek(form){
     error.textContent='Choose today or a future date and an end time after the start time.';
     return;
   }
+  if(compare){
+    weekComparison=compareStudyWeeks(weekData(),weekSettings);
+    weekSettings=previous;
+    $('#week-draft-error').hidden=true;
+    const existing=$('.week-comparison');
+    existing?.remove();
+    form.insertAdjacentHTML('afterend',weekComparisonMarkup());
+    $('[data-use-week-draft]')?.focus();return;
+  }
+  weekComparison=[];
   if(state.planningCooldown!==weekSettings.cooldown){
     const old=state.planningCooldown;state.planningCooldown=weekSettings.cooldown;
     if(!persist())state.planningCooldown=old;
   }
+  showWeekDraft(draft);
+}
+function showWeekDraft(draft){
   weekSlots=draft.days.flatMap(day=>day.slots);
   weekSlots.forEach((slot,index)=>{slot.draftId=index;});
   weekEditId=null;weekDraft=draft;skippedWeekSlots=[];
@@ -3570,6 +3671,14 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const useDraft=e.target.closest('[data-use-week-draft]');
+  if(useDraft){
+    const option=weekComparison.find(item=>item.id===useDraft.dataset.useWeekDraft);
+    if(!option)return;
+    const draft=draftStudyWeek(weekData(),option.settings);
+    if(!draft){weekComparison=[];refreshPanel();confirmChange('The calendar changed. Compare drafts again.');return;}
+    weekSettings=option.settings;weekComparison=[];showWeekDraft(draft);return;
+  }
   if(e.target.closest('[data-open-postcard]')){openGardenPostcard();return;}
   if(e.target.closest('#postcard-month')){
     $('#postcard-caption').value=new Date(`${snapshotThrough||dayKey()}T12:00:00`).toLocaleDateString([],{month:'long',year:'numeric'});
@@ -4087,7 +4196,7 @@ root.addEventListener('submit',e=>{
     confirmChange('Routine saved.');return;
   }
   if(e.target.id==='deadline-plan-form'){saveDeadlinePlan(e.target);return;}
-  if(e.target.id==='build-week-form'){draftWeek(e.target);return;}
+  if(e.target.id==='build-week-form'){draftWeek(e.target,e.submitter?.value==='compare');return;}
   if(e.target.id==='shutdown-form'){saveShutdownSteps(e.target);return;}
   if(e.target.id==='week-slot-form'){updateWeekSlot(e.target);return;}
   if(e.target.id==='schedule-drop-form'){saveScheduleDrop();return;}

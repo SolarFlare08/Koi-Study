@@ -320,6 +320,15 @@ button.project-context-item:hover { color: var(--planner-accent); }
 #week-draft-heading { margin-top: 14px; }
 .week-draft-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
 .week-draft-summary span { color: var(--surface-muted); font-size: 12px; }
+.week-comparison { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; margin: 12px 0; }
+.week-comparison section { padding: 10px; border: 1px solid var(--surface-line); border-radius: 8px; background: var(--surface-raised); }
+.week-comparison h3 { margin: 0 0 5px; font-size: 14px; }
+.week-comparison ul { padding-left: 18px; font-size: 12px; overflow-wrap: anywhere; }
+@media(max-width:480px){.week-comparison{grid-template-columns:1fr}}
+#exam-study-dialog label { font-size: 13px; }
+#exam-study-dialog [name="budget"] { display: block; max-width: 150px; padding: 6px 8px; margin-top: 4px; }
+#exam-study-results > button { margin-top: 8px; }
+.bundle-checkpoint { margin: 0; font-size: 12px; }
 .week-draft-skipped { margin-top: 12px; padding: 10px; border: 1px solid var(--surface-line); border-radius: 9px; font-size: 12px; }
 .week-draft-skipped summary { cursor: pointer; }
 .week-draft-skipped ul { padding: 0; margin: 5px 0 0; list-style: none; }

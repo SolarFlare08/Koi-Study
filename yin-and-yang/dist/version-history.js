@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'2.8.0',date:'2026-11-14',title:'Exam study blocks, bundle checkpoints, and weekly draft comparisons',changes:[
+    'Plan study blocks for low-confidence exam topics and unsolved mistakes, then approve the blocks you want.',
+    'Checkpoint a bundle and switch routines without losing your place.',
+    'Compare lighter and earlier-finish weekly drafts before editing and approving one.'
+  ]},
   {version:'2.7.0',date:'2026-11-13',title:'Saved Garden looks and postcards',changes:[
     'Save named looks with lighting, palette, weather, motion, and optional ambient sound levels.',
     'Download the Garden as a clean PNG postcard with an optional month, semester, or milestone caption.'
