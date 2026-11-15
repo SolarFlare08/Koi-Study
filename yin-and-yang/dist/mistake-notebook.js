@@ -4,7 +4,7 @@ export function mistakeEntry(value){
   const mistake=clean(value?.mistake,1600), correction=clean(value?.correction,2400);
   if(!id||!mistake||!correction||!Number.isFinite(value.createdAt)||(!taskId&&!examId)||examId&&!topicId)return null;
   const retries=(Array.isArray(value.retries)?value.retries:[]).filter(item=>Number.isFinite(item?.at)&&typeof item.passed==='boolean')
-    .map(({at,passed})=>({at,passed})).sort((a,b)=>a.at-b.at);
+    .map(({at,passed,sessionId})=>({at,passed,...(typeof sessionId==='string'?{sessionId}:{})})).sort((a,b)=>a.at-b.at);
   return {id,taskId,examId,topicId,source:clean(value.source,300),mistake,correction,createdAt:value.createdAt,retries};
 }
 export function loadMistakes(value){
@@ -20,7 +20,7 @@ export function needsRetry(item){return item.retries.at(-1)?.passed!==true;}
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const dateLabel=at=>new Date(at).toLocaleDateString([],{dateStyle:'medium'});
 
-export function installMistakeNotebook({dialog,getState,save,notify}){
+export function installMistakeNotebook({dialog,getState,save,notify,startFocus}){
   let scope={}, trigger, mode='review', editId='', revealed=new Set();
   const matching=()=>getState().mistakes.filter(item=>scope.taskId?item.taskId===scope.taskId:
     scope.examId?item.examId===scope.examId:true);
@@ -53,15 +53,16 @@ export function installMistakeNotebook({dialog,getState,save,notify}){
           ${item?'<button type="button" data-mistake-cancel>Cancel</button>':''}</div><p role="alert" id="mistake-error"></p>
         </form></details>`:scope.examId?'<p>Add and save an exam topic before logging a mistake.</p>':''}
       ${visible.length?`<ul class="mistake-list">${visible.map(entry=>{
-        const show=revealed.has(entry.id);
+        const active=getState().timer.mistakeId===entry.id;
+        const show=!active&&revealed.has(entry.id);
         const last=entry.retries.at(-1);
         return `<li data-mistake-id="${escape(entry.id)}"><div class="mistake-source"><strong>${escape(source(entry))}</strong>
           <small>${last?last.passed?'Retried successfully':'Retry again':'Needs retry'} · ${dateLabel(last?.at??entry.createdAt)}</small></div>
           <p class="mistake-text">${escape(entry.mistake)}</p>
           ${show?`<div class="mistake-correction"><strong>Corrected reasoning</strong><p class="mistake-text">${escape(entry.correction)}</p></div>`:''}
-          <div class="mistake-actions"><button type="button" data-mistake-reveal aria-expanded="${show}">${show?'Hide reasoning':'Reveal reasoning'}</button>
+          <div class="mistake-actions">${active?'<small>Retry in progress in Garden</small>':`<button type="button" data-mistake-focus>Retry with focus</button><button type="button" data-mistake-reveal aria-expanded="${show}">${show?'Hide reasoning':'Reveal reasoning'}</button>
             ${show?`<button type="button" data-mistake-retry="passed">Solved it</button><button type="button" data-mistake-retry="failed">Still stuck</button>`:''}
-            <button type="button" data-mistake-edit>Edit</button></div></li>`;
+            <button type="button" data-mistake-edit>Edit</button>`}<span class="mistake-focus-error" role="alert"></span></div></li>`;
       }).join('')}</ul>`:`<p>${reviewing?'No mistakes waiting for a retry.':'No mistakes logged here yet.'}</p>`}`;
   }
   function restoreFocus(){
@@ -87,6 +88,12 @@ export function installMistakeNotebook({dialog,getState,save,notify}){
     if(button.hasAttribute('data-mistake-cancel')){editId='';render();restoreFocus();return;}
     const id=button.closest('[data-mistake-id]')?.dataset.mistakeId;
     if(!id)return;
+    if(button.hasAttribute('data-mistake-focus')){
+      const result=startFocus?.(id);
+      if(result===true){trigger=null;dialog.close();}
+      else button.closest('li').querySelector('.mistake-focus-error').textContent=result||'';
+      return;
+    }
     if(button.hasAttribute('data-mistake-reveal')){
       if(revealed.has(id))revealed.delete(id);else revealed.add(id);
       render();dialog.querySelector(`[data-mistake-id="${CSS.escape(id)}"] [data-mistake-reveal]`)?.focus({preventScroll:true});return;

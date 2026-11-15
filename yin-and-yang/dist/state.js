@@ -11,7 +11,7 @@ import {projectDecision,projectMilestone,taskTemplate} from './project-planning.
 import {loadGardenGrowth} from './garden-growth.js';
 import {addReplayEvent,loadReplay} from './focus-replay.js';
 import {loadExamPlans} from './exam-plans.js';
-import {handoffLink} from './session-handoff.js';
+import {handoffLink,sessionHandoff} from './session-handoff.js';
 import {loadMistakes} from './mistake-notebook.js';
 import {loadTaskBundles} from './task-bundles.js';
 import {blockFlexibility,waitingForRecord} from './task-readiness.js';
@@ -168,11 +168,17 @@ export function formatDuration(ms) {
   const seconds = Math.ceil(ms / 1000);
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
+export const breakIdeaMinutes=[2,5,10];
+export function breakIdeasThatFit(ideas,ms){
+  const choices=ideas.filter(idea=>idea.minutes*60000<=ms);
+  const best=Math.max(...choices.map(idea=>idea.minutes));
+  return choices.filter(idea=>idea.minutes===best);
+}
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],
-    taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],
+    taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],breakIdeas:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -203,6 +209,9 @@ export function loadState(storage) {
     base.readingCollections=loadReadingCollections(raw.readingCollections);
     base.availability=loadAvailability(raw.availability);
     base.mistakes=loadMistakes(raw.mistakes);
+    if(Array.isArray(raw.breakIdeas))base.breakIdeas=[...new Map(raw.breakIdeas.flatMap(idea=>
+      typeof idea?.id==='string'&&breakIdeaMinutes.includes(idea.minutes)&&typeof idea.text==='string'&&idea.text.trim()
+        ?[[idea.id,{id:idea.id,minutes:idea.minutes,text:idea.text.trim().slice(0,160)}]]:[])).values()];
     base.taskBundles=loadTaskBundles(raw.taskBundles);
     base.weeklyReflections=loadWeeklyReflections(raw.weeklyReflections);
     if(isDay(raw.activeBundle?.startedOn)&&base.taskBundles.some(bundle=>bundle.id===raw.activeBundle.id)){
@@ -272,6 +281,8 @@ export function loadState(storage) {
     const t=raw.timer;
     if (t && ['focus','break'].includes(t.mode) && ['idle','running','paused'].includes(t.status) && Number.isFinite(t.remaining) && t.remaining>=0 && t.remaining<=10800000 && Number.isFinite(t.total) && t.total>0 && t.total<=10800000 && (t.status!=='running' || (Number.isFinite(t.endAt) && typeof t.id==='string' && Number.isFinite(t.startedAt)))) {
       base.timer={...t};
+      if(t.mode!=='focus'||!base.mistakes.some(item=>item.id===t.mistakeId))delete base.timer.mistakeId;
+      base.timer.startHandoff=sessionHandoff(t.startHandoff);
       if(Array.isArray(t.replay))base.timer.replay=loadReplay(t.replay);
       else delete base.timer.replay;
       const sequence=t.sequence, phases=routinePhases(sequence?.phases);
@@ -314,7 +325,10 @@ export function startPause(state, now=Date.now(), taskId=state.activeTask) {
       t.id=globalThis.crypto.randomUUID();
       t.startedAt=now;
       const task=state.tasks.find(item=>item.id===(t.block?.taskId||taskId));
-      if (task) t.taskSnapshot={id:task.id,text:task.text,projectId:task.projectId||''};
+      if (task) {
+        t.taskSnapshot={id:task.id,text:task.text,projectId:task.projectId||''};
+        if(t.mode==='focus')t.startHandoff=sessionHandoff(task);
+      }
     }
     addReplayEvent(t,fresh?'start':'resume',now);
     t.endAt=now+t.remaining;
@@ -362,15 +376,23 @@ export function record(state, outcome, now=Date.now(), {early=false}={}) {
   if(!t.id || state.history.some(h=>h.id===t.id)) return null;
   const finish=outcome==='completed' && t.endAt && !early ? t.endAt : now;
   const task=t.taskSnapshot||state.tasks.find(task=>task.id===t.block?.taskId);
+  const examId=t.mistakeId&&state.mistakes.find(item=>item.id===t.mistakeId)?.examId;
+  const examProject=examId&&state.projects.find(project=>project.exams?.some(exam=>exam.id===examId));
   const intention=t.block?(task?.text||state.intention):(state.intention||task?.text||'');
-  const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention,taskTitle:task?.text||'',taskId:task?.id||'',projectId:task?task.projectId||'':null};
+  const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention,taskTitle:task?.text||'',taskId:task?.id||'',projectId:task?task.projectId||'':examProject?.id||null};
   if(t.replay?.length){
     // Record the closing event on the snapshot so a failed save can restore the running timer.
     const snapshot={...t};
     addReplayEvent(snapshot,outcome==='skipped'?'skip':early?'early':'finish',finish);
     h.replay=snapshot.replay;
   }
-  if(t.mode==='focus'&&outcome==='completed'&&t.goal)h.goal=t.goal;
+  if(t.mode==='focus'){
+    if(t.goal)h.goal=t.goal;
+    if(t.mistakeId)h.mistakeId=t.mistakeId;
+    if(t.startHandoff)h.startHandoff=t.startHandoff;
+    const nextHandoff=sessionHandoff(t.nextHandoff);
+    if(nextHandoff){h.nextHandoff=nextHandoff;h.handoffTaskId=t.handoffTaskId||h.taskId;}
+  }
   const block=t.block||t.calendarBlock;
   if(t.mode==='focus'&&isDay(block?.occurrence)&&Object.hasOwn(block,'blockId')){
     h.calendarBlock={occurrence:block.occurrence,blockId:block.blockId||null};

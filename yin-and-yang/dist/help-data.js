@@ -74,11 +74,27 @@ export const helpTopics = [
   {
     id:'focus-outcome', group:'Focus & rest', title:'Set and review a focus outcome',
     summary:'Write what you want to finish, then record how far you got.',
-    steps:['Choose `Set outcome` beneath the timer and write a concrete goal, such as “Solve problems 1–4.”',
+    steps:['Choose `Warm up` beneath a ready timer and write a concrete goal, such as “Solve problems 1–4.” During a session, use `Set outcome` to add or edit it.',
       'Choose `Save and begin` to start a ready timer with the outcome.',
       'After the session, choose `Review outcome`, mark it Reached or Partial, and leave a next step. The next step appears on the task if the session was linked to one.'],
     tip:'Choose Later if you want to review it another time. Garden keeps completed outcomes available to review.',
-    action:'focus', actionLabel:'Open Garden', related:['timer','resume']
+    action:'focus', actionLabel:'Open Garden', related:['timer','resume','session-warmup']
+  },
+  {
+    id:'session-warmup', group:'Focus & rest', title:'Warm up before a focus session',
+    summary:'See your last handoff, a linked note, and the outcome you want from this session.',
+    steps:['Select your task in Garden. With a fresh focus timer, choose `Warm up` beneath the countdown.',
+      'Read the task’s last handoff and a sticky note linked to the task or its project. Enter or edit the intended outcome.',
+      'Choose `Save and begin` to start or `Save outcome` to do so later. You can still press `Space` from Garden to start directly.'],
+    action:'focus', actionLabel:'Open Garden', related:['focus-outcome','resume','linked-notes']
+  },
+  {
+    id:'break-ideas', group:'Focus & rest', title:'Save break ideas that fit the timer',
+    summary:'Keep a personal list of 2-, 5-, and 10-minute ways to take a break.',
+    steps:['In Garden, open `Settings` → `Manage break ideas`. Name the activity, choose 2, 5, or 10 minutes, and select `Add idea`.',
+      'During Rest, select `Break idea` beneath the timer. Garden suggests an activity at the longest saved length that fits the time left.',
+      'Choose `Another idea` when more than one activity fits at that length. Use `Remove` to take an idea off your list.'],
+    action:'focus', actionLabel:'Open Garden', related:['timer','backup']
   },
   {
     id:'resume', group:'Focus & rest', title:'Pick up where you left off',
@@ -226,7 +242,15 @@ export const helpTopics = [
       'Check estimated work left beside the milestone. Garden subtracts completed focus time from estimates for unfinished linked tasks and lists how many of those tasks still need an estimate.',
       'Choose `Resume project` to select the project’s first ready task in the Garden focus queue. Finish or reset any current focus session first.',
       'Read the task’s description and saved next step. Use linked notes for context or choose `Back to timer` when you are ready. The project name by the timer reopens this panel.'],
-    action:'planner', actionLabel:'Open Planner', related:['projects','linked-notes','focus-queue']
+    action:'planner', actionLabel:'Open Planner', related:['projects','linked-notes','focus-queue','project-session-timeline']
+  },
+  {
+    id:'project-session-timeline', group:'Tasks & projects', title:'Review a project’s session timeline',
+    summary:'See actual time, outcomes, and handoffs grouped by task.',
+    steps:['Open a project in Planner and expand `Project overview`. Scroll to `Session timeline`.',
+      'Read the newest sessions first under each task. Actual time excludes pauses and follows task switches recorded by the timer.',
+      'Each entry shows whether the session was completed or skipped. Saved outcomes, handoffs, next steps, and mistake retry results appear when available.'],
+    action:'planner', actionLabel:'Open Planner', related:['project-resume','focus-replay','resume','mistake-notebook']
   },
   {
     id:'exam-plans', group:'Tasks & projects', title:'Prepare for exams and log results',
@@ -244,7 +268,9 @@ export const helpTopics = [
     summary:'Save corrected reasoning and revisit mistakes until you solve them.',
     steps:['Open an existing task and choose `Mistake notebook`, or open a project exam and choose `Review mistakes`.',
       'Expand `Log a mistake`. Describe what went wrong and how to reason through it correctly. In an exam, select the topic.',
-      'Try the problem before choosing `Reveal reasoning`. Choose `Solved it` to clear it from To retry or `Still stuck` to keep it queued.',
+      'Choose `Retry with focus` to open Garden and start the focus timer. Garden shows the mistake prompt and keeps the corrected reasoning tucked away during the session.',
+      'When the timer expires, choose `Review retry`, or select `Finish retry` to finish early. Reveal the reasoning if needed, then choose `Solved it` or `Still stuck`. A reset or skip does not log a retry result.',
+      'To practice without a timer, try the problem before choosing `Reveal reasoning`. Choose `Solved it` to clear it from To retry or `Still stuck` to keep it queued.',
       'Choose `All` to revisit successful retries. Open the notebook from Planner to review mistakes across tasks and exams.'],
     action:'mistakes', actionLabel:'Open Mistake notebook', related:['tasks','exam-plans','backup']
   },

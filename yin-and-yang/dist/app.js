@@ -1,9 +1,9 @@
-import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites} from './state.js';
+import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit} from './state.js';
 import {renderLandscape,objects,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions} from './scenery.js';
 import {earnGardenDetail,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
-import {handoffLink} from './session-handoff.js';
+import {handoffLink,sessionHandoff} from './session-handoff.js';
 import {installExamPlans} from './exam-plans.js';
 import {installMistakeNotebook,needsRetry} from './mistake-notebook.js';
 import {bundleProgress,installBundleEditor} from './task-bundles.js';
@@ -244,7 +244,7 @@ undoButton.onclick=()=>{
   const message=reverted?'Change undone.':'This item changed before it could be undone.';
   toast(message);announce(message);
 };
-const mistakeNotebook=installMistakeNotebook({dialog:$('#mistake-dialog'),getState:()=>state,notify:confirmChange,save:entries=>{
+const mistakeNotebook=installMistakeNotebook({dialog:$('#mistake-dialog'),getState:()=>state,notify:confirmChange,startFocus:startMistakeFocus,save:entries=>{
   const prior=state.mistakes;
   state.mistakes=entries;
   if(!persist()){state.mistakes=prior;return false;}
@@ -447,7 +447,7 @@ function showWorkspace(next){
   workspace=next;
   app.dataset.workspace=next;
   $('.sky').hidden=next!=='focus';
-  if(next!=='focus')$('#focus-handoff').hidden=true;
+  if(next!=='focus'){$('#focus-handoff').hidden=true;$('#focus-retry').hidden=true;}
   $('#crochet-workspace').hidden=next!=='crochet';
   $('#journal-workspace').hidden=next!=='journal';
   $('#notes-workspace').hidden=next!=='notes';
@@ -699,6 +699,7 @@ function pauseBundleForTask(taskId){
 function taskIndex(){return new Map(state.tasks.map(task=>[task.id,task]));}
 function waitingOn(task){return task?.prerequisiteIds?.length?unfinishedPrerequisites(task,taskIndex()):[];}
 function focusedTask(date=new Date()){
+  if(state.timer.mistakeId)return state.tasks.find(task=>task.id===state.timer.taskSnapshot?.id);
   if(state.timer.block)return state.tasks.find(task=>task.id===state.timer.block.taskId&&!task.waitingFor);
   const queue=gardenFocusQueue(date);
   const sessionId=state.timer.mode==='focus'?state.timer.replay?.at(-1)?.taskId||state.timer.taskSnapshot?.id:null;
@@ -768,10 +769,12 @@ function render(){
   if(renderedBundle!==bundleText){bundleButton.textContent=bundleText;renderedBundle=bundleText;}
   focusNotes.update(task,workspace==='focus');
   const bundleWaiting=bundle?.next&&!bundle.run.paused&&!bundle.next.ready;
-  const taskName=task?.text||(bundleWaiting?'Bundle waiting':'Choose a task');
+  const taskName=task?.text||(t.mistakeId?'Mistake retry':'')||(bundleWaiting?'Bundle waiting':'Choose a task');
   if(currentTaskName.textContent!==taskName)currentTaskName.textContent=taskName;
   currentTaskButton.title=task?task.text:'Choose a task';
-  finishTaskButton.hidden=!task||t.mode!=='focus';
+  finishTaskButton.hidden=!task||t.mode!=='focus'||Boolean(t.mistakeId);
+  currentTaskButton.disabled=Boolean(t.mistakeId);
+  renderSessionExtras(t);
   const recent=t.mode==='break'?state.history.findLast(item=>item.mode==='focus'&&item.outcome==='completed'):null;
   const previousFocus=t.mode==='break'?(resumeTaskId||recent?.replay?.at(-1)?.taskId||recent?.taskId):null;
   const resume=(previousFocus&&state.tasks.find(item=>item.id===previousFocus))||task;
@@ -781,7 +784,7 @@ function render(){
   if(resumeButton.textContent!==nextStep)resumeButton.textContent=nextStep;
   resumeButton.dataset.resumeId=resume?.id||'';
   const handoff=$('#focus-handoff');
-  const showHandoff=workspace==='focus'&&t.mode==='focus'&&hasHandoff(task);
+  const showHandoff=workspace==='focus'&&t.mode==='focus'&&!t.mistakeId&&hasHandoff(task);
   handoff.hidden=!showHandoff;
   if(showHandoff){
     const html=`<h2 id="focus-handoff-title">Pick up here</h2>${handoffDetails(task)}`;
@@ -819,10 +822,10 @@ function render(){
   routineCaption.hidden=!phase;
   $('#end-routine').hidden=!phase;
   if(routineCaption.textContent!==phaseText)routineCaption.textContent=phaseText;
-  const outcomeButton=$('#focus-goal'), outcomeText=t.goal||'Set outcome';
-  outcomeButton.hidden=t.mode!=='focus';
+  const outcomeButton=$('#focus-goal'), outcomeText=t.id?(t.goal||'Set outcome'):'Warm up';
+  outcomeButton.hidden=t.mode!=='focus'||Boolean(t.mistakeId);
   if(outcomeButton.textContent!==outcomeText)outcomeButton.textContent=outcomeText;
-  outcomeButton.title=t.goal?`Edit outcome: ${t.goal}`:'Set an outcome for this focus session';
+  outcomeButton.title=!t.id?'Review your handoff, note, and outcome':t.goal?`Edit outcome: ${t.goal}`:'Set an outcome for this focus session';
   $('#review-focus').hidden=!pendingFocusReview();
   timerButton.innerHTML=icon(running?'pause':'play')+`<span>${running?'Pause':t.status==='paused'?'Continue':t.mode==='focus'?'Begin focus':'Begin rest'}</span>`;
   $('[data-mode="focus"]').setAttribute('aria-pressed',t.mode==='focus');
@@ -857,11 +860,13 @@ function checkCompletion(){
     :wasBlock
     ? state.timer.block ? (state.timer.mode==='break'?'Focus complete. A short rest has started.':'Rest complete. Focus has resumed.') : 'Calendar block finished.'
     : completed.mode==='focus'?'Focus session complete. Your break is ready.':'Break complete. Your focus timer is ready.';
-  if(completed.goal)message+=' Review your outcome when you’re ready.';
+  if(completed.mistakeId)message+=' Review your retry when you’re ready.';
+  else if(completed.goal)message+=' Review your outcome when you’re ready.';
   persist();render();planner.refreshReporting();toast(message);announce(message);
   notifyTimer(completed.mode==='focus'?'Focus finished':'Break finished',message,`${completed.id}-complete`);
   gardenAudio.cue(completed.mode);
   if(activePanel==='progress'||activePanel==='focus-task')refreshPanel();
+  if(focused&&workspace==='planner'&&!activePanel)planner.render();
   wake();
 }
 const notificationsSupported=()=>globalThis.isSecureContext&&typeof Notification!=='undefined';
@@ -921,6 +926,12 @@ currentTaskButton.onclick=()=>{
 };
 finishTaskButton.onclick=()=>openPanel('finish-task',finishTaskButton);
 $('#focus-goal').onclick=()=>openPanel('focus-goal',$('#focus-goal'));
+$('#finish-retry').onclick=finishMistakeFocus;
+$('#review-retry').onclick=()=>openPanel('mistake-retry',$('#review-retry'));
+$('#break-ideas').onclick=()=>{
+  breakIdeaIndex=0;
+  openPanel('break-ideas',$('#break-ideas'));
+};
 $('#review-focus').onclick=()=>openPanel('focus-review',$('#review-focus'));
 $('#fit-task').onclick=()=>openPanel('fit-task',$('#fit-task'));
 $('#end-routine').onclick=()=>action(()=>{
@@ -1438,6 +1449,112 @@ function updatePhaseButtons(){
   });
   $('[data-phase-action="add"]').disabled=rows.length>=12;
 }
+function pendingMistakeRetry(){
+  return state.history.findLast(session=>session.mode==='focus'&&session.outcome==='completed'&&
+    session.mistakeId&&typeof session.mistakeResult!=='boolean'&&
+    state.mistakes.some(item=>item.id===session.mistakeId&&!item.retries.some(retry=>retry.sessionId===session.id)));
+}
+function startMistakeFocus(id){
+  checkCompletion();
+  if(state.timer.id||state.timer.block||state.timer.sequence)return 'Finish or reset the current timer before starting a retry.';
+  const item=state.mistakes.find(entry=>entry.id===id);
+  if(!item)return 'This mistake is no longer available.';
+  const task=state.tasks.find(entry=>entry.id===item.taskId);
+  if(task?.waitingFor||waitingOn(task).length)return 'This task is waiting on something. Mark it ready before starting a retry.';
+  const before=state.timer, bundle=state.activeBundle;
+  pauseBundleForTask(task?.id);
+  if(before.mode==='break')reset(state,'focus');
+  state.timer={...state.timer,mistakeId:id,goal:''};
+  startPause(state,Date.now(),task?.id??null);
+  if(!persist()){
+    state.timer=before;state.activeBundle=bundle;
+    return 'Could not save the retry. Try again when storage is available.';
+  }
+  $('#exam-dialog').close();
+  closePanel(false);
+  visitWorkspace('focus');
+  render();
+  setTimeout(()=>timerButton.focus({preventScroll:true}),0);
+  announce('Mistake retry started. The corrected reasoning is hidden until you finish.');
+  return true;
+}
+function finishMistakeFocus(){
+  checkCompletion();
+  if(state.timer.mistakeId&&state.timer.id){
+    const before=state.timer,length=state.history.length;
+    record(state,'completed',Date.now(),{early:true});
+    reset(state,'break');
+    if(!persist()){state.timer=before;state.history.length=length;return;}
+    resumeTaskId=before.taskSnapshot?.id||null;
+    render();
+  }
+  if(pendingMistakeRetry())openPanel('mistake-retry',$('#review-retry'));
+}
+function renderSessionExtras(timer){
+  const item=state.mistakes.find(entry=>entry.id===timer.mistakeId);
+  const card=$('#focus-retry');
+  card.hidden=workspace!=='focus'||!item;
+  if(item&&card.dataset.mistake!==item.mistake){
+    card.dataset.mistake=item.mistake;
+    card.innerHTML=`<strong>Mistake retry</strong><p>${escape(item.mistake)}</p>`;
+  }
+  $('#finish-retry').hidden=!item;
+  $('#review-retry').hidden=Boolean(timer.mistakeId)||!pendingMistakeRetry();
+  $('#break-ideas').hidden=timer.mode!=='break';
+  renderBreakSuggestion();
+}
+function mistakeRetryMarkup(){
+  const session=pendingMistakeRetry();
+  const item=state.mistakes.find(entry=>entry.id===session?.mistakeId);
+  if(!item)return header('MISTAKE NOTEBOOK','No completed retry to review');
+  return `${header('MISTAKE NOTEBOOK','How did the retry go?')}
+    <p class="session-context-text">${escape(item.mistake)}</p>
+    <details class="session-context"><summary>Reveal corrected reasoning</summary><p class="session-context-text">${escape(item.correction)}</p></details>
+    <form id="mistake-retry-form" data-session="${escape(session.id)}">
+      <div class="panel-actions"><button class="text-button" type="submit" value="stuck">Still stuck</button>
+        <button class="panel-primary" type="submit" value="solved">Solved it</button></div>
+    </form>`;
+}
+function warmupContext(){
+  const task=focusedTask();
+  const linked=task&&state.stickyNotes.find(note=>noteTaskIds(note).includes(task.id));
+  const note=linked||(task?.projectId&&state.stickyNotes.find(note=>noteRelatedItems(note)
+    .some(target=>target.kind==='project'&&target.id===task.projectId)));
+  return `<div class="session-context warmup-context"><h3>Last handoff</h3>${hasHandoff(task)?handoffDetails(task):'<p>No handoff for this task yet.</p>'}
+    <h3>Sticky note</h3>${note?`<p><strong>${escape(note.title||'Linked note')}</strong></p>
+      ${note.body?`<p class="session-context-text">${escape(note.body)}</p>`:''}`:'<p>No linked note for this task yet.</p>'}</div>`;
+}
+let breakIdeaIndex=0;
+function renderBreakSuggestion(){
+  const suggestion=$('#break-suggestion');
+  if(!suggestion)return;
+  const ideas=state.timer.mode==='break'?breakIdeasThatFit(state.breakIdeas,Math.ceil(remaining(state)/1000)*1000):[];
+  const idea=ideas[breakIdeaIndex%ideas.length];
+  const copy=idea?`${idea.text} · ${idea.minutes} min`:state.timer.mode==='break'?'No saved idea fits the time left.':'Suggestions appear during rest.';
+  if(suggestion.textContent!==copy)suggestion.textContent=copy;
+  $('#next-break-idea').hidden=ideas.length<2;
+}
+function breakIdeasMarkup(){
+  return `${header('REST','Break ideas')}
+    <div class="session-context"><p id="break-suggestion" aria-live="polite"></p>
+      <button type="button" id="next-break-idea" class="text-button" hidden>Another idea</button></div>
+    <ul class="break-idea-list">${[...state.breakIdeas].sort((a,b)=>a.minutes-b.minutes).map(idea=>`<li>
+      <span>${escape(idea.text)} · ${idea.minutes} min</span><button type="button" class="text-button" data-remove-break-idea="${escape(idea.id)}" aria-label="Remove ${escape(idea.text)}">Remove</button>
+    </li>`).join('')}</ul>
+    <form id="break-idea-form">
+      <label class="field-label" for="break-idea-text">New idea</label><input id="break-idea-text" name="text" maxlength="160" required placeholder="Walk around the room">
+      <label class="field-label" for="break-idea-length">Time needed</label>
+      <select id="break-idea-length" name="minutes">${breakIdeaMinutes.map(minutes=>`<option value="${minutes}">${minutes} minutes</option>`).join('')}</select>
+      <div class="panel-actions"><button class="panel-primary">Add idea</button></div>
+    </form>`;
+}
+function saveBreakIdeas(ideas){
+  const previous=state.breakIdeas;
+  state.breakIdeas=ideas;
+  if(!persist()){state.breakIdeas=previous;return false;}
+  refreshPanel();renderBreakSuggestion();$('#break-idea-text')?.focus({preventScroll:true});
+  return true;
+}
 function pendingFocusReview(){
   return state.history.findLast(item=>item.mode==='focus'&&item.outcome==='completed'&&item.goal&&!item.review);
 }
@@ -1458,6 +1575,7 @@ function focusReviewMarkup(){
 }
 function focusReviewDetails(session){
   if(!session.goal)return '';
+  if(session.outcome==='skipped')return '<small class="session-review-detail">'+escape(session.goal)+'</small>';
   const result=session.review?.result==='reached'?'Reached':session.review?.result==='partial'?'Partial':'Ready to review';
   return `<small class="session-review-detail">${escape(session.goal)} · ${result}${session.review?.next?`<br>Next: ${escape(session.review.next)}`:''}</small>`;
 }
@@ -1951,13 +2069,16 @@ function panelContent(id){
   if(id==='availability')return availabilityMarkup();
   if(id==='routine-editor')return routineEditor();
   if(id==='focus-review')return focusReviewMarkup();
-  if(id==='focus-goal')return `${header('FOCUS','Set an outcome')}
+  if(id==='mistake-retry')return mistakeRetryMarkup();
+  if(id==='break-ideas')return breakIdeasMarkup();
+  if(id==='focus-goal')return `${header('FOCUS',state.timer.id?'Set an outcome':'Warm up')}
+    ${!state.timer.id?warmupContext():''}
     <form id="focus-goal-form">
       <label class="field-label" for="session-goal">What will you finish?</label>
       <input id="session-goal" name="goal" maxlength="160" placeholder="Solve problems 1–4" value="${escape(state.timer.goal)}">
       <div class="panel-actions">
-        ${state.timer.mode==='focus'&&state.timer.status==='idle'?'<button class="text-button" type="submit" value="begin">Save and begin</button>':''}
-        <button class="panel-primary" type="submit" value="save">Save outcome</button>
+        ${state.timer.mode==='focus'&&state.timer.status==='idle'?'<button class="panel-primary" type="submit" value="begin">Save and begin</button>':''}
+        <button class="text-button" type="submit" value="save">Save outcome</button>
       </div>
     </form>`;
   if(id==='fit-task')return `${header('CURRENT TASK','Find a task by time')}
@@ -2068,7 +2189,7 @@ function panelContent(id){
   if(id==='calendar-block')return calendarBlockPreview();
   if(id==='task-tradeoffs')return tradeoffsMarkup();
   if(id==='focus-replay')return focusReplayMarkup();
-  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><button type="button" class="text-button" id="open-backup">Backup and restore</button><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}${timerRoutines()}`;
+  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><button type="button" class="text-button" id="open-backup">Backup and restore</button><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}<button type="button" class="text-button" id="open-break-ideas">Manage break ideas</button>${timerRoutines()}`;
   if(id==='task-editor')return taskEditor();
   if(id==='block-editor')return blockEditor();
   if(id==='capture')return `${header('QUICK CAPTURE','Leave a thought here.')}
@@ -2137,6 +2258,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
   else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
   if(id==='routine-editor')updatePhaseButtons();
+  if(id==='break-ideas')renderBreakSuggestion();
   const scheduleForm=panel.querySelector('#task-editor-form,#block-editor-form');
   if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(id==='music')syncSound();
@@ -2174,6 +2296,7 @@ function refreshPanel(){
   const scheduleForm=p.querySelector('#task-editor-form,#block-editor-form');
   if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(activePanel==='calendar-block')updateBlockPreview(Date.now());
+  if(activePanel==='break-ideas')renderBreakSuggestion();
   positionPanel(p,lastAnchor);
   if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
   else if(activePanel==='focus-task')p.querySelector('button')?.focus({preventScroll:true});
@@ -3710,6 +3833,13 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  if(e.target.closest('#open-break-ideas')){openPanel('break-ideas',$('[data-panel="pagoda"]'));return;}
+  if(e.target.closest('#next-break-idea')){breakIdeaIndex++;renderBreakSuggestion();return;}
+  const removeIdea=e.target.closest('[data-remove-break-idea]');
+  if(removeIdea){
+    if(saveBreakIdeas(state.breakIdeas.filter(idea=>idea.id!==removeIdea.dataset.removeBreakIdea)))confirmChange('Break idea removed.');
+    return;
+  }
   const useDraft=e.target.closest('[data-use-week-draft]');
   if(useDraft){
     const option=weekComparison.find(item=>item.id===useDraft.dataset.useWeekDraft);
@@ -4199,6 +4329,24 @@ root.addEventListener('submit',e=>{
     return;
   }
   if(e.target.id==='availability-form'){saveAvailability(e.target,e.submitter?.value==='remove');return;}
+  if(e.target.id==='break-idea-form'){
+    const fields=new FormData(e.target),text=String(fields.get('text')).trim(),minutes=Number(fields.get('minutes'));
+    if(!text||!breakIdeaMinutes.includes(minutes))return;
+    if(saveBreakIdeas([...state.breakIdeas,{id:crypto.randomUUID(),text,minutes}]))confirmChange('Break idea saved.');
+    return;
+  }
+  if(e.target.id==='mistake-retry-form'){
+    const session=pendingMistakeRetry(),value=e.submitter?.value;
+    if(session?.id!==e.target.dataset.session||!['solved','stuck'].includes(value))return;
+    const previous=state.mistakes,passed=value==='solved';
+    state.mistakes=previous.map(item=>item.id===session.mistakeId
+      ?{...item,retries:[...item.retries,{at:Date.now(),passed,sessionId:session.id}]}:item);
+    session.mistakeResult=passed;
+    if(!persist()){state.mistakes=previous;delete session.mistakeResult;return;}
+    closePanel(false);render();planner.render();timerButton.focus({preventScroll:true});
+    confirmChange(passed?'Retry recorded as solved.':'Retry recorded. The mistake stays in To retry.');
+    return;
+  }
   if(e.target.id==='focus-goal-form'){
     const fields=new FormData(e.target),goal=String(fields.get('goal')).trim();
     const previous=state.timer.goal;
@@ -4345,8 +4493,15 @@ root.addEventListener('submit',e=>{
     const priorTimer=state.timer, historyLength=state.history.length;
     const end=e.submitter?.value==='end'&&priorTimer.mode==='focus'&&priorTimer.id&&focusedTask()?.id===task.id;
     Object.assign(task,handoff);
+    const session=priorTimer.mode==='focus'&&priorTimer.id&&focusedTask()?.id===task.id;
+    const savedHandoff=priorTimer.nextHandoff, savedHandoffTask=priorTimer.handoffTaskId;
+    if(session){priorTimer.nextHandoff=sessionHandoff(task);priorTimer.handoffTaskId=task.id;}
     if(end){record(state,'completed',Date.now(),{early:true});reset(state,'break');}
-    if(!persist()){Object.assign(task,previous);state.timer=priorTimer;state.history.length=historyLength;return;}
+    if(!persist()){
+      Object.assign(task,previous);state.timer=priorTimer;state.history.length=historyLength;
+      if(session){priorTimer.nextHandoff=savedHandoff;priorTimer.handoffTaskId=savedHandoffTask;}
+      return;
+    }
     if(end)resumeTaskId=task.id;
     closePanel();render();planner.refreshReporting();
     if(end)timerButton.focus({preventScroll:true});

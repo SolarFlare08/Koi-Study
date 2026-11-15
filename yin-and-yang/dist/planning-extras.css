@@ -522,3 +522,26 @@ button.project-context-item:hover { color: var(--planner-accent); }
 .reading-forecast { padding: 8px 0; border-bottom: 1px solid var(--surface-line); }
 .reading-forecast h4,.reading-forecast p { margin: 4px 0; }
 .crochet-pattern-latest { margin: 3px 0 8px; font-size: 12px; overflow-wrap: anywhere; }
+
+.session-context { margin: 0 0 12px; padding: 10px 12px; border: 1px solid currentColor; border-color: color-mix(in srgb,currentColor 18%,transparent); border-radius: 10px; }
+.session-context h3 { margin: 0; font-size: 13px; }
+.session-context h3:not(:first-child) { margin-top: 10px; }
+.session-context p { margin: 5px 0; }
+.session-context summary { cursor: pointer; }
+.session-context-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.warmup-context .session-context-text { max-height: 7em; overflow: auto; }
+.break-idea-list { display: grid; gap: 4px; max-height: 152px; overflow: auto; list-style: none; padding: 0; }
+.break-idea-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; overflow-wrap: anywhere; }
+.break-idea-list li button { flex-shrink: 0; }
+.mistake-focus-error { color: var(--planner-ink,currentColor); font-size: 12px; }
+.focus-retry-card p { white-space: pre-wrap; }
+.evening-view .focus-retry-card { visibility: hidden; }
+.project-session-timeline { margin-top: 14px; border-top: 1px solid var(--planner-line); padding-top: 10px; }
+.project-session-timeline h3 { margin: 0 0 8px; font-size: 13px; }
+.project-session-timeline h4 { margin: 6px 0; font-size: 13px; }
+.project-session-timeline p { margin: 4px 0 0; color: var(--planner-muted); font-size: 12px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.project-session-groups { max-height: 350px; overflow: auto; padding: 0 8px 6px 0; }
+.project-session-groups ol { margin: 0 0 12px 5px; padding: 0 0 0 10px; list-style: none; border-inline-start: 1px solid var(--planner-line); }
+.project-session-groups li { padding: 7px 0; }
+.project-session-groups li + li { border-top: 1px solid var(--planner-line); }
+.project-session-summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 12px; }

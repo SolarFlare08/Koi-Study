@@ -30,7 +30,7 @@ export function replayTaskSwitch(timer,task,now){
 
 export function replaySessions(history,timer,now){
   const sessions=history.filter(item=>item.mode==='focus');
-  if(timer.mode==='focus'&&timer.id&&!sessions.some(item=>item.id===timer.id)){
+  if(timer?.mode==='focus'&&timer.id&&!sessions.some(item=>item.id===timer.id)){
     sessions.push({id:timer.id,replay:timer.replay,taskId:timer.taskSnapshot?.id,taskTitle:timer.taskSnapshot?.text,
       projectId:timer.taskSnapshot?.projectId,focusMs:Math.max(0,timer.total-(timer.status==='running'?Math.max(0,timer.endAt-now):timer.remaining)),
       finishedAt:timer.status==='running'?Math.min(now,timer.endAt):now,live:timer.status});
@@ -77,4 +77,31 @@ export function replayBlocks(sessions,date,project='all'){
     });
   }
   return blocks;
+}
+
+export function projectSessionTimeline(history,projectId,tasks){
+  const titles=new Map(tasks.map(task=>[task.id,task.text])), groups=new Map();
+  const recorded=replaySessions(history,null,0).filter(session=>Math.abs(session.finishedAt)<=8.64e15);
+  for(const session of recorded.sort((a,b)=>b.finishedAt-a.finishedAt)){
+    const durations=new Map();
+    const spans=session.segments.length?session.segments:[{taskId:session.taskId,end:0,at:0,projectId:session.projectId}];
+    for(const span of spans){
+      const taskId=span.taskId||'';
+      const project=span.projectId||(!taskId?session.projectId:null);
+      if(project!==projectId)continue;
+      const previous=durations.get(taskId);
+      durations.set(taskId,{ms:(previous?.ms||0)+span.end-span.at,title:span.title||previous?.title||''});
+    }
+    for(const [taskId,{ms,title}] of durations){
+      const original=taskId===(session.taskId||'');
+      const group=groups.get(taskId)||{title:titles.get(taskId)||title||session.taskTitle||'Exam and project practice',entries:[]};
+      group.entries.push({id:session.id,at:session.finishedAt,ms,completed:session.outcome==='completed',
+        goal:original?session.goal:undefined,review:original?session.review:undefined,
+        startHandoff:original?session.startHandoff:undefined,
+        nextHandoff:(session.handoffTaskId||session.taskId||'')===taskId?session.nextHandoff:undefined,
+        retry:session.mistakeId?session.mistakeResult===true?'Solved':session.mistakeResult===false?'Still stuck':session.outcome==='completed'?'Awaiting review':'Skipped':undefined});
+      groups.set(taskId,group);
+    }
+  }
+  return [...groups.values()];
 }

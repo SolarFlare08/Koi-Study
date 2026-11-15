@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {freshState,loadState,startPause,record,settle} from '../dist/state.js';
-import {replaySessions,replayTaskSwitch,replayBlocks} from '../dist/focus-replay.js';
+import {freshState,loadState,startPause,record,settle,breakIdeasThatFit} from '../dist/state.js';
+import {replaySessions,replayTaskSwitch,replayBlocks,projectSessionTimeline} from '../dist/focus-replay.js';
 import {createBackup,readBackup} from '../dist/backup.js';
 import {examPlan} from '../dist/exam-plans.js';
 import {handoffLink} from '../dist/session-handoff.js';
@@ -53,4 +53,52 @@ test('exam plans and handoffs survive an existing-format backup',()=>{
   assert.equal(restored.tasks[0].resumeLocation,'Proof 4');
   assert.equal(restored.tasks[0].resumeResource,'https://example.org/proofs');
   assert.equal(handoffLink('javascript:alert(1)'),'');
+});
+
+test('project timeline splits actual time at task switches and keeps the saved handoffs',()=>{
+  let state=freshState();
+  const a={id:'a',text:'Review',done:false,projectId:'course',resumeNote:'Start at problem 4'};
+  const b={id:'b',text:'Practice',done:false,projectId:'course'};
+  state.tasks=[a,b];
+  const start=Date.now(), at=minutes=>start+minutes*60000;
+  state.timer.goal='Finish problem 4';
+  startPause(state,at(0),a.id);
+  startPause(state,at(2));
+  replayTaskSwitch(state.timer,b,at(3));
+  startPause(state,at(4));
+  state.timer.nextHandoff={resumeLocation:'Problem 5'};
+  state.timer.handoffTaskId=b.id;
+  state=loadState({getItem:()=>JSON.stringify(state)});
+  const session=record(state,'completed',at(7),{early:true});
+  session.review={result:'reached',next:'Check the result'};
+  const [review,practice]=projectSessionTimeline(state.history,'course',state.tasks);
+  assert.equal(review.entries[0].ms,120000);
+  assert.equal(review.entries[0].goal,'Finish problem 4');
+  assert.equal(review.entries[0].startHandoff.resumeNote,'Start at problem 4');
+  assert.equal(review.entries[0].review.result,'reached');
+  assert.equal(practice.entries[0].ms,180000);
+  assert.equal(practice.entries[0].nextHandoff.resumeLocation,'Problem 5');
+  assert.equal(practice.entries[0].goal,undefined);
+});
+
+test('a timed mistake retry has a stable link after reload and backup, and break ideas fit the available time',()=>{
+  let state=freshState();
+  const now=Date.now();
+  state.projects=[{id:'course',name:'Algebra',exams:[{id:'exam',title:'Exam',topics:[{id:'topic',title:'Proofs'}]}]}];
+  state.mistakes=[{id:'mistake',examId:'exam',topicId:'topic',mistake:'Proof gap',correction:'Check the base case.',createdAt:now,retries:[]}];
+  state.timer.mistakeId='mistake';
+  state.breakIdeas=[{id:'short',minutes:2,text:'Get water'},{id:'mid',minutes:5,text:'Walk'},{id:'long',minutes:10,text:'Make tea'}];
+  startPause(state,now,null);
+  state=loadState({getItem:()=>JSON.stringify(state)});
+  const session=record(state,'completed',now+2000,{early:true});
+  assert.equal(session.mistakeId,'mistake');
+  assert.equal(session.projectId,'course');
+  session.mistakeResult=false;
+  state.mistakes[0].retries.push({at:now+2000,passed:false,sessionId:session.id});
+  const restored=readBackup(JSON.stringify(createBackup(state,{getItem:()=>null},[]))).state;
+  assert.equal(restored.mistakes[0].retries[0].sessionId,session.id);
+  assert.equal(projectSessionTimeline(restored.history,'course',[])[0].entries[0].retry,'Still stuck');
+  assert.deepEqual(breakIdeasThatFit(restored.breakIdeas,5*60000).map(idea=>idea.id),['mid']);
+  assert.deepEqual(breakIdeasThatFit(restored.breakIdeas,5*60000-1).map(idea=>idea.id),['short']);
+  assert.deepEqual(breakIdeasThatFit(restored.breakIdeas,60000),[]);
 });

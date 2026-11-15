@@ -1,4 +1,10 @@
 export const releases = [
+  {version:'2.10.0',date:'2026-11-14',title:'Focus retries, warm-ups, and project timelines',changes:[
+    'Start a focus timer from a mistake and record the retry after working through the prompt.',
+    'Warm up with your last handoff, a linked sticky note, and an outcome before starting.',
+    'Save personal break ideas by duration and get a suggestion that fits the time left. Ideas are included in Garden backups.',
+    'Review actual focus time, outcomes, and saved handoffs by task in Project Overview.'
+  ]},
   {version:'2.9.0',date:'2026-11-14',title:'Flexible commitments and waiting-for tasks',changes:[
     'Set move windows for task blocks and timed events. Fit a task today respects those limits and permission to move to tomorrow.',
     'Track who or what you are waiting for, get follow-up prompts, and mark tasks ready from Planner.'

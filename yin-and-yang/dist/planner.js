@@ -2,6 +2,8 @@ import {blockProgressLabels,calendarBlocks,calendarTaskBlock,allDayEvents,calend
 import {parseCalendarImport} from './calendar-import.js';
 import {summarizeWeek,weeklyProjectProgress} from './weekly-planning.js';
 import {dayKey,taskPriority,taskStatus,unfinishedPrerequisites} from './state.js';
+import {projectSessionTimeline} from './focus-replay.js';
+import {handoffLink} from './session-handoff.js';
 import {captureTaskChange} from './task-undo.js';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
 import {activityLabels,estimateAccuracy,estimateCsv,estimateSummary,reportCsv,reportEvents,reportMetrics,suggestTaskEstimate} from './planner-report.js';
@@ -511,6 +513,32 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     return blocks.sort((a,b)=>a.start-b.start).slice(0,5);
   }
 
+  function projectTimelineMarkup(groups){
+    const stamp=new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'});
+    const spent=ms=>{
+      const seconds=Math.floor(ms/1000);
+      if(seconds<60)return seconds?`${seconds} sec`:'<1 sec';
+      const minutes=Math.floor(seconds/60), rest=seconds%60;
+      return `${minutes} min${rest?` ${rest} sec`:''}`;
+    };
+    function handoff(label,item){
+      if(!item)return '';
+      const resource=handoffLink(item.resumeResource);
+      return `<p><b>${label}</b> ${[item.resumeLocation,item.resumeNote].filter(Boolean).map(escape).join(' · ')}
+        ${resource?`<a href="${escape(resource)}" target="_blank" rel="noopener noreferrer">Open resource</a>`:''}</p>`;
+    }
+    return `<section class="project-session-timeline"><h3>Session timeline</h3>${groups.length?
+      `<div class="project-session-groups" role="region" aria-label="Focus sessions by task" tabindex="0">
+        ${groups.map(group=>`<section><h4>${escape(group.title)}</h4><ol>${group.entries.map(session=>`<li>
+          <div class="project-session-summary"><time datetime="${new Date(session.at).toISOString()}">${stamp.format(session.at)}</time>
+            <strong>${escape(spent(session.ms))} · ${session.completed?'Completed':'Skipped'}</strong></div>
+          ${session.goal?`<p><b>Outcome</b> ${escape(session.goal)}${session.review?` · ${session.review.result==='reached'?'Reached':'Partial'}`:session.completed?' · Awaiting review':''}</p>`:''}
+          ${session.retry?`<p><b>Mistake retry</b> ${escape(session.retry)}</p>`:''}
+          ${handoff('Started from',session.startHandoff)}${handoff('Handoff',session.nextHandoff)}
+          ${session.review?.next?`<p><b>Next step</b> ${escape(session.review.next)}</p>`:''}
+        </li>`).join('')}</ol></section>`).join('')}
+      </div>`:'<p>No recorded focus sessions.</p>'}</section>`;
+  }
   function renderProjectOverview(project){
     const overview=$('#planner-project-overview');
     overview.hidden=!project;
@@ -529,8 +557,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const effort=remaining.minutes<60?`${remaining.minutes} min`:`${hours.format(remaining.minutes/60)} h`;
     const effortLabel=next?.tasks.some(item=>!item.done&&item.task?.estimate)?`${effort} estimated work left`:'No remaining work estimated';
     const blocks=upcomingProjectBlocks(project.id,now);
-    const sessions=state().history.filter(item=>item.projectId===project.id&&item.mode==='focus')
-      .sort((a,b)=>b.finishedAt-a.finishedAt).slice(0,5);
+    const sessions=projectSessionTimeline(state().history,project.id,state().tasks);
     const notes=linkedNotes(project.id);
     const reward=projectReward(project.id);
     const timestamp=date=>date.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
@@ -555,13 +582,11 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         <section><h3>Exam prep</h3><button type="button" class="project-context-item" data-project-exams="${escape(project.id)}" aria-haspopup="dialog">
           <strong>${project.exams?.length?`${project.exams.length} ${project.exams.length===1?'exam plan':'exam plans'}`:'Add an exam plan'}</strong>
           <span>${project.exams?.filter(exam=>!exam.result).length||0} open</span></button></section>
-        <section><h3>Recent focus</h3>${sessions.length?`<ul>${sessions.map(session=>`<li class="project-context-item"><strong>${escape(session.taskTitle||'Focus session')}</strong>
-          <span>${shortDay(new Date(session.finishedAt))} · ${Math.round(session.focusMs/60000)} min · ${session.outcome==='skipped'?'Skipped':'Completed'}</span></li>`).join('')}</ul>`:
-          '<p>No recorded focus sessions.</p>'}</section>
       </div>`;
-    if(projectOverviewMarkup!==markup){
-      $('#planner-project-context').innerHTML=markup;
-      projectOverviewMarkup=markup;
+    const overviewMarkup=markup+projectTimelineMarkup(sessions);
+    if(projectOverviewMarkup!==overviewMarkup){
+      $('#planner-project-context').innerHTML=overviewMarkup;
+      projectOverviewMarkup=overviewMarkup;
     }
   }
 
