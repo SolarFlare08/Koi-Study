@@ -34,15 +34,35 @@ export function postcardSvg(scene,caption=''){
   return new XMLSerializer().serializeToString(copy);
 }
 
-export async function postcardPng(scene,caption){
+async function drawScene(scene,caption,context,...placement){
   const source=new Blob([postcardSvg(scene,caption)],{type:'image/svg+xml;charset=utf-8'});
   const url=URL.createObjectURL(source);
   try{
     const image=new Image();
     image.src=url;await image.decode();
-    const canvas=document.createElement('canvas');
-    canvas.width=postcardSize.width;canvas.height=postcardSize.height;
-    canvas.getContext('2d').drawImage(image,0,0);
-    return await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('PNG encoding failed')),'image/png'));
+    context.drawImage(image,...placement);
   }finally{URL.revokeObjectURL(url);}
+}
+function encodePostcard(canvas){
+  return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('PNG encoding failed')),'image/png'));
+}
+export async function postcardPng(scene,caption){
+  const canvas=document.createElement('canvas');
+  canvas.width=postcardSize.width;canvas.height=postcardSize.height;
+  await drawScene(scene,caption,canvas.getContext('2d'),0,0);
+  return encodePostcard(canvas);
+}
+
+export async function comparisonPostcardPng(before,after,labels,caption=''){
+  const canvas=document.createElement('canvas');
+  canvas.width=3200;canvas.height=1040;
+  const context=canvas.getContext('2d');
+  context.fillStyle='#f4ead9';context.fillRect(0,0,canvas.width,canvas.height);
+  const positions=[48,1616],width=1536,height=864;
+  await Promise.all([before,after].map((scene,index)=>drawScene(scene,'',context,positions[index],72,width,height)));
+  context.textAlign='center';context.fillStyle='#263e3a';context.font='34px Georgia';
+  context.fillText(caption.trim()||'Garden before and after',1600,49,3000);
+  context.font='30px Georgia';
+  labels.forEach((label,index)=>context.fillText(label,positions[index]+width/2,995,width));
+  return encodePostcard(canvas);
 }

@@ -18,6 +18,11 @@ function validDay(day) {
   return Number.isFinite(+date) && date.toISOString().slice(0, 10) === day;
 }
 
+export function landmarkInscription(kind,value){
+  return ['project','book','milestone'].includes(kind)&&typeof value==='string'
+    ?value.trim().replace(/\s+/g,' ').slice(0,90):'';
+}
+
 export function gardenReward(history, kind, sourceId) {
   return history.find(item => item.kind === kind && item.sourceId === sourceId);
 }
@@ -35,6 +40,8 @@ export function loadGardenGrowth(value) {
     seen.add(key);
     const entry={kind, sourceId, title: title.trim().slice(0, 500), day};
     Object.assign(entry,landmarkPlacement(kind,item.zone,item.group));
+    const inscription=landmarkInscription(kind,item.inscription);
+    if(inscription)entry.inscription=inscription;
     for(const [field,limit] of [['result',100],['detail',1000]]){
       if(typeof item[field]==='string'&&item[field].trim())entry[field]=item[field].trim().slice(0,limit);
     }
@@ -56,6 +63,13 @@ export function earnGardenDetail(history, kind, sourceId, title, day, metadata={
 export function gardenRange(history,from='',through=''){
   return history.map((item,index)=>({item,index})).filter(({item})=>
     (!from||item.day>=from)&&(!through||item.day<=through));
+}
+
+export function gardenComparison(history,before,after,today){
+  if(!validDay(before)||!validDay(after)||before>=after||after>today)return null;
+  const earlier=gardenRange(history,'',before).length;
+  const later=gardenRange(history,'',after).length;
+  return {before,after,earlier,later,added:later-earlier};
 }
 
 export function gardenCourses(history,projects){

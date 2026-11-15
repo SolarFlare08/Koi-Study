@@ -1,6 +1,6 @@
 export {blossomMarkup} from './landscape.js';
 import {daylight,blend,ridge,sunPosition} from './daylight.js';
-import {sceneProgress} from './garden-appearance.js';
+import {gardenWeather,sceneProgress,sceneryWeatherLayers} from './garden-appearance.js';
 import {alternateBoats,alternateBoatLights,mountainSnowCut,seasonalTree,shoreDetails,snowbank,weatherMarkup} from './seasonal-scenery.js';
 export const objects=[['pagoda','Timer settings'],['tasks','Add tasks'],['music','Your Spotify'],['notes','Distraction notes'],['progress','Today’s progress'],['appearance','Appearance']].map(([id,hint])=>({id,hint,label:hint,className:'',art:''}));
 const pavilionOrigin='1096 615';
@@ -297,26 +297,64 @@ ${shoreDetails()}
 <g id="garden-growth-stars"/>
 ${weatherMarkup()}
 </svg>`;}
-let nodes,lastFrame;
+export function applySceneryAppearance(container,{season,palette},weather){
+  if(container.dataset.palette!==palette)container.dataset.palette=palette;
+  if(container.dataset.season===season&&container.dataset.weather===weather)return;
+  container.dataset.season=season;
+  container.dataset.weather=weather;
+  for(const [layer,opacity] of Object.entries(sceneryWeatherLayers(season,weather)))container.style.setProperty(`--scene-${layer}`,opacity);
+}
+
+function lightNodes(scope,app){
+  const find=id=>scope.querySelector('#'+id);
+  return {sun:find('travelling-sun'),halo:find('sun-halo'),shine:find('shine'),top:find('zenith'),
+    middle:find('sky-middle'),bottom:find('horizon'),wash:find('season-sky-wash'),shade:find('night-shade'),
+    lamps:find('evening-lights'),stars:find('stars'),moon:find('garden-moon'),app};
+}
+let nodes,lastFrame,previewId=0;
 function paintDay(p,lighting){
-const width=innerWidth,height=innerHeight;
-if(lastFrame?.p===p&&lastFrame.lighting===lighting&&lastFrame.width===width&&lastFrame.height===height)return;
-lastFrame={p,lighting,width,height};
-nodes??={sun:document.querySelector('#travelling-sun'),halo:document.querySelector('#sun-halo'),shine:document.querySelector('#shine'),top:document.querySelector('#zenith'),middle:document.querySelector('#sky-middle'),bottom:document.querySelector('#horizon'),wash:document.querySelector('#season-sky-wash'),shade:document.querySelector('#night-shade'),lamps:document.querySelector('#evening-lights'),stars:document.querySelector('#stars'),moon:document.querySelector('#garden-moon'),app:document.querySelector('#app')};
-const light=daylight(p),k=light.p,{x,y}=sunPosition(k,innerWidth,innerHeight);
-nodes.sun.setAttribute('cx',x);nodes.sun.setAttribute('cy',y);nodes.halo.setAttribute('transform',`translate(${x} ${y})`);nodes.shine.setAttribute('transform',`translate(${x} 0)`);
-nodes.top.setAttribute('stop-color',light.top);nodes.middle.setAttribute('stop-color',light.middle);nodes.bottom.setAttribute('stop-color',light.horizon);
-nodes.wash.setAttribute('opacity',1-light.night);
-nodes.shade.setAttribute('opacity',light.shade);nodes.stars.setAttribute('opacity',Math.max(0,(light.night-.65)/.35)*.6);
-nodes.lamps.setAttribute('opacity',light.lamplight);
-const scale=Math.max(width/1600,height/900);
-nodes.moon.setAttribute('transform',`translate(${800+Math.min(280,width/scale*.34)} ${Math.max(145,(900-height/scale)/2+83)})`);
-nodes.moon.setAttribute('opacity',lighting==='night'?'.94':'0');
-nodes.shine.setAttribute('opacity',(1-light.night)*light.sunlight);nodes.sun.setAttribute('opacity',light.sunlight);nodes.halo.setAttribute('opacity',light.sunlight);nodes.sun.setAttribute('fill',blend('#fff2ca','#eea177',Math.pow(Math.abs(k-.5)*2,3)));
-nodes.app.style.setProperty('--scene-ink',blend('#34565a','#f1e6d3',light.night));
-nodes.app.style.setProperty('--scene-muted',blend('#55726c','#c9cdd1',light.night));
-nodes.app.style.setProperty('--scene-paper',blend('#e7eadc','#26394a',light.night));
-nodes.app.style.setProperty('--scene-twilight',Math.min(1,Math.max(.22,(light.night-.16)*1.4)));
+  const width=innerWidth,height=innerHeight;
+  if(lastFrame?.p===p&&lastFrame.lighting===lighting&&lastFrame.width===width&&lastFrame.height===height)return;
+  lastFrame={p,lighting,width,height};
+  nodes??=lightNodes(document,document.querySelector('#app'));
+  paintLight(nodes,p,lighting,width,height);
+}
+function paintLight(nodes,p,lighting,width,height){
+  const light=daylight(p),k=light.p,{x,y}=sunPosition(k,width,height);
+  nodes.sun.setAttribute('cx',x);nodes.sun.setAttribute('cy',y);nodes.halo.setAttribute('transform',`translate(${x} ${y})`);nodes.shine.setAttribute('transform',`translate(${x} 0)`);
+  nodes.top.setAttribute('stop-color',light.top);nodes.middle.setAttribute('stop-color',light.middle);nodes.bottom.setAttribute('stop-color',light.horizon);
+  nodes.wash.setAttribute('opacity',1-light.night);
+  nodes.shade.setAttribute('opacity',light.shade);nodes.stars.setAttribute('opacity',Math.max(0,(light.night-.65)/.35)*.6);
+  nodes.lamps.setAttribute('opacity',light.lamplight);
+  const scale=Math.max(width/1600,height/900);
+  nodes.moon.setAttribute('transform',`translate(${800+Math.min(280,width/scale*.34)} ${Math.max(145,(900-height/scale)/2+83)})`);
+  nodes.moon.setAttribute('opacity',lighting==='night'?'.94':'0');
+  nodes.shine.setAttribute('opacity',(1-light.night)*light.sunlight);nodes.sun.setAttribute('opacity',light.sunlight);nodes.halo.setAttribute('opacity',light.sunlight);nodes.sun.setAttribute('fill',blend('#fff2ca','#eea177',Math.pow(Math.abs(k-.5)*2,3)));
+  nodes.app.style.setProperty('--scene-ink',blend('#34565a','#f1e6d3',light.night));
+  nodes.app.style.setProperty('--scene-muted',blend('#55726c','#c9cdd1',light.night));
+  nodes.app.style.setProperty('--scene-paper',blend('#e7eadc','#26394a',light.night));
+  nodes.app.style.setProperty('--scene-twilight',Math.min(1,Math.max(.22,(light.night-.16)*1.4)));
+}
+
+export function mountGardenPreview(container,appearance,{history=[],courses=[],through=''}={}){
+  const template=document.createElement('template');
+  template.innerHTML=renderLandscape();
+  const scene=template.content.firstElementChild;
+  const art=gardenGrowthMarkup(history,{courses,through});
+  for(const [part,markup] of Object.entries(art))scene.querySelector(`#garden-growth-${part}`).innerHTML=markup;
+  paintLight(lightNodes(scene,container),sceneProgress(0,appearance.lighting,false,'still'),appearance.lighting,1600,900);
+  applySceneryAppearance(container,appearance,gardenWeather(appearance,appearance.weatherSince));
+  // Each preview carries its own paint servers and clip paths alongside the live landscape.
+  const prefix=`garden-preview-${++previewId}-`;
+  for(const node of scene.querySelectorAll('[id]'))node.id=prefix+node.id;
+  for(const node of scene.querySelectorAll('[fill*="url(#"],[stroke*="url(#"],[clip-path],[filter],[mask]')){
+    for(const attr of ['fill','stroke','clip-path','filter','mask']){
+      const value=node.getAttribute(attr);
+      if(value?.startsWith('url(#'))node.setAttribute(attr,`url(#${prefix}${value.slice(5)}`);
+    }
+  }
+  container.replaceChildren(scene);
+  return scene;
 }
 export function animateLandscape(_now,progress,reduced,lighting='session',motion='gentle'){
 // Progress already comes from an end timestamp at animation-frame precision.

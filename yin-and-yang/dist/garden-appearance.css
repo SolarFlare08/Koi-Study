@@ -3,57 +3,52 @@
 .appearance-options + .appearance-options { margin-top: 17px; }
 .appearance-options legend { margin-bottom: 8px; padding: 0; font-size: 12px; font-weight: 650; }
 .appearance-options p { margin: 6px 0 0; font-size: 11px; }
-.lighting-options, .season-options { display: grid; gap: 6px; }
+.lighting-options { display: grid; gap: 6px; }
 .lighting-options { grid-template-columns: repeat(auto-fit,minmax(65px,1fr)); }
-.season-options { grid-template-columns: 1fr 1fr; }
 .appearance-options label { position: relative; min-width: 0; cursor: pointer; }
 .appearance-options label > span { display: grid; gap: 4px; padding: 9px; border: 1px solid var(--surface-line); border-radius: 7px; background: var(--surface-field); font-size: 12px; }
 .lighting-options label > span { text-align: center; }
 .appearance-options label:hover > span, .appearance-options input:checked + span { border-color: var(--surface-accent); background: var(--surface-raised); }
 .appearance-options input:focus-visible + span { outline: 2px solid var(--surface-accent); outline-offset: 2px; }
-.season-options label > span { grid-template-columns: 25px minmax(0,1fr); align-items: center; }
-.season-options i { width: 24px; height: 24px; grid-row: span 2; border-radius: 50%; background: linear-gradient(135deg,var(--season-a) 52%,var(--season-b) 53%); }
-.season-options small { color: var(--surface-muted); font-size: 10px; }
-.season-options strong { line-height: 1; }
 .weather-options select { width: 100%; padding: 8px; border: 1px solid var(--surface-line); border-radius: 7px; background: var(--surface-field); color: var(--surface-ink); font: inherit; font-size: 12px; }
 .weather-options strong { margin-left: 4px; color: var(--surface-ink); }
 #planner-appearance { flex: none; width: 32px; height: 32px; }
 
-#app[data-season="spring"] {
+:is(#landscape,.garden-scene-preview)[data-season="spring"] {
   --season-sky:#f4bfc2; --season-sky-strength:.68;
   --ridge-middle:#95aaa0; --ridge-mist:#e5d8ca; --ridge-near:#669284; --ridge-base:#b9cfa7;
   --bank-upper:#749b75; --bank-lower:#3b6b61; --shore-upper:#b8c897; --shore-lower:#7aa38a;
   --water-horizon:#e8dece; --water-middle:#c3d8c9; --water-near:#83b0a8; --pavilion-roof:#526e62;
 }
-#app[data-season="summer"] {
+:is(#landscape,.garden-scene-preview)[data-season="summer"] {
   --season-sky:#e6f5ef; --season-sky-strength:.32;
   --ridge-near:#497b75; --shore-upper:#97ae83; --water-middle:#accfc1; --water-near:#699f9a;
 }
-#app[data-season="autumn"] {
+:is(#landscape,.garden-scene-preview)[data-season="autumn"] {
   --season-sky:#ffc18d; --season-sky-strength:.83;
   --far-ridge:#b9ada0; --far-base:#ded0b9; --far-shore-detail:#9f805e;
   --ridge-middle:#ab9181; --ridge-mist:#e2baa3; --ridge-near:#997264; --ridge-base:#caab83;
   --bank-upper:#a4774e; --bank-lower:#68574b; --shore-upper:#d7a865; --shore-lower:#a37e57;
   --water-horizon:#ead7b3; --water-middle:#c6b5a0; --water-near:#86938a; --shore-reed:#b29c6c; --pavilion-roof:#785e52;
 }
-#app[data-season="winter"] {
+:is(#landscape,.garden-scene-preview)[data-season="winter"] {
   --season-sky:#d0e1f2; --season-sky-strength:.72;
   --far-ridge:#aabcc9; --far-base:#d9e4eb; --far-shore-detail:#92a7b5;
   --ridge-middle:#a3bbc8; --ridge-mist:#e7edf0; --ridge-near:#718f9f; --ridge-base:#c6d8de;
   --bank-upper:#afc2ca; --bank-lower:#647f8c; --shore-upper:#d9e6e8; --shore-lower:#90aab4;
   --water-horizon:#dce5e7; --water-middle:#bfccd2; --water-near:#829fab; --shore-reed:#8a8a78; --pavilion-roof:#536d70;
 }
-#app[data-palette="jade"] {
+:is(#landscape,.garden-scene-preview)[data-palette="jade"] {
   --season-sky:#c2e2c9; --ridge-near:#387969; --ridge-base:#91bfa1;
   --water-horizon:#d9eee0; --water-middle:#9bcbbb; --water-near:#568e85;
   --shore-upper:#9ac393; --shore-lower:#548c74;
 }
-#app[data-palette="amber"] {
+:is(#landscape,.garden-scene-preview)[data-palette="amber"] {
   --season-sky:#ffd09a; --season-sky-strength:.78; --ridge-near:#936d64; --ridge-base:#cba487;
   --water-horizon:#f0d8bb; --water-middle:#c9ada0; --water-near:#898c8d;
   --shore-upper:#d5aa73; --shore-lower:#977951;
 }
-#app[data-palette="ink"] {
+:is(#landscape,.garden-scene-preview)[data-palette="ink"] {
   --season-sky:#aec9e1; --season-sky-strength:.7; --ridge-near:#526d92; --ridge-base:#9bacbd;
   --water-horizon:#ccdbe6; --water-middle:#91adc1; --water-near:#52738e;
   --shore-upper:#92a5ae; --shore-lower:#547786;
@@ -63,7 +58,7 @@
 .named-garden-looks li > button:first-child { text-align: left; overflow-wrap: anywhere; }
 #garden-postcard-form label { font-size: 12px; }
 .season-layer { display: none; }
-#app[data-season="spring"] .spring-scene, #app[data-season="summer"] .summer-scene, #app[data-season="autumn"] .autumn-scene, #app[data-season="winter"] .winter-scene { display: inline; }
+:is(#landscape,.garden-scene-preview)[data-season="spring"] .spring-scene, :is(#landscape,.garden-scene-preview)[data-season="summer"] .summer-scene, :is(#landscape,.garden-scene-preview)[data-season="autumn"] .autumn-scene, :is(#landscape,.garden-scene-preview)[data-season="winter"] .winter-scene { display: inline; }
 .summer-dragonfly { animation: summer-hover 9s ease-in-out infinite alternate; }
 @keyframes summer-hover {
   from { translate: 0 0; }
@@ -71,17 +66,17 @@
 }
 
 .weather-layer { opacity: 0; visibility: hidden; transition: opacity var(--weather-transition,8s) ease-in-out, visibility var(--weather-transition,8s); }
-#app[data-season="spring"] .weather-petals,
-#app[data-season="autumn"] .weather-leaves,
-#app[data-season="winter"] .weather-snow { opacity: var(--scene-signature,0); visibility: visible; }
-#app .weather-mist { opacity: var(--scene-mist,0); }
-#app:is([data-weather="mist"],[data-weather="rain"]) .weather-mist { visibility: visible; }
-#app[data-weather="petals"] .weather-petals,
-#app[data-weather="rain"] .weather-rain,
-#app[data-weather="heat"] .weather-heat,
-#app[data-weather="leaves"] .weather-leaves,
-#app[data-weather="snow"] .weather-snow,
-#app[data-weather="frost"] .weather-frost { opacity: 1; visibility: visible; }
+:is(#landscape,.garden-scene-preview)[data-season="spring"] .weather-petals,
+:is(#landscape,.garden-scene-preview)[data-season="autumn"] .weather-leaves,
+:is(#landscape,.garden-scene-preview)[data-season="winter"] .weather-snow { opacity: var(--scene-signature,0); visibility: visible; }
+:is(#landscape,.garden-scene-preview) .weather-mist { opacity: var(--scene-mist,0); }
+:is(#landscape,.garden-scene-preview):is([data-weather="mist"],[data-weather="rain"]) .weather-mist { visibility: visible; }
+:is(#landscape,.garden-scene-preview)[data-weather="petals"] .weather-petals,
+:is(#landscape,.garden-scene-preview)[data-weather="rain"] .weather-rain,
+:is(#landscape,.garden-scene-preview)[data-weather="heat"] .weather-heat,
+:is(#landscape,.garden-scene-preview)[data-weather="leaves"] .weather-leaves,
+:is(#landscape,.garden-scene-preview)[data-weather="snow"] .weather-snow,
+:is(#landscape,.garden-scene-preview)[data-weather="frost"] .weather-frost { opacity: 1; visibility: visible; }
 .weather-overcast { opacity: calc(var(--scene-overcast,0)*.7); transition: opacity var(--weather-transition,8s) ease-in-out; }
 .weather-overcast path { transition: transform var(--weather-transition,8s) ease-in-out; }
 .weather-cover-west { transform: translateX(calc((1 - var(--scene-overcast,0))*-230px)); }
@@ -175,4 +170,53 @@
   #planner-layout-label { font-size: 0; gap: 0; }
   #planner-layout-label select { font-size: 12px; }
   #calendar-layout-controls button { padding-inline: 5px; }
+}
+
+.season-wheel {
+  display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: repeat(2,minmax(0,1fr));
+  width: 142px; aspect-ratio: 1; gap: 3px; padding: 4px; margin: 0 auto 10px;
+  border: 1px solid var(--surface-line); border-radius: 50%; background: var(--surface-field);
+}
+.season-wheel label:nth-child(3) { grid-area: 2 / 2; }
+.season-wheel label:nth-child(4) { grid-area: 2 / 1; }
+.season-wheel label > span {
+  display: flex; height: 100%; align-items: center; justify-content: center; flex-direction: column; gap: 3px;
+  padding: 5px; border-color: transparent; font-size: 10px; line-height: 1.1;
+  background: color-mix(in srgb,var(--season-a) 19%,var(--surface-field));
+  border-radius: 100% 7px 7px 7px;
+}
+.season-wheel label:nth-child(2) > span { border-radius: 7px 100% 7px 7px; }
+.season-wheel label:nth-child(3) > span { border-radius: 7px 7px 100% 7px; }
+.season-wheel label:nth-child(4) > span { border-radius: 7px 7px 7px 100%; }
+.season-wheel label input:checked + span { font-weight: 750; background: color-mix(in srgb,var(--season-a) 35%,var(--surface-field)); }
+.season-wheel label i { width: 17px; height: 9px; border-radius: 9px; background: linear-gradient(120deg,var(--season-a),var(--season-b)); }
+.garden-scene-preview { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--surface-line); border-radius: 8px; }
+.garden-scene-preview * { animation: none !important; transition: none !important; }
+.season-preview-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; margin-top: 7px; }
+.season-preview-actions #garden-season-preview-label { margin: 0; }
+.landmark-inscription { margin: 12px 0 0; padding: 8px 12px; border-inline-start: 2px solid var(--surface-accent); font: italic 16px/1.45 Georgia,serif; overflow-wrap: anywhere; }
+#landmark-inscription-form { display: grid; gap: 7px; margin-top: 7px; }
+#landmark-inscription-form button { justify-self: start; }
+.panel-actions:has([data-open-garden-comparison]) { flex-wrap: wrap; }
+
+#panel-root:has(.garden-comparison-panel)::before { content: ''; position: fixed; inset: 0; z-index: 9; background: #081424a6; }
+.garden-comparison-panel {
+  top: 50%; left: 50%; transform: translate(-50%,-50%); width: min(960px,calc(100vw - 24px));
+  padding: clamp(13px,3vw,24px);
+}
+.garden-comparison-panel .panel-header { margin-bottom: 12px; }
+.garden-compare-controls, .garden-compare-export { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 8px; }
+.garden-compare-controls label, .garden-compare-export label { min-width: 0; font-size: 12px; }
+.garden-compare-controls input, .garden-compare-export input { display: block; min-width: 0; margin-top: 4px; }
+.garden-compare-scenes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: clamp(5px,1.6vw,16px); }
+.garden-compare-scenes figure { min-width: 0; margin: 0; }
+.garden-compare-scenes figcaption { margin-top: 6px; font-size: 12px; color: var(--surface-muted); }
+.garden-comparison-panel #comparison-status { margin: 5px 0 8px; }
+.garden-comparison-panel #garden-compare-summary { margin: 5px 0 12px; }
+.garden-compare-export { grid-template-columns: 1fr auto auto; }
+.garden-compare-export label span { color: var(--surface-muted); }
+@media(max-width:540px) {
+  .garden-compare-controls, .garden-compare-export { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .garden-compare-controls button { grid-column: 1 / -1; justify-self: start; }
+  .garden-compare-export label { grid-column: 1 / -1; }
 }

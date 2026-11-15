@@ -9,7 +9,7 @@ import {dayKey,STORAGE_KEY,freshState,loadState} from '../dist/state.js';
 import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
-import {earnGardenDetail,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
+import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
 import {eveningCamera,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
 
 test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
@@ -396,4 +396,22 @@ test('past journal weeks follow the anniversary across leap days and year bounda
   const leap=journalAnniversaries(entries,[],'2028-02-29');
   assert.deepEqual(leap.map(group=>[group.year,group.entries.map(entry=>entry.id)]),[[2027,['feb']],[2024,['leap']]]);
   assert.deepEqual(journalAnniversaries([],[],'2026-01-01'),[]);
+});
+
+test('landmark inscriptions survive backup and compare counts include both cutoff dates',()=>{
+  const state=freshState();
+  state.gardenGrowth=loadGardenGrowth([
+    {kind:'project',sourceId:'tree',title:'Research',day:'2026-09-01',inscription:'  For the team.  '},
+    {kind:'book',sourceId:'lantern',title:'A book',day:'2026-10-12'},
+    {kind:'milestone',sourceId:'cairn',title:'Final draft',day:'2026-10-12',inscription:'A'.repeat(100)},
+    {kind:'test',sourceId:'star',title:'Midterm',day:'2026-10-13',inscription:'Only for other landmarks'}
+  ]);
+  const {state:restored}=readBackup(JSON.stringify(createBackup(state,{getItem:()=>null},[])));
+  assert.equal(restored.gardenGrowth[0].inscription,'For the team.');
+  assert.equal(restored.gardenGrowth[2].inscription.length,90);
+  assert.equal(restored.gardenGrowth[3].inscription,undefined);
+  assert.deepEqual(gardenComparison(restored.gardenGrowth,'2026-09-01','2026-10-12','2026-11-14'),
+    {before:'2026-09-01',after:'2026-10-12',earlier:1,later:3,added:2});
+  assert.equal(gardenComparison(restored.gardenGrowth,'2026-10-12','2026-09-01','2026-11-14'),null);
+  assert.equal(gardenComparison(restored.gardenGrowth,'2026-09-01','2026-11-15','2026-11-14'),null);
 });

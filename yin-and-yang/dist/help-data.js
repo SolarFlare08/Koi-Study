@@ -156,7 +156,23 @@ export const helpTopics = [
       'Save a Planner exam result to add a star to the project’s course constellation. Open a constellation from the sky or the Field Guide to see its exams in date order.',
       'In Garden history, choose `Record a test or milestone`. Add a title and date, plus a result or note if you want one. Tests add stars and personal milestones add cairns.'],
     tip:'Each project or book earns one landmark. Garden history is included in backups.',
-    action:'garden-history', actionLabel:'Open Garden Field Guide', related:['progress','projects','exam-plans','reading-shelf','backup']
+    action:'garden-history', actionLabel:'Open Garden Field Guide', related:['garden-inscriptions','garden-comparison','progress','projects','exam-plans','reading-shelf','backup']
+  },
+  {
+    id:'garden-inscriptions',group:'Focus & rest',title:'Add a Garden landmark inscription',
+    summary:'Give a tree, lantern, or cairn a short dedication.',
+    steps:['Select the landmark in the Garden or from the Field Guide. Expand `Add inscription`, write a dedication, and save it.',
+      'The text appears whenever you open the landmark. To change it or clear it, choose `Edit inscription`.',
+      'Choose `Use as postcard caption` to open postcard export with the dedication already filled in.'],
+    action:'garden-history',actionLabel:'Open Garden Field Guide',related:['garden-growth','garden-postcard','backup']
+  },
+  {
+    id:'garden-comparison',group:'Focus & rest',title:'Compare two dates in the Garden',
+    summary:'See how the landscape grew and export the two views together.',
+    steps:['Open the Garden Field Guide and choose `Compare two dates`.',
+      'Set a Before date and a later After date, then choose `Compare dates`. Each view includes landmarks earned through that date. Both use the current season and the same dusk light.',
+      'Add a caption if you like and choose `Download comparison PNG` for a 3200 × 1040 postcard.'],
+    action:'garden-history',actionLabel:'Open Garden Field Guide',related:['garden-growth','garden-postcard']
   },
   {
     id:'evening-lights', group:'Focus & rest', title:'Wind down with Evening lights',
@@ -663,7 +679,8 @@ export const helpTopics = [
     summary:'Customize the landscape and switch looks by time of day.',
     steps:['In Garden, open `Appearance` from the top tools.',
       'Choose lighting. `Follow timer` ties sunrise and sunset to focus progress; fixed day or night looks keep a steady atmosphere.',
-      'Choose Spring, Summer, Autumn, or Winter. Set weather manually or choose `Rotate every 8 minutes` for seasonal changes.',
+      'Use the `Season wheel` to preview Spring, Summer, Autumn, or Winter on the same view of the lake. Choose `Apply season` to switch the live Garden, or save a named look directly from the preview.',
+      'Set weather manually or choose `Rotate every 8 minutes` for seasonal changes.',
       'Watch showers crossfade into lake mist and the cloud cover pull apart as skies clear. Each season has a signature detail: spring petals, summer fireflies, autumn leaves, or winter flurries.',
       'Under `Scenery motion`, choose Still for a static scene, Gentle for slow movement, or Lively for faster movement. Still also holds the timer-driven sun in place. This setting applies across all saved looks.',
       'Choose a palette and lighting, then use `Saved Garden looks` to name and save the combination. Looks are silent by default. To include rain, water, and wind, set their levels in Music first and check the ambient sound option when saving.',
@@ -678,7 +695,7 @@ export const helpTopics = [
     steps:['In Garden, open Appearance or the Field Guide and choose `Export postcard`.',
       'Type a caption such as a semester title or milestone, choose `Use month`, or leave it blank.',
       'Choose `Download PNG`. To export an earlier Garden, first open a historical view from the Field Guide.'],
-    action:'garden-postcard',actionLabel:'Open postcard export',related:['garden-growth','appearance']
+    action:'garden-postcard',actionLabel:'Open postcard export',related:['garden-growth','garden-inscriptions','garden-comparison','appearance']
   },
   {
     id:'music', group:'Make it yours', title:'Spotify, optional ambience, and silence',

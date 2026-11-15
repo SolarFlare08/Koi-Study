@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'2.13.0',date:'2026-11-14',title:'Garden inscriptions, comparisons, and season previews',changes:[
+    'Write dedications for trees, lanterns, and cairns and use them as postcard captions.',
+    'Compare the landmarks earned by two dates and download the views together as one postcard.',
+    'Preview all four seasons on the same lake view, then apply a season or save it as a named look.'
+  ]},
   {version:'2.12.0',date:'2026-11-14',title:'Crochet row instructions and yarn substitutions',changes:[
     'Save a row number and instruction on the project’s main counter or any named counter.',
     'Calculate replacement skeins from pattern yardage and credit only the usable stash you choose.'

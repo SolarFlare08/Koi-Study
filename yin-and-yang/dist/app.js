@@ -1,6 +1,6 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit} from './state.js';
-import {renderLandscape,objects,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions} from './scenery.js';
-import {earnGardenDetail,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkPlacement,landmarkTypes} from './garden-growth.js';
+import {renderLandscape,objects,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview} from './scenery.js';
+import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
 import {handoffLink,sessionHandoff} from './session-handoff.js';
@@ -10,8 +10,8 @@ import {bundleProgress,installBundleEditor} from './task-bundles.js';
 import {CAPTURE_PREFIX, cleanCaptureContext, readCaptures, saveCapture, storeCapture} from './capture.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from './day-recap.js';
 import {installPlanner} from './planner.js';
-import {gardenPalettes,lightingOptions,seasonOptions,sceneryMotionOptions,sceneryWeatherLayers,weatherBySeason,gardenWeather,loadAppearance,loadGardenLooks,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
-import {postcardPng} from './garden-postcard.js';
+import {gardenPalettes,lightingOptions,seasonOptions,sceneryMotionOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenLooks,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
+import {comparisonPostcardPng,postcardPng} from './garden-postcard.js';
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
@@ -88,6 +88,7 @@ let reopenTasksAfterCalendar=false;
 let effectiveAppearance=state.appearance, resumeTaskId=null, captureActionKey=null;
 let renderedGardenGrowth, renderedGardenProjects, selectedLandmark=null, gardenHistoryFilter='all', recapOrigin=null;
 let gardenFrom='',gardenThrough='',snapshotThrough='',selectedCourse='';
+let seasonPreview='',comparisonDates=null;
 let handoffMarkup='', actualCalendar=false, replayRenderKey='', returnToCalendarMonth=false;
 let renderedBundle='';
 let savedSchedule=snapshotSchedule(state), captureInboxTab='inbox', returnToCaptureInbox=false, captureInboxIndex=0;
@@ -738,12 +739,15 @@ function render(){
   const clock=new Date();
   effectiveAppearance=scheduledAppearance(state.appearance,state.gardenSchedule,clock);
   app.dataset.lighting=effectiveAppearance.lighting;
-  if(app.dataset.palette!==effectiveAppearance.palette)app.dataset.palette=effectiveAppearance.palette;
+  if(app.dataset.palette!==effectiveAppearance.palette){
+    app.dataset.palette=effectiveAppearance.palette;
+    $('#landscape').dataset.palette=effectiveAppearance.palette;
+  }
   const {season,motion}=effectiveAppearance,weather=gardenWeather(effectiveAppearance,clock.getTime());
   if(app.dataset.motion!==motion)app.dataset.motion=motion;
   if(app.dataset.weather!==weather||app.dataset.season!==season){
     app.dataset.season=season;app.dataset.weather=weather;
-    for(const [layer,opacity] of Object.entries(sceneryWeatherLayers(season,weather)))app.style.setProperty(`--scene-${layer}`,opacity);
+    applySceneryAppearance($('#landscape'),effectiveAppearance,weather);
   }
   const weatherCurrent=$('#garden-weather-current');
   if(weatherCurrent){
@@ -1082,8 +1086,30 @@ function gardenLandmarkMarkup(){
       ${project?`<button type="button" class="panel-primary" data-view-project="${escape(project.id)}">Open project</button>`:''}
       ${courseId?`<button type="button" class="text-button" data-guide-course="${escape(courseId)}">View constellation</button>`:''}
       <button type="button" class="text-button" data-garden-history-open>Garden Field Guide</button></div>
+    ${item.kind!=='test'?landmarkInscriptionMarkup(item):''}
     ${item.kind!=='test'?`<details class="landmark-record"><summary>Place landmark${item.zone?` · ${gardenZones[item.zone]}`:''}</summary>
       <form id="landmark-place">${placementFields(item)}<button class="panel-primary">Save placement</button></form></details>`:''}`;
+}
+function landmarkInscriptionMarkup(item){
+  return `${item.inscription?`<blockquote class="landmark-inscription">${escape(item.inscription)}</blockquote>
+    <button type="button" class="text-button" data-inscription-postcard>Use as postcard caption</button>`:''}
+    <details class="landmark-record"><summary>${item.inscription?'Edit inscription':'Add inscription'}</summary>
+      <form id="landmark-inscription-form" data-kind="${escape(item.kind)}" data-source="${escape(item.sourceId)}">
+        <label>Dedication<input name="inscription" maxlength="90" value="${escape(item.inscription)}" placeholder="For the work we did together"></label>
+        <button class="panel-primary">Save inscription</button>
+      </form></details>`;
+}
+function saveLandmarkInscription(form){
+  const previous=state.gardenGrowth;
+  const index=previous.findIndex(item=>item.kind===form.dataset.kind&&item.sourceId===form.dataset.source);
+  if(index<0)return;
+  const {inscription:old,...record}=previous[index];
+  const inscription=landmarkInscription(record.kind,form.elements.inscription.value);
+  if(inscription===(old||'')){form.closest('details').open=false;return;}
+  state.gardenGrowth=previous.map((item,i)=>i===index?{...record,...(inscription&&{inscription})}:item);
+  if(!persist()){state.gardenGrowth=previous;return;}
+  renderGardenGrowth();openGardenLandmark(index);
+  confirmChange(inscription?'Landmark inscription saved.':'Landmark inscription cleared.');
 }
 function placementFields(item={}){
   const groups=new Map(state.gardenGrowth.filter(entry=>entry.group&&entry.zone).map(entry=>[entry.group.toLowerCase(),entry]));
@@ -1136,14 +1162,109 @@ function gardenHistoryMarkup(){
         <fieldset class="landmark-placement-fields"><legend>Cairn placement</legend>${placementFields()}</fieldset>
         <button class="panel-primary">Add to Garden</button></form></details>
     <div class="panel-actions"><button type="button" class="text-button" id="garden-history-today">Back to today’s progress</button>
+    <button type="button" class="text-button" data-open-garden-comparison>Compare two dates</button>
     <button type="button" class="text-button" data-open-postcard>Export postcard</button></div>`;
 }
-function openGardenPostcard(){
+function openGardenPostcard(caption=''){
   if(state.focusMode)toggleFocusMode();
   visitWorkspace('focus');openPanel('garden-postcard',$('[data-panel="progress"]'));
+  $('#postcard-caption').value=caption;
+}
+function openGardenComparison(){
+  const today=dayKey(),end=gardenThrough||snapshotThrough||today;
+  const start=gardenFrom||dayKey(shiftDay(new Date(end+'T12:00:00'),-30));
+  const dates=gardenComparison(state.gardenGrowth,start,end,today);
+  comparisonDates=dates||gardenComparison(state.gardenGrowth,dayKey(shiftDay(new Date(),-30)),today,today);
+  openPanel('garden-comparison',$('[data-panel="progress"]'));
+}
+function gardenComparisonMarkup(){
+  const {before,after}=comparisonDates,today=dayKey();
+  return `${header('GARDEN FIELD GUIDE','Garden before and after')}
+    <form id="garden-comparison-form">
+      <div class="garden-compare-controls"><label>Before<input type="date" name="before" value="${before}" max="${today}" required></label>
+        <label>After<input type="date" name="after" value="${after}" max="${today}" required></label>
+        <button class="panel-primary" type="submit" value="compare">Compare dates</button></div>
+      <p id="comparison-status" role="status" aria-live="polite">Both views use the same season and dusk light.</p>
+      <div class="garden-compare-scenes">
+        <figure><div id="garden-before-scene" class="garden-scene-preview" aria-hidden="true"></div><figcaption id="garden-before-label"></figcaption></figure>
+        <figure><div id="garden-after-scene" class="garden-scene-preview" aria-hidden="true"></div><figcaption id="garden-after-label"></figcaption></figure>
+      </div>
+      <p id="garden-compare-summary"></p>
+      <div class="garden-compare-export"><label>Postcard caption <span>(optional)</span><input name="caption" maxlength="90" placeholder="Fall semester"></label>
+        <button class="text-button" type="button" data-garden-history-open>Back to Field Guide</button>
+        <button class="panel-primary" type="submit" value="download">Download comparison PNG</button></div>
+    </form>`;
+}
+function renderGardenComparison(dates){
+  const appearance={...effectiveAppearance,lighting:'dusk'};
+  const history=state.gardenGrowth,courses=gardenCourses(history,state.projects);
+  const label=(side,date,count)=>`${side} · ${landmarkDate(date)} · ${count} ${count===1?'landmark':'landmarks'}`;
+  const before=mountGardenPreview($('#garden-before-scene'),appearance,{history,courses,through:dates.before});
+  const after=mountGardenPreview($('#garden-after-scene'),appearance,{history,courses,through:dates.after});
+  $('#garden-before-label').textContent=label('Before',dates.before,dates.earlier);
+  $('#garden-after-label').textContent=label('After',dates.after,dates.later);
+  $('#garden-compare-summary').textContent=dates.added?`${dates.added} ${dates.added===1?'landmark':'landmarks'} added between these views.`:'The same landmarks appear on both dates.';
+  return [before,after];
+}
+async function submitGardenComparison(form,submitter){
+  const {before,after,caption}=form.elements,status=$('#comparison-status');
+  const dates=gardenComparison(state.gardenGrowth,before.value,after.value,dayKey());
+  if(!dates){status.textContent='Choose two dates with Before earlier than After.';return;}
+  comparisonDates=dates;
+  const scenes=renderGardenComparison(dates);
+  status.textContent='Both views use the same season and dusk light.';
+  if(submitter?.value!=='download')return;
+  submitter.disabled=true;status.textContent='Preparing comparison postcard…';
+  try{
+    const labels=[$('#garden-before-label').textContent,$('#garden-after-label').textContent];
+    const blob=await comparisonPostcardPng(...scenes,labels,caption.value);
+    savePostcard(blob,`garden-comparison-${dates.before}-${dates.after}.png`);
+    status.textContent='Comparison postcard downloaded.';
+  }catch{status.textContent='Could not export the comparison. Try again.';}
+  finally{submitter.disabled=false;}
+}
+function seasonWheelMarkup(){
+  return `<fieldset class="appearance-options"><legend>Season wheel</legend>
+    <div class="season-wheel">${Object.entries(seasonOptions).map(([value,item])=>`<label>
+      <input class="sr-only" type="radio" name="garden-season-preview" value="${value}" ${seasonPreview===value?'checked':''}>
+      <span style="--season-a:${item.colors[0]};--season-b:${item.colors[1]}"><i aria-hidden="true"></i>${item.name}</span></label>`).join('')}</div>
+    <div id="garden-season-scene" class="garden-scene-preview" aria-hidden="true"></div>
+    <div class="season-preview-actions"><p id="garden-season-preview-label" aria-live="polite"></p>
+      <button type="button" id="apply-preview-season" class="panel-primary">Apply season</button></div></fieldset>`;
+}
+function previewSeasonAppearance(){
+  const current=effectiveAppearance;
+  return seasonPreview===current.season?current:loadAppearance({...current,season:seasonPreview,weather:'auto',weatherSince:Date.now()});
+}
+function renderSeasonPreview(){
+  const container=$('#garden-season-scene');
+  if(!container)return;
+  const appearance=previewSeasonAppearance();
+  if(!container.firstElementChild){
+    const history=state.gardenGrowth,courses=gardenCourses(history,state.projects);
+    mountGardenPreview(container,{...appearance,lighting:'day'},{history,courses,through:snapshotThrough});
+  }else applySceneryAppearance(container,appearance,gardenWeather(appearance,appearance.weatherSince));
+  $('#garden-season-preview-label').textContent=`${seasonOptions[appearance.season].name} · ${seasonOptions[appearance.season].detail}`;
+  $('#apply-preview-season').disabled=appearance.season===effectiveAppearance.season;
+}
+function applyPreviewSeason(){
+  const {appearance,gardenSchedule}=state;
+  const selected=previewSeasonAppearance();
+  state.appearance=loadAppearance({...selected,weatherSince:Date.now()});
+  state.gardenSchedule={...gardenSchedule,enabled:false};
+  if(!persist()){Object.assign(state,{appearance,gardenSchedule});return;}
+  $('#garden-schedule-enabled').checked=false;
+  $('#garden-weather').innerHTML=gardenWeatherOptions();
+  const lighting=$('input[name="garden-lighting"][value="'+state.appearance.lighting+'"]');
+  if(lighting)lighting.checked=true;
+  $('select[name="garden-palette"]').value=state.appearance.palette;
+  render();renderSeasonPreview();
+  ($('input[name="garden-season-preview"]:checked')||$('#garden-look-name')).focus({preventScroll:true});
+  confirmChange(`Applied ${seasonOptions[selected.season].name}.`);
 }
 function gardenLooksMarkup(){
   return `<section class="garden-schedule named-garden-looks"><h3>Saved Garden looks</h3>
+    <p>New looks use the season selected in the wheel.</p>
     <form id="garden-look-form"><label for="garden-look-name">Look name</label>
       <input id="garden-look-name" name="name" maxlength="80" placeholder="Late Autumn Dusk" required>
       <label><input type="checkbox" name="ambient"> Include my current rain, water, and wind levels</label>
@@ -1160,8 +1281,14 @@ function applyGardenLook(id){
   state.sounds={...sounds,...look.ambient};
   state.gardenSchedule={...gardenSchedule,enabled:false};
   if(!persist()){Object.assign(state,{appearance,sounds,gardenSchedule});return;}
-  syncSound(true);render();refreshPanel();$(`[data-apply-garden-look="${CSS.escape(id)}"]`)?.focus();
+  syncSound(true);render();seasonPreview=effectiveAppearance.season;refreshPanel();$(`[data-apply-garden-look="${CSS.escape(id)}"]`)?.focus();
   confirmChange(`Applied ${look.name}.`);
+}
+function savePostcard(blob,filename){
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download=filename;
+  document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 async function downloadGardenPostcard(form){
   const button=form.querySelector('[type="submit"]'),status=form.querySelector('#postcard-status');
@@ -1170,10 +1297,7 @@ async function downloadGardenPostcard(form){
   button.disabled=true;status.hidden=false;status.textContent='Preparing postcard…';
   try{
     const blob=await postcardPng($('#landscape .world'),caption);
-    const url=URL.createObjectURL(blob),link=document.createElement('a');
-    link.href=url;link.download=`garden-postcard-${day}.png`;
-    document.body.append(link);link.click();link.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    savePostcard(blob,`garden-postcard-${day}.png`);
     status.textContent='Postcard downloaded.';
   }catch{status.textContent='Could not export the postcard. Try again.';}
   finally{button.disabled=false;}
@@ -2110,9 +2234,7 @@ function panelContent(id){
       <fieldset class="appearance-options"><legend>Lighting</legend><div class="lighting-options">
         ${Object.entries(lightingOptions).map(([value,label])=>`<label><input class="sr-only" type="radio" name="garden-lighting" value="${value}" ${lighting===value?'checked':''}><span>${label}</span></label>`).join('')}
       </div><p>Follow timer gives each focus session its own sunrise and sunset.</p></fieldset>
-      <fieldset class="appearance-options"><legend>Season</legend><div class="season-options">
-        ${Object.entries(seasonOptions).map(([value,item])=>`<label><input class="sr-only" type="radio" name="garden-season" value="${value}" ${season===value?'checked':''}><span style="--season-a:${item.colors[0]};--season-b:${item.colors[1]}"><i aria-hidden="true"></i><strong>${item.name}</strong><small>${item.detail}</small></span></label>`).join('')}
-      </div></fieldset>
+      ${seasonWheelMarkup()}
       <fieldset class="appearance-options weather-options"><legend>Weather</legend>
         <select id="garden-weather" name="garden-weather" aria-label="Weather">${gardenWeatherOptions()}</select>
         <p>Now in the Garden <strong id="garden-weather-current">${weatherBySeason[season][gardenWeather(state.appearance)]}</strong></p>
@@ -2128,6 +2250,7 @@ function panelContent(id){
       <form id="garden-preset-form"><label for="garden-preset-time">Start time</label><input id="garden-preset-time" name="time" type="time" required><button class="panel-primary">Save preset</button></form>
       <ul>${state.gardenSchedule.presets.map(item=>`<li><span>${timeLabel(timeMinutes(item.time))} · ${seasonOptions[item.season].name} · ${lightingOptions[item.lighting]}</span><button type="button" data-remove-garden-preset="${item.time}" aria-label="Remove preset at ${timeLabel(timeMinutes(item.time))}">×</button></li>`).join('')}</ul></section>`;
   }
+  if(id==='garden-comparison')return gardenComparisonMarkup();
   if(id==='garden-postcard')return `${header('GARDEN','Export postcard')}
     <p>Download the current Garden as a 1600 × 900 PNG.</p>
     <form id="garden-postcard-form"><label for="postcard-caption">Caption (optional)</label>
@@ -2234,7 +2357,7 @@ function positionPanel(panel,anchor){
     }
     return;
   }
-  if(panel.classList.contains('task-editor'))return;
+  if(panel.matches('.task-editor,.garden-comparison-panel'))return;
   const placement=anchor.isConnected?anchor:anchor.classList.contains('recap-entry')&&recapOrigin?.isConnected?recapOrigin:anchor;
   const r=placement.getBoundingClientRect(),w=panel.offsetWidth,h=panel.offsetHeight,W=window.innerWidth,H=window.innerHeight;
   let x=r.left+r.width/2-w/2,y=r.top-h+15;
@@ -2252,20 +2375,23 @@ function visiblePanel(){return root.querySelector('.panel:not(.music-hidden)');}
 function openPanel(id,anchor,landmarkIndex=null){
   if(id==='capture')activeCaptureContext=currentCaptureContext();
   if(id==='focus-goal')goalTimer=state.timer;
+  if(id==='appearance')seasonPreview=effectiveAppearance.season;
   closePanel(false);selectedLandmark=landmarkIndex;
   if(selectedLandmark!==null)$(`[data-garden-landmark="${selectedLandmark}"]`)?.classList.add('landmark-selected');
   activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
+  if(id==='appearance')renderSeasonPreview();
+  if(id==='garden-comparison')renderGardenComparison(comparisonDates);
   const scheduleForm=panel.querySelector('#task-editor-form,#block-editor-form');
   if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(id==='music')syncSound();
   positionPanel(panel,anchor);wake();
   const firstControl=panel.querySelector(id==='appearance'?'input:checked':'input,textarea,select')||panel.querySelector('button');
-  const initialFocus=['replan-today','plan-tomorrow','plan-deadline','build-week','project-context','schedule-drop'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
+  const initialFocus=['replan-today','plan-tomorrow','plan-deadline','build-week','project-context','schedule-drop','garden-landmark','garden-comparison'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
   if(initialFocus.id==='panel-title')initialFocus.tabIndex=-1;
   initialFocus.focus({preventScroll:true});
 }
@@ -2298,6 +2424,8 @@ function refreshPanel(){
   if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(activePanel==='calendar-block')updateBlockPreview(Date.now());
   if(activePanel==='break-ideas')renderBreakSuggestion();
+  if(activePanel==='appearance')renderSeasonPreview();
+  if(activePanel==='garden-comparison')renderGardenComparison(comparisonDates);
   positionPanel(p,lastAnchor);
   if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
   else if(activePanel==='focus-task')p.querySelector('button')?.focus({preventScroll:true});
@@ -3850,6 +3978,13 @@ root.addEventListener('click',e=>{
     weekSettings=option.settings;weekComparison=[];showWeekDraft(draft);return;
   }
   if(e.target.closest('[data-open-postcard]')){openGardenPostcard();return;}
+  if(e.target.closest('[data-open-garden-comparison]')){openGardenComparison();return;}
+  if(e.target.closest('#apply-preview-season')){applyPreviewSeason();return;}
+  if(e.target.closest('[data-inscription-postcard]')){
+    const caption=state.gardenGrowth[selectedLandmark]?.inscription;
+    if(caption)openGardenPostcard(caption);
+    return;
+  }
   if(e.target.closest('#postcard-month')){
     $('#postcard-caption').value=new Date(`${snapshotThrough||dayKey()}T12:00:00`).toLocaleDateString([],{month:'long',year:'numeric'});
     $('#postcard-caption').focus();return;
@@ -4249,7 +4384,7 @@ root.addEventListener('change',event=>{
   }
   if(event.target.id==='garden-schedule-enabled'){
     state.gardenSchedule.enabled=event.target.checked;
-    persist();render();
+    persist();render();renderSeasonPreview();
   }
   if(event.target.name==='garden-motion'){
     const previous=state.appearance;
@@ -4262,17 +4397,18 @@ root.addEventListener('change',event=>{
     changeSound(event.target.id==='mute-garden'?'muted':'musicMode',event.target.checked);
     persist();
   }
-  const appearanceField={'garden-lighting':'lighting','garden-season':'season','garden-weather':'weather','garden-palette':'palette'}[event.target.name];
+  if(event.target.name==='garden-season-preview'){
+    seasonPreview=event.target.value;renderSeasonPreview();return;
+  }
+  const appearanceField={'garden-lighting':'lighting','garden-weather':'weather','garden-palette':'palette'}[event.target.name];
   if(appearanceField){
     const value=event.target.value;
     const appearance={...state.appearance,[appearanceField]:value};
-    if(appearanceField==='season'||appearanceField==='weather'&&value==='auto')appearance.weatherSince=Date.now();
-    if(appearanceField==='season')appearance.weather='auto';
+    if(appearanceField==='weather'&&value==='auto')appearance.weatherSince=Date.now();
     state.appearance=loadAppearance(appearance);
     state.gardenSchedule.enabled=false;
     $('#garden-schedule-enabled').checked=false;
-    if(appearanceField==='season')$('#garden-weather').innerHTML=gardenWeatherOptions();
-    persist();render();
+    persist();render();renderSeasonPreview();
   }
   if(event.target.id==='task-project')$('#task-section').innerHTML=taskSectionOptions(event.target.value);
   if(event.target.id==='task-repeat'){
@@ -4285,12 +4421,14 @@ root.addEventListener('change',event=>{
 root.addEventListener('submit',e=>{
   e.preventDefault();
   if(e.target.id==='garden-postcard-form'){downloadGardenPostcard(e.target);return;}
+  if(e.target.id==='garden-comparison-form'){submitGardenComparison(e.target,e.submitter);return;}
+  if(e.target.id==='landmark-inscription-form'){saveLandmarkInscription(e.target);return;}
   if(e.target.id==='garden-look-form'){
     const data=new FormData(e.target),name=String(data.get('name')).trim();
     if(!name){e.target.elements.name.focus();return;}
     const previous=state.gardenLooks;
     const match=previous.find(item=>item.name.toLowerCase()===name.toLowerCase());
-    const [look]=loadGardenLooks([{id:match?.id||crypto.randomUUID(),name,appearance:effectiveAppearance,ambient:data.has('ambient')?state.sounds:null}]);
+    const [look]=loadGardenLooks([{id:match?.id||crypto.randomUUID(),name,appearance:previewSeasonAppearance(),ambient:data.has('ambient')?state.sounds:null}]);
     state.gardenLooks=match?previous.map(item=>item===match?look:item):[...previous,look];
     if(!persist()){state.gardenLooks=previous;return;}
     refreshPanel();$(`[data-apply-garden-look="${CSS.escape(look.id)}"]`)?.focus();confirmChange('Garden look saved.');return;
