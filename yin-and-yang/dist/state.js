@@ -1,3 +1,4 @@
+import {loadGardenDesign,loadGardenLayouts} from './garden-layout.js';
 import {loadAppearance,loadGardenLooks} from './garden-appearance.js';
 import {loadSoundSettings} from './garden-audio.js';
 import {captureTaskChange} from './task-undo.js';
@@ -178,7 +179,7 @@ export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],
-    taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],breakIdeas:[],
+    taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],breakIdeas:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -200,6 +201,8 @@ export function loadState(storage) {
     if (!raw || typeof raw !== 'object') return base;
     base.appearance=loadAppearance(raw.appearance);
     base.gardenLooks=loadGardenLooks(raw.gardenLooks);
+    base.gardenDesign=loadGardenDesign(raw.gardenDesign);
+    base.gardenLayouts=loadGardenLayouts(raw.gardenLayouts);
     base.gardenSchedule=loadGardenSchedule(raw.gardenSchedule);
     base.calendarEvents=loadCalendarEvents(raw.calendarEvents);
     if(isTime(raw.replanCutoff))base.replanCutoff=raw.replanCutoff;

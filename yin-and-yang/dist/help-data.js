@@ -156,7 +156,7 @@ export const helpTopics = [
       'Save a Planner exam result to add a star to the project’s course constellation. Open a constellation from the sky or the Field Guide to see its exams in date order.',
       'In Garden history, choose `Record a test or milestone`. Add a title and date, plus a result or note if you want one. Tests add stars and personal milestones add cairns.'],
     tip:'Each project or book earns one landmark. Garden history is included in backups.',
-    action:'garden-history', actionLabel:'Open Garden Field Guide', related:['garden-inscriptions','garden-comparison','progress','projects','exam-plans','reading-shelf','backup']
+    action:'garden-history', actionLabel:'Open Garden Field Guide', related:['garden-studio','garden-inscriptions','garden-comparison','progress','projects','exam-plans','reading-shelf','backup']
   },
   {
     id:'garden-inscriptions',group:'Focus & rest',title:'Add a Garden landmark inscription',
@@ -687,7 +687,18 @@ export const helpTopics = [
       'Select a saved look to apply its colors, weather, motion, and ambience. Applying a named look pauses the daily schedule. Saving with the same name updates that look.',
       'For timed looks, choose the appearance you want, set a start time under `Daily Garden presets`, and choose `Save preset`. Enable `Switch looks by time of day`.'],
     tip:'Changing the look manually pauses the schedule until you save or enable it again. Resetting a timer returns its sun directly to the beginning of the cycle. Click the penguin for another thought.',
-    action:'appearance', actionLabel:'Open Appearance', related:['focus-mode','music','garden-postcard'], keywords:'theme garden snow rain fog sun sunset sunrise night day seasons presets'
+    action:'appearance', actionLabel:'Open Appearance', related:['garden-studio','focus-mode','music','garden-postcard'], keywords:'theme garden snow rain fog sun sunset sunrise night day seasons presets'
+  },
+  {
+    id:'garden-studio',group:'Make it yours',title:'Build a landscape in Garden Studio',
+    summary:'Swap scenery, frame the lake, move landmarks, and save separate layouts.',
+    steps:['In Garden, open `Appearance` → `Open Garden Studio`. Start from the live Garden, a seasonal starter layout, or a saved layout. Choose mountains, shoreline, a building, and a path. Change `View` to frame the lake or pagoda shore. Preview a season, palette, lighting, and weather alongside the scenery.',
+      'Under `Move a landmark`, select a tree, lantern, or cairn. Click the preview, drag its pin, or use the sliders with the arrow keys. `Reset this landmark` returns it to automatic placement. Studio positions apply to that layout.',
+      'Enter a name and choose `Save layout` to keep it in your library. Use `Save and apply` to change the live Garden. Applying a layout pauses daily appearance presets. Use `Save a copy` to make a separate variation.',
+      'Set `Archive landmarks through` to keep a semester view to the landmarks earned by that date. Applying that layout to the live Garden includes current landmarks. From the Field Guide, open a saved layout and use `Return to today` to leave the archived view.',
+      'Choose `Download postcard` in Studio, or `Export view` while viewing a saved layout. Add a caption to include it in the PNG.'],
+    tip:'Backups include the live Garden design and your saved layouts.',
+    action:'garden-studio',actionLabel:'Open Garden Studio',related:['appearance','garden-growth','garden-postcard','backup']
   },
   {
     id:'garden-postcard',group:'Make it yours',title:'Export a Garden postcard',

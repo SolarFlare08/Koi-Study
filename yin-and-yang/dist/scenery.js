@@ -1,11 +1,11 @@
 export {blossomMarkup} from './landscape.js';
-import {daylight,blend,ridge,sunPosition} from './daylight.js';
+import {daylight,blend,sunPosition} from './daylight.js';
+import {gardenFrame,gardenLandmarkKey,defaultGardenDesign} from './garden-layout.js';
+import {gardenPieces} from './garden-pieces.js';
 import {gardenWeather,sceneProgress,sceneryWeatherLayers} from './garden-appearance.js';
 import {alternateBoats,alternateBoatLights,mountainSnowCut,seasonalTree,shoreDetails,snowbank,weatherMarkup} from './seasonal-scenery.js';
 export const objects=[['pagoda','Timer settings'],['tasks','Add tasks'],['music','Your Spotify'],['notes','Distraction notes'],['progress','Today’s progress'],['appearance','Appearance']].map(([id,hint])=>({id,hint,label:hint,className:'',art:''}));
-const pavilionOrigin='1096 615';
 const boatOrigin='783 751';
-const middleRidge=ridge([[0,399],[63,358],[123,291],[163,280],[214,326],[278,395],[360,445],[458,458],[557,504],[712,524],[851,501],[966,475],[1040,438],[1105,384],[1155,318],[1195,308],[1249,351],[1309,401],[1394,424],[1509,457],[1600,436]]);
 function pine(x,y,scale=1){
   return `<g transform="translate(${x} ${y}) scale(${scale})">
     <path d="M-9 1C1-28 1-55-4-82C-8-109 4-133 10-166L15-180C18-149 9-129 7-107C3-83 11-56 9-29Q8-13 14 1Z" fill="#315858"/>
@@ -59,7 +59,7 @@ function growthPosition(slots,index){
   return [x+Math.cos(angle)*radius,y+Math.sin(angle)*radius/3,scale*Math.max(.32,.72-layer*.04)];
 }
 
-export function gardenLandmarkPositions(history,courses=[]){
+export function gardenLandmarkPositions(history,courses=[],placements={}){
   const positions=new Map();
   courses.forEach((course,index)=>{
     const column=index%5, row=Math.floor(index/5)%3, layer=Math.floor(index/15);
@@ -81,15 +81,23 @@ export function gardenLandmarkPositions(history,courses=[]){
       spot=`${item.kind}:${position[0]}:${position[1]}`;
     }while(occupied.has(spot));
     counts.set(key,index);occupied.add(spot);
-    return {item,index:originalIndex,position};
+    const custom=placements[gardenLandmarkKey(item)];
+    return {item,index:originalIndex,position:custom?[custom.x,custom.y,position[2]]:position};
   });
 }
 
-export function gardenGrowthMarkup(history,{courses=[],through=''}={}){
+function landmarkGround(x,y,scale){
+  return `<g transform="translate(${x} ${y}) scale(${scale})" aria-hidden="true">
+    <ellipse cy="7" rx="31" ry="8" fill="#416965" opacity=".23"/>
+    <path d="M-33 4Q-24-3-7-3Q11-8 32 1Q42 7 16 11Q-6 15-33 4Z" fill="url(#shore)"/>
+    <path d="M-25 3Q-2-5 23 1" fill="none" stroke="var(--shore-upper,#9cb28d)" stroke-width="1.7" opacity=".72"/>
+  </g>`;
+}
+export function gardenGrowthMarkup(history,{courses=[],through='',design=defaultGardenDesign}={}){
   const trees=[],lanterns=[],lights=[];
   const stars=[],cairns=[];
   let hasIsland=false;
-  const layout=gardenLandmarkPositions(history,courses);
+  const layout=gardenLandmarkPositions(history,courses,design.placements);
   for(const course of courses){
     const points=course.stars.filter(({item})=>!through||item.day<=through).map(({index})=>layout[index].position.slice(0,2).join(','));
     if(points.length>1)stars.push(`<polyline points="${points.join(' ')}" fill="none" stroke="#9ec6d8" stroke-width="1.4" opacity=".75"/>`);
@@ -97,10 +105,11 @@ export function gardenGrowthMarkup(history,{courses=[],through=''}={}){
   for(const {item,position} of layout){
     if(through&&item.day>through)continue;
     const [x,y,scale]=position;
+    const placed=Object.hasOwn(design.placements,gardenLandmarkKey(item));
     const transform=`translate(${x} ${y}) scale(${scale})`;
     if(item.kind==='project'){
-      trees.push({y,art:shoreTree(x,y,scale)});
-      if(x>=684&&x<=786)hasIsland=true;
+      trees.push({y,art:(placed?landmarkGround(x,y,Math.max(.66,scale*3)):"")+shoreTree(x,y,scale)});
+      if(!placed&&x>=684&&x<=786)hasIsland=true;
     }else if(item.kind==='book'){
       lanterns.push(`<g transform="${transform}">
         <ellipse rx="12" ry="3" fill="#385e5b" opacity=".35"/>
@@ -117,7 +126,8 @@ export function gardenGrowthMarkup(history,{courses=[],through=''}={}){
       stars.push(`<g transform="${transform}"><circle r="17" fill="url(#halo)" opacity=".6"/>
         <path d="M0-8Q1-1 7 0Q1 1 0 8Q-1 1-7 0Q-1-1 0-8Z" fill="#fff1cb" stroke="#a7785d" stroke-width=".65"/></g>`);
     }else if(item.kind==='milestone'){
-      if(item.zone==='island')hasIsland=true;
+      if(!placed&&item.zone==='island')hasIsland=true;
+      if(placed)cairns.push(landmarkGround(x,y,scale*.78));
       cairns.push(`<g transform="${transform}"><ellipse cy="2" rx="14" ry="4" fill="#335653" opacity=".45"/>
         <path d="M-13 0Q-11-6-3-6Q8-7 13-2L10 1H-9Z" fill="#6e8075"/>
         <path d="M-9-6Q-10-10-3-13Q3-14 8-9L5-6Z" fill="#9aa389"/>
@@ -148,7 +158,18 @@ function rock(x,y,scale,flip=1){
     <path d="M-29-12Q-21-14-16-20M4-5q10-3 19-4" stroke="#d4d5be" stroke-linecap="round" fill="none" opacity=".4"/>
   </g>`;
 }
-export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+const pieceMarkup=(id,design)=>`<g data-garden-piece="${id}" data-variant="${design[gardenPieces[id].option]}">${gardenPieces[id].render(design[gardenPieces[id].option])}</g>`;
+export function applyGardenDesign(scene,design){
+  for(const node of scene.querySelectorAll('[data-garden-piece]')){
+    const piece=gardenPieces[node.dataset.gardenPiece];
+    const value=design[piece.option];
+    if(node.dataset.variant===value)continue;
+    node.innerHTML=piece.render(value);
+    node.dataset.variant=value;
+  }
+  scene.setAttribute('viewBox',gardenFrame(design.camera).join(' '));
+}
+export function renderLandscape(design=defaultGardenDesign){return `<svg class="world" viewBox="${gardenFrame(design.camera).join(' ')}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
 <defs>
 <linearGradient id="air" x2="0" y2="1"><stop id="zenith" stop-color="#c8d9d7"/><stop id="sky-middle" offset=".67" stop-color="#eee4d4"/><stop id="horizon" offset="1" stop-color="#f5d9ba"/></linearGradient>
 <linearGradient id="season-sky" x2="0" y2="1"><stop stop-color="var(--season-sky,#dce9e8)" stop-opacity="0"/><stop offset="1" stop-color="var(--season-sky,#dce9e8)" stop-opacity="var(--season-sky-strength,0)"/></linearGradient>
@@ -185,13 +206,7 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
 <g class="sky-flock" fill="none" stroke="#5f8586" stroke-width="1.5" stroke-linecap="round" opacity="0">
   <path d="M492 195q4-4 8 0 4-5 8-3M520 180q3-4 7-1 3-4 7-2M538 201q3-4 7-1 3-4 7-2"/>
 </g>
-<path fill="url(#far)" d="${ridge([[0,419],[105,370],[197,405],[291,335],[371,365],[439,414],[531,423],[620,464],[745,460],[822,474],[958,426],[1037,423],[1126,363],[1209,391],[1313,322],[1397,353],[1496,411],[1600,388]])}"/>
-<path fill="url(#middle)" d="${middleRidge}"/>
-<path fill="url(#slope-wash)" d="M164 284C190 293 198 324 220 346C261 394 295 428 363 450C281 443 224 412 204 381C180 347 180 308 164 284ZM1194 311C1229 319 1240 348 1262 372C1299 412 1339 425 1405 435C1331 442 1277 426 1244 392C1218 363 1219 328 1194 311Z"/>
-<path class="season-layer winter-scene" fill="#e4edef" opacity=".88" clip-path="url(#mountain-snow-cut)" d="${middleRidge}"/>
-<path class="valley-fog" fill="url(#mist)" d="M0 405h1600v170H0z"/>
-<path fill="url(#near)" d="${ridge([[0,437],[65,417],[122,366],[153,351],[201,383],[259,453],[332,494],[428,518],[555,528],[698,550],[839,551],[955,534],[1065,510],[1163,491],[1245,453],[1308,415],[1345,417],[1401,451],[1488,473],[1600,491]])}"/>
-<path fill="url(#slope-wash)" d="M155 354C188 367 198 397 223 429C248 461 286 486 342 503C285 504 232 481 205 449C180 420 185 381 155 354ZM1343 421C1379 431 1400 460 1457 476C1486 485 1534 485 1578 498C1495 504 1442 494 1406 476C1370 457 1374 439 1343 421Z"/>
+${pieceMarkup("mountains",design)}
 <path fill="url(#water)" d="M0 548q297-24 524-6t463-1 613 6v353H0Z"/>
 <path class="valley-fog shore-fog" fill="url(#mist)" d="M0 474h1600v133H0z"/>
 <g id="shine"><ellipse cx="0" cy="640" rx="105" ry="150" fill="url(#halo)" opacity=".35"/><g stroke="#fff1cd" stroke-linecap="round" opacity=".65"><path d="M-64 556H62M-43 563H49M-78 575H66M-28 590H42M-62 612H82M-38 646H59M-69 695H51"/><path d="M-108 573h19m169 27h32m-132 62h24m-65 66h34" opacity=".5"/></g></g>
@@ -208,15 +223,7 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
   ${snowbank('far')}
   ${rock(1059,625,.23,-1)}${rock(1074,628,.14)}
   ${shoreTree(1142,611,.27)}${shoreTree(1311,584,.46)}${shoreTree(1352,583,.31)}${shoreTree(1431,579,.53)}${shoreTree(1471,585,.34)}
-  <g transform="translate(${pavilionOrigin})">
-    <path d="M-21 0h48l8 4h-62Z" fill="#758f77"/>
-    <path d="M-14-35h30V0h-30Z" fill="#c7c3a0"/>
-    <path d="M-11-26h9v17h-9zm14 0h9v17H3z" fill="#728478"/>
-    <path d="M-13-33V0m27-33V0M1-33V0" stroke="#566d5b" stroke-width="2.5"/>
-    <path d="M-28-35q19-5 29-19 10 14 29 19-29 7-58 0Z" fill="var(--pavilion-roof,#456b62)"/>
-    <path d="M-27-35q29 4 57 0m-29-19v-5M22-34v8" fill="none" stroke="#6a8675"/>
-    <ellipse cx="22" cy="-23" rx="3" ry="4" fill="#ae7359"/>
-  </g>
+  ${pieceMarkup("pavilion",design)}
   <path d="M1074 623C1101 619 1129 619 1149 611C1171 602 1187 600 1200 600C1180 611 1160 620 1132 624C1108 627 1092 625 1074 623Z" fill="var(--far-shore-detail,#759986)"/>
 </g>
 <g id="blossoms" transform="translate(1185 452) scale(.22)"/>
@@ -246,15 +253,9 @@ export function renderLandscape(){return `<svg class="world" viewBox="0 0 1600 9
   <g transform="translate(64 7)"><ellipse class="fishing-ripple" rx="11" ry="3" fill="none" stroke="#e4e8d5" opacity=".28"/><circle cy="-1" r="1.65" fill="#cf916d"/></g>
   </g>
 </g>
-<path d="M0 630C39 639 61 654 88 686C115 719 138 727 176 733C202 737 223 747 241 756C252 762 244 768 227 771C203 775 176 782 159 794C137 808 141 824 158 842L210 900H0Z" fill="url(#shore)"/>
-<path d="M0 663C52 678 71 705 95 739C112 766 139 778 166 788C178 793 174 800 160 804C125 812 101 823 98 837C94 851 118 876 149 900H0Z" fill="url(#bank)"/>
-<path d="M115 724C139 737 165 739 189 745C213 750 233 757 239 762M237 776C205 780 175 788 156 805" fill="none" stroke="#b6c6a8" stroke-width="1.8" stroke-linecap="round" opacity=".65"/>
-${snowbank('left')}
+${pieceMarkup("westBank",design)}
 ${shoreTree(116,739,.64)}${shoreTree(176,767,1.04)}${shoreTree(216,767,.39)}
-<path d="M1600 745C1546 750 1512 760 1478 782C1439 808 1408 809 1368 815C1336 820 1307 830 1303 837C1299 844 1320 845 1345 844C1391 843 1425 852 1448 872C1459 882 1466 892 1472 900H1600Z" fill="url(#shore)"/>
-<path d="M1600 799C1541 791 1510 808 1480 826C1457 840 1449 862 1436 878L1417 900H1600Z" fill="url(#bank)"/>
-<path d="M1314 850C1350 846 1382 851 1408 858M1452 803C1472 796 1488 786 1506 778" fill="none" stroke="#c3d0b2" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>
-${snowbank('right')}
+${pieceMarkup("eastBank",design)}
 ${rock(146,790,.83)}${rock(200,780,.43,-1)}${rock(218,784,.22)}
 ${rock(1514,844,1.05,-1)}${rock(1462,850,.49)}${rock(1418,854,.33,-1)}
 <g class="reed-sway" fill="none" stroke="var(--shore-reed,#a7b69a)" stroke-linecap="round">
@@ -263,20 +264,14 @@ ${rock(1514,844,1.05,-1)}${rock(1462,850,.49)}${rock(1418,854,.33,-1)}
   <path class="season-layer autumn-scene winter-scene" d="M1440 795l-3-7m48-4 5-7m-61 38-4-5" stroke="#8e7760" stroke-width="3"/>
 </g>
 ${shoreDetails()}
+${pieceMarkup("path",design)}
 <g id="garden-growth-trees"/>
 <g id="garden-growth-cairns"/>
 <rect id="night-shade" width="1600" height="900" fill="#071730" opacity="0"/>
 <g id="evening-lights" opacity="0">
   <g id="garden-growth-lights"/>
   <g class="far-shore">
-    <g transform="translate(${pavilionOrigin})">
-      <ellipse cy="-17" rx="37" ry="28" fill="url(#lamp-halo)" opacity=".8"/>
-      <path d="M-11-26h9v17h-9zm14 0h9v17H3z" fill="#f9c583"/>
-      <path d="M-11-20h9m5 0h9" stroke="#a67150" stroke-width=".85"/>
-      <circle cx="22" cy="-23" r="16" fill="url(#lamp-halo)"/>
-      <ellipse cx="22" cy="-23" rx="2.8" ry="3.7" fill="#ffd39a"/>
-      <path d="M-10 26h24m-17 5h16m-20 6H3" stroke="#f7c58c" stroke-linecap="round" opacity=".34"/>
-    </g>
+    ${pieceMarkup("pavilionLights",design)}
   </g>
   <g transform="translate(${boatOrigin})">
     ${alternateBoatLights()}
@@ -336,11 +331,11 @@ function paintLight(nodes,p,lighting,width,height){
   nodes.app.style.setProperty('--scene-twilight',Math.min(1,Math.max(.22,(light.night-.16)*1.4)));
 }
 
-export function mountGardenPreview(container,appearance,{history=[],courses=[],through=''}={}){
+export function mountGardenPreview(container,appearance,{history=[],courses=[],through='',design=defaultGardenDesign}={}){
   const template=document.createElement('template');
-  template.innerHTML=renderLandscape();
+  template.innerHTML=renderLandscape(design);
   const scene=template.content.firstElementChild;
-  const art=gardenGrowthMarkup(history,{courses,through});
+  const art=gardenGrowthMarkup(history,{courses,through,design});
   for(const [part,markup] of Object.entries(art))scene.querySelector(`#garden-growth-${part}`).innerHTML=markup;
   paintLight(lightNodes(scene,container),sceneProgress(0,appearance.lighting,false,'still'),appearance.lighting,1600,900);
   applySceneryAppearance(container,appearance,gardenWeather(appearance,appearance.weatherSince));

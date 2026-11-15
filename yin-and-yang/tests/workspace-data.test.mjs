@@ -10,7 +10,8 @@ import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
-import {eveningCamera,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
+import {defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign} from '../dist/garden-layout.js';
+import {eveningCamera,renderLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
 
 test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
   let history=earnGardenDetail([],'project','a','Project','2026-09-01',{zone:'east',group:'Fall'});
@@ -414,4 +415,32 @@ test('landmark inscriptions survive backup and compare counts include both cutof
     {before:'2026-09-01',after:'2026-10-12',earlier:1,later:3,added:2});
   assert.equal(gardenComparison(restored.gardenGrowth,'2026-10-12','2026-09-01','2026-11-14'),null);
   assert.equal(gardenComparison(restored.gardenGrowth,'2026-09-01','2026-11-15','2026-11-14'),null);
+});
+
+test('Studio layouts use the original scenery for old data and restore separate named designs',()=>{
+  const state=freshState();
+  assert.deepEqual(state.gardenDesign,defaultGardenDesign);
+  const tree={kind:'project',sourceId:'section "A"',title:'First project',day:'2026-09-10'};
+  const other={kind:'book',sourceId:tree.sourceId,title:'A book',day:'2026-10-01'};
+  const key=gardenLandmarkKey(tree);
+  const design=loadGardenDesign({mountains:'highlands',shoreline:'inlet',pavilion:'tea',path:'lanterns',camera:'lake',
+    placements:{[key]:{x:1000.3,y:652.7},notJson:{x:10,y:20}}});
+  assert.deepEqual(design.placements,{[key]:{x:1000,y:653}});
+  state.gardenDesign=design;state.gardenGrowth=[tree,other];
+  state.gardenLayouts=[{id:'autumn',name:' Autumn ',design,appearance:{season:'autumn'},through:'2026-09-30'},
+    {id:'winter',name:'Winter',design:{...design,placements:{}},appearance:{season:'winter'},through:'2026-02-30'}];
+  const {state:restored}=readBackup(JSON.stringify(createBackup(state,{getItem:()=>null},[])));
+  assert.deepEqual(restored.gardenDesign,design);
+  assert.equal(restored.gardenLayouts[0].name,'Autumn');
+  assert.equal(restored.gardenLayouts[0].through,'2026-09-30');
+  assert.equal(restored.gardenLayouts[1].through,'');
+  const [a,b]=gardenLandmarkPositions(state.gardenGrowth,[],restored.gardenLayouts[0].design.placements);
+  assert.deepEqual(a.position.slice(0,2),[1000,653]);
+  assert.notDeepEqual(b.position.slice(0,2),[1000,653]);
+  const scene=renderLandscape(design);
+  assert.match(scene,/viewBox="155 171 1280 720"/);
+  assert.match(scene,/data-garden-piece="pavilion" data-variant="tea"/);
+  assert.match(scene,/data-garden-piece="path" data-variant="lanterns"/);
+  const {scale,x,y}=gardenViewport('lake',1280,720);
+  assert.deepEqual([scale,x+155*scale,y+171*scale],[1,0,0]);
 });

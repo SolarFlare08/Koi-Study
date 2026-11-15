@@ -1,4 +1,10 @@
 export const releases = [
+  {version:'3.0.0',date:'2026-11-14',title:'Garden Studio',changes:[
+    'Build a Garden from interchangeable mountains, shorelines, buildings, and paths. Choose a camera view and preview the season, light, palette, and weather.',
+    'Place trees, lanterns, and cairns on the preview or use keyboard-accessible sliders. Save a custom placement in each layout.',
+    'Customize a seasonal starter layout or save, copy, and apply your own. Reopen semester views in the Field Guide and export postcards with their framing intact.',
+    'Existing Gardens keep their original scenery, and earlier backups still restore. New Garden backups include the live design and saved layouts.'
+  ]},
   {version:'2.13.0',date:'2026-11-14',title:'Garden inscriptions, comparisons, and season previews',changes:[
     'Write dedications for trees, lanterns, and cairns and use them as postcard captions.',
     'Compare the landmarks earned by two dates and download the views together as one postcard.',

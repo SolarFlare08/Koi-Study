@@ -1,5 +1,5 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit} from './state.js';
-import {renderLandscape,objects,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview} from './scenery.js';
+import {renderLandscape,objects,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
@@ -11,6 +11,8 @@ import {CAPTURE_PREFIX, cleanCaptureContext, readCaptures, saveCapture, storeCap
 import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from './day-recap.js';
 import {installPlanner} from './planner.js';
 import {gardenPalettes,lightingOptions,seasonOptions,sceneryMotionOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenLooks,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
+import {createGardenStudio} from './garden-studio.js';
+import {gardenViewport} from './garden-layout.js';
 import {comparisonPostcardPng,postcardPng} from './garden-postcard.js';
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
@@ -88,7 +90,13 @@ let reopenTasksAfterCalendar=false;
 let effectiveAppearance=state.appearance, resumeTaskId=null, captureActionKey=null;
 let renderedGardenGrowth, renderedGardenProjects, selectedLandmark=null, gardenHistoryFilter='all', recapOrigin=null;
 let gardenFrom='',gardenThrough='',snapshotThrough='',selectedCourse='';
-let seasonPreview='',comparisonDates=null;
+let seasonPreview='',comparisonDates=null,snapshotLayoutId='',paintedGardenDesign;
+let renderedGardenDesign;
+const studio=createGardenStudio({getState:()=>state,getAppearance:()=>scheduledAppearance(state.appearance,state.gardenSchedule),commit:saveStudioLayouts,
+  today:()=>dayKey(),notify:confirmChange,download:async(scene,caption)=>{
+    const blob=await postcardPng(scene,caption);
+    savePostcard(blob,'garden-studio-'+dayKey()+'.png');
+  }});
 let handoffMarkup='', actualCalendar=false, replayRenderKey='', returnToCalendarMonth=false;
 let renderedBundle='';
 let savedSchedule=snapshotSchedule(state), captureInboxTab='inbox', returnToCaptureInbox=false, captureInboxIndex=0;
@@ -142,16 +150,19 @@ function saveExamPlan(projectId,exam){
   confirmChange(exam.result&&!star?'Exam result saved. A star has joined the Garden.':'Exam plan saved.');
   return true;
 }
+function viewedGardenLayout(){return state.gardenLayouts.find(item=>item.id===snapshotLayoutId);}
+function sceneGardenDesign(){return viewedGardenLayout()?.design||state.gardenDesign;}
 function renderGardenGrowth(){
-  if(renderedGardenGrowth===state.gardenGrowth&&renderedGardenProjects===state.projects)return;
+  const design=sceneGardenDesign();
+  if(renderedGardenGrowth===state.gardenGrowth&&renderedGardenProjects===state.projects&&renderedGardenDesign===design)return;
   const courses=gardenCourses(state.gardenGrowth,state.projects);
-  const art=gardenGrowthMarkup(state.gardenGrowth,{courses,through:snapshotThrough});
+  const art=gardenGrowthMarkup(state.gardenGrowth,{courses,through:snapshotThrough,design});
   for(const [part,markup] of Object.entries(art))$(`#garden-growth-${part}`).innerHTML=markup;
   const courseAnchors=new Map(courses.flatMap(course=>{
     const star=course.stars.find(({item})=>!snapshotThrough||item.day<=snapshotThrough);
     return star?[[star.index,course]]:[];
   }));
-  $('#garden-landmarks').innerHTML=gardenLandmarkPositions(state.gardenGrowth,courses).map(({item,index,position})=>{
+  $('#garden-landmarks').innerHTML=gardenLandmarkPositions(state.gardenGrowth,courses,design.placements).map(({item,index,position})=>{
     if(snapshotThrough&&item.day>snapshotThrough)return '';
     const type=landmarkTypes[item.kind], [x,y,scale]=position;
     const center=y-({project:93,book:5,milestone:10,test:0}[item.kind]*scale);
@@ -163,13 +174,14 @@ function renderGardenGrowth(){
   positionGardenLandmarks();
   renderedGardenGrowth=state.gardenGrowth;
   renderedGardenProjects=state.projects;
+  renderedGardenDesign=design;
 }
 function positionGardenLandmarks(){
   const {clientWidth:width,clientHeight:height}=app;
-  const scale=Math.max(width/1600,height/900);
+  const viewport=gardenViewport(sceneGardenDesign().camera,width,height);
   for(const button of $('#garden-landmarks').children){
-    const x=width/2+(Number(button.dataset.x)-800)*scale;
-    const y=height/2+(Number(button.dataset.y)-450)*scale;
+    const x=viewport.x+Number(button.dataset.x)*viewport.scale;
+    const y=viewport.y+Number(button.dataset.y)*viewport.scale;
     button.hidden=x<14||x>width-14||y<14||y>height-14;
     button.style.left=`${x}px`;button.style.top=`${y}px`;
   }
@@ -361,6 +373,7 @@ $('#garden-landmarks').addEventListener('click',event=>{
   else if(button)openGardenLandmark(Number(button.dataset.gardenLandmark));
 });
 $('#garden-snapshot-close').onclick=()=>setGardenSnapshot('');
+$('#garden-snapshot [data-open-postcard]').onclick=event=>openGardenPostcard(undefined,event.currentTarget);
 $('#objects').innerHTML=objects.map(o=>`<button class="world-object ${o.className}" data-panel="${o.id}" aria-label="${o.hint}" aria-haspopup="dialog" aria-expanded="false"><span class="tool-icon">${icon(({pagoda:"focus",tasks:"target",music:"music",notes:"spark",progress:"target",appearance:"appearance"})[o.id])}</span><span>${({pagoda:"Settings",tasks:"Tasks",music:"Music",notes:"Notes",progress:"Today",appearance:"Appearance"})[o.id]}</span></button>`).join('');
 const crochet=installCrochet({root:$('#crochet-workspace'),storage,notify:message=>{toast(message);announce(message);}});
 const journal=installJournal({root:$('#journal-workspace'),storage,projects:()=>loadCrochet(storage).projects,notify:confirmChange,
@@ -528,6 +541,7 @@ function commandEntries(){
   return [
     action('Help','Browse searchable instructions and keyboard shortcuts','guide how to tutorial features',()=>helpGuide.open()),
     action('Version history','See what changed in each release','versions updates changelog release notes',()=>runHelpAction('versions')),
+    action('Garden Studio','Edit the scene, move landmarks, and save a Garden layout','camera scenery layout personalize postcard',()=>runHelpAction('garden-studio')),
     action('Garden Field Guide','Browse landmarks, historical views, and course constellations','garden history semester stars trees lanterns cairns',()=>runHelpAction('garden-history')),
     action('Evening lights','Open the shutdown checklist by the lake','night sunset tomorrow shutdown',()=>runHelpAction('evening-lights')),
     action('Export Garden postcard','Download a PNG of your Garden','image caption semester',()=>runHelpAction('garden-postcard')),
@@ -564,6 +578,7 @@ function commandEntries(){
 }
 
 function runHelpAction(action){
+  if(action==='garden-studio'){openGardenStudio();return;}
   if(action==='garden-postcard'){openGardenPostcard();return;}
   if(action==='evening-lights'){openEveningLights();return;}
   closePanel(false);closeTaskMenu(false);
@@ -737,7 +752,16 @@ function resumeProject(projectId){
 function render(){
   syncFocusMode();
   const clock=new Date();
-  effectiveAppearance=scheduledAppearance(state.appearance,state.gardenSchedule,clock);
+  if(snapshotLayoutId&&!viewedGardenLayout()){
+    snapshotLayoutId='';snapshotThrough='';updateGardenSnapshotLabel();renderedGardenGrowth=null;
+  }
+  const viewed=viewedGardenLayout(),design=sceneGardenDesign();
+  effectiveAppearance=viewed?loadAppearance({...viewed.appearance,lighting:viewed.appearance.lighting==='session'?'day':viewed.appearance.lighting,weatherSince:clock.getTime()}):
+    scheduledAppearance(state.appearance,state.gardenSchedule,clock);
+  if(paintedGardenDesign!==design){
+    applyGardenDesign($('#landscape .world'),design);
+    paintedGardenDesign=design;
+  }
   app.dataset.lighting=effectiveAppearance.lighting;
   if(app.dataset.palette!==effectiveAppearance.palette){
     app.dataset.palette=effectiveAppearance.palette;
@@ -1018,14 +1042,44 @@ function openGardenLandmark(index){
   openPanel('garden-landmark',landmarkAnchor(index),index);
 }
 const landmarkDate=day=>new Date(`${day}T12:00:00`).toLocaleDateString([],{dateStyle:'medium'});
-function setGardenSnapshot(through){
-  snapshotThrough=through;
-  renderedGardenGrowth=null;renderGardenGrowth();
-  $('#garden-snapshot').hidden=!through;
-  $('#garden-snapshot-date').textContent=through?`Garden on ${landmarkDate(through)}`:'';
+function updateGardenSnapshotLabel(){
+  const layout=viewedGardenLayout(),visible=Boolean(snapshotThrough||layout);
+  $('#garden-snapshot').hidden=!visible;
+  $('#garden-snapshot-date').textContent=layout
+    ?layout.name+(snapshotThrough?` · Through ${landmarkDate(snapshotThrough)}`:'')
+    :snapshotThrough?`Garden on ${landmarkDate(snapshotThrough)}`:'';
+  return visible;
+}
+function setGardenSnapshot(through,layoutId=''){
+  snapshotThrough=through;snapshotLayoutId=layoutId;
+  renderedGardenGrowth=null;
+  render();
+  const visible=updateGardenSnapshotLabel();
   closePanel(false);
-  (through?$('#garden-snapshot-close'):$('[data-panel="progress"]')).focus({preventScroll:true});
-  announce(through?`Showing landmarks earned through ${landmarkDate(through)}.`:'Showing today’s Garden.');
+  (visible?$('#garden-snapshot-close'):$('[data-panel="progress"]')).focus({preventScroll:true});
+  announce(visible?$('#garden-snapshot-date').textContent:'Showing today’s Garden.');
+}
+function openGardenStudio(){
+  if(state.focusMode)toggleFocusMode();
+  visitWorkspace('focus');
+  openPanel('garden-studio',$('[data-panel="appearance"]'));
+}
+function saveStudioLayouts(layouts,applied){
+  const {gardenLayouts,gardenDesign,appearance,gardenSchedule}=state;
+  state.gardenLayouts=layouts;
+  if(applied){
+    state.gardenDesign=applied.design;
+    state.appearance=loadAppearance(applied.appearance);
+    state.gardenSchedule={...gardenSchedule,enabled:false};
+  }
+  if(!persist()){Object.assign(state,{gardenLayouts,gardenDesign,appearance,gardenSchedule});return false;}
+  if(applied){
+    snapshotThrough='';snapshotLayoutId='';
+    renderedGardenGrowth=null;
+    updateGardenSnapshotLabel();
+    render();
+  }
+  return true;
 }
 function openGardenCourse(id,anchor){
   selectedCourse=id;
@@ -1151,6 +1205,10 @@ function gardenHistoryMarkup(){
       ${[['all',{name:'All'}],...types].map(([kind,type])=>`<button type="button" data-history-filter="${kind}" aria-pressed="${kind===gardenHistoryFilter}">${type.name} · ${kind==='all'?history.length:counts[kind]}</button>`).join('')}
     </div>${entries?`<ol class="garden-growth-history">${entries}</ol>`:'<p>No landmarks match these filters.</p>'}`:
     '<p>Finish a project to plant a tree, finish a book to light a lantern, or record a test or milestone below.</p>'}
+    ${state.gardenLayouts.length?`<section class="field-layouts"><h3>Saved Studio layouts</h3>
+      <ul class="garden-growth-history">${[...state.gardenLayouts].reverse().map(layout=>`<li><button type="button" data-view-garden-layout="${escape(layout.id)}">
+        <span><strong>${escape(layout.name)}</strong><small>${layout.through?`Landmarks through ${landmarkDate(layout.through)}`:'Shows current landmarks'} · ${seasonOptions[layout.appearance.season].name}</small></span>
+        <span class="field-layout-action">View</span></button></li>`).join('')}</ul></section>`:''}
     <details class="landmark-record"><summary>Record a test or milestone</summary>
       <form id="landmark-form"><div class="landmark-form-fields">
         <label>Type<select name="kind"><option value="test">Test · Star</option><option value="milestone">Milestone · Cairn</option></select></label>
@@ -1165,9 +1223,9 @@ function gardenHistoryMarkup(){
     <button type="button" class="text-button" data-open-garden-comparison>Compare two dates</button>
     <button type="button" class="text-button" data-open-postcard>Export postcard</button></div>`;
 }
-function openGardenPostcard(caption=''){
+function openGardenPostcard(caption=viewedGardenLayout()?.name||'',anchor=$('[data-panel="progress"]')){
   if(state.focusMode)toggleFocusMode();
-  visitWorkspace('focus');openPanel('garden-postcard',$('[data-panel="progress"]'));
+  visitWorkspace('focus');openPanel('garden-postcard',anchor);
   $('#postcard-caption').value=caption;
 }
 function openGardenComparison(){
@@ -1197,10 +1255,10 @@ function gardenComparisonMarkup(){
 }
 function renderGardenComparison(dates){
   const appearance={...effectiveAppearance,lighting:'dusk'};
-  const history=state.gardenGrowth,courses=gardenCourses(history,state.projects);
+  const history=state.gardenGrowth,courses=gardenCourses(history,state.projects),design=sceneGardenDesign();
   const label=(side,date,count)=>`${side} · ${landmarkDate(date)} · ${count} ${count===1?'landmark':'landmarks'}`;
-  const before=mountGardenPreview($('#garden-before-scene'),appearance,{history,courses,through:dates.before});
-  const after=mountGardenPreview($('#garden-after-scene'),appearance,{history,courses,through:dates.after});
+  const before=mountGardenPreview($('#garden-before-scene'),appearance,{history,courses,through:dates.before,design});
+  const after=mountGardenPreview($('#garden-after-scene'),appearance,{history,courses,through:dates.after,design});
   $('#garden-before-label').textContent=label('Before',dates.before,dates.earlier);
   $('#garden-after-label').textContent=label('After',dates.after,dates.later);
   $('#garden-compare-summary').textContent=dates.added?`${dates.added} ${dates.added===1?'landmark':'landmarks'} added between these views.`:'The same landmarks appear on both dates.';
@@ -1242,7 +1300,7 @@ function renderSeasonPreview(){
   const appearance=previewSeasonAppearance();
   if(!container.firstElementChild){
     const history=state.gardenGrowth,courses=gardenCourses(history,state.projects);
-    mountGardenPreview(container,{...appearance,lighting:'day'},{history,courses,through:snapshotThrough});
+    mountGardenPreview(container,{...appearance,lighting:'day'},{history,courses,through:snapshotThrough,design:sceneGardenDesign()});
   }else applySceneryAppearance(container,appearance,gardenWeather(appearance,appearance.weatherSince));
   $('#garden-season-preview-label').textContent=`${seasonOptions[appearance.season].name} · ${seasonOptions[appearance.season].detail}`;
   $('#apply-preview-season').disabled=appearance.season===effectiveAppearance.season;
@@ -2228,9 +2286,11 @@ function panelContent(id){
       `<button type="button" data-capture-inbox-tab="${tab}" aria-pressed="${tab===captureInboxTab}">${tab==='inbox'?'Unsorted':'Archive'}</button>`).join('')}</div>
     <p class="capture-shortcuts"><kbd>N</kbd> Next <kbd>P</kbd> Previous${captureInboxTab==='inbox'?' <kbd>F</kbd> File <kbd>L</kbd> Link <kbd>A</kbd> Archive':''}</p>
     <div id="capture-inbox-list">${captureInboxList()}</div>`;
+  if(id==='garden-studio')return header('GARDEN','Garden Studio')+studio.markup();
   if(id==='appearance'){
     const {lighting,season,motion,palette}=state.appearance;
     return `${header('GARDEN APPEARANCE','Light and seasons')}
+      <div class="studio-launch"><button type="button" class="panel-primary" data-open-garden-studio>Open Garden Studio</button></div>
       <fieldset class="appearance-options"><legend>Lighting</legend><div class="lighting-options">
         ${Object.entries(lightingOptions).map(([value,label])=>`<label><input class="sr-only" type="radio" name="garden-lighting" value="${value}" ${lighting===value?'checked':''}><span>${label}</span></label>`).join('')}
       </div><p>Follow timer gives each focus session its own sunrise and sunset.</p></fieldset>
@@ -2357,7 +2417,7 @@ function positionPanel(panel,anchor){
     }
     return;
   }
-  if(panel.matches('.task-editor,.garden-comparison-panel'))return;
+  if(panel.matches('.task-editor,.garden-comparison-panel,.garden-studio-panel'))return;
   const placement=anchor.isConnected?anchor:anchor.classList.contains('recap-entry')&&recapOrigin?.isConnected?recapOrigin:anchor;
   const r=placement.getBoundingClientRect(),w=panel.offsetWidth,h=panel.offsetHeight,W=window.innerWidth,H=window.innerHeight;
   let x=r.left+r.width/2-w/2,y=r.top-h+15;
@@ -2376,22 +2436,24 @@ function openPanel(id,anchor,landmarkIndex=null){
   if(id==='capture')activeCaptureContext=currentCaptureContext();
   if(id==='focus-goal')goalTimer=state.timer;
   if(id==='appearance')seasonPreview=effectiveAppearance.season;
+  if(id==='garden-studio')studio.open();
   closePanel(false);selectedLandmark=landmarkIndex;
   if(selectedLandmark!==null)$(`[data-garden-landmark="${selectedLandmark}"]`)?.classList.add('landmark-selected');
   activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
   if(id==='appearance')renderSeasonPreview();
   if(id==='garden-comparison')renderGardenComparison(comparisonDates);
+  if(id==='garden-studio')studio.mount(panel.querySelector('#garden-studio-form'));
   const scheduleForm=panel.querySelector('#task-editor-form,#block-editor-form');
   if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(id==='music')syncSound();
   positionPanel(panel,anchor);wake();
   const firstControl=panel.querySelector(id==='appearance'?'input:checked':'input,textarea,select')||panel.querySelector('button');
-  const initialFocus=['replan-today','plan-tomorrow','plan-deadline','build-week','project-context','schedule-drop','garden-landmark','garden-comparison'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
+  const initialFocus=['replan-today','plan-tomorrow','plan-deadline','build-week','project-context','schedule-drop','garden-landmark','garden-comparison','garden-studio'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
   if(initialFocus.id==='panel-title')initialFocus.tabIndex=-1;
   initialFocus.focus({preventScroll:true});
 }
@@ -2414,6 +2476,7 @@ function closePanel(restore=true){
   activePanel=null;wake();
 }
 function refreshPanel(){
+  if(activePanel==='garden-studio')return;
   if(!activePanel||activePanel==='music')return;
   const p=visiblePanel();
   if(!p)return;
@@ -3976,6 +4039,13 @@ root.addEventListener('click',e=>{
     const draft=draftStudyWeek(weekData(),option.settings);
     if(!draft){weekComparison=[];refreshPanel();confirmChange('The calendar changed. Compare drafts again.');return;}
     weekSettings=option.settings;weekComparison=[];showWeekDraft(draft);return;
+  }
+  if(e.target.closest('[data-open-garden-studio]')){openGardenStudio();return;}
+  const layoutButton=e.target.closest('[data-view-garden-layout]');
+  if(layoutButton){
+    const layout=state.gardenLayouts.find(item=>item.id===layoutButton.dataset.viewGardenLayout);
+    if(layout)setGardenSnapshot(layout.through,layout.id);
+    return;
   }
   if(e.target.closest('[data-open-postcard]')){openGardenPostcard();return;}
   if(e.target.closest('[data-open-garden-comparison]')){openGardenComparison();return;}

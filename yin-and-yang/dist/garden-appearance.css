@@ -220,3 +220,59 @@
   .garden-compare-controls button { grid-column: 1 / -1; justify-self: start; }
   .garden-compare-export label { grid-column: 1 / -1; }
 }
+
+.studio-launch { margin: -5px 0 16px; }
+.studio-launch button { width: 100%; }
+#panel-root:has(.garden-studio-panel)::before { content: ''; position: fixed; inset: 0; z-index: 9; background: #081424a6; }
+.garden-studio-panel {
+  width: min(1120px,calc(100vw - 24px)); top: 50%; left: 50%; transform: translate(-50%,-50%);
+  padding: clamp(13px,2.4vw,25px);
+}
+.garden-studio-panel .panel-header { margin-bottom: 12px; }
+#garden-studio-form { display: grid; gap: 13px; }
+#garden-studio-form label { display: grid; gap: 4px; min-width: 0; color: var(--surface-muted); font-size: 12px; }
+#garden-studio-form label small { font-size: 10px; }
+#garden-studio-form label :is(input:not([type=range]),select) { border-radius: 6px; width: 100%; font-size: 12px; padding: 8px; min-width: 0; }
+.studio-library, .studio-save, .studio-export { display: grid; grid-template-columns: minmax(170px,1fr) auto auto; align-items: end; gap: 8px 13px; }
+.studio-save, .studio-export { border-top: 1px solid var(--surface-line); padding-top: 10px; }
+.studio-save { grid-template-columns: minmax(130px,1fr) minmax(145px,.75fr) auto; }
+.studio-export { grid-template-columns: minmax(130px,1fr) auto; }
+.studio-actions { display: flex; flex-wrap: wrap; justify-content: end; align-items: center; gap: 5px 12px; }
+.studio-library .text-button, .studio-actions .text-button, .studio-export .text-button { white-space: nowrap; }
+.studio-workspace { display: grid; grid-template-columns: minmax(0,1.65fr) minmax(220px,1fr); gap: clamp(10px,2vw,20px); }
+.studio-canvas-column, .studio-settings { min-width: 0; }
+.studio-stage { position: relative; border: 1px solid var(--surface-line); border-radius: 11px; overflow: hidden; }
+.studio-stage .studio-scene { border: 0; border-radius: 0; }
+.studio-stage[data-placing] { cursor: crosshair; touch-action: none; }
+.studio-pin {
+  position: absolute; width: 16px; height: 16px; transform: translate(-50%,-50%);
+  border: 2px solid #fae8cb; border-radius: 50%; background: #b47256; box-shadow: 0 0 0 1px #201e2e,0 0 0 5px #eed4a950;
+  pointer-events: none;
+}
+.garden-studio-panel :is(.studio-stage-help,[data-studio-status]) { margin: 0; min-height: 17px; }
+.garden-studio-panel .studio-stage-help { margin: 5px 0 7px; }
+.studio-landmarks { display: grid; gap: 6px; }
+.studio-placement { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)) auto; gap: 5px 10px; align-items: end; }
+.studio-placement input[type=range] { margin: 0; width: 100%; min-width: 0; accent-color: var(--surface-accent); }
+.studio-settings { display: grid; align-content: start; gap: 10px; }
+.studio-settings fieldset { min-width: 0; margin: 0; padding: 10px; border: 1px solid var(--surface-line); border-radius: 9px; }
+.studio-settings legend { padding: 0 5px; color: var(--surface-ink); font-size: 12px; font-weight: 650; }
+.studio-control-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.field-layouts { margin: 12px 0; }
+.field-layouts h3 { font-size: 13px; }
+.field-layouts ul { padding: 0; }
+.field-layouts button { grid-template-columns: 1fr auto; }
+.field-layout-action { color: var(--surface-accent); }
+#garden-snapshot #garden-snapshot-date { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 35px; }
+@media(max-width:720px) {
+  .studio-workspace { grid-template-columns: 1fr; }
+  .studio-save { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .studio-actions { grid-column: 1 / -1; justify-content: start; }
+}
+@media(max-width:460px) {
+  .studio-library { grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; }
+  .studio-library label { grid-column: 1/-1; }
+  .studio-library button { justify-self: start; white-space: normal; text-align: left; }
+  .studio-placement { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .studio-placement button { justify-self: start; grid-column: 1/-1; }
+}

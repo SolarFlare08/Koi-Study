@@ -18,6 +18,7 @@ export function postcardSvg(scene,caption=''){
   copy.removeAttribute('class');
   copy.setAttribute('width',postcardSize.width);
   copy.setAttribute('height',postcardSize.height);
+  const frame=(copy.getAttribute('viewBox')||'0 0 1600 900').split(' ').map(Number);
   const title=String(caption).trim().replace(/\s+/g,' ').slice(0,90);
   if(title){
     const group=document.createElementNS(svgNamespace,'g');
@@ -29,6 +30,8 @@ export function postcardSvg(scene,caption=''){
     for(const [key,value] of Object.entries({x:(1600-width)/2,y:796,width,height:66,rx:10,fill:'#132438','fill-opacity':'.82'}))background.setAttribute(key,value);
     for(const [key,value] of Object.entries({x:800,y:839,'text-anchor':'middle','font-family':'Georgia, serif','font-size':34,fill:'#fff0d8'}))text.setAttribute(key,value);
     if(width===1440){text.setAttribute('textLength',1356);text.setAttribute('lengthAdjust','spacingAndGlyphs');}
+    const [x,y,sceneWidth]=frame,scale=sceneWidth/postcardSize.width;
+    group.setAttribute('transform','translate('+x+' '+y+') scale('+scale+')');
     text.textContent=title;group.append(background,text);copy.append(group);
   }
   return new XMLSerializer().serializeToString(copy);
