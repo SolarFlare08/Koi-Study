@@ -5,7 +5,8 @@ import {CAPTURE_PREFIX,readCaptures} from '../dist/capture.js';
 import {CROCHET_KEY,loadCrochet,logCrochetTime} from '../dist/crochet.js';
 import {JOURNAL_KEY,loadJournal} from '../dist/journal.js';
 import {annotationContext,editFinishedBook,mergeShelfBooks,readingForecast,readingShelf} from '../dist/reading-shelf.js';
-import {dayKey,STORAGE_KEY,freshState,loadState} from '../dist/state.js';
+import {youtubeContent,youtubeLinks} from '../dist/youtube-embed.js';
+import {dayKey,STORAGE_KEY,freshState,loadState,taskPriority} from '../dist/state.js';
 import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
@@ -443,4 +444,28 @@ test('Studio layouts use the original scenery for old data and restore separate 
   assert.match(scene,/data-garden-piece="path" data-variant="lanterns"/);
   const {scale,x,y}=gardenViewport('lake',1280,720);
   assert.deepEqual([scale,x+155*scale,y+171*scale],[1,0,0]);
+});
+
+test('calendar task colors, importance and both media links are portable across backups',()=>{
+  const state=freshState();
+  state.tasks=[{id:'color',text:'Exam review',done:false,priorityLevel:1,calendarColor:'plum'},
+    {id:'legacy',text:'Old task',done:false,calendarColor:'url(fake)'}];
+  state.spotify='https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO';
+  state.youtube='https://youtu.be/M7lc1UVf-VE';state.mediaSource='youtube';
+  const {state:restored}=readBackup(JSON.stringify(createBackup(state,{getItem:()=>null},[])));
+  assert.equal(restored.tasks[0].calendarColor,'plum');
+  assert.equal(taskPriority(restored.tasks[0]),1);
+  assert.equal(restored.tasks[1].calendarColor,'');
+  assert.equal(restored.spotify,state.spotify);assert.equal(restored.youtube,state.youtube);
+  assert.equal(restored.mediaSource,'youtube');
+});
+test('YouTube links normalize to official watch and embed URLs',()=>{
+  const link='https://youtu.be/M7lc1UVf-VE?list=PL1234567890';
+  const content=youtubeContent(link);
+  const urls=youtubeLinks(content,'http://localhost:5180');
+  assert.equal(new URL(urls.watch).searchParams.get('v'),'M7lc1UVf-VE');
+  assert.equal(new URL(urls.embed).searchParams.get('listType'),'playlist');
+  assert.equal(new URL(urls.embed).searchParams.get('origin'),'http://localhost:5180');
+  assert.deepEqual(youtubeContent('https://www.youtube.com/playlist?list=PL1234567890'),{video:'',list:'PL1234567890'});
+  assert.equal(youtubeContent('https://www.youtube.com.other.example/watch?v=M7lc1UVf-VE'),null);
 });

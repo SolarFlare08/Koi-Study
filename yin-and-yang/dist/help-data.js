@@ -23,7 +23,7 @@ export const helpTopics = [
     summary:'What each workspace is for, and how to find features quickly.',
     steps:['Use the bottom bar to switch between `Garden`, `Planner`, and `Calendar`. Notes, Reading, Journal, and Crochet are beside them on wide screens or under `More` on small screens.',
       'In Garden, use `Tasks` to show or hide your task list and five-hour calendar, `Progress` to see today’s sessions, and `Edit landscape` to open Studio with your live design ready to edit.',
-      'Open `Tools` for timer settings, appearance, quick notes, music and sound, the Field Guide, and Help.',
+      'Open `Tools` for timer settings, appearance, quick notes, music and video, the Field Guide, and Help.',
       'Use Planner for task lists, projects, reviews, and reports. Calendar is the full schedule shared with Planner and the Garden’s 5-hour calendar.',
       'Choose `Search` or press `Ctrl+K` to search across tasks, sticky notes, books, and journal entries, or run a command.'],
     tip:'Open this guide from the floating Help button, press F1, or search for Help in Ctrl+K.',
@@ -202,6 +202,14 @@ export const helpTopics = [
       'Open Planner → `Waiting for` to see due follow-ups. The open app also shows a prompt when a follow-up date arrives.',
       'Choose `Mark ready` when you can act. A follow-up date alone does not return a waiting task to Garden. Its calendar booking and deadline remain in Planner.'],
     action:'waiting',actionLabel:'Open Waiting for',related:['tasks','focus-queue','project-health']
+  },
+  {
+    id:'calendar-task-colors',group:'Calendar & planning',title:'Mark important calendar tasks and choose colors',
+    summary:'Flag priority tasks and identify them by color across calendar views.',
+    steps:['In Calendar, choose `New task`. Turn on `Important` to set the task’s priority to P1 and show a star on the calendar.',
+      'Choose `Calendar color` near the task name. The same color appears on its blocks. Choose `Default` to use the standard calendar colors.',
+      'Open an existing task to change either setting. For a task with extra scheduled blocks, open the task editor to update all of its blocks.'],
+    action:'calendar',actionLabel:'Open Calendar',related:['tasks','calendar']
   },
   {
     id:'task-dependencies', group:'Tasks & projects', title:'Set task prerequisites',
@@ -710,13 +718,14 @@ export const helpTopics = [
     action:'garden-postcard',actionLabel:'Open postcard export',related:['garden-growth','garden-inscriptions','garden-comparison','appearance']
   },
   {
-    id:'music', group:'Make it yours', title:'Spotify, optional ambience, and silence',
+    id:'music', group:'Make it yours', title:'Spotify, YouTube, and app sounds',
     summary:'Play your playlists and choose whether the app makes any sound.',
-    steps:['In Garden, open `Tools` → `Music & sound`. Paste a Spotify playlist, album, or track link and choose `Load`.',
-      'Use the embedded player or `Open Spotify` to play music externally.',
+    steps:['In Garden, open `Tools` → `Music & video`. Choose Spotify or YouTube, paste a link, and choose `Load`. Each service keeps its own saved link.',
+      'On YouTube, choose `Pop out video` for a mini player inside Yin and Yang. Use `Expand` to return to the full player or hide the video to continue listening.',
+      'Use `Open in Spotify` or `Open on YouTube` to play the saved link on the service’s own site.',
       'Optional rain, water, and wind have independent volume sliders. Focus and break chimes have separate sliders too. Zero disables a channel; `Silence` clears the ambience mix.',
       'Use `Mute all app sounds` for silence. If music is playing outside the embedded player, turn on `Music playing elsewhere` to pause app sounds.'],
-    tip:'The embedded Spotify player pauses app sounds automatically. Outside music needs the switch because this browser app cannot inspect or control all music playing on your computer.',
+    tip:'The embedded players pause app sounds while they are playing. Outside music needs the switch because this browser app cannot inspect or control all music playing on your computer.',
     action:'music', actionLabel:'Open Music', related:['notifications','focus-mode'], keywords:'audio mute volume ambient soundtrack'
   },
   {

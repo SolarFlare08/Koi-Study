@@ -1,7 +1,7 @@
 import {blockProgressLabels,calendarBlocks,calendarTaskBlock,allDayEvents,calendarDragType,openFocusBlock,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
 import {parseCalendarImport} from './calendar-import.js';
 import {summarizeWeek,weeklyProjectProgress} from './weekly-planning.js';
-import {dayKey,taskPriority,taskStatus,unfinishedPrerequisites} from './state.js';
+import {dayKey,taskPriority,taskCalendarColor,taskStatus,unfinishedPrerequisites} from './state.js';
 import {projectSessionTimeline} from './focus-replay.js';
 import {handoffLink} from './session-handoff.js';
 import {captureTaskChange} from './task-undo.js';
@@ -205,7 +205,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if (!blocks.length) return '';
     const row=block=>{
       const {status}=blockProgress(block);
-      return `<button type="button" class="planner-event" data-open-time data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-priority="${taskPriority(block.task)}"><time>${timeLabel(block.start)} – ${timeLabel(block.end)}</time><span>${escape(block.task.text)}</span><small class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</small></button>`;
+      return `<button type="button" class="planner-event" data-open-time data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-priority="${taskPriority(block.task)}" data-task-color="${taskCalendarColor(block.task.calendarColor)}" data-important="${taskPriority(block.task)===1}" aria-label="${escape(block.task.text)}${taskPriority(block.task)===1?', important':''}, ${timeLabel(block.start)}"><time>${timeLabel(block.start)} – ${timeLabel(block.end)}</time><span>${escape(block.task.text)}</span><small class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</small></button>`;
     };
     const now=new Date(), minute=now.getHours()*60+now.getMinutes();
     const past=splitPast?blocks.filter(block=>block.end<=minute):[];
@@ -386,7 +386,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       return `<section class="planner-month-cell${day.getMonth()!==month?' other-month':''}" data-board-day="${key}">
         <button type="button" data-month-day="${key}" aria-label="Open ${escape(day.toLocaleDateString([],{dateStyle:'full'}))}" ${key===today?'aria-current="date"':''}>${day.getDate()}</button>
         ${dailyRituals(key)}
-        ${allDay.map(task=>`<button type="button" class="planner-month-task${taskStatus(task,day)==='done'?' all-day-done':''}" data-month-task data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}
+        ${allDay.map(task=>`<button type="button" class="planner-month-task${taskStatus(task,day)==='done'?' all-day-done':''}" data-month-task data-task-color="${taskCalendarColor(task.calendarColor)}" data-important="${taskPriority(task)===1}" aria-label="${escape(task.text)}${taskPriority(task)===1?', important':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}
         ${allDayEvents(state().calendarEvents,day).map(event=>`<button type="button" class="planner-month-event" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}
         ${calendarBlocks([],day,state().calendarEvents).map(block=>`<button type="button" class="planner-month-event" data-calendar-event="${escape(block.event.id)}" title="${escape(block.event.title)}">${timeLabel(block.start)} · ${escape(block.event.title)}</button>`).join('')}
         ${timeStack(tasks,key)}</section>`;

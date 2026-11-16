@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'3.2.0',date:'2026-11-15',title:'Calendar task colors and YouTube playback',changes:[
+    'Mark a calendar task Important and assign one color to all of its blocks.',
+    'Open Spotify or YouTube from Music & video, keep a link for each service, and watch YouTube in a floating player inside the app.'
+  ]},
   {version:'3.1.0',date:'2026-11-14',title:'Clearer Garden home navigation',changes:[
     'Open the current Garden design directly with Edit landscape.',
     'Use labeled Tasks, Progress, Tools, and Search controls on the Garden home screen, with clearer timer and task text at dusk.',

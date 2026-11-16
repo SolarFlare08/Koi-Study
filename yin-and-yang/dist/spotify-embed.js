@@ -3,13 +3,14 @@ function spotifyApi(){
   if (apiReady) return apiReady;
   apiReady=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    const deadline=setTimeout(()=>reject(new Error('Spotify API unavailable')),6500);
+    const fail=()=>{clearTimeout(deadline);script.remove();reject(new Error('Spotify API unavailable'));};
+    const deadline=setTimeout(fail,6500);
     window.onSpotifyIframeApiReady=api=>{clearTimeout(deadline);resolve(api);};
     script.src='https://open.spotify.com/embed/iframe-api/v1';
     script.async=true;
-    script.onerror=()=>{clearTimeout(deadline);reject(new Error('Spotify API unavailable'));};
+    script.onerror=fail;
     document.head.append(script);
-  });
+  }).catch(error=>{apiReady=null;throw error;});
   return apiReady;
 }
 

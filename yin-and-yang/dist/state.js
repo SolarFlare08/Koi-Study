@@ -91,6 +91,8 @@ export function recordTaskCompletion(state, task, checked, occurrence = new Date
   };
 }
 
+export const taskCalendarColors={jade:'Jade',lake:'Lake blue',plum:'Plum',rose:'Rose',amber:'Amber',clay:'Terracotta'};
+export const taskCalendarColor=value=>Object.hasOwn(taskCalendarColors,value)?value:'';
 export function taskPriority(task) { return task.priorityLevel || (task.priority ? 1 : 4); }
 
 export function unfinishedPrerequisites(task, tasksById) {
@@ -131,6 +133,7 @@ function loadTask(task) {
     energy:Object.hasOwn(taskEnergyLevels,task.energy)?task.energy:'',
     repeat,
     priority:task.priority === true,
+    calendarColor:taskCalendarColor(task.calendarColor),
     priorityLevel:[1,2,3,4].includes(task.priorityLevel)?task.priorityLevel:undefined,
     projectId:typeof task.projectId==='string'?task.projectId:'',
     sectionId:typeof task.sectionId==='string'?task.sectionId:'',
@@ -176,7 +179,7 @@ export function breakIdeasThatFit(ideas,ms){
   return choices.filter(idea=>idea.minutes===best);
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],
     taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],breakIdeas:[],
@@ -249,7 +252,8 @@ export function loadState(storage) {
       if(phases)return [{id:routine.id,name:routine.name,phases}];
       return ['focus','rest'].every(key=>Number.isInteger(routine[key])&&routine[key]>=1000&&routine[key]<=10800000)?[routine]:[];
     });
-    for (const key of ['intention','notes','spotify']) if (typeof raw[key] === 'string') base[key] = raw[key];
+    for (const key of ['intention','notes','spotify','youtube']) if (typeof raw[key] === 'string') base[key] = raw[key];
+    base.mediaSource=raw.mediaSource==='youtube'?'youtube':'spotify';
     base.stickyNotes=loadStickyNotes(raw.stickyNotes,base.notes);
     base.gardenGrowth=loadGardenGrowth(raw.gardenGrowth);
     base.finishedBooks=loadFinishedBooks(raw.finishedBooks,base.gardenGrowth,base.dailyRituals,base.readingNotes);

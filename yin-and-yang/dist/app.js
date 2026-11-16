@@ -1,4 +1,4 @@
-import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit} from './state.js';
+import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit} from './state.js';
 import {renderLandscape,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
@@ -22,6 +22,7 @@ import {installBackup} from './backup.js';
 import {dailyRitualMarkup,ritualComplete,rituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed} from './spotify-embed.js';
+import {createYouTubeEmbed,youtubeContent,youtubeLinks} from './youtube-embed.js';
 import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
 import {installCommandPalette} from './command-palette.js';
 import {installHelp} from './help.js';
@@ -101,8 +102,10 @@ let handoffMarkup='', actualCalendar=false, replayRenderKey='', returnToCalendar
 let renderedBundle='';
 let savedSchedule=snapshotSchedule(state), captureInboxTab='inbox', returnToCaptureInbox=false, captureInboxIndex=0;
 const gardenAudio=createGardenAudio();
-let spotifyPlayback='idle';
-const spotifyEmbed=createSpotifyEmbed(playback=>{spotifyPlayback=playback;syncSound();});
+let mediaPlayback='idle';
+function updateMediaPlayback(playback){mediaPlayback=playback;syncSound();}
+const spotifyEmbed=createSpotifyEmbed(updateMediaPlayback);
+const youtubeEmbed=createYouTubeEmbed(updateMediaPlayback,setMediaStatus);
 const undoToast=$('#undo-toast'),undoButton=$('#undo-action');
 let pendingUndo,undoTimeout,undoReturn;
 function persist(){
@@ -216,11 +219,11 @@ function saveReadingChanges(edit){
   return {bookId:edit.bookId};
 }
 function syncSound(unlock=false){
-  gardenAudio.sync(state.sounds,spotifyPlayback!=='idle');
+  gardenAudio.sync(state.sounds,mediaPlayback!=='idle');
   if(unlock)gardenAudio.unlock();
   const status=$('#garden-sound-status');
   if(status)status.textContent=state.sounds.muted?'App sounds muted.':state.sounds.musicMode?'App sounds paused for outside music.':
-    spotifyPlayback==='unknown'?'App sounds paused while Spotify playback is unconfirmed.':spotifyPlayback==='playing'?'App sounds paused while Spotify plays.':'Set any slider to zero to turn that sound off.';
+    mediaPlayback==='unknown'?'App sounds paused while player status is unconfirmed.':mediaPlayback==='playing'?'App sounds paused while the player is active.':'Set any slider to zero to turn that sound off.';
 }
 function dismissUndo(){
   pendingUndo=null;clearTimeout(undoTimeout);undoToast.hidden=true;
@@ -2046,6 +2049,13 @@ function taskEditor(){
             <label class="sr-only" for="task-title">Task name</label>
             <textarea id="task-title" name="title" rows="2" maxlength="${Math.max(300,values.text?.length||0)}" placeholder="Task name" required>${escape(values.text)}</textarea>
           </div>
+          <div class="task-calendar-options">
+            <label class="task-important"><input type="checkbox" id="task-important" name="important" ${taskPriority(values)===1?'checked':''}> Important</label>
+            <label class="task-calendar-color" for="task-calendar-color">Calendar color
+              <span class="task-color-swatch" data-task-color="${taskCalendarColor(values.calendarColor)}" aria-hidden="true"></span>
+              <select id="task-calendar-color" name="calendarColor"><option value="">Default</option>${Object.entries(taskCalendarColors).map(([key,label])=>
+                `<option value="${key}" ${values.calendarColor===key?'selected':''}>${label}</option>`).join('')}</select>
+            </label></div>
           ${taskTemplateFields(!task)}
           <label class="field-label" for="task-description">Description</label>
           <textarea id="task-description" name="description" rows="3" maxlength="2000" placeholder="Add a description…">${escape(values.description)}</textarea>
@@ -2101,7 +2111,7 @@ function taskEditor(){
             <input id="task-snooze" name="snoozedUntil" type="date" value="${escape(values.snoozedUntil)}">
             <p>Leave blank to keep this task in the focus queue when it’s ready.</p></div>
           <div class="task-detail-property">
-            <label class="field-label" for="task-priority">Priority</label><select id="task-priority" name="priorityLevel">${[1,2,3,4].map(level=>`<option value="${level}" ${level===taskPriority(values)?'selected':''}>${level===4?'P4 · Normal':`P${level}`}</option>`).join('')}</select>
+            <label class="field-label" for="task-priority">Priority</label><select id="task-priority" name="priorityLevel">${[1,2,3,4].map(level=>`<option value="${level}" ${level===taskPriority(values)?'selected':''}>${level===1?'P1 · Important':level===4?'P4 · Normal':`P${level}`}</option>`).join('')}</select>
           </div>
           <div class="task-detail-property">
             <label class="field-label" for="task-labels">Labels</label><input id="task-labels" name="labels" list="task-label-options" maxlength="240" value="${escape(values.labels?.join(', '))}" placeholder="reading, homework">
@@ -2141,9 +2151,10 @@ function calendarBlockPreview(){
     <p id="block-focus-time"></p>
     <p id="block-actual-focus"></p>
     <p class="task-waiting" id="block-prerequisites" hidden></p>
-    <div class="panel-actions">
+    <div class="panel-actions calendar-block-actions">
       <button class="panel-primary" type="button" id="start-block-focus">${icon('play')} Start focus</button>
       <button type="button" class="text-button" id="edit-calendar-block">${lastAnchor.dataset.block?'Edit block':'Edit task'}</button>
+      ${lastAnchor.dataset.block?'<button type="button" class="text-button" id="edit-calendar-task">Edit task</button>':''}
     </div>`;
 }
 
@@ -2319,7 +2330,7 @@ function panelContent(id){
       ['pagoda','focus','Timer settings','Durations, routines, chimes, and backups'],
       ['appearance','appearance','Appearance','Light, seasons, weather, and saved looks'],
       ['notes','note','Quick notes','Capture a distraction or open the note inbox'],
-      ['music','music','Music & sound','Spotify, ambience, and mute'],
+      ['music','music','Music & video','Spotify, YouTube, and app sounds'],
       ['garden-history','sprout','Garden Field Guide','Landmarks, saved layouts, and postcards'],
       ['help','help','Help','How-to guides and shortcuts']
     ];
@@ -2441,7 +2452,18 @@ function panelContent(id){
   if(id==='garden-course')return gardenCourseMarkup();
   if(id==='garden-landmark')return gardenLandmarkMarkup();
   if(id==='day-recap')return dayRecapMarkup();
-  return `${header('BY THE LAKE','Your own soundtrack.')}<label class="field-label" for="spotify-link">Spotify playlist, album, or track link</label><form id="spotify-form" class="music-link"><input id="spotify-link" type="url" value="${escape(state.spotify)}" placeholder="https://open.spotify.com/playlist/…" required><button class="panel-primary" type="submit">Load</button></form><div id="music-player-wrap"></div><p id="spotify-error" role="status" class="panel-subtle"></p><div class="panel-actions"><a class="panel-primary" id="open-spotify-external" href="https://open.spotify.com/" target="_blank" rel="noopener noreferrer">Open Spotify ${icon('external')}</a><button class="text-button" id="remove-player" ${state.spotify?'':'hidden'}>Remove player</button></div><p class="music-tip">The embedded player pauses app sounds automatically. Open Spotify enables the outside music switch below.</p>${soundControls()}`;
+  return `${header('BY THE LAKE','Music & video')}
+    <div class="media-sources" role="group" aria-label="Media source">
+      <button type="button" data-media-source="spotify">Spotify</button><button type="button" data-media-source="youtube">YouTube</button>
+    </div>
+    <label class="field-label" for="media-link" id="media-link-label">Media link</label>
+    <form id="media-form" class="music-link"><input id="media-link" type="url" required><button class="panel-primary" type="submit">Load</button></form>
+    <div class="music-mini-bar" hidden><strong>YouTube</strong><button type="button" id="restore-media-panel">Expand</button><button type="button" id="hide-media-mini" title="Hide video and keep playing" aria-label="Hide video and keep playing">×</button></div>
+    <div id="music-player-wrap"></div>
+    <p id="media-status" role="status" class="panel-subtle"></p>
+    <div class="panel-actions media-actions"><a class="panel-primary" id="open-media-external" target="_blank" rel="noopener noreferrer"></a>
+      <button type="button" class="text-button" id="pop-out-youtube" hidden>Pop out video</button><button type="button" class="text-button" id="remove-player" hidden>Remove player</button></div>
+    ${soundControls()}`;
 }
 function positionPanel(panel,anchor){
   if(!anchor||!panel)return;
@@ -2471,7 +2493,7 @@ function positionPanel(panel,anchor){
   panel.style.left=`${Math.max(14,Math.min(x,W-w-14))}px`;
   panel.style.top=`${Math.max(16,Math.min(y,H-h-16))}px`;
 }
-function visiblePanel(){return root.querySelector('.panel:not(.music-hidden)');}
+function visiblePanel(){return root.querySelector('.panel:not(.music-hidden,.music-mini)');}
 function openPanel(id,anchor,landmarkIndex=null){
   if(id==='capture')activeCaptureContext=currentCaptureContext();
   if(id==='focus-goal')goalTimer=state.timer;
@@ -2481,8 +2503,8 @@ function openPanel(id,anchor,landmarkIndex=null){
   if(selectedLandmark!==null)$(`[data-garden-landmark="${selectedLandmark}"]`)?.classList.add('landmark-selected');
   activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
-  if(id==='music'&&panel){panel.classList.remove('music-hidden');panel.setAttribute('aria-hidden','false');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountSpotify();}
+  if(id==='music'&&panel){panel.classList.remove('music-hidden','music-mini');panel.querySelector('.music-mini-bar').hidden=true;panel.setAttribute('aria-hidden','false');panel.setAttribute('aria-modal','true');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.removeAttribute('aria-label');panel.inert=false;}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
   if(id==='appearance')renderSeasonPreview();
@@ -2598,8 +2620,9 @@ function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=bloc
   const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
   const done=!openFocusBlock(block);
   const {status}=progressForBlock(block);
-  const label=`Open ${escape(title)}${done?', done':''}`;
-  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-priority="${taskPriority(task)}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-block-label="${label}" aria-label="${label}${status?`, ${blockProgressLabels[status]}`:''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span><span class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</span></button>`;
+  const important=taskPriority(task)===1;
+  const label=`Open ${escape(title)}${important?', important':''}${done?', done':''}`;
+  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-priority="${taskPriority(task)}" data-task-color="${taskCalendarColor(task.calendarColor)}" data-important="${important}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-block-label="${label}" aria-label="${label}${status?`, ${blockProgressLabels[status]}`:''}" aria-haspopup="dialog" title="${escape(title)}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span><span class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</span></button>`;
 }
 
 function renderCalendar(){
@@ -2729,7 +2752,7 @@ function renderPlannerDays(now=new Date()){
     const stamp=`<span>${current?'Today':date.toLocaleDateString([],{weekday:'short'})}</span><strong>${date.getDate()}</strong>`;
     const dayLabel=escape(date.toLocaleDateString([],{dateStyle:'full'}));
     const heading=workspace==='calendar'?`<button class="calendar-day-heading" type="button" data-calendar-day="${key}" aria-label="Open day view for ${dayLabel}">${stamp}</button>`:`<div class="calendar-day-heading">${stamp}</div>`;
-    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${actual?'':renderDailyRituals(key)}${allDay.length||imports.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task${taskStatus(task,date)==='done'?' all-day-done':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
+    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${actual?'':renderDailyRituals(key)}${allDay.length||imports.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task${taskStatus(task,date)==='done'?' all-day-done':''}" data-task-color="${taskCalendarColor(task.calendarColor)}" data-important="${taskPriority(task)===1}" aria-label="${escape(task.text)}${taskPriority(task)===1?', important':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
   }).join('');
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
   const columns=plannerDays.map(date=>{
@@ -4053,9 +4076,43 @@ taskSidebar.addEventListener('change',event=>{
   confirmChange(checkbox.checked?'Task completed.':'Task reopened.',undo);
 });
 function spotifyPath(link){try{const u=new URL(link);if(u.protocol!=='https:'||u.hostname!=='open.spotify.com')return null;return u.pathname.match(/^\/(?:intl-[a-z]+\/)?(playlist|album|track)\/([a-zA-Z0-9]{10,40})\/?$/)?.slice(1).join('/')||null;}catch{return null;}}
-function mountSpotify(){
-  const wrap=$('#music-player-wrap'),path=spotifyPath(state.spotify);
-  if(wrap&&path)spotifyEmbed.mount(wrap,path);
+function setMediaStatus(message){
+  const status=$('#media-status');
+  if(status)status.textContent=message;
+}
+function mountMedia(){
+  const wrap=$('#music-player-wrap'),source=state.mediaSource;
+  const youtube=source==='youtube';
+  const track=youtube?youtubeContent(state.youtube):spotifyPath(state.spotify);
+  youtubeEmbed.clear();
+  spotifyEmbed.clear(wrap);
+  for(const button of root.querySelectorAll('[data-media-source]'))button.setAttribute('aria-pressed',String(button.dataset.mediaSource===source));
+  const label=youtube?'YouTube':'Spotify',field=$('#media-link');
+  $('#media-link-label').textContent=youtube?'YouTube video or playlist link':'Spotify playlist, album, or track link';
+  field.placeholder=youtube?'https://www.youtube.com/watch?v=…':'https://open.spotify.com/playlist/…';
+  field.value=state[source];
+  const external=$('#open-media-external');
+  external.href=youtube?(track?youtubeLinks(track).watch:'https://www.youtube.com/'):(track?'https://open.spotify.com/'+track:'https://open.spotify.com/');
+  external.textContent='Open '+(youtube?'on ':'in ')+label;
+  $('#remove-player').hidden=!state[source];
+  $('#pop-out-youtube').hidden=!youtube||!track;
+  setMediaStatus(track?'Press play in the '+label+' player.':'Paste a link to start '+label+'.');
+  if(!track)return;
+  if(youtube)youtubeEmbed.mount(wrap,track);else spotifyEmbed.mount(wrap,track);
+}
+function popOutYouTube(){
+  const panel=visiblePanel();
+  if(panel?.id!=='music-panel'||state.mediaSource!=='youtube'||!youtubeContent(state.youtube))return;
+  closePanel(false);
+  panel.classList.remove('music-hidden');panel.classList.add('music-mini');
+  panel.inert=false;panel.setAttribute('aria-hidden','false');panel.setAttribute('aria-modal','false');
+  panel.removeAttribute('aria-labelledby');panel.setAttribute('aria-label','YouTube mini player');
+  panel.querySelector('.music-mini-bar').hidden=false;
+  $('#restore-media-panel').focus({preventScroll:true});
+}
+function mediaPanelAnchor(){
+  const tools=gardenToolAnchor('music'),selected=workspaceButton(workspace);
+  return tools.getClientRects().length?tools:selected?.getClientRects().length?selected:workspaceMore;
 }
 function changeSound(key,value){
   state.sounds[key]=value;
@@ -4239,7 +4296,7 @@ root.addEventListener('click',e=>{
   }
   const findTomorrow=e.target.closest('#tomorrow-find-slot');
   if(findTomorrow){updateTomorrowSlot(findTomorrow.form,false);return;}
-  if(e.target.closest('#open-spotify-external')){
+  if(e.target.closest('#open-media-external')){
     changeSound('musicMode',true);
     const field=$('#outside-music');
     if(field)field.checked=true;
@@ -4291,6 +4348,7 @@ root.addEventListener('click',e=>{
     announce(`Current task: ${task.text}`);
     return;
   }
+  if(btn.id==='edit-calendar-task'){openTaskEditor(lastAnchor.dataset.task,lastAnchor);return;}
   if(btn.id==='edit-calendar-block'){
     const {task,block}=lastAnchor.dataset;
     if(block)openBlockEditor(task,lastAnchor,block);
@@ -4363,7 +4421,21 @@ root.addEventListener('click',e=>{
     return;
   }
   if(btn.id==='clear-notes'){if(!state.notes||!saveScratchpad(''))return;$('#notes-input').value='';toast('Notes cleared.');$('#notes-input').focus();}
-  if(btn.id==='remove-player'){state.spotify='';spotifyEmbed.clear($('#music-player-wrap'));$('#spotify-link').value='';btn.hidden=true;persist();toast('Spotify player removed.');}
+  if(btn.dataset.mediaSource&&state.mediaSource!==btn.dataset.mediaSource){
+    state.mediaSource=btn.dataset.mediaSource;persist();mountMedia();positionPanel(visiblePanel(),lastAnchor);return;
+  }
+  if(btn.id==='pop-out-youtube'){popOutYouTube();return;}
+  if(btn.id==='restore-media-panel'){openPanel('music',mediaPanelAnchor());return;}
+  if(btn.id==='hide-media-mini'){
+    const panel=btn.closest('#music-panel');
+    panel.classList.remove('music-mini');panel.classList.add('music-hidden');panel.inert=true;
+    panel.setAttribute('aria-hidden','true');panel.querySelector('.music-mini-bar').hidden=true;
+    mediaPanelAnchor().focus({preventScroll:true});return;
+  }
+  if(btn.id==='remove-player'){
+    state[state.mediaSource]='';persist();mountMedia();$('#media-link').focus();
+    positionPanel(visiblePanel(),lastAnchor);return;
+  }
   if(btn.id==='delete-task'){
     closePanel(false);deleteTask(editingTaskId);
   }
@@ -4447,6 +4519,12 @@ root.addEventListener('pointerup',event=>endFocusQueueDrag(event,true));
 root.addEventListener('pointercancel',event=>endFocusQueueDrag(event,false));
 root.addEventListener('lostpointercapture',event=>endFocusQueueDrag(event,false));
 root.addEventListener('change',event=>{
+  if(event.target.id==='task-important'){
+    if(event.target.checked){event.target.dataset.previous=$('#task-priority').value;$('#task-priority').value='1';}
+    else $('#task-priority').value=['2','3'].includes(event.target.dataset.previous)?event.target.dataset.previous:'4';
+  }
+  if(event.target.id==='task-priority')$('#task-important').checked=event.target.value==='1';
+  if(event.target.id==='task-calendar-color')$('.task-color-swatch').dataset.taskColor=taskCalendarColor(event.target.value);
   if(event.target.id==='tradeoff-task'){
     tradeoffTaskId='';tradeoffPreview=[];
     $('.tradeoff-options')?.remove();
@@ -4827,7 +4905,7 @@ root.addEventListener('submit',e=>{
     const before=state.activeTask;
     const repeat=fields.get('repeat');
     const sameRepeatType=existing&&(existing.repeat==='none')===(repeat==='none');
-    const priorityLevel=Number(fields.get('priorityLevel'));
+    const priorityLevel=fields.has('important')?1:Number(fields.get('priorityLevel'));
     const reminderAt=fields.get('reminder')?new Date(fields.get('reminder')).getTime():null;
     const subtasks=(existing?.subtasks||[]).flatMap(sub=>{
       const text=String(fields.get(`sub:${sub.id}`)||'').trim();
@@ -4848,7 +4926,7 @@ root.addEventListener('submit',e=>{
       time:fields.get('time'), estimate:Number(fields.get('estimate'))||null,
       energy:Object.hasOwn(taskEnergyLevels,fields.get('energy'))?fields.get('energy'):'',repeat,
       repeatEvery:Number(fields.get('repeatEvery'))||2,
-      priority:priorityLevel!==4, priorityLevel,
+      priority:priorityLevel!==4, priorityLevel,calendarColor:taskCalendarColor(fields.get('calendarColor')),
       projectId:fields.get('projectId'), sectionId:fields.get('sectionId'), deadline:fields.get('deadline'),
       labels:taskLabels(fields.get('labels')),
       reminderAt:Number.isFinite(reminderAt)?reminderAt:null, reminderShown:existing?.reminderAt===reminderAt&&existing?.reminderShown===true,
@@ -4921,7 +4999,17 @@ root.addEventListener('submit',e=>{
     openSchedule('calendar',calendarToggle,new Date(`${date}T00:00:00`),Math.max(0,timeMinutes(time)-60));
     confirmChange(existing?'Block updated.':'Block scheduled.',undo);
   }
-  if(e.target.id==='spotify-form'){const link=$('#spotify-link').value.trim();if(!spotifyPath(link)){$('#spotify-error').textContent='Use a Spotify playlist, album, or track link from open.spotify.com.';return;}state.spotify=link;persist();mountSpotify();$('#spotify-error').textContent='Use the Spotify player to start your music.';$('#remove-player').hidden=false;positionPanel(visiblePanel(),lastAnchor);}
+  if(e.target.id==='media-form'){
+    const source=state.mediaSource,link=$('#media-link').value.trim();
+    const valid=source==='youtube'?youtubeContent(link):spotifyPath(link);
+    if(!valid){
+      setMediaStatus(source==='youtube'?'Use a YouTube video or playlist link.':'Use a Spotify playlist, album, or track link from open.spotify.com.');
+      return;
+    }
+    const previous=state[source];state[source]=link;
+    if(!persist()){state[source]=previous;return;}
+    mountMedia();positionPanel(visiblePanel(),lastAnchor);
+  }
 });
 document.addEventListener('click',()=>syncSound(true),{capture:true});
 document.addEventListener('pointerdown',e=>{

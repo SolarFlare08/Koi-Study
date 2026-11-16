@@ -589,3 +589,48 @@ button.project-context-item:hover { color: var(--planner-accent); }
   #reading-discussion-print :is(h2,h3,.reading-sheet-reference) { break-after: avoid; }
   #reading-discussion-print blockquote { border-inline-start: 1px solid #888; padding-inline-start: .6em; }
 }
+
+.task-calendar-options { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 5px 0 12px; }
+.task-calendar-options label { font-size: 12px; color: var(--surface-ink); }
+.task-important, .task-calendar-color { display: inline-flex; align-items: center; gap: 6px; }
+.task-important { padding: 6px 8px; border: 1px solid var(--surface-line); border-radius: 7px; cursor: pointer; }
+.task-important:has(:checked) { border-color: var(--surface-accent); background: var(--surface-raised); }
+.task-calendar-color select { width: auto; padding: 5px 7px; }
+.task-color-swatch { width: 10px; height: 10px; border: 1px solid var(--surface-line); border-radius: 50%; background: var(--task-color,var(--surface-paper)); }
+[data-task-color="jade"] { --task-color:#79ab92; }
+[data-task-color="lake"] { --task-color:#72a5cc; }
+[data-task-color="plum"] { --task-color:#a28bc2; }
+[data-task-color="rose"] { --task-color:#ca8baa; }
+[data-task-color="amber"] { --task-color:#d2af65; }
+[data-task-color="clay"] { --task-color:#d1927b; }
+#app #calendar-panel :is(.calendar-block,.calendar-all-day-task,.planner-event,.planner-month-task)[data-task-color]:not([data-task-color=""]),
+#app #mini-calendar .calendar-block[data-task-color]:not([data-task-color=""]) {
+  border-inline-start: 3px solid var(--task-color);
+  background: color-mix(in srgb,var(--task-color) 26%,var(--surface-paper));
+  color: var(--surface-ink);
+}
+#app #calendar-panel :is(.calendar-block,.calendar-all-day-task,.planner-event,.planner-month-task)[data-task-color]:not([data-task-color=""]):hover,
+#app #mini-calendar .calendar-block[data-task-color]:not([data-task-color=""]):hover {
+  background: color-mix(in srgb,var(--task-color) 38%,var(--surface-paper));
+}
+.calendar-block[data-important="true"] strong::before,
+.planner-event[data-important="true"] > span::before,
+:is(.planner-month-task,.calendar-all-day-task)[data-important="true"]::before { content:'★'; margin-inline-end: .36em; }
+
+.media-sources { display: flex; gap: 4px; }
+.media-sources button { min-height: 33px; padding: 5px 10px; border: 1px solid var(--surface-line); border-radius: 6px; font-size: 12px; }
+.media-sources button[aria-pressed="true"] { background: var(--surface-raised); border-color: var(--surface-accent); }
+.media-actions { flex-wrap: wrap; }
+.youtube-embed { display: block; width: 100%; min-height: 200px; aspect-ratio: 16 / 9; border: 0; border-radius: 7px; margin-top: 10px; background: #131919; }
+#music-panel.music-mini {
+  inset: auto 12px 60px auto !important; transform: none !important; z-index: 8;
+  width: min(355px,calc(100vw - 24px)); padding: 7px; color: var(--surface-ink);
+}
+#music-panel.music-mini > :not(#music-player-wrap,.music-mini-bar) { display: none; }
+.music-mini-bar { display: flex; align-items: center; gap: 4px; padding: 0 2px 4px; }
+.music-mini-bar strong { margin-right: auto; font-size: 12px; }
+.music-mini-bar button { min-height: 30px; padding: 4px 7px; font-size: 12px; }
+.music-mini-bar button:last-child { font-size: 20px; }
+.music-mini .youtube-embed { margin: 0; }
+
+.calendar-block-actions { flex-wrap: wrap; }
