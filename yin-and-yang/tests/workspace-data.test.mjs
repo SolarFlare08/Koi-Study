@@ -577,3 +577,26 @@ test('Garden mountain presets have distinct artwork and props survive layout and
   assert.equal(svg.split('data-garden-prop="lamp"').length-1,2);
   assert.equal(svg.split('data-garden-prop="bridge"').length-1,1);
 });
+
+test('new waterfront styles and props render and round-trip with a Studio layout',()=>{
+  const state=freshState(),design=loadGardenDesign({
+    shoreline:'slate',path:'gravel',pavilion:'shrine',foundation:'terrace',boat:'festival',lantern:'glass',
+    props:[{id:'light',kind:'floater',x:815,y:750,size:130},{id:'cascade',kind:'cascade',x:1260,y:640}]
+  });
+  const svg=renderLandscape(design);
+  for(const [piece,style] of [['westBank','slate'],['eastBank','slate'],['path','gravel'],['pavilion','shrine'],['boat','festival']]){
+    assert.ok(svg.includes('data-garden-piece="'+piece+'" data-variant="'+style+'">'));
+  }
+  assert.equal(pavilionFoundation(design),'terrace');
+  assert.equal(svg.split('data-garden-prop="light"').length-1,2);
+  assert.ok(svg.includes('data-prop-type="cascade"'));
+  assert.doesNotMatch(svg,/undefined/);
+  state.gardenLayouts=[{id:'water',name:'Terrace',design}];
+  const restored=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state;
+  assert.deepEqual(restored.gardenLayouts[0].design,design);
+  for(const shoreline of ['slate','shallows']){
+    const shore=loadGardenDesign({...design,shoreline,foundation:'auto',pavilionPosition:{x:94,y:822}});
+    assert.equal(pavilionFoundation(shore),'land');
+    assert.equal(pavilionFoundation(loadGardenDesign({...shore,pavilionPosition:{x:650,y:717}})),'stone');
+  }
+});

@@ -2,12 +2,12 @@ import {loadAppearance} from './garden-appearance.js';
 
 export const gardenPieceOptions={
   mountains:{classic:'Layered peaks',summit:'Snowcapped summit',karst:'Ink pillars',valley:'Cloud valley',twins:'Twin peaks',rounded:'Soft ridges',highlands:'Distant highlands'},
-  shoreline:{classic:'Reed banks',inlet:'Stone inlet',meadow:'Low meadow'},
-  pavilion:{pagoda:'Lakeside pagoda',tiered:'Three-tier pagoda',tea:'Tea shelter',gate:'Moon gate',vermilion:'Vermilion pavilion',bell:'Stone bell tower'},
-  foundation:{auto:'Match the shore',stone:'Stone outcrop',timber:'Timber landing'},
-  boat:{seasonal:'Changes with season',junk:'Junk under sail',sampan:'Covered sampan',skiff:'Reed skiff',lotus:'Lotus ferry',none:'Quiet lake'},
-  lantern:{classic:'Small oval',silk:'Round silk',hex:'Hexagonal bronze',paper:'Paper cylinder',none:'No lantern'},
-  path:{none:'No path',stones:'Stepping stones',lanterns:'Lantern path',boardwalk:'Timber boardwalk'}
+  shoreline:{classic:'Reed banks',inlet:'Stone inlet',meadow:'Low meadow',slate:'Slate ledges',shallows:'Lotus shallows'},
+  pavilion:{pagoda:'Lakeside pagoda',tiered:'Three-tier pagoda',tea:'Tea shelter',gate:'Moon gate',vermilion:'Vermilion pavilion',bell:'Stone bell tower',water:'Water pavilion',shrine:'Hillside shrine'},
+  foundation:{auto:'Match the shore',stone:'Stone outcrop',timber:'Timber landing',terrace:'Stone terrace'},
+  boat:{seasonal:'Changes with season',junk:'Junk under sail',sampan:'Covered sampan',skiff:'Reed skiff',lotus:'Lotus ferry',sail:'Ivory sail',festival:'Lantern barge',none:'Quiet lake'},
+  lantern:{classic:'Small oval',silk:'Round silk',hex:'Hexagonal bronze',paper:'Paper cylinder',glass:'Celadon glass',tassel:'Tasselled silk',none:'No lantern'},
+  path:{none:'No path',stones:'Stepping stones',lanterns:'Lantern path',boardwalk:'Timber boardwalk',gravel:'Gravel trail',causeway:'Slate causeway'}
 };
 export const gardenCameras={
   wide:{name:'Full landscape',viewBox:[0,0,1600,900]},
@@ -30,7 +30,12 @@ export const gardenPropTypes={
   rocks:{name:'Shore rocks',x:377,y:809},
   reeds:{name:'Golden reeds',x:1442,y:804},
   lilies:{name:'Lily pads',x:529,y:768},
-  crane:{name:'White crane',x:1260,y:705}
+  crane:{name:'White crane',x:1260,y:705},
+  redbridge:{name:'Vermilion footbridge',x:1230,y:660},
+  maple:{name:'Copper maple',x:167,y:800},
+  cascade:{name:'Rock cascade',x:1255,y:622},
+  floater:{name:'Floating lantern',x:914,y:761},
+  wheel:{name:'Wooden waterwheel',x:1145,y:635}
 };
 export function loadGardenProps(value){
   const props=new Map();

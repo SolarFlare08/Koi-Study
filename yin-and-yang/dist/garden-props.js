@@ -43,6 +43,32 @@ const props={
     <path d="M-28-4q-9-3-10-10 7 0 11 6-1-9 4-13 7 7 4 13 3-5 10-6-3 8-11 10Z" fill="#d9a7a0"/>
     <path d="M-26-6q0-4 3-7l4 6Z" fill="#f0ceb4"/>
     <path d="M-45 9q15 3 29 1m41 4q11-1 24-4" fill="none" stroke="#cadbc3" stroke-linecap="round" opacity=".61"/>`,
+  redbridge:`<ellipse cy="5" rx="61" ry="6" fill="#3d6265" opacity=".22"/>
+    <path d="M-57 0Q0-48 57 0L51 6Q0-32-51 6Z" fill="#a4604f"/>
+    <path d="M-60-5Q0-52 60-5M-58-11Q0-60 58-11" stroke="#774c48" stroke-width="2.6" fill="none"/>
+    <path d="M-55 6v-19m12 10v-18m15 12v-20m15 16v-22m13 22v-24m14 25v-22m15 26v-20m15 29v-20m12 30v-20" stroke="#a76853" stroke-width="2"/>
+    <path d="M-43 11h24m34 3h26m-54 3h20" stroke="#d1c4a6" opacity=".64" stroke-linecap="round"/>`,
+  maple:`<ellipse cy="3" rx="30" ry="5" fill="#526f69" opacity=".22"/>
+    <path d="M1 2q-4-20 2-39t-5-30M1-22q-9-16-24-25M4-36q14-12 28-20" stroke="#685b4f" stroke-width="4.4" fill="none" stroke-linecap="round"/>
+    <path d="M-37-48q-9-7 5-16 3-9 20-9 9-13 25-6 18-1 22 11 14 3 12 15 1 13-17 14-6 8-24 3-16 4-30-3-14 1-13-9Z" fill="#ab7260"/>
+    <path d="M-30-53q1-11 17-10 4-9 20-8 17 0 20 8-10 0-17 6-15-4-25 2-9 5-15 2Z" fill="#c68b68"/>
+    <path d="M28-39q-11 11-24 3-17 6-26-3 14-8 22-7 12-6 28 7Z" fill="#8e6258"/>
+    <path d="M-21-20q6-2 8 2-4 3-8-2m52 3q5-3 9-2-2 5-9 2Z" fill="#cb9a74"/>`,
+  cascade:`<ellipse cy="8" rx="51" ry="7" fill="#4a7878" opacity=".36"/>
+    <path d="M-45 3-35-21-22-30-18-47 5-52 24-41 33-17 46 2 32 8-24 9Z" fill="#718b88"/>
+    <path d="M-43 3-35-21-22-30-12-33-7-25-23-19-21-7-34 3Zm50-54 17 10 9 24 13 19-15-1-13-17-1-22Z" fill="#a0aea0"/>
+    <path d="M-16-43q17 5 30 1-3 16-12 24 1 17 16 24Q4 11-16 5l7-14-3-13Z" fill="#afcec6"/>
+    <path d="M-6-41q2 12-4 19 7 16-1 26m14-44q1 14-5 20 0 14 9 24M-32 11q18 6 49 4m-10 5h22" fill="none" stroke="#e0e9d7" stroke-width="2" stroke-linecap="round" opacity=".77"/>`,
+  floater:`<ellipse cy="5" rx="30" ry="5" fill="none" stroke="#cbd8bc" opacity=".53"/>
+    <path d="M-20 0Q0-8 20 0L12 5h-24Z" fill="#777c61"/>
+    <path d="M-8-3l2-16h12l2 16Z" fill="#ca9b65" stroke="#8a7159" stroke-width="1.2"/>
+    <path d="M-7-19h14m-15 16H8m-8-16v16" stroke="#9b7961"/>
+    <path d="M-24 11h16m14-1h16" stroke="#d3d4b5" stroke-linecap="round" opacity=".63"/>`,
+  wheel:`<ellipse cy="8" rx="40" ry="4" fill="#547a79" opacity=".29"/>
+    <path d="M-33 5-28-35m45 40-4-40m-43 0h43" fill="none" stroke="#776a55" stroke-width="4"/>
+    <circle cx="0" cy="-20" r="25" fill="none" stroke="#8a765a" stroke-width="6"/>
+    <path d="M0-48v56m-28-28h56m-48-20 40 40m-40 0 40-40" stroke="#a58963" stroke-width="2.5"/>
+    <circle cy="-20" r="5" fill="#715f50"/><path d="M-38 11h18m15 3h27" stroke="#cddbc5" opacity=".7" stroke-linecap="round"/>`,
   crane:`<ellipse cy="1" rx="23" ry="3.2" fill="#467176" opacity=".18"/>
     <path d="M-5-20q2 11 0 20m8-20q2 9 8 15l5 1" fill="none" stroke="#596f66" stroke-width="1.5" stroke-linecap="round"/>
     <path d="M-25-23q19 2 30-6 4-6 0-10-9-9-1-16 5-4 11-2 4 2 3 5-8-2-9 4-1 2 4 6 8 9 2 16-9 11-29 8Z" fill="#e4e4ce"/>
@@ -50,6 +76,7 @@ const props={
     <path d="M16-54l14 3-13 2Z" fill="#897a5e"/><ellipse cx="14" cy="-55" rx="3" ry="1.5" fill="#b27662"/>`
 };
 export const gardenPropArtwork=kind=>props[kind];
+const floaterGlow='<ellipse cy="-10" rx="25" ry="19" fill="url(#lamp-halo)"/><path d="M-6-4l2-14h8l2 14Z" fill="#ffd193"/>';
 const lanternGlow='<circle cy="-22" r="19" fill="url(#lamp-halo)"/><rect x="-3" y="-25" width="6" height="6" rx=".6" fill="#ffcf89"/>';
 export function gardenPropTransform({x,y,size}){
   const scale=Math.round(size*(.79+(y-446)/1000))/100;
@@ -57,7 +84,7 @@ export function gardenPropTransform({x,y,size}){
 }
 export function renderGardenProps(items,lights=false){
   return [...items].sort((a,b)=>a.y-b.y).map(item=>{
-    const art=lights?(item.kind==='lantern'?lanternGlow:''):props[item.kind];
+    const art=lights?({lantern:lanternGlow,floater:floaterGlow}[item.kind]||''):props[item.kind];
     return art?`<g data-garden-prop="${item.id}" data-prop-type="${item.kind}" transform="${gardenPropTransform(item)}">${art}</g>`:'';
   }).join('');
 }

@@ -30,9 +30,37 @@ const meadowWest=`<path d="M0 652Q66 680 126 732Q166 756 251 769Q306 779 258 804
 const meadowEast=`<path d="M1600 759Q1544 778 1480 812Q1410 825 1343 837Q1286 844 1308 869Q1334 888 1394 900H1600Z" fill="url(#shore)"/>
   <path d="M1600 823Q1547 842 1496 865Q1468 881 1484 900H1600Z" fill="url(#bank)"/>
   <path d="M1364 857q71-7 124-30" fill="none" stroke="#c4d2a4" opacity=".57"/>`;
+const slateWest=`<path d="M0 661Q49 654 65 665L113 701 170 705 222 744 258 765 219 783 175 784 158 813Q177 852 229 900H0Z" fill="url(#shore)"/>
+  <path d="M0 674L56 671 103 710 169 713 213 750 246 764 198 769 164 758 129 762 95 741 60 740 0 715Z" fill="#7a9189"/>
+  <path d="M0 745L75 761 112 788 152 798 154 822 206 900H0Z" fill="url(#bank)"/>
+  <path d="M52 673l51 37 66 3 44 37m-106 13 29-4m40 14 36 3" fill="none" stroke="#bec3af" stroke-width="2" opacity=".76"/>`;
+const slateEast=`<path d="M1600 746L1530 750 1482 778 1435 782 1396 806 1330 812 1309 834 1346 850 1422 850 1488 900H1600Z" fill="url(#shore)"/>
+  <path d="M1600 762l-64-2-51 28-45 2-42 28-62 1-18 13 29 10 75-2 70-38 108-14Z" fill="#81968e"/>
+  <path d="M1600 818q-88-7-152 36l60 46h92Z" fill="url(#bank)"/>
+  <path d="M1338 819l61-1 42-28 44-2 51-28m-82 76 28-15" fill="none" stroke="#c9ccba" stroke-width="1.7" opacity=".75"/>`;
+const shallowsWest=`<path d="M0 658Q61 674 92 698T153 741Q180 755 216 753Q247 755 251 771Q246 790 225 792L169 794Q133 802 142 820Q160 856 211 900H0Z" fill="url(#shore)"/>
+  <path d="M0 721q65 10 92 48 19 27 56 30-41 25-25 47l42 54H0Z" fill="url(#bank)"/>
+  <path d="M78 722q42 39 105 51t-40 13m30-20q39 6 63-2" fill="none" stroke="#cbdab1" stroke-width="3" opacity=".67"/>
+  <path d="M262 761q13-7 28 0-9 6-21 4l5-3Zm-24 37q15-7 23 0-7 5-18 5l3-4Zm27-15q8-4 19-1-3 5-15 5l4-3Z" fill="#a1b584"/>
+  <path d="M273 783q-7-3-7-8 5 1 7 5 1-6 5-7 3 5-5 10Z" fill="#dcada1"/>`;
+const shallowsEast=`<path d="M1600 761Q1554 774 1530 786T1471 815Q1447 829 1424 827L1369 827Q1334 831 1338 847Q1351 861 1389 866Q1428 872 1442 880L1469 900H1600Z" fill="url(#shore)"/>
+  <path d="M1600 823q-80-9-163 38l51 39h112Z" fill="url(#bank)"/>
+  <path d="M1405 853q-39 3-58-9 29-8 53-6m11 21q50-2 89-28" fill="none" stroke="#cbdab1" stroke-width="3" opacity=".67"/>
+  <path d="M1308 848q14-9 29-2-6 8-25 7l5-4Zm-20 19q9-8 24-4-6 7-19 8l4-4Z" fill="#a1b584"/>`;
 const pathPoints=[[1049,630],[1061,627],[1075,624],[1087,622],[1100,624],[1113,625],[1127,624],[1142,621],[1155,617],[1171,613],[1185,610],[1198,606]];
 function shorePath(style,{lantern}){
   if(style==='none')return '';
+  if(style==='gravel'){
+    const trail='M1048 628C1080 617 1116 629 1149 622Q1175 611 1198 606';
+    return `<path d="${trail}" stroke="#aba582" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <path d="${trail}" stroke="#d1c7a3" stroke-width="4.5" stroke-dasharray="1 3" fill="none" stroke-linecap="round"/>
+      <path d="${trail}" stroke="#756f58" stroke-width="2" stroke-dasharray=".6 6" fill="none" opacity=".69"/>`;
+  }
+  if(style==='causeway'){
+    return pathPoints.map(([x,y],i)=>`<g transform="translate(${x} ${y}) rotate(${i<4?-7:i>7?-15:0})">
+      <path d="M-5.4-2.5l8-.5 2 2L4 2-5 3Z" fill="#889998" stroke="#566f74" stroke-width=".67"/>
+      <path d="M-4.5-1.7l8-.7" fill="none" stroke="#d1d5bd" stroke-width=".7"/></g>`).join('');
+  }
   if(style==='boardwalk'){
     const deck='M1048 628C1084 615 1119 632 1150 619Q1174 607 1198 605';
     return `<path d="${deck}" fill="none" stroke="#636e61" stroke-width="7" stroke-linecap="round"/>
@@ -49,6 +77,14 @@ function shorePath(style,{lantern}){
 }
 
 const bankSnow={
+  slate:{
+    left:'M0 661Q49 654 65 665L113 701 170 705 222 744 258 765 240 766 218 755 166 718 107 713 59 675 0 675Z',
+    right:'M1600 746L1530 750 1482 778 1435 782 1396 806 1330 812 1309 834 1325 834 1335 823 1400 819 1441 793 1489 788 1534 762 1600 758Z'
+  },
+  shallows:{
+    left:'M0 658Q61 674 92 698T153 741Q180 755 216 753Q247 755 251 771Q229 762 211 765Q159 770 133 749Q62 699 0 677Z',
+    right:'M1600 761Q1554 774 1530 786T1471 815Q1447 829 1424 827L1369 827Q1344 832 1338 844Q1360 839 1393 840L1428 839Q1464 838 1495 818Q1552 790 1600 778Z'
+  },
   inlet:{
     left:'M0 631Q77 650 110 706Q128 735 244 746Q281 754 287 770Q255 761 218 757Q116 746 92 717Q56 680 0 650Z',
     right:'M1600 721Q1503 755 1463 807Q1403 817 1360 833Q1352 842 1364 848Q1410 834 1476 822Q1542 772 1600 742Z'
@@ -67,8 +103,8 @@ const pavilionKey=({foundation,lantern,pavilionPosition,shoreline})=>
 
 export const gardenPieces={
   mountains:{option:'mountains',render:mountains},
-  westBank:{option:'shoreline',render:name=>shoreBank(name,'left',{classic:reedWest,inlet:inletWest,meadow:meadowWest})},
-  eastBank:{option:'shoreline',render:name=>shoreBank(name,'right',{classic:reedEast,inlet:inletEast,meadow:meadowEast})},
+  westBank:{option:'shoreline',render:name=>shoreBank(name,'left',{classic:reedWest,inlet:inletWest,meadow:meadowWest,slate:slateWest,shallows:shallowsWest})},
+  eastBank:{option:'shoreline',render:name=>shoreBank(name,'right',{classic:reedEast,inlet:inletEast,meadow:meadowEast,slate:slateEast,shallows:shallowsEast})},
   pavilion:{option:'pavilion',key:pavilionKey,render:placedPavilion},
   pavilionLights:{option:'pavilion',key:pavilionKey,render:(name,design)=>placedPavilion(name,design,true)},
   path:{option:'path',key:design=>design.lantern,render:shorePath}

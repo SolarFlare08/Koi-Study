@@ -1,17 +1,16 @@
-import {gardenCameras,gardenPieceOptions,gardenStarterLayouts,gardenFrame,loadGardenDesign,loadGardenLayouts,
+import {gardenCameras,gardenPieceOptions,defaultGardenDesign,gardenStarterLayouts,gardenFrame,loadGardenDesign,loadGardenLayouts,
   gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds,gardenPropBounds,gardenPropTypes,gardenPropLimit} from './garden-layout.js';
 import {loadAppearance,seasonOptions,lightingOptions,gardenPalettes,weatherBySeason} from './garden-appearance.js';
 import {gardenLandmarkPositions,mountGardenPreview} from './scenery.js';
 import {gardenCourses,landmarkTypes} from './garden-growth.js';
-import {pavilionFoundation,pavilionTransform} from './garden-ornaments.js';
+import {foundationArt,gardenLantern,pavilionFoundation,pavilionTransform,styledBoat} from './garden-ornaments.js';
 import {gardenPropTransform,gardenPropArtwork} from './garden-props.js';
 import {gardenPieces} from './garden-pieces.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const buildingTarget='building',propPrefix='prop:';
-const pieceLabels={mountains:'Mountains',shoreline:'Shoreline',pavilion:'Building',foundation:'Building base',
-  boat:'Boat',lantern:'Lantern',path:'Path'};
-const waterfrontPieces=['pavilion','foundation','boat','lantern'];
+const pieceLabels={mountains:'Mountains',shoreline:'Shoreline',path:'Path',pavilion:'Building',
+  foundation:'Building base',boat:'Boat',lantern:'Lantern'};
 const tools={
   select:['Select','M5 3l13 10-7 1-3 6L5 3z'],
   props:['Props','M12 3v18M3 12h18M5 5h14v14H5z'],
@@ -19,17 +18,32 @@ const tools={
   light:['Light','M12 3v2m0 14v2m9-9h-2M5 12H3m15.4-6.4L17 7m-10 10-1.4 1.4m12.8 0L17 17M7 7 5.6 5.6M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z'],
   library:['Layouts','M3 6h7l2 2h9v11H3zM3 6V4h7l2 2h7v2']
 };
+const emptyWater='<path d="M-58-2q16 3 32 0m15 10q35 5 64 0m-72 10h38" fill="none" stroke="#d7e2d0" stroke-linecap="round" opacity=".58"/>';
+const emptyOption='<path d="M-6 0H6" fill="none" stroke="#d7e2d0" stroke-width="1.7" stroke-linecap="round"/>';
+const swatchArt={
+  mountains:style=>['0 70 1600 500',gardenPieces.mountains.render(style)],
+  shoreline:style=>['-4 623 340 279',gardenPieces.westBank.render(style)],
+  path:style=>['1030 583 188 69',style==='none'?'<path d="M1040 630q42-18 81-14t88-17" fill="none" stroke="#a0b3a2" opacity=".8"/>':gardenPieces.path.render(style,defaultGardenDesign)],
+  pavilion:style=>['1015 492 162 142',gardenPieces.pavilion.render(style,{...defaultGardenDesign,pavilion:style})],
+  foundation:style=>['-75 -17 150 56',style==='auto'?
+    `<g transform="translate(-35 1) scale(.63)">${foundationArt('land')}</g>
+      <g transform="translate(31 1) scale(.63)">${foundationArt('stone')}</g>`:foundationArt(style)],
+  boat:style=>style==='seasonal'?['-100 -58 200 87',
+    `<g transform="translate(-49 -2) scale(.66)">${styledBoat('lotus')}</g><g transform="translate(43 5) scale(.66)">${styledBoat('sampan')}</g>`]:
+    ['-81 -59 162 88',style==='none'?emptyWater:styledBoat(style)],
+  lantern:style=>['-13 -14 26 29',style==='none'?emptyOption:gardenLantern(style,0,0)]
+};
 const toolIcon=d=>`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
 
 const options=values=>Object.entries(values).map(([key,label])=>`<option value="${escape(key)}">${escape(label)}</option>`).join('');
 const select=(name,label,values)=>`<label>${label}<select name="${name}">${options(values)}</select></label>`;
 
 export function createGardenStudio({getState,getAppearance,getDesign,commit,download,today}){
-  let draft,form,selected='',scene=null,drag=null,tool='select',stamp='',zoom=1;
+  let draft,form,selected='',scene=null,drag=null,tool='select',stamp='',zoom=1,terrainCategory='mountains';
   let undo=[],redo=[],savedDraft='';
   function open(){
     draft={id:'',name:'',through:'',design:loadGardenDesign(getDesign()),appearance:getAppearance()};
-    selected='';drag=null;stamp='';undo=[];redo=[];zoom=1;tool='select';
+    selected='';drag=null;stamp='';undo=[];redo=[];zoom=1;tool='select';terrainCategory='mountains';
     savedDraft=fingerprint(draft);
   }
   function markup(){
@@ -83,13 +97,11 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
           </section>
           <section id="studio-tool-scene" data-tool-panel="scene" hidden>
             <h3>Terrain</h3>
-            <fieldset><legend>Mountains</legend>
-              <div class="studio-mountain-palette">${Object.entries(gardenPieceOptions.mountains).map(([kind,label])=>
-                `<button type="button" data-studio-mountain="${kind}" aria-pressed="false"><svg viewBox="0 70 1600 500" aria-hidden="true">${gardenPieces.mountains.render(kind)}</svg><span>${label}</span></button>`).join('')}</div>
-            </fieldset>
-            <fieldset><legend>Shore and water</legend><div class="studio-control-grid">
-            ${['shoreline','path',...waterfrontPieces].map(key=>select(key,pieceLabels[key],gardenPieceOptions[key])).join('')}
-            </div></fieldset>
+            <div class="studio-terrain-categories" role="group" aria-label="Terrain categories">${Object.entries(pieceLabels).map(([key,label])=>
+              `<button type="button" data-studio-category="${key}" aria-controls="studio-style-${key}" aria-pressed="false">${label}</button>`).join('')}</div>
+            ${Object.entries(pieceLabels).map(([key,label])=>`<div id="studio-style-${key}" class="studio-style-palette" data-studio-style-group="${key}" role="group" aria-label="${label} styles" hidden>
+              ${Object.entries(gardenPieceOptions[key]).map(([style,name])=>styleTile(key,style,name)).join('')}
+            </div>`).join('')}
           </section>
           <section id="studio-tool-light" data-tool-panel="light" hidden>
             <h3>Light and weather</h3>
@@ -137,6 +149,11 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       </footer>
     </form>`;
   }
+  function styleTile(key,style,label){
+    const [viewBox,art]=swatchArt[key](style);
+    return `<button type="button" data-studio-style="${style}" data-studio-piece="${key}" aria-pressed="false">
+      <svg viewBox="${viewBox}" aria-hidden="true">${art}</svg><span>${label}</span></button>`;
+  }
   function propSwatch(kind){
     return `<svg viewBox="-75 -87 150 111" aria-hidden="true">${gardenPropArtwork(kind)}</svg>`;
   }
@@ -172,6 +189,13 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     for(const pane of form.querySelectorAll('[data-tool-panel]'))pane.hidden=pane.dataset.toolPanel!==key;
     form.querySelector('.studio-ghost').hidden=true;
     syncStamp();updatePin();
+  }
+  function showTerrainCategory(key){
+    terrainCategory=key;
+    for(const button of form.querySelectorAll('[data-studio-category]')){
+      button.setAttribute('aria-pressed',String(button.dataset.studioCategory===key));
+    }
+    for(const group of form.querySelectorAll('[data-studio-style-group]'))group.hidden=group.dataset.studioStyleGroup!==key;
   }
   function syncStamp(){
     const active=tool==='props'&&stamp&&draft.design.props.length<gardenPropLimit;
@@ -225,13 +249,13 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   function syncFields(){
     weatherOptions();
     field('through').value=draft.through;
-    for(const key of [...Object.keys(gardenPieceOptions),'camera']){if(key!=='mountains')field(key).value=draft.design[key];}
+    field('camera').value=draft.design.camera;
     for(const key of ['season','lighting','palette'])field(key).value=draft.appearance[key];
   }
   function populate(){
     updateLibrary();updateActivityChoices();syncFields();
     field('layoutName').value=draft.name;
-    render();setTool(tool);setZoom(zoom);
+    render();showTerrainCategory(terrainCategory);setTool(tool);setZoom(zoom);
   }
   function landmarks(){
     return getState().gardenGrowth.filter(item=>movableGardenLandmark(item)&&(!draft.through||item.day<=draft.through));
@@ -287,7 +311,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     if(prop){field('propSize').value=prop.size;field('propSizeValue').value=prop.size+'%';}
     if(building){
       const base=pavilionFoundation({...draft.design,pavilionPosition:previewing?point:draft.design.pavilionPosition});
-      support.textContent={land:'Low plinth · on land',stone:'Stone outcrop',timber:'Timber landing'}[base];
+      support.textContent={land:'Low plinth · on land',stone:'Stone outcrop',timber:'Timber landing',terrace:'Stone terrace'}[base];
     }
     if(point){
       for(const axis of ['x','y']){
@@ -320,8 +344,8 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     field('landmark').value=selected;
     scene=mountGardenPreview(form.querySelector('.studio-scene'),loadAppearance(draft.appearance),
       {history,courses,through:draft.through,design:draft.design});
-    for(const button of form.querySelectorAll('[data-studio-mountain]')){
-      button.setAttribute('aria-pressed',String(button.dataset.studioMountain===draft.design.mountains));
+    for(const button of form.querySelectorAll('[data-studio-style]')){
+      button.setAttribute('aria-pressed',String(draft.design[button.dataset.studioPiece]===button.dataset.studioStyle));
     }
     syncStamp();updateHistoryControls();updatePin();
   }
@@ -473,7 +497,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         savePosition(clampGardenPlacement(Number(field('x').value),Number(field('y').value),selectedBounds()));
       }else if(name==='propSize'){
         const prop=selectedProp();if(!prop)return;prop.size=Number(value);
-      }else if(Object.hasOwn(gardenPieceOptions,name)||name==='camera')draft.design[name]=value;
+      }else if(name==='camera')draft.design.camera=value;
       else if(['season','lighting','palette','weather'].includes(name)){
         draft.appearance=loadAppearance({...draft.appearance,[name]:value});
         if(name==='season')weatherOptions();
@@ -486,10 +510,12 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(toolButton){setTool(toolButton.dataset.studioTool);return;}
       const stampButton=event.target.closest('[data-studio-stamp]');
       if(stampButton){stamp=stampButton.dataset.studioStamp;syncStamp();updatePin();return;}
-      const mountainButton=event.target.closest('[data-studio-mountain]');
-      if(mountainButton){
+      const category=event.target.closest('[data-studio-category]');
+      if(category){showTerrainCategory(category.dataset.studioCategory);return;}
+      const style=event.target.closest('[data-studio-style]');
+      if(style){
         const before=structuredClone(draft);
-        draft.design.mountains=mountainButton.dataset.studioMountain;
+        draft.design[style.dataset.studioPiece]=style.dataset.studioStyle;
         record(before);render();return;
       }
       const button=event.target.closest('[data-studio]');

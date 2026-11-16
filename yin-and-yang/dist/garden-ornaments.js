@@ -40,6 +40,21 @@ const buildings={
     art:`<path d="M-28-39h56V0h-56Z" fill="#cfab87"/><path d="M-29-39V0m19-36V0m20-36V0m19-39V0M-30-7h60" stroke="#97594d" stroke-width="3.2"/>
       ${eave(41,-38,24,'#78574f')}<path d="M-19-48q19 4 38 0M0-64v-5" fill="none" stroke="#bc9870" stroke-width="1.4"/>`
   },
+  water:{
+    span:47,lantern:[39,-22],panes:[[-12,-24,10,14],[3,-24,10,14]],
+    art:`<path d="M-43-1v-30m14 30v-30m59 30v-30m13 30v-30" stroke="#536b68" stroke-width="3.3"/>
+      <path d="M-19-30h38V0h-38Z" fill="#b4b9a0"/>
+      <path d="M-51 0h102M-43-12h24m38 0h24" stroke="#736f58" stroke-width="2.4"/>
+      ${eave(49,-34,17,'#557e7d')}<path d="M-21-47Q0-53 21-47" stroke="#b6c5af" fill="none" stroke-width="1.2"/>`
+  },
+  shrine:{
+    span:26,lantern:[19,-24],panes:[[-7,-29,14,19]],
+    art:`<path d="M-19-34H19V0h-38Z" fill="#ad8c75"/>
+      <path d="M-19-31V0m38-31V0m-6-28v25m-26 0v-25" stroke="#81554d" stroke-width="3.3"/>
+      <path d="M-18 0h36l5 4h-46Z" fill="#776c5e"/>
+      ${eave(29,-34,15,'#6b575b')}${eave(18,-52,9,'#8b6659')}
+      <path d="M0-61v-5m-2 2h4" stroke="#c0a878" stroke-width="1.3"/>`
+  },
   bell:{
     span:28,lantern:[22,-13],panes:[],
     art:`<path d="M-28 0v-24h7v24m42 0v-24h7v24" fill="#869493"/>
@@ -53,13 +68,15 @@ const lanternBodies={
   classic:'<ellipse rx="3" ry="4"/>',
   silk:'<ellipse rx="5.2" ry="4.7"/><path d="M0-4q-4 4 0 8m0-8q4 4 0 8" fill="none" stroke="#9a5b47" stroke-width=".65"/>',
   hex:'<path d="M-5-3 0-5 5-3 5 3 0 5-5 3Z"/><path d="M0-5V5" stroke="#8f684e" stroke-width=".8"/>',
+  glass:'<path d="M-3-6h6l2 4-1 6-4 2-4-2-1-6Z"/><path d="M-2-5l-1 3 1 4m4-7 1 3-1 4" fill="none" stroke="#c7dbbf" stroke-width=".65"/>',
+  tassel:'<path d="M-4-5h8Q8 0 4 5h-8Q-8 0-4-5Z"/><path d="M0 4v6m-2-3h4l1 4h-6Z" stroke="#95664d" stroke-width=".75"/><path d="M-2-4q-3 4 0 8m4-8q3 4 0 8" fill="none" stroke="#e7ad7e" stroke-width=".65"/>',
   paper:'<rect x="-3.3" y="-5" width="6.6" height="10" rx="1.3"/><path d="M-3-2h6m-6 4h6" stroke="#9f795f" opacity=".7" stroke-width=".6"/>'
 };
 export function gardenLantern(style,x,y,{lit=false,hanging=true,scale=1}={}){
   if(style==='none')return '';
   return `<g transform="translate(${x} ${y}) scale(${scale})">
     ${lit?'<circle r="18" fill="url(#lamp-halo)"/>':hanging?'<path d="M0-5v-7" stroke="#705e50" stroke-width="1"/>':''}
-    <g fill="${lit?'#ffd59a':style==='paper'?'#cda779':'#b87254'}" stroke="#82644f" stroke-width=".65">${lanternBodies[style]}</g>
+    <g fill="${lit?'#ffd59a':style==='glass'?'#769f90':style==='paper'?'#cda779':'#b87254'}" stroke="#82644f" stroke-width=".65">${lanternBodies[style]}</g>
     <path d="M-2-5h4m-4 10h4m-2 0v2" stroke="#7e6650" stroke-width=".7" stroke-linecap="round"/>
   </g>`;
 }
@@ -75,6 +92,14 @@ const banks={
   inlet:[
     [[0,631],[61,660],[110,706],[146,734],[244,746],[282,774],[230,803],[186,830],[236,900],[0,900]],
     [[1600,721],[1510,758],[1463,807],[1395,824],[1360,833],[1352,849],[1394,863],[1444,883],[1468,900],[1600,900]]
+  ],
+  slate:[
+    [[0,661],[65,665],[113,701],[170,705],[222,744],[258,765],[219,783],[175,784],[158,813],[229,900],[0,900]],
+    [[1600,746],[1530,750],[1482,778],[1435,782],[1396,806],[1330,812],[1309,834],[1346,850],[1422,850],[1488,900],[1600,900]]
+  ],
+  shallows:[
+    [[0,658],[92,698],[153,741],[216,753],[251,771],[225,792],[169,794],[142,820],[211,900],[0,900]],
+    [[1600,761],[1530,786],[1471,815],[1424,827],[1369,827],[1338,847],[1389,866],[1442,880],[1469,900],[1600,900]]
   ],
   meadow:[
     [[0,652],[64,682],[126,732],[176,758],[251,769],[282,786],[258,804],[237,828],[295,900],[0,900]],
@@ -101,7 +126,14 @@ export function pavilionFoundation(design){
   return [x-span,x,x+span].every(px=>land.some(polygon=>inside(px,y,polygon)))?'land':'stone';
 }
 
-function foundationArt(kind,span){
+export function foundationArt(kind,span=35){
+  if(kind==='terrace')return `<g transform="scale(${span/35} 1)">
+    <ellipse cy="15" rx="57" ry="6" fill="#355c60" opacity=".2"/>
+    <path d="M-52 14-39 2h78l13 12Z" fill="#768980"/>
+    <path d="M-45 9-36 0h72l9 9Z" fill="#a3ad99"/>
+    <path d="M-40 5-33-1h66l7 6Z" fill="#c0bda1"/>
+    <path d="M-45 9h90m-97 5h104M-19 11v3m37-3v3" fill="none" stroke="#657a73" stroke-width="1.1"/>
+  </g>`;
   if(kind==='stone')return `<g transform="scale(${span/31} 1)">
     <ellipse cy="12" rx="49" ry="6" fill="#335c65" opacity=".24"/>
     <path d="M-46 9-35 1-26-2 23-3 42 2 49 9 27 15-15 15Z" fill="#677f80"/>
@@ -134,6 +166,14 @@ export function placedPavilion(style,design,lights=false){
 }
 
 const boats={
+  sail:{art:`<path d="M8-5v-49M-18-4v-27" stroke="#61736a" stroke-width="1.6"/>
+    <path d="M6-51Q-6-33-33-10Q-12-17 6-13Z" fill="#e5d8ad"/>
+    <path d="M9-48q20 15 29 34L9-11Z" fill="#c5c7a5"/>
+    <path d="M-27-15q17-7 33-5m3-2q9 1 23 5m-48 6v-12" fill="none" stroke="#ad9f7d" opacity=".78"/>`,lamp:[24,-9]},
+  festival:{art:`<path d="M-32-4v-25m61 25v-25" stroke="#6e6a55" stroke-width="1.8"/>
+    <path d="M-36-26Q-12-32 0-33 13-32 33-27L26-23Q0-27-29-22Z" fill="#8c5a51"/>
+    <path d="M-21-24v7m15-10v7m14-7v7m12-5v7" stroke="#c6a77a" stroke-width="1"/>
+    <path d="M-28-10h56" stroke="#b99168" stroke-width="2.4"/>`,lamp:[-21,-15],extraLamps:[[-6,-17],[8,-17],[20,-15]]},
   junk:{art:`<path d="M-10-3v-43m29 39v-29" stroke="#545f51" stroke-width="1.8"/>
     <path d="M-12-45Q-29-47-38-34L-13-4Q-8-23-12-45ZM17-36q-18 0-23 11L17-9Q21-22 17-36Z" fill="#bc8163"/>
     <path d="M-33-29q14-9 21-9m-15 16 15-8m-9 15 10-5M-2-23l19-6m-11 10 12-4" fill="none" stroke="#e2b692" opacity=".75"/>`,lamp:[24,-10]},
@@ -153,14 +193,14 @@ const boats={
 export function styledBoat(style,lights=false){
   const boat=boats[style];
   if(!boat)return '';
-  const [x,y]=boat.lamp;
-  if(lights)return `<g class="boat-bob"><circle cx="${x}" cy="${y}" r="14" fill="url(#lamp-halo)"/>
-    <circle cx="${x}" cy="${y}" r="2.4" fill="#ffdbab"/></g>`;
+  const lamps=[boat.lamp,...(boat.extraLamps||[])];
+  if(lights)return `<g class="boat-bob">${lamps.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="14" fill="url(#lamp-halo)"/>
+    <circle cx="${x}" cy="${y}" r="2.4" fill="#ffdbab"/>`).join('')}</g>`;
   return `<ellipse cy="11" rx="48" ry="4" fill="#365e61" opacity=".22"/>
     <path class="boat-wake" d="M-69 12q14 1 24 0m86 4 18-1m-92 7 46-1" fill="none" stroke="#d9e6d7" stroke-width="1.15" opacity=".64"/>
     <g class="boat-bob">${boat.art}
       <path d="M-49-8Q-12 2 47-8 44 0 33 7 2 14-33 7Z" fill="#345b5b"/>
       <path d="M-45-7Q-1 3 44-7M-32 5Q0 12 31 5" fill="none" stroke="#b9ac88" opacity=".81"/>
-      <circle cx="${x}" cy="${y}" r="2.5" fill="#b98660"/>
+      ${lamps.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.5" fill="#b98660"/>`).join('')}
     </g>`;
 }
