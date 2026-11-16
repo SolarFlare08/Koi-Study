@@ -22,7 +22,7 @@ export const helpTopics = [
     id:'workspaces', group:'Start here', title:'Find your way around',
     summary:'What each workspace is for, and how to find features quickly.',
     steps:['Use the bottom bar to switch between `Garden`, `Planner`, and `Calendar`. Notes, Reading, Journal, and Crochet are beside them on wide screens or under `More` on small screens.',
-      'In Garden, use `Tasks` to show or hide your task list and five-hour calendar, `Progress` to see today’s sessions, and `Edit landscape` to open Studio with your live design ready to edit.',
+      'In Garden, use `Tasks` to show or hide the sidebar. Use the chevron beside Tasks to collapse just the list and keep the calendar visible. Use `Progress` to see today’s sessions. Choose `Edit landscape` to open Studio with your live design ready to edit.',
       'Open `Tools` for timer settings, appearance, quick notes, music and video, the Field Guide, and Help.',
       'Use Planner for task lists, projects, reviews, and reports. Calendar is the full schedule shared with Planner and the Garden’s 5-hour calendar.',
       'Choose `Search` or press `Ctrl+K` to search across tasks, sticky notes, books, and journal entries, or run a command.'],
@@ -377,7 +377,7 @@ export const helpTopics = [
     steps:['Open the Calendar tab. Use Day, 3 days, Week, or Month to choose the view.',
       'Use the date picker, Today, and previous/next controls to move through dates. Timed views open near the current time. Week views also scroll horizontally.',
       'Open `Task shelf` to find a task. Drag it onto a time slot, or choose it to set its schedule. A task without an estimate defaults to a one-hour block.',
-      'Garden’s separate 5-hour calendar shows the same schedule. Its arrows let you inspect earlier and later hours; `Open calendar` opens the full view.'],
+      'Garden’s 5-hour calendar sits below your tasks. Collapse the Tasks list to make more room. Use the arrows to browse, Now to return, or Open calendar for the full view. Select a short block or colored marker to see its full details.'],
     tip:'Overlapping blocks are supported. Planner and Calendar share your tasks and bookings.',
     action:'calendar', actionLabel:'Open Calendar', related:['multiple-blocks','events','block-focus','focus-replay']
   },

@@ -41,7 +41,7 @@ import {blockFlexibility,waitingForRecord} from './task-readiness.js';
 
 const $=s=>document.querySelector(s);
 const icons={
-  help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 4 2c-1 .5-1.5 1-1.5 2.5M12 17h.01"/>',
+  help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 4 2c-1 .5-1.5 1-1.5 2.5"/><circle cx="12" cy="17" r="1.1" fill="currentColor" stroke="none"/>',
   search:'<circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5"/>',
   down:'<path d="m6 9 6 6 6-6"/>',
   left:'<path d="m14 6-6 6 6 6"/>',right:'<path d="m10 6 6 6-6 6"/>',
@@ -70,7 +70,7 @@ const currentTaskButton=$('#current-task');
 const currentTaskName=$('#current-task-name');
 const finishTaskButton=$('#finish-current-task');
 const root=$('#panel-root');
-const taskSidebar=$('#task-sidebar');
+const taskSidebar=$('#task-sidebar'),taskBoard=$('#task-board'),taskBoardToggle=$('#task-board-toggle');
 const calendarPanel=$('#calendar-panel');
 const calendarScroll=$('#calendar-scroll');
 const calendarRail=$('#calendar-sidebar');
@@ -81,11 +81,11 @@ const calendarTray=$('#calendar-task-tray');
 const calendarShelf=$('#calendar-queue');
 const calendarShelfToggle=$('#calendar-queue-toggle');
 const calendarShelfSearch=$('#calendar-queue-search');
-const miniCalendar=$('#mini-calendar');
+const miniCalendar=$('#mini-calendar'),agendaList=$('#agenda-list'),agendaRange=$('#agenda-range');
 const taskMenu=$('#task-menu');
 const builtinRoutines=[{id:'classic',name:'Classic',focus:25*60000,rest:5*60000},{id:'deep',name:'Deep work',focus:50*60000,rest:10*60000}];
 const desktopTasks=matchMedia('(min-width: 981px)');
-let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1,agendaOffset=0;
+let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1,agendaOffset=0,agendaMarkup='';
 let taskDraft=null,blockDraft=null,calendarLayoutDay='',calendarOpenMinute,eventDraft=null;
 let railDate='',railMonth=null,railMarkup='';
 let calendarAnchor=null,calendarExit=null,menuTaskId=null,menuAnchor=null,taskColorMenuId=null;
@@ -1100,6 +1100,13 @@ $('#planner-appearance').onclick=()=>openPanel('appearance',$('#planner-appearan
 $('#resume-task').onclick=()=>openPanel('resume',$('#resume-task'));
 $('#focus-bundle').onclick=()=>openPanel('focus-bundle',$('#focus-bundle'));
 $('#focus-project-context').onclick=()=>openPanel('project-context',$('#focus-project-context'));
+taskBoardToggle.onclick=()=>{
+  const previous=state.settings.taskBoardCollapsed;
+  state.settings.taskBoardCollapsed=!previous;
+  if(!persist()){state.settings.taskBoardCollapsed=previous;return;}
+  syncTaskBoard();
+  taskSidebar.scrollTop=0;
+};
 $('#close-task-sidebar').onclick=()=>{setTaskSidebar(false);taskToggle.focus();};
 document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>{
   if(el===taskToggle){
@@ -1610,6 +1617,12 @@ function taskCard(task,status,date,currentId,prerequisites){
     ${status==='todo'&&!prerequisites.length&&!(task.snoozedUntil>dayKey(date))?`<button type="button" class="task-active" aria-label="Focus on ${name}" aria-pressed="${selected}">${icon('target')} ${selected?'In focus':'Focus on this'}</button>`:''}
   </li>`;
 }
+function syncTaskBoard(){
+  const collapsed=state.settings.taskBoardCollapsed;
+  taskBoard.hidden=collapsed;
+  $('#task-board-count').hidden=!collapsed;
+  taskBoardToggle.setAttribute('aria-expanded',String(!collapsed));
+}
 function renderTasks(date=new Date()){
   const upcomingOpen=$('.task-upcoming')?.open;
   const groups={todo:[],done:[],upcoming:[]};
@@ -1633,11 +1646,13 @@ function renderTasks(date=new Date()){
     groups[status].push(taskCard(task,status,date,currentId,status==='done'?[]:unfinishedPrerequisites(task,tasksById)));
   }
   const list=group=>group.length?`<ul>${group.join('')}</ul>`:'';
-  $('#task-board').innerHTML=`<div class="task-columns">
+  taskBoard.innerHTML=`<div class="task-columns">
     <section class="task-column"><h3>To do <span>${groups.todo.length}</span></h3>${list(groups.todo)||'<p class="task-empty">Nothing due.</p>'}</section>
     <section class="task-column"><div class="task-done-heading"><h3 id="garden-done-heading" tabindex="-1">Done <span>${groups.done.length}</span></h3>${visibleDone.length?'<button type="button" id="garden-clear-done">Clear done</button>':''}</div>
       ${list(groups.done)||`<p class="task-empty">${hasClearedDone?'Cleared tasks are in Planner.':'No completed tasks.'}</p>`}</section>
   </div>${groups.upcoming.length?`<details class="task-upcoming" ${upcomingOpen?'open':''}><summary>Upcoming <span>${groups.upcoming.length}</span></summary>${list(groups.upcoming)}</details>`:''}`;
+  $('#task-board-count').textContent=`${groups.todo.length} to do`;
+  syncTaskBoard();
   renderedTaskDay=dayKey(date);
   const clear=$('#garden-clear-done');
   if(clear)clear.onclick=()=>clearGardenDone(visibleDone);
@@ -2968,18 +2983,26 @@ function renderAgenda(now=new Date()){
   const dateLabel=date=>date.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
   const endLabel=dayKey(startDate)===dayKey(endDate)?'':`${dateLabel(endDate)}, `;
   const range=`${dateLabel(startDate)} · ${timeLabel(start-firstDay*1440)} – ${endLabel}${timeLabel(end-Math.floor(end/1440)*1440)}`;
-  $('#agenda-range').textContent=range;
+  if(agendaRange.textContent!==range)agendaRange.textContent=range;
   const ticks=Array.from({length:5},(_,index)=>`<div>${timeLabel(((start+index*60)%1440+1440)%1440)}</div>`).join('');
-  const columns=[];
+  const columns=[],tasks=gardenTasks().filter(task=>!task.waitingFor);
   for(let day=firstDay;day<=lastDay;day++){
     const date=shiftDay(now,day);
     const from=Math.max(0,start-day*1440),to=Math.min(1440,end-day*1440);
-    const blocks=calendarBlocks(gardenTasks().filter(task=>!task.waitingFor),date,state.calendarEvents).filter(block=>block.start<to&&block.end>from);
-    columns.push(`<div class="calendar-day mini-calendar-day" data-date="${dayKey(date)}" data-from="${from}" data-span="${to-from}" style="--slice-offset:${day*1440+from-start};--slice-span:${to-from}">${blocks.map(block=>calendarBlockMarkup(block,date,Math.max(block.start,from)-from,Math.min(block.end,to)-from)).join('')}</div>`);
+    const blocks=calendarBlocks(tasks,date,state.calendarEvents).filter(block=>block.start<to&&block.end>from);
+    const visible=layoutBlocks(blocks.map(block=>({block,start:Math.max(block.start,from),end:Math.min(block.end,to)})));
+    const entries=visible.map(({block,start,end,lane,lanes})=>
+      calendarBlockMarkup({...block,lane,lanes},date,start-from,end-from,true)).join('');
+    columns.push(`<div class="calendar-day mini-calendar-day" data-date="${dayKey(date)}" data-from="${from}" data-span="${to-from}" style="--slice-offset:${day*1440+from-start};--slice-span:${to-from}">${entries}</div>`);
   }
-  const nowLine=minute>=start&&minute<end?`<div class="mini-now" style="--now-minute:${minute-start}" title="Current time"></div>`:'';
-  const grid=`<div class="mini-hours calendar-hours" aria-hidden="true">${ticks}</div><div class="mini-track">${columns.join('')}${nowLine}</div>`;
-  $('#agenda-list').innerHTML=grid;
+  const grid=`<div class="mini-hours calendar-hours" aria-hidden="true">${ticks}</div><div class="mini-track">${columns.join('')}<div class="mini-now" aria-hidden="true"></div></div>`;
+  if(grid!==agendaMarkup){
+    agendaList.innerHTML=grid;
+    agendaMarkup=grid;
+  }
+  const nowLine=agendaList.querySelector('.mini-now');
+  nowLine.hidden=minute<start||minute>=end;
+  if(!nowLine.hidden)nowLine.style.setProperty('--now-minute',minute-start);
   calendarPanel.querySelector('.calendar-now')?.style.setProperty('--now-minute',minute);
   agendaMinute=Math.floor(now.getTime()/60000);
 }
@@ -3068,18 +3091,20 @@ function syncCalendarRail(){
 compactCalendarRail.addEventListener('change',syncCalendarRail);
 syncCalendarRail();
 
-function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=block.end){
+function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=block.end,mini=false){
   const {task,blockId,start,end,lane,lanes,continues,occurrence}=block;
   const time=`${timeLabel(start)} – ${timeLabel(end)}`;
+  const length=visibleEnd-visibleStart;
+  const density=mini?` data-agenda-density="${length<14?'marker':length<28?'compact':'full'}"`:'';
   const placement=`--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}`;
   if(block.ritual)return `<div class="calendar-block calendar-ritual-block" style="${placement}">${renderDailyRituals(dayKey(date),[block.ritual],false)}</div>`;
-  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(block.event,placement)} data-calendar-event="${escape(block.event.id)}" aria-haspopup="dialog" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}"><strong>${escape(block.event.title)}</strong><span>${time}</span></button>`;
+  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(block.event,placement)} data-calendar-event="${escape(block.event.id)}"${density} aria-haspopup="dialog" title="${escape(block.event.title)} · ${time}" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}"><strong>${escape(block.event.title)}</strong><span>${time}</span></button>`;
   const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
   const done=!openFocusBlock(block);
   const {status}=progressForBlock(block);
   const important=taskPriority(task)===1;
   const label=`Open ${escape(title)}${important?', important':''}${done?', done':''}`;
-  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-priority="${taskPriority(task)}" ${taskColorAttributes(task.calendarColor,placement)} data-important="${important}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-block-label="${label}" aria-label="${label}${status?`, ${blockProgressLabels[status]}`:''}" aria-haspopup="dialog" title="${escape(title)}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span><span class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</span></button>`;
+  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-priority="${taskPriority(task)}" ${taskColorAttributes(task.calendarColor,placement)}${density} data-important="${important}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-block-label="${label}" aria-label="${label}${status?`, ${blockProgressLabels[status]}`:''}" aria-haspopup="dialog" title="${escape(title)}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span><span class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</span></button>`;
 }
 
 function renderCalendar(){

@@ -603,14 +603,12 @@ button.project-context-item:hover { color: var(--planner-accent); }
 [data-task-color="rose"] { --task-color:#ca8baa; }
 [data-task-color="amber"] { --task-color:#d2af65; }
 [data-task-color="clay"] { --task-color:#d1927b; }
-#app #calendar-panel :is(.calendar-block,.calendar-all-day-task,.planner-event,.planner-month-task)[data-task-color]:not([data-task-color=""]),
-#app #mini-calendar .calendar-block[data-task-color]:not([data-task-color=""]) {
+#app #calendar-panel :is(.calendar-block,.calendar-all-day-task,.planner-event,.planner-month-task)[data-task-color]:not([data-task-color=""]) {
   border-inline-start: 3px solid var(--task-color);
   background: color-mix(in srgb,var(--task-color) 26%,var(--surface-paper));
   color: var(--surface-ink);
 }
-#app #calendar-panel :is(.calendar-block,.calendar-all-day-task,.planner-event,.planner-month-task)[data-task-color]:not([data-task-color=""]):hover,
-#app #mini-calendar .calendar-block[data-task-color]:not([data-task-color=""]):hover {
+#app #calendar-panel :is(.calendar-block,.calendar-all-day-task,.planner-event,.planner-month-task)[data-task-color]:not([data-task-color=""]):hover {
   background: color-mix(in srgb,var(--task-color) 38%,var(--surface-paper));
 }
 .calendar-block[data-important="true"] strong::before,

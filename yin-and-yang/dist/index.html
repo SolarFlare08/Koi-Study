@@ -97,16 +97,25 @@
     </aside>
     <aside id="task-sidebar" class="secondary" aria-labelledby="tasks-heading" hidden>
       <div class="task-board-box">
-      <div class="task-sidebar-header">
-        <h2 id="tasks-heading">Tasks</h2>
-        <button id="sidebar-add-task" type="button" aria-haspopup="dialog">+ Add task</button>
-        <button id="close-task-sidebar" class="icon-button" type="button" aria-label="Hide tasks" title="Hide tasks"><span data-icon="close"></span></button>
-      </div>
-      <div id="task-board"></div>
+        <div class="task-sidebar-header">
+          <h2 id="tasks-heading"><button id="task-board-toggle" type="button" aria-expanded="true" aria-controls="task-board">
+            <span data-icon="down" aria-hidden="true"></span>Tasks<span id="task-board-count" hidden></span>
+          </button></h2>
+          <button id="sidebar-add-task" type="button" aria-haspopup="dialog">+ Add task</button>
+          <button id="close-task-sidebar" class="icon-button" type="button" aria-label="Hide sidebar" title="Hide sidebar"><span data-icon="close"></span></button>
+        </div>
+        <div id="task-board"></div>
       </div>
       <section id="mini-calendar" class="sidebar-agenda" aria-labelledby="agenda-title">
-        <div class="sidebar-section-heading"><h3 id="agenda-title">5-hour calendar</h3><button id="sidebar-calendar" type="button" aria-controls="calendar-panel" aria-expanded="false">Open calendar</button></div>
-        <div class="mini-calendar-nav"><span id="agenda-range" aria-live="polite"></span><button type="button" data-agenda-shift="-300" aria-label="Previous five hours">‹</button><button type="button" data-agenda-shift="0">Now</button><button type="button" data-agenda-shift="300" aria-label="Next five hours">›</button></div>
+        <div class="sidebar-section-heading"><h3 id="agenda-title">5-hour calendar</h3><button id="sidebar-calendar" type="button" aria-controls="calendar-panel" aria-expanded="false">Open calendar<span data-icon="external" aria-hidden="true"></span></button></div>
+        <div class="mini-calendar-nav">
+          <span id="agenda-range" aria-live="polite"></span>
+          <div class="mini-calendar-controls" role="group" aria-label="Calendar time range">
+            <button type="button" data-agenda-shift="-300" aria-label="Previous five hours"><span data-icon="left" aria-hidden="true"></span></button>
+            <button type="button" data-agenda-shift="0" aria-label="Show current time">Now</button>
+            <button type="button" data-agenda-shift="300" aria-label="Next five hours"><span data-icon="right" aria-hidden="true"></span></button>
+          </div>
+        </div>
         <div id="agenda-list" class="five-hour-grid"></div>
       </section>
       <section id="captured-notes" class="sidebar-agenda" aria-labelledby="captured-heading" hidden>

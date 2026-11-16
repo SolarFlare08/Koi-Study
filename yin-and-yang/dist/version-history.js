@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'3.13.2',date:'2026-11-16',title:'A clearer Garden sidebar',changes:[
+    'Collapse the Garden task list to keep the five-hour calendar in view. The sidebar remembers your choice.',
+    'Give short blocks room for readable titles and show very brief blocks as selectable marks. Keep Help clear of the sidebar and give its icon a visible dot.'
+  ]},
   {version:'3.13.1',date:'2026-11-16',title:'Clearer workspace navigation',changes:[
     'Improve label and icon contrast on the bottom navigation, including Calendar’s Day, Dusk, and Night themes and the compact More menu.'
   ]},

@@ -4,7 +4,7 @@
   border: 1px solid var(--surface-line); border-radius: 20px; background: var(--surface-paper);
   color: var(--surface-muted); font: 12px 'DM Sans',system-ui,sans-serif; box-shadow: 0 3px 12px #0b172422;
 }
-.help-launch svg { width: 15px; height: 15px; }
+.help-launch svg { width: 17px; height: 17px; }
 .help-launch:hover { color: var(--surface-ink); background: var(--surface-raised); }
 #help-guide {
   width: min(960px,calc(100vw - 28px)); height: min(760px,calc(100dvh - 44px));
