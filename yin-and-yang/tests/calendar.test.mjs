@@ -1,7 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, calendarBlockProgress, calendarBlocks, calendarEventFromFields, calendarFocusTotals, focusTaskQueue, replanToday, reserveTomorrowFocus, scheduleTask, tomorrowFocusSlot, weekDays} from '../dist/calendar.js';
+import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, calendarBlockProgress, calendarBlocks, calendarEventFromFields, calendarFocusTotals, planningEventRanges, focusTaskQueue, replanToday, reserveTomorrowFocus, scheduleTask, tomorrowFocusSlot, weekDays} from '../dist/calendar.js';
 import {freshState, loadState, record, reset, settle, startBlockFocus} from '../dist/state.js';
+import {exportCalendar} from '../dist/calendar-export.js';
 import {ritualComplete} from '../dist/daily-rituals.js';
 
 test('tomorrow’s reservation avoids commitments, persists, and replaces only its own block',()=>{
@@ -202,4 +203,31 @@ test('block focus measures time to the end of the original overnight occurrence'
   assert.deepEqual(blockFocusTiming(task,block.id,block.date,new Date(2026,10,10,8,30).getTime()),{
     available:60*60000, split:false, early:true
   });
+});
+
+test('repeating events keep local times, overnight tails, and planning buffers',()=>{
+  const state=freshState();
+  state.calendarEvents=[calendarEventFromFields({
+    title:'Study group',description:'',startDay:'2026-03-01',startTime:'23:30',endDay:'2026-03-02',endTime:'00:30',
+    repeat:'weekly',bufferBefore:15,bufferAfter:20
+  },'manual:weekly')];
+  const {calendarEvents}=loadState({getItem:()=>JSON.stringify(state)});
+  const sunday=new Date(2026,2,8),monday=new Date(2026,2,9);
+  const [start]=calendarBlocks([],sunday,calendarEvents),[tail]=calendarBlocks([],monday,calendarEvents);
+  assert.deepEqual([start.start,start.end,tail.start,tail.end,tail.continues],[1410,1440,0,30,true]);
+  assert.equal(planningEventRanges(calendarEvents,monday)[0].end,50);
+  assert.equal(calendarBlocks([],new Date(2026,2,7),calendarEvents).length,0);
+  const exported=exportCalendar([],calendarEvents,{scope:'week',date:'2026-03-09'});
+  assert.equal(exported.count,2);
+});
+
+test('an all-day series spans its original number of days on each interval',()=>{
+  const event=calendarEventFromFields({
+    title:'Workshop',description:'',allDay:true,startDay:'2026-11-17',endDay:'2026-11-18',
+    repeat:'interval',repeatEvery:'4'
+  },'manual:interval');
+  assert.equal(allDayEvents([event],new Date(2026,10,20)).length,0);
+  const [repeat]=allDayEvents([event],new Date(2026,10,22));
+  assert.equal(repeat.day,'2026-11-21');
+  assert.equal(repeat.endDay,'2026-11-23');
 });

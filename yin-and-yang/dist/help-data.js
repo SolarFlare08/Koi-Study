@@ -240,9 +240,9 @@ export const helpTopics = [
   {
     id:'calendar-task-colors',group:'Calendar & planning',title:'Mark important calendar tasks and choose colors',
     summary:'Flag priority tasks and identify them by color across calendar views.',
-    steps:['In Calendar, choose `More → New task`. Turn on `Important` to set the task’s priority to P1 and show a star on the calendar.',
+    steps:['In Calendar, choose `Create → Task`. Turn on `Important` to set the task’s priority to P1 and show a star on the calendar.',
       'Click a scheduled task block and choose a swatch under Task color. You can also open a task’s actions menu and choose Change color, or use Task color near its name in the task editor.',
-      'The color applies to that task and all of its blocks. Choose Default to clear it.'],
+      'Choose Custom to use the color picker or enter a hex code like #4C8B79. In the block’s quick picker, choose Apply custom color. The color follows the task across all its blocks.'],
     action:'calendar',actionLabel:'Open Calendar',related:['tasks','calendar']
   },
   {
@@ -375,7 +375,7 @@ export const helpTopics = [
     id:'calendar', group:'Calendar & planning', title:'Schedule tasks and navigate dates',
     summary:'Use the full calendar, the task shelf, or Garden’s 5-hour view.',
     steps:['Open the Calendar tab. Use Day, 3 days, Week, or Month to choose the view.',
-      'Use the date picker, Today, and previous/next controls to move through dates. Week views also scroll horizontally.',
+      'Use the date picker, Today, and previous/next controls to move through dates. Timed views open near the current time. Week views also scroll horizontally.',
       'Open `Task shelf` to find a task. Drag it onto a time slot, or choose it to set its schedule. A task without an estimate defaults to a one-hour block.',
       'Garden’s separate 5-hour calendar shows the same schedule. Its arrows let you inspect earlier and later hours; `Open calendar` opens the full view.'],
     tip:'Overlapping blocks are supported. Planner and Calendar share your tasks and bookings.',
@@ -445,17 +445,17 @@ export const helpTopics = [
       'Use the Calendar theme selector in the toolbar to choose Day, Dusk, or Night. Day uses warm off-white, and Calendar remembers its theme independently of Garden.',
       'When creating or editing an event, pick its calendar from the Calendar field. Use the checkboxes in the sidebar to show or hide calendars or the Tasks & rituals row.',
       'Use the mini month to jump to a date. Each imported .ics file appears as a separate calendar in the sidebar.',
-      'Use the edit button next to a calendar name to change its name or default color. Click a swatch to preview that color, then save. Removing a custom calendar moves its events to Personal.'],
+      'Use the edit button next to a calendar name to change its name or default color. Choose a swatch or Custom, then use the color picker or type a hex code. Check the preview before saving. Removing a custom calendar moves its events to Personal.'],
     tip:'Hidden events stay saved and still count as commitments in Planner. Calendar settings are saved on this device and included in backups.',
     action:'calendar',actionLabel:'Open Calendar',related:['calendar','events','calendar-import','backup']
   },
   {
-    id:'events', group:'Calendar & planning', title:'Add events and all-day commitments',
-    summary:'Put meetings and appointments on the calendar without making them tasks.',
-    steps:['Click an empty time in Calendar to open a new event at that date and time. Click the plus in an all-day row or click an empty spot in Month to start an all-day event. You can also choose Create event.',
-      'Choose a swatch under Event color to preview a color for this event. Calendar default makes it follow its calendar’s color. Save event applies the change.',
-      'Enter a title, optional description, and start/end dates and times. Turn on All day for a date-only event.',
-      'Save the event. Click a manually created event to edit or delete it.',
+    id:'events', group:'Calendar & planning', title:'Create repeating tasks and events',
+    summary:'Schedule calendar entries, choose Task or Event, and set their repeat pattern.',
+    steps:['Choose Create or click an empty time in Calendar. Use the Task or Event switch above Title. The plus in an all-day row or month cell starts an all-day entry.',
+      'Choose a color swatch or Custom. The picker and hex field update the preview. Events can inherit their calendar’s default color.',
+      'Enter dates and times or turn on All day. Choose Repeat for daily, weekday, weekly, monthly, yearly, or custom day intervals.',
+      'Click a manual event to edit it or switch it to a task. For a task, open Edit task → Change entry type. A task with linked work or task history stays a task. Changes to repeating events apply to the full series.',
       'For a timed event, set `Minutes before` and `Minutes after` under `Planning buffers` to reserve travel, setup, or recovery time. On an imported event, open its details and choose `Save buffers`.',
       'Week drafts and deadline plans protect the longer of the event buffer and the regular cooldown on each side. The event retains its original calendar times.'],
     action:'calendar', actionLabel:'Open Calendar', related:['calendar-import','tomorrow','workload']
@@ -605,9 +605,9 @@ export const helpTopics = [
   },
   {
     id:'daily-rituals', group:'Reading & journal', title:'Daily Crochet, Annotate, and Journal items',
-    summary:'Keep your three daily rituals at the top of each calendar day.',
-    steps:['Open Calendar or a supported Planner date view. Each day begins with Crochet, Annotate, and Journal.',
-      'Click a ritual’s name to edit its details. Crochet can link to a Stitchbook project; Annotate holds your book and reading goal; Journal opens an entry for that date.',
+    summary:'Choose which days and times Crochet, Annotate, and Journal appear in Calendar.',
+    steps:['Open Calendar → Rituals. For each activity, pick Off calendar, All day, or At a time. Select the weekdays and, for timed rituals, set a start time and duration. Choose Save schedules.',
+      'Open the ritual from its block or use the Open button in Rituals when it’s off the calendar. Crochet links a Stitchbook project, Annotate holds your book and reading goal, and Journal opens that date’s entry.',
       'Use the small check control to mark a ritual complete or incomplete for that day.',
       'Saving a journal entry automatically completes that date’s Journal item. A newer saved entry can complete it again if you previously reopened it.'],
     action:'calendar', actionLabel:'Open Calendar', related:['reading-goal','journal','crochet-projects']
@@ -615,7 +615,7 @@ export const helpTopics = [
   {
     id:'reading-goal', group:'Reading & journal', title:'Set a reading goal and stopping point',
     summary:'Show your next chapter or page target alongside where you left off.',
-    steps:['In Calendar, click `Annotate` on the day you plan to read.',
+    steps:['Open `Annotate` from your Calendar, or from Calendar → Rituals for the displayed date.',
       'Enter the book and author. Optionally choose `Search Open Library` to look up a title; you can always enter it yourself.',
       'Choose Chapter or Page as the goal type and enter your next-session target, such as `12` or `45–60`.',
       'Log chapters annotated, one per line or as a range. Use `Where you stopped` for a bookmark such as “Page 52,” then choose `Save annotation log`.'],

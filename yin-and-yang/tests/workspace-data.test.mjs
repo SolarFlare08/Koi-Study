@@ -1,5 +1,6 @@
 import {test} from 'node:test';
-import {calendarCatalog,calendarSlotMinute,calendarTheme,eventCalendarColor,loadCalendars,visibleCalendarEvents} from '../dist/calendar-layers.js';
+import {customCalendarColor,eventColorAttributes,calendarCatalog,calendarSlotMinute,calendarTheme,eventCalendarColor,loadCalendars,visibleCalendarEvents} from '../dist/calendar-layers.js';
+import {scheduledRituals} from '../dist/daily-rituals.js';
 import {calendarBlocks,calendarEventFromFields} from '../dist/calendar.js';
 import {captureCalendarDay,copyCalendarDay,loadDayTemplates,previewCalendarDay} from '../dist/calendar-day-templates.js';
 import {loadProjectResources} from '../dist/project-planning.js';
@@ -679,4 +680,22 @@ test('event colors can override or inherit and survive Calendar backups and day 
   const restored=loadState(storage);
   assert.equal(restored.calendarTheme,'dusk');
   assert.equal(restored.calendarEvents[0].color,'rose');
+});
+
+test('custom calendar colors and independently scheduled rituals restore with Calendar',()=>{
+  const state=freshState(),storage=memoryStorage();
+  assert.equal(customCalendarColor(' #AbC '),'#aabbcc');
+  assert.equal(customCalendarColor('#abc; color: red'),'');
+  assert.equal(eventColorAttributes('bad" color'), 'data-event-tone=""');
+  state.calendars=loadCalendars([{id:'personal',name:'Personal',color:'#012abc'}]);
+  state.ritualSchedules.crochet={placement:'timed',days:[1,4],time:'19:30',minutes:45};
+  state.ritualSchedules.journal={placement:'allDay',days:[0],time:'19:00',minutes:30};
+  const backup=readBackup(JSON.stringify(createBackup(state,storage,[])));
+  applyBackupRestore(storage,planBackupRestore(storage,freshState(),backup,new Set(['calendar'])));
+  const restored=loadState(storage);
+  assert.equal(eventCalendarColor({manual:true},restored.calendars),'#012abc');
+  assert.deepEqual(restored.ritualSchedules,state.ritualSchedules);
+  assert.deepEqual(scheduledRituals(restored.ritualSchedules,new Date(2026,10,16),'timed'),['crochet']);
+  assert.deepEqual(scheduledRituals(restored.ritualSchedules,new Date(2026,10,16),'allDay'),[]);
+  assert.deepEqual(scheduledRituals(restored.ritualSchedules,new Date(2026,10,22),'allDay'),['journal']);
 });

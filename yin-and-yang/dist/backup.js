@@ -180,6 +180,11 @@ export function planBackupRestore(storage,current,incoming,sections){
     if(current.calendarTheme!==incoming.state.calendarTheme)details.push({label:'Calendar appearance',added:0,replaced:1,unchanged:0,
       changes:[backupConflict('Calendar theme',current.calendarTheme,incoming.state.calendarTheme)]});
     if(apply)state.calendarTheme=incoming.state.calendarTheme;
+    if(JSON.stringify(current.ritualSchedules)!==JSON.stringify(incoming.state.ritualSchedules)){
+      details.push({label:'Ritual schedules',added:0,replaced:1,unchanged:0,
+        changes:[backupConflict('Ritual schedules',current.ritualSchedules,incoming.state.ritualSchedules)]});
+      if(apply)state.ritualSchedules=incoming.state.ritualSchedules;
+    }
     stateList(apply,'calendars','Calendars');stateList(apply,'hiddenCalendars','Hidden calendars',id=>id);
     stateList(apply,'calendarEvents','Events');stateList(apply,'calendarDayTemplates','Day templates');stateList(apply,'availability','Availability rules');
   });

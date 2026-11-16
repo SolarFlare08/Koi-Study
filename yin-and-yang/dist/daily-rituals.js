@@ -28,8 +28,24 @@ export function ritualComplete(kind,item,journalStamp=0){
   return item?.done===true||kind==='journal'&&journalStamp>0&&item?.stamp!==journalStamp;
 }
 
-export function dailyRitualMarkup(date,day,journalStamp,reading){
-  return `<div class="daily-rituals" role="group" aria-label="Daily rituals for ${date}">${Object.entries(rituals).map(([kind,{label,art}])=>{
+export function loadRitualSchedules(value){
+  return Object.fromEntries(Object.keys(rituals).map(kind=>{
+    const entry=value?.[kind];
+    return [kind,{
+      placement:['off','allDay','timed'].includes(entry?.placement)?entry.placement:'off',
+      days:Array.isArray(entry?.days)?[...new Set(entry.days.filter(day=>Number.isInteger(day)&&day>=0&&day<=6))].sort():[0,1,2,3,4,5,6],
+      time:/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(entry?.time)?entry.time:'19:00',
+      minutes:Number.isInteger(entry?.minutes)&&entry.minutes>=15&&entry.minutes<=180?entry.minutes:30
+    }];
+  }));
+}
+export function scheduledRituals(schedules,date,placement){
+  return Object.keys(rituals).filter(kind=>schedules[kind].placement===placement&&schedules[kind].days.includes(date.getDay()));
+}
+export function dailyRitualMarkup(date,day,journalStamp,reading,kinds=Object.keys(rituals)){
+  if(!kinds.length)return '';
+  return `<div class="daily-rituals" role="group" aria-label="Daily rituals for ${date}">${kinds.map(kind=>{
+    const {label,art}=rituals[kind];
     const done=ritualComplete(kind,day?.[kind],journalStamp);
     const target=reading?.goal? `Goal · ${reading.goalType==='page'?'Page':'Chapter'} ${reading.goal}` : '';
     const last=reading?.last?`Last · ${reading.last}`:'';

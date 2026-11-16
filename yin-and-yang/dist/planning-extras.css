@@ -1010,3 +1010,56 @@ button.project-context-item:hover { color: var(--planner-accent); }
 }
 
 #app[data-workspace="calendar"]:not([data-calendar-theme="dusk"],[data-calendar-theme="night"]) #panel-root:has(.event-editor)::before { background: #39362572; }
+
+.calendar-entry-type {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin: 0; padding: 3px;
+  border: 1px solid var(--surface-line); border-radius: 9px; background: var(--surface-raised);
+}
+.calendar-entry-type label, .ritual-weekdays label { position: relative; cursor: pointer; }
+.calendar-entry-type span {
+  display: block; padding: 6px; border: 1px solid transparent; border-radius: 6px;
+  text-align: center; color: var(--surface-muted); font-size: 13px;
+}
+.calendar-entry-type :checked + span {
+  border-color: var(--surface-line); background: var(--surface-field); color: var(--surface-ink); font-weight: 650;
+}
+:is(.calendar-entry-type,.ritual-weekdays) :focus-visible + span { outline: 2px solid var(--surface-accent); outline-offset: 1px; }
+.calendar-series-note { margin: 0; color: var(--surface-muted); font-size: 12px; }
+.custom-color-fields {
+  display: grid; grid-template-columns: auto minmax(0,1fr); gap: 8px; align-items: end; margin-top: 6px;
+}
+.custom-color-fields label { display: grid; gap: 4px; color: var(--surface-muted); font-size: 11px; }
+#app .custom-color-fields input[type="color"] {
+  display: block; width: 100%; min-width: 58px; height: 34px; padding: 2px 4px; cursor: pointer;
+  border: 1px solid var(--surface-line); border-radius: 6px; background: var(--surface-field);
+}
+#app .custom-color-fields input[data-color-hex] { min-width: 0; height: 34px; font: 12px ui-monospace,monospace; }
+.custom-color-fields [aria-invalid="true"] { outline: 1px solid var(--surface-danger); }
+.task-color-picker [data-task-color-choice="custom"] { display: inline-block; margin-top: 4px; }
+:is(.custom-color-fields,.ritual-weekdays,[data-ritual-times],[data-entry-task])[hidden] { display: none !important; }
+#ritual-schedules-form { display: grid; gap: 10px; }
+#ritual-schedules-form > p { margin: 0; }
+.ritual-schedule {
+  display: grid; gap: 7px; min-width: 0; margin: 0; padding: 7px 9px;
+  border: 1px solid var(--surface-line); border-radius: 9px;
+}
+.ritual-schedule legend { padding-inline: 4px; font-weight: 650; }
+.ritual-schedule > button { justify-self: start; }
+.ritual-weekdays { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 4px; }
+.ritual-weekdays span {
+  display: block; padding: 5px 0; border: 1px solid var(--surface-line); border-radius: 5px;
+  color: var(--surface-muted); text-align: center; font-size: 11px;
+}
+.ritual-weekdays :checked + span { color: var(--surface-ink); background: var(--surface-raised); border-color: var(--surface-accent); }
+#app[data-workspace="calendar"] #calendar-panel .daily-rituals { grid-template-columns: minmax(0,1fr); }
+#app[data-workspace="calendar"] #calendar-panel .daily-ritual { color: var(--surface-ink); }
+#app[data-workspace="calendar"] #calendar-panel .ritual-check { border-color: color-mix(in srgb,var(--surface-ink) 55%,transparent); }
+#app[data-workspace="calendar"] #calendar-panel .calendar-block.calendar-ritual-block {
+  padding: 0; border-color: var(--planner-line); background: var(--surface-raised); cursor: default;
+}
+.calendar-ritual-block .daily-rituals { margin: 0; height: 100%; }
+.calendar-ritual-block .daily-ritual { align-items: center; border: 0; }
+.calendar-ritual-block .ritual-open { min-width: 0; align-self: stretch; }
+.calendar-ritual-block .ritual-open span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-month-ritual { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 3px; }
+.calendar-month-ritual > small { color: var(--planner-muted); }

@@ -1,4 +1,4 @@
-import {calendarBlocks,calendarTaskBlock,shiftDay,weekDays} from './calendar.js';
+import {calendarBlocks,calendarEventOccurrences,calendarTaskBlock,shiftDay,weekDays} from './calendar.js';
 import {dayKey} from './state.js';
 
 const text=value=>String(value??'').replace(/\\/g,'\\\\').replace(/\r\n|\r|\n/g,'\\n').replace(/[;,]/g,'\\$&');
@@ -50,14 +50,20 @@ export function exportCalendar(tasks,events,{scope,date,endDate,projectId,includ
     }
   }
   if(includeEvents){
-    for(const event of events){
+    const recurring=events.filter(event=>event.manual&&event.repeat&&event.repeat!=='none');
+    const expanded=events.filter(event=>!recurring.includes(event));
+    for(let day=first;recurring.length&&day<=last;day=shiftDay(day,1)){
+      expanded.push(...calendarEventOccurrences(recurring,day));
+    }
+    for(const event of expanded){
+      const id='event-'+event.id+(event.repeat&&event.repeat!=='none'?'-'+(event.day||event.start):'');
       if(event.day){
-        if(event.day<=dayKey(last)&&event.endDay>dayKey(first))add(`event-${event.id}`,event.title,event.description,
+        if(event.day<=dayKey(last)&&event.endDay>dayKey(first))add(id,event.title,event.description,
           [`DTSTART;VALUE=DATE:${compact(event.day)}`,`DTEND;VALUE=DATE:${compact(event.endDay)}`]);
       }else if(event.start<+after&&(event.start>=+first||event.end>+first)){
         const times=[`DTSTART:${utc(event.start)}`];
         if(event.end>event.start)times.push(`DTEND:${utc(event.end)}`);
-        add(`event-${event.id}`,event.title,event.description,times);
+        add(id,event.title,event.description,times);
       }
     }
   }

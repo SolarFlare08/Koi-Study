@@ -1,4 +1,4 @@
-import {dayKey, taskOccursOn, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
+import {dayKey, repeatSettings, taskOccursOn, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
 import {unavailableRanges} from './availability.js';
 
 const minutesPerDay = 24 * 60;
@@ -47,7 +47,7 @@ export function calendarEventFromFields(fields, id) {
   };
   localDay(startDay);
   const last = localDay(endDay);
-  const event = {id, title, description: fields.description.trim(), manual: true};
+  const event = {id, title, description: fields.description.trim(), manual: true,...(fields.repeat&&fields.repeat!=='none'?repeatSettings(fields.repeat,fields.repeatEvery):{})};
   if (allDay) {
     if (endDay < startDay) throw new Error('The last day can’t be before the first day.');
     return {...event, day: startDay, endDay: dayKey(shiftDay(last, 1))};
@@ -80,7 +80,7 @@ export function planningEventRanges(events,date,cooldown=0){
     return round(local.getHours()*60+local.getMinutes()+local.getSeconds()/60+local.getMilliseconds()/60000);
   };
   const duration=value=>Number.isInteger(value)&&value>0&&value<=180?value:0;
-  return events.flatMap(event=>{
+  return calendarEventOccurrences(events,date,Math.max(180,cooldown)).flatMap(event=>{
     if(event.day||!Number.isFinite(event.start)||!Number.isFinite(event.end))return [];
     const before=duration(event.bufferBefore),after=duration(event.bufferAfter);
     const start=event.start-Math.max(before,cooldown)*60000;
@@ -148,9 +148,37 @@ export function calendarBlockProgress(task,blockId,occurrence,totals,now=Date.no
   return {status,focusMs};
 }
 
+// Expand local dates before converting to timestamps so a series keeps its wall-clock time.
+export function calendarEventOccurrences(events,date,marginMinutes=0){
+  const first=+shiftDay(date,0)-marginMinutes*60000,last=+shiftDay(date,1)+marginMinutes*60000;
+  const ordinal=day=>Date.UTC(day.getFullYear(),day.getMonth(),day.getDate())/86400000;
+  const onDay=(day,clock)=>new Date(day.getFullYear(),day.getMonth(),day.getDate(),
+    clock.getHours(),clock.getMinutes(),clock.getSeconds(),clock.getMilliseconds());
+  return events.flatMap(event=>{
+    if(!event.manual||!event.repeat||event.repeat==='none')return [event];
+    const start=event.day?new Date(event.day+'T00:00:00'):new Date(event.start);
+    const end=event.day?new Date(event.endDay+'T00:00:00'):new Date(event.end);
+    const span=ordinal(end)-ordinal(start);
+    if(!Number.isFinite(span)||span<0)return [];
+    const rule={date:dayKey(start),repeat:event.repeat,repeatEvery:event.repeatEvery};
+    const occurrences=[];
+    for(let candidate=new Date(Math.max(+shiftDay(new Date(first),-span),+shiftDay(start,0)));+candidate<last;candidate=shiftDay(candidate,1)){
+      if(!taskOccursOn(rule,candidate))continue;
+      const endDay=shiftDay(candidate,span);
+      const from=event.day?+candidate:+onDay(candidate,start);
+      const to=event.day?+endDay:Math.max(+onDay(endDay,end),from+60000);
+      if(from>=last||to<=first)continue;
+      occurrences.push(event.day?
+        {...event,day:dayKey(candidate),endDay:dayKey(endDay)}:
+        {...event,start:from,end:to});
+    }
+    return occurrences;
+  });
+}
+
 export function allDayEvents(events,date){
   const day=dayKey(date);
-  return events.filter(event=>event.day&&event.day<=day&&day<event.endDay);
+  return calendarEventOccurrences(events,date).filter(event=>event.day&&event.day<=day&&day<event.endDay);
 }
 
 export function calendarBlocks(tasks, date, events=[]) {
@@ -176,7 +204,7 @@ export function calendarBlocks(tasks, date, events=[]) {
     const local=new Date(timestamp);
     return local.getHours()*60+local.getMinutes();
   };
-  for(const event of events){
+  for(const event of calendarEventOccurrences(events,date)){
     if(event.day||event.start>=dayEnd||Math.max(event.end,event.start+60000)<=dayStart)continue;
     const start=event.start<=dayStart?0:clockMinute(event.start);
     const end=event.end>=dayEnd?1440:Math.max(start+1,clockMinute(event.end));

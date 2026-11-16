@@ -1,4 +1,10 @@
 export const releases = [
+  {version:'3.13.0',date:'2026-11-16',title:'Repeating calendar entries and flexible rituals',changes:[
+    'Create a task or an event from the same Calendar editor. Switch the type on existing events and standalone tasks.',
+    'Repeat events and tasks, and choose custom colors by picker or hex with a live Calendar preview.',
+    'Set weekdays, all-day placement, or times for Crochet, Annotate, and Journal. They start off the Calendar grid and keep their existing logs.',
+    'Calendar Day, 3 days, and Week open near the current time. Calendar backups include ritual schedules.'
+  ]},
   {version:'3.12.0',date:'2026-11-16',title:'Calendar themes and live color previews',changes:[
     'Choose a Day, Dusk, or Night Calendar theme independently of the Garden timer. Day defaults to warm off-white.',
     'Preview calendar and event colors with swatches, and choose individual event colors or inherit the calendar default.',

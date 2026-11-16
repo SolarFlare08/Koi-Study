@@ -2,7 +2,24 @@ export const personalCalendarId='personal';
 export const calendarColors={jade:'Jade',blue:'Blue',plum:'Plum',rose:'Rose',amber:'Amber',slate:'Slate'};
 export const calendarThemes={day:'Day',dusk:'Dusk',night:'Night'};
 export const calendarTheme=value=>Object.hasOwn(calendarThemes,value)?value:'day';
-export const calendarColor=value=>Object.hasOwn(calendarColors,value)?value:'';
+export function customCalendarColor(value){
+  if(typeof value!=='string')return '';
+  const color=value.trim().toLowerCase();
+  if(/^#[0-9a-f]{6}$/.test(color))return color;
+  if(/^#[0-9a-f]{3}$/.test(color))return '#'+[...color.slice(1)].map(digit=>digit.repeat(2)).join('');
+  return '';
+}
+export const calendarColor=value=>Object.hasOwn(calendarColors,value)?value:customCalendarColor(value);
+export const calendarColorName=color=>calendarColors[color]||color.toUpperCase();
+export function customColorStyle(property,value){
+  const hex=customCalendarColor(value);
+  return hex?`${property}:${hex};`:'';
+}
+export function eventColorAttributes(color,style=''){
+  const tone=calendarColor(color);
+  const rules=customColorStyle('--event-color',tone)+style;
+  return `data-event-tone="${tone}"${rules?` style="${rules}"`:''}`;
+}
 export const defaultCalendar={id:personalCalendarId,name:'Personal',color:'jade'};
 export function loadCalendars(value){
   const calendars=new Map([[defaultCalendar.id,defaultCalendar]]);

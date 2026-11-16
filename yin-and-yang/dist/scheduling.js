@@ -158,7 +158,7 @@ export function todayTradeoffs({task,tasks,events,availability,focus,locked,cuto
   if(enough(scheduled,minutes))for(const event of events){
     if(options.length>=3)break;
     const policy=event.flexibility;
-    if(!event.manual||event.day||policy?.mode!=='flexible'||event.start<=+now)continue;
+    if(!event.manual||event.day||event.repeat&&event.repeat!=='none'||policy?.mode!=='flexible'||event.start<=+now)continue;
     const startDate=new Date(event.start),endDate=new Date(event.end),length=(event.end-event.start)/60000;
     if(dayKey(startDate)!==today||dayKey(endDate)!==today||!Number.isInteger(length)||length<1)continue;
     const before=Math.max(event.bufferBefore||0,cooldown),after=Math.max(event.bufferAfter||0,cooldown);

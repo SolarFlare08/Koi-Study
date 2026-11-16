@@ -1,4 +1,4 @@
-import {calendarBlocks,calendarTaskBlock,calendarEventFromFields,shiftDay,timeValue} from './calendar.js';
+import {allDayEvents,calendarBlocks,calendarTaskBlock,calendarEventFromFields,shiftDay,timeValue} from './calendar.js';
 import {personalCalendarId,calendarColor} from './calendar-layers.js';
 import {dayKey,taskOccursOn,taskPriority,taskCalendarColor} from './state.js';
 
@@ -47,7 +47,7 @@ export function captureCalendarDay(tasks,events,day){
   const scheduled=new Set(timed.filter(row=>row.kind==='task').map(row=>row.taskKey));
   const untimed=tasks.filter(task=>!task.time&&taskOccursOn(task,date)&&!scheduled.has(task.id))
     .map(task=>taskRow(task,{allDay:true}));
-  const allDay=events.filter(event=>event.day===day).map(event=>({kind:'event',title:event.title,
+  const allDay=allDayEvents(events,date).filter(event=>event.day===day).map(event=>({kind:'event',title:event.title,
     description:event.description,allDay:true,...(event.manual&&{calendarId:event.calendarId,color:event.color}),days:dayDistance(day,event.endDay)}));
   return [...allDay,...untimed,...timed];
 }

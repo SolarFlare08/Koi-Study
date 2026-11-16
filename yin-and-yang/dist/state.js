@@ -5,7 +5,7 @@ import {loadAppearance,loadGardenLooks} from './garden-appearance.js';
 import {loadSoundSettings} from './garden-audio.js';
 import {captureTaskChange} from './task-undo.js';
 import {loadGardenSchedule} from './garden-appearance.js';
-import {loadDailyRituals} from './daily-rituals.js';
+import {loadDailyRituals,loadRitualSchedules} from './daily-rituals.js';
 import {loadFinishedBooks,loadReadingNotes,loadLibraryBooks} from './reading-shelf.js';
 import {loadReadingCollections} from './reading-progress.js';
 import {loadAvailability} from './availability.js';
@@ -15,7 +15,7 @@ import {loadGardenGrowth} from './garden-growth.js';
 import {addReplayEvent,loadReplay} from './focus-replay.js';
 import {loadExamPlans} from './exam-plans.js';
 import {loadDayTemplates} from './calendar-day-templates.js';
-import {loadCalendars,loadHiddenCalendars,calendarTheme} from './calendar-layers.js';
+import {calendarColor,customCalendarColor,customColorStyle,loadCalendars,loadHiddenCalendars,calendarTheme} from './calendar-layers.js';
 import {handoffLink,sessionHandoff} from './session-handoff.js';
 import {loadMistakes} from './mistake-notebook.js';
 import {loadTaskBundles} from './task-bundles.js';
@@ -29,9 +29,16 @@ export const taskFrequencies = { none:'Does not repeat', daily:'Every day', week
 const isDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value);
 const isTime = value => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
 const dateNumber = date => Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())/86400000;
+export function repeatSettings(repeat,every){
+  return {repeat:Object.hasOwn(taskFrequencies,repeat)?repeat:'none',
+    repeatEvery:Number.isInteger(Number(every))&&Number(every)>=2&&Number(every)<=365?Number(every):2};
+}
 const loadCalendarEvents=value=>Array.isArray(value)?value.filter(item=>typeof item?.id==='string'&&typeof item.title==='string'&&
   (isDay(item.day)&&isDay(item.endDay)&&item.endDay>item.day||Number.isFinite(item.start)&&Number.isFinite(item.end)&&item.end>=item.start))
-  .map(item=>item.flexibility?{...item,flexibility:blockFlexibility(item.flexibility)}:item):[];
+  .map(item=>({...item,
+    ...(item.manual&&Object.hasOwn(item,'color')?{color:calendarColor(item.color)}:{}),
+    ...(item.manual&&Object.hasOwn(item,'repeat')?repeatSettings(item.repeat,item.repeatEvery):{}),
+    ...(item.flexibility?{flexibility:blockFlexibility(item.flexibility)}:{})})):[];
 
 export function taskOccursOn(task, date) {
   const day = dayKey(date);
@@ -96,7 +103,12 @@ export function recordTaskCompletion(state, task, checked, occurrence = new Date
 }
 
 export const taskCalendarColors={jade:'Jade',lake:'Lake blue',plum:'Plum',rose:'Rose',amber:'Amber',clay:'Terracotta'};
-export const taskCalendarColor=value=>Object.hasOwn(taskCalendarColors,value)?value:'';
+export const taskCalendarColor=value=>Object.hasOwn(taskCalendarColors,value)?value:customCalendarColor(value);
+export function taskColorAttributes(value,style=''){
+  const color=taskCalendarColor(value);
+  const rules=customColorStyle('--task-color',color)+style;
+  return `data-task-color="${color}"${rules?` style="${rules}"`:''}`;
+}
 export function taskPriority(task) { return task.priorityLevel || (task.priority ? 1 : 4); }
 
 export function unfinishedPrerequisites(task, tasksById) {
@@ -192,7 +204,7 @@ export function loadSoundtracks(value){
   return [...records.values()];
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], calendars:loadCalendars(), hiddenCalendars:[], calendarTheme:'day', calendarDayTemplates:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], calendars:loadCalendars(), hiddenCalendars:[], calendarTheme:'day', calendarDayTemplates:[], dailyRituals:{}, ritualSchedules:loadRitualSchedules(), studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], libraryBooks:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],
     taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],gardenActivityLayouts:{},breakIdeas:[],
@@ -229,6 +241,7 @@ export function loadState(storage) {
     if(isTime(raw.replanCutoff))base.replanCutoff=raw.replanCutoff;
     if(Number.isInteger(raw.planningCooldown)&&raw.planningCooldown>=0&&raw.planningCooldown<=30)base.planningCooldown=raw.planningCooldown;
     base.dailyRituals=loadDailyRituals(raw.dailyRituals);
+    base.ritualSchedules=loadRitualSchedules(raw.ritualSchedules);
     base.readingNotes=loadReadingNotes(raw.readingNotes);
     base.readingCollections=loadReadingCollections(raw.readingCollections);
     base.libraryBooks=loadLibraryBooks(raw.libraryBooks);
