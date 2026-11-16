@@ -65,6 +65,18 @@ export function loadGardenLayouts(value){
   return [...layouts.values()];
 }
 
+export const gardenActivities={focus:'Focus',rest:'Rest',shutdown:'Shutdown'};
+export function loadGardenActivityLayouts(value,layouts){
+  const saved=new Set(layouts.map(layout=>layout.id));
+  return Object.fromEntries(Object.keys(gardenActivities).flatMap(activity=>
+    saved.has(value?.[activity])?[[activity,value[activity]]]:[]));
+}
+
+export function gardenActivityLayout(layouts,assignments,{mode,shutdown}){
+  const activity=shutdown?'shutdown':mode==='break'?'rest':'focus';
+  return layouts.find(layout=>layout.id===assignments[activity]);
+}
+
 export function gardenFrame(camera){
   return (Object.hasOwn(gardenCameras,camera)?gardenCameras[camera]:gardenCameras.wide).viewBox;
 }

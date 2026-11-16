@@ -124,3 +124,12 @@
 .crochet-substitution fieldset > label input { max-width: 180px; }
 #crochet-substitution-result { display: grid; gap: 3px; padding: 9px 11px; border-radius: 7px; background: #eee8db; color: var(--stitch-muted); font-size: 12px; }
 #crochet-substitution-result strong { font-size: 17px; color: var(--stitch-green); }
+
+.crochet-photo-details { margin-top: 8px; }
+.crochet-photo-details summary { cursor: pointer; font-weight: 600; }
+.crochet-photo-gallery { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(130px,100%),1fr)); gap: 8px; margin: 8px 0; }
+.crochet-photo-gallery figure { min-width: 0; margin: 0; padding: 5px; border: 1px solid var(--stitch-line); border-radius: 7px; }
+.crochet-photo-gallery img { display: block; width: 100%; max-height: 280px; object-fit: contain; }
+.crochet-photo-gallery figure label { display: flex; align-items: center; margin-top: 5px; }
+.crochet-photo-upload small { font-size: 11px; }
+.crochet-photo-note { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -1,5 +1,5 @@
 import {gardenCameras,gardenPieceOptions,gardenStarterLayouts,gardenFrame,loadGardenDesign,loadGardenLayouts,
-  gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds} from './garden-layout.js';
+  gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities} from './garden-layout.js';
 import {loadAppearance,seasonOptions,lightingOptions,gardenPalettes,weatherBySeason} from './garden-appearance.js';
 import {gardenLandmarkPositions,mountGardenPreview} from './scenery.js';
 import {gardenCourses,landmarkTypes} from './garden-growth.js';
@@ -9,10 +9,10 @@ const pieceLabels={mountains:'Mountains',shoreline:'Shoreline',pavilion:'Buildin
 const options=values=>Object.entries(values).map(([key,label])=>`<option value="${escape(key)}">${escape(label)}</option>`).join('');
 const select=(name,label,values)=>`<label>${label}<select name="${name}">${options(values)}</select></label>`;
 
-export function createGardenStudio({getState,getAppearance,commit,download,today,notify}){
+export function createGardenStudio({getState,getAppearance,getDesign,commit,download,today,notify}){
   let draft,form,selected='',scene=null,drag=null;
   function open(){
-    draft={id:'',name:'',through:'',design:loadGardenDesign(getState().gardenDesign),appearance:getAppearance()};
+    draft={id:'',name:'',through:'',design:loadGardenDesign(getDesign()),appearance:getAppearance()};
     selected='';drag=null;
   }
   function markup(){
@@ -22,6 +22,12 @@ export function createGardenStudio({getState,getAppearance,commit,download,today
         <button type="button" class="text-button" data-studio="copy">Save a copy</button>
         <button type="button" class="text-button" data-studio="delete">Delete saved layout</button>
       </div>
+      <fieldset class="studio-activities">
+        <legend>Layout by activity</legend>
+        <div class="studio-control-grid">${Object.entries(gardenActivities).map(([activity,label])=>
+          `<label>${label}<select data-studio-activity="${activity}"></select></label>`).join('')}</div>
+        <p class="studio-stage-help" data-studio-activity-status role="status"></p>
+      </fieldset>
       <div class="studio-workspace">
         <div class="studio-canvas-column">
           <div class="studio-stage">
@@ -59,6 +65,7 @@ export function createGardenStudio({getState,getAppearance,commit,download,today
           <button type="submit" class="text-button">Save layout</button>
           <button type="submit" class="panel-primary" value="apply">Save and apply</button>
         </div>
+        <p class="studio-stage-help" data-studio-default-hint hidden>Save and apply updates the default Garden. Assigned activities still use their chosen layouts.</p>
       </div>
       <div class="studio-export">
         <label><span>Postcard caption <small>(optional)</small></span><input name="caption" maxlength="90" placeholder="A semester by the lake"></label>
@@ -82,12 +89,25 @@ export function createGardenStudio({getState,getAppearance,commit,download,today
       if(action==='delete'){button.textContent='Delete saved layout';delete button.dataset.confirm;}
     }
   }
+  function updateActivityChoices(){
+    const {gardenLayouts,gardenActivityLayouts}=getState();
+    const activityOptions='<option value="">Default Garden</option>'+gardenLayouts.map(item=>
+      `<option value="${escape(item.id)}">${escape(item.name)}</option>`).join('');
+    for(const select of form.querySelectorAll('[data-studio-activity]')){
+      select.innerHTML=activityOptions;
+      select.value=gardenActivityLayouts[select.dataset.studioActivity]||'';
+      select.disabled=!gardenLayouts.length;
+    }
+    form.querySelector('[data-studio-default-hint]').hidden=!Object.keys(gardenActivityLayouts).length;
+    form.querySelector('[data-studio-activity-status]').textContent=gardenLayouts.length?
+      'Layouts switch automatically as you change timer modes or open Evening lights.':'Save a layout to assign it to Focus, Rest, or Shutdown.';
+  }
   function weatherOptions(){
     field('weather').innerHTML=options({auto:'Rotate by season',...weatherBySeason[draft.appearance.season]});
     field('weather').value=draft.appearance.weather;
   }
   function populate(){
-    updateLibrary();weatherOptions();
+    updateLibrary();updateActivityChoices();weatherOptions();
     field('layoutName').value=draft.name;
     field('through').value=draft.through;
     for(const key of [...Object.keys(gardenPieceOptions),'camera'])field(key).value=draft.design[key];
@@ -147,9 +167,9 @@ export function createGardenStudio({getState,getAppearance,commit,download,today
     if(!item)return;
     const next=old&&!copy?layouts.map(layout=>layout.id===itemId?item:layout):[...layouts,item];
     if(!commit(next,apply?item:null)){status('Could not save the layout.');return;}
-    draft=structuredClone(item);field('layoutName').value=draft.name;updateLibrary();
-    status(apply?'Layout saved and applied to the Garden.':'Layout saved.');
-    notify(apply?'Garden layout applied.':'Garden layout saved.');
+    draft=structuredClone(item);field('layoutName').value=draft.name;updateLibrary();updateActivityChoices();
+    const message=apply?'Layout saved and applied as the default Garden.':'Garden layout saved.';
+    status(message);notify(message);
   }
   async function exportDraft(button){
     if(!field('through').reportValidity())return;
@@ -188,6 +208,16 @@ export function createGardenStudio({getState,getAppearance,commit,download,today
     form.addEventListener('input',event=>{if(event.target===field('layoutName'))field('layoutName').setCustomValidity('');});
     form.addEventListener('change',event=>{
       const {name,value}=event.target;
+      const activity=event.target.dataset.studioActivity;
+      if(activity){
+        const state=getState();
+        const saved=commit(state.gardenLayouts,null,{...state.gardenActivityLayouts,[activity]:value});
+        updateActivityChoices();
+        const layout=state.gardenLayouts.find(item=>item.id===value);
+        form.querySelector('[data-studio-activity-status]').textContent=saved?
+          `${gardenActivities[activity]} uses ${layout?.name||'the default Garden'}.`:'Could not save the activity layout.';
+        return;
+      }
       if(name==='library'){
         const saved=value.startsWith('saved:')&&getState().gardenLayouts.find(item=>item.id===value.slice(6));
         const key=value.startsWith('starter:')?value.slice(8):'';
@@ -228,7 +258,7 @@ export function createGardenStudio({getState,getAppearance,commit,download,today
         case 'delete':
           if(!button.dataset.confirm){button.dataset.confirm='true';button.textContent='Confirm delete';return;}
           if(commit(getState().gardenLayouts.filter(item=>item.id!==draft.id),null)){
-            draft.id='';updateLibrary();field('library').focus();status('Saved layout deleted. The draft is still open.');
+            draft.id='';updateLibrary();updateActivityChoices();field('library').focus();status('Saved layout deleted. The draft is still open.');
           }
           break;
       }

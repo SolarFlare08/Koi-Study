@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {CROCHET_KEY,loadCrochet,logYarnUse,yarnShoppingList,yarnStashYards,yarnSubstitution} from '../dist/crochet.js';
 import {createBackup,readBackup} from '../dist/backup.js';
+import {loadCheckpointPhotos} from '../dist/checkpoint-photos.js';
 import {freshState} from '../dist/state.js';
 
 test('shopping combines matching dye lots and credits yarn already used without counting finished work',()=>{
@@ -64,4 +65,17 @@ test('substitution credits partial skeins and rounds only the balance up to whol
   assert.equal(yarnSubstitution(1200,0),null);
   assert.equal(yarnSubstitution(1200,220,-1),null);
   assert.equal(yarn.grams,75);
+});
+
+test('checkpoint photos are limited to resized JPEG records and included in Stitchbook backups',()=>{
+  const photo={name:'sleeve.jpg',src:'data:image/jpeg;base64,/9j/2Q=='};
+  const raw=[{src:'data:image/svg+xml;base64,AAAA'},{src:'data:image/jpeg;base64,'+'A'.repeat(100_000)},photo,photo,photo,photo];
+  assert.deepEqual(loadCheckpointPhotos(raw),[photo,photo,photo]);
+  const project={id:'p',name:'Sleeves',checkpoints:[{id:'c',at:1,note:'Seam pickup',rows:18,photos:[photo]}]};
+  const storage={getItem:key=>key===CROCHET_KEY?JSON.stringify({projects:[project]}):null};
+  const loaded=loadCrochet(storage).projects[0].checkpoints[0];
+  assert.deepEqual(loaded.photos,[photo]);
+  assert.equal(loaded.note,'Seam pickup');
+  const backup=readBackup(JSON.stringify(createBackup(freshState(),storage,[])));
+  assert.deepEqual(backup.crochet.projects[0].checkpoints[0].photos,[photo]);
 });

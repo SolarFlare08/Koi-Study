@@ -14,7 +14,7 @@ import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
-import {defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign} from '../dist/garden-layout.js';
+import {defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
 import {eveningCamera,renderLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
 
 test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
@@ -517,4 +517,21 @@ test('day templates and pinned resources round-trip in their backup sections',()
   restoreBackup(target,readBackup(JSON.stringify(createBackup(state,storage,[]))));
   assert.equal(loadState(target).projects[0].pinnedResourceId,'note');
   assert.equal(loadState(target).calendarDayTemplates[0].name,'Lab day');
+});
+
+test('Garden activities resolve independently, ignore missing layouts, and survive Garden & focus restore',()=>{
+  const state=freshState(),storage=memoryStorage();
+  state.gardenLayouts=[{id:'trees',name:'Grove'},{id:'lake',name:'Quiet lake'},{id:'path',name:'Lantern path'}];
+  state.gardenActivityLayouts={focus:'trees',rest:'lake',shutdown:'path'};
+  storage.setItem(STORAGE_KEY,JSON.stringify(state));
+  const loaded=loadState(storage),layouts=loaded.gardenLayouts,assignments=loaded.gardenActivityLayouts;
+  assert.equal(gardenActivityLayout(layouts,assignments,{mode:'focus'}).id,'trees');
+  assert.equal(gardenActivityLayout(layouts,assignments,{mode:'break'}).id,'lake');
+  assert.equal(gardenActivityLayout(layouts,assignments,{mode:'break',shutdown:true}).id,'path');
+  assert.deepEqual(loadGardenActivityLayouts(assignments,layouts.slice(0,2)),{focus:'trees',rest:'lake'});
+  assert.equal(gardenActivityLayout(layouts,{}, {mode:'break'}),undefined);
+  const incoming=readBackup(JSON.stringify(createBackup(loaded,storage,[])));
+  const target=memoryStorage();
+  applyBackupRestore(target,planBackupRestore(target,freshState(),incoming,new Set(['garden'])));
+  assert.deepEqual(loadState(target).gardenActivityLayouts,assignments);
 });

@@ -1,4 +1,5 @@
 import {dayKey} from './state.js';
+import {checkpointPhotoLimit,encodeCheckpointPhoto,loadCheckpointPhotos} from './checkpoint-photos.js';
 
 export const CROCHET_KEY='yin-and-yang.crochet.v1';
 const statuses={planned:'Planned',making:'In progress',paused:'Paused',finished:'Finished'};
@@ -31,6 +32,7 @@ function cleanProject(item){
   const instruction=rowInstruction(item.rowInstruction,rows);
   const checkpoints=Array.isArray(item.checkpoints)?item.checkpoints.filter(point=>typeof point?.id==='string'&&Number.isFinite(point.at)&&clean(point.note,1000))
     .map(point=>({id:point.id,at:point.at,note:clean(point.note,1000),rows:whole(point.rows),
+      ...(point.photos?.length&&{photos:loadCheckpointPhotos(point.photos)}),
       counters:Array.isArray(point.counters)?point.counters.filter(counter=>clean(counter?.name,60))
         .map(counter=>({name:clean(counter.name,60),count:whole(counter.count)})):[]})):[];
   const patternChanges=Array.isArray(item.patternChanges)?item.patternChanges.filter(change=>
@@ -182,7 +184,8 @@ export function installCrochet({root,storage,notify}){
         <button type="button" class="crochet-link" data-crochet-counter aria-label="Edit ${escape(counter.name)} counter">Edit</button></div>${instructionMarkup(counter.instruction,counter.count)}</div>`).join('')}</div>
       <div class="crochet-checkpoint-actions"><button type="button" class="crochet-link" data-crochet-counter>Add counter</button>
         <button type="button" class="crochet-link" data-crochet-checkpoint>${checkpoint?'Checkpoints':'Save checkpoint'}</button></div>
-      ${checkpoint?`<div class="crochet-resume"><strong>Resume here</strong><p>${escape(checkpoint.note)}</p><small>${escape(checkpointCounts(checkpoint))}</small></div>`:''}
+      ${checkpoint?`<div class="crochet-resume"><strong>Resume here</strong><p>${escape(checkpoint.note)}</p><small>${escape(checkpointCounts(checkpoint))}</small>
+        ${checkpoint.photos?.length?`<details class="crochet-photo-details"><summary>Latest checkpoint photos (${checkpoint.photos.length})</summary>${checkpointGallery(checkpoint.photos)}</details>`:''}</div>`:''}
       <div class="crochet-worked"><span>Time worked <strong>${formatTime(worked)}</strong></span><button type="button" class="crochet-link" data-crochet-time aria-label="Log time for ${escape(project.name)}">Log time</button></div>
       <div class="crochet-worked"><span>Pattern changes <strong>${project.patternChanges.length}</strong></span>
         <button type="button" class="crochet-link" data-crochet-pattern>Log pattern change</button></div>
@@ -291,11 +294,26 @@ export function installCrochet({root,storage,notify}){
   function checkpointCounts(point){
     return [`Rows ${number(point.rows)}`,...point.counters.map(counter=>`${counter.name} ${number(counter.count)}`)].join(' · ');
   }
-  function checkpointFields(project){
+  function checkpointGallery(photos,editable=false){
+    return `<div class="crochet-photo-gallery">${photos.map((photo,index)=>`<figure>
+      <img src="${escape(photo.src)}" alt="Progress photo ${index+1}: ${escape(photo.name)}" loading="lazy">
+      ${editable?`<label><input type="checkbox" name="removePhoto" value="${index}"> Remove photo ${index+1}</label>`:''}</figure>`).join('')}</div>`;
+  }
+  function checkpointFields(project,point){
+    if(point)return `<p class="crochet-use-context">${escape(project.name)} · ${escape(checkpointCounts(point))}</p>
+      <p class="crochet-photo-note">${escape(point.note)}</p>
+      ${point.photos?.length?checkpointGallery(point.photos,true):''}${checkpointUpload()}`;
     return `<p class="crochet-use-context">${escape(project.name)} · ${escape(checkpointCounts(project))}</p>
       <label>Where to resume<textarea name="note" maxlength="1000" rows="4" required placeholder="Start the next sleeve at row 18"></textarea></label>
+      ${checkpointUpload()}
       ${project.checkpoints.length?`<h4>Saved checkpoints</h4><ul class="crochet-checkpoint-history">${[...project.checkpoints].reverse().map(point=>`<li>
-        <small>${escape(new Date(point.at).toLocaleString())}</small><p>${escape(point.note)}</p><small>${escape(checkpointCounts(point))}</small></li>`).join('')}</ul>`:''}`;
+        <small>${escape(new Date(point.at).toLocaleString())}</small><p>${escape(point.note)}</p><small>${escape(checkpointCounts(point))}</small>
+        <button type="button" class="crochet-link" data-checkpoint-photos="${escape(point.id)}">${point.photos?.length?`View / edit photos (${point.photos.length})`:'Add photos'}</button></li>`).join('')}</ul>`:''}`;
+  }
+  function checkpointUpload(){
+    return `<label class="crochet-photo-upload">Progress photos (optional)
+      <input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-describedby="crochet-photo-hint">
+      <small id="crochet-photo-hint">Up to ${checkpointPhotoLimit} photos per checkpoint. Images are compressed and saved with Stitchbook on this device.</small></label>`;
   }
   function patternChangeFields(project){
     return `<p class="crochet-use-context">${escape(project.name)} · ${number(project.rows)} rows</p>
@@ -304,29 +322,32 @@ export function installCrochet({root,storage,notify}){
       ${project.patternChanges.length?`<h4>Change history</h4><ul class="crochet-checkpoint-history">${[...project.patternChanges].reverse().map(change=>
         `<li><small>${escape(new Date(change.at).toLocaleDateString())} · Row ${number(change.row)}</small><p>${escape(change.note)}</p></li>`).join('')}</ul>`:''}`;
   }
-  function openEditor(kind,id,trigger){
+  function openEditor(kind,id,trigger,checkpointId){
+    if(dialog.open&&editor?.saving)return;
     const item=data[['projects','time','counter','checkpoint','pattern-change'].includes(kind)?'projects':'yarn'].find(record=>record.id===id);
     if(!['projects','yarn'].includes(kind)&&!item)return;
     const counterId=trigger.closest('[data-counter-id]')?.dataset.counterId;
     const counter=item?.counters?.find(record=>record.id===counterId);
-    editor={kind,id,counterId}; anchor=trigger;
-    const title=kind==='pattern-change'?'Pattern changes':kind==='counter'?(counter?'Edit counter':'Add counter'):kind==='checkpoint'?'Checkpoints':kind==='time'?'Log crochet time':kind==='use'?'Log yarn used':kind==='projects'?(item?'Edit project':'New project'):(item?'Edit yarn':'Add yarn');
+    const point=item?.checkpoints?.find(record=>record.id===checkpointId);
+    if(checkpointId&&!point)return;
+    editor={kind,id,counterId,checkpointId,initialPhotos:point?.photos||[]};
+    if(!dialog.open)anchor=trigger;
+    const title=kind==='pattern-change'?'Pattern changes':kind==='counter'?(counter?'Edit counter':'Add counter'):kind==='checkpoint'?(point?'Checkpoint photos':'Checkpoints'):kind==='time'?'Log crochet time':kind==='use'?'Log yarn used':kind==='projects'?(item?'Edit project':'New project'):(item?'Edit yarn':'Add yarn');
     const linked=kind==='use'?data.projects.filter(project=>project.yarnIds.includes(id)):[];
     const fields=kind==='counter'?`<label>Counter name<input name="name" maxlength="60" value="${escape(counter?.name)}" required></label><label>Count<input name="count" type="number" min="0" max="100000" required value="${counter?.count??0}"></label>${instructionFields(counter?.instruction)}`:
-      kind==='pattern-change'?patternChangeFields(item):kind==='checkpoint'?checkpointFields(item):kind==='time'?timeFields(item):kind==='projects'?projectFields(item):kind==='yarn'?yarnFields(item):
+      kind==='pattern-change'?patternChangeFields(item):kind==='checkpoint'?checkpointFields(item,point):kind==='time'?timeFields(item):kind==='projects'?projectFields(item):kind==='yarn'?yarnFields(item):
       `<p class="crochet-use-context">${escape(item.name)} · ${number(item.grams)} g on hand</p><label>Grams used<input name="grams" type="number" min="1" max="${item.grams}" required step="1"></label>
       <label>Project (optional)<select name="projectId"><option value="">Stash only</option>${linked.map(project=>`<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('')}</select></label>`;
     const removable=counter||item&&(kind==='projects'||kind==='yarn');
     dialog.innerHTML=`<form><header><h3 id="crochet-dialog-title">${title}</h3><button type="button" data-crochet-close aria-label="Close dialog">×</button></header><div class="crochet-dialog-fields">${fields}<p role="alert" id="crochet-form-error" hidden></p></div>
-      <footer>${removable?'<button type="button" class="crochet-delete" data-crochet-delete>Delete</button>':''}<button class="crochet-primary" type="submit" value="save">${kind==='pattern-change'?'Save change':kind==='checkpoint'?'Save checkpoint':kind==='time'?'Log time':kind==='use'?'Log use':'Save'}</button></footer></form>`;
+      <footer>${point?`<button type="button" class="crochet-link" data-checkpoint-list>Back to checkpoints</button>`:''}${removable?'<button type="button" class="crochet-delete" data-crochet-delete>Delete</button>':''}<button class="crochet-primary" type="submit" value="save">${kind==='pattern-change'?'Save change':kind==='checkpoint'?(point?'Save photos':'Save checkpoint'):kind==='time'?'Log time':kind==='use'?'Log use':'Save'}</button></footer></form>`;
     dialog.setAttribute('aria-labelledby','crochet-dialog-title');
-    dialog.showModal();
+    if(!dialog.open)dialog.showModal();
     dialog.querySelector(kind==='time'?'[name="minutes"]':'input,textarea')?.focus();
   }
 
-  function saveEditor(form,remove){
-    const {kind,id,counterId}=editor;
-    const fields=new FormData(form);
+  function saveEditor(form,remove,photos=[],fields=new FormData(form)){
+    const {kind,id,counterId,checkpointId,initialPhotos}=editor;
     const next=structuredClone(data);
     const readInstruction=count=>rowInstruction({text:fields.get('instructionText'),row:fields.get('instructionRow')},count);
     const error=$('#crochet-form-error');
@@ -339,10 +360,19 @@ export function installCrochet({root,storage,notify}){
         if(!note)return fail('Enter the pattern change.');
         project.patternChanges.push({id:crypto.randomUUID(),at:Date.now(),row:whole(fields.get('row')),note});
       }else if(kind==='checkpoint'){
-        const note=clean(fields.get('note'),1000);
-        if(!note)return fail('Enter a note about where to resume.');
-        project.checkpoints.push({id:crypto.randomUUID(),at:Date.now(),note,rows:project.rows,
-          counters:project.counters.map(({name,count})=>({name,count}))});
+        const checkpoint=project.checkpoints.find(point=>point.id===checkpointId);
+        if(checkpointId){
+          if(!checkpoint||JSON.stringify(checkpoint.photos||[])!==JSON.stringify(initialPhotos))return fail('This checkpoint changed in another tab. Reopen it to see the latest photos.');
+          const removed=new Set(fields.getAll('removePhoto').map(Number));
+          const kept=(checkpoint.photos||[]).filter((_,index)=>!removed.has(index));
+          if(kept.length+photos.length>checkpointPhotoLimit)return fail('Keep up to three photos per checkpoint.');
+          if(kept.length||photos.length)checkpoint.photos=[...kept,...photos];else delete checkpoint.photos;
+        }else{
+          const note=clean(fields.get('note'),1000);
+          if(!note)return fail('Enter a note about where to resume.');
+          project.checkpoints.push({id:crypto.randomUUID(),at:Date.now(),note,rows:project.rows,
+            counters:project.counters.map(({name,count})=>({name,count})),...(photos.length&&{photos})});
+        }
       }else{
         const index=project.counters.findIndex(item=>item.id===counterId);
         if(counterId&&index<0)return fail('This counter was removed in another tab.');
@@ -375,7 +405,7 @@ export function installCrochet({root,storage,notify}){
       const item=kind==='projects'?cleanProject({...next.projects[index],...values,yarnIds,yarnNeeds,rowInstruction:readInstruction(whole(values.rows))}):cleanYarn(values);
       if (index<0) next[kind].unshift(item); else next[kind][index]=item;
     }
-    if (!commit(next)) return fail('Changes could not be saved on this device.');
+    if (!commit(next)) return fail(photos.length?'Could not save these photos. This browser may be low on storage. Try fewer photos or remove an older photo.':'Changes could not be saved on this device.');
     if (kind==='projects'&&!remove&&statusFilter!=='all'&&fields.get('status')!==statusFilter) statusFilter='all';
     render();
     if(kind==='time')anchor=content.querySelector(`[data-crochet-id="${CSS.escape(id)}"] [data-crochet-time]`);
@@ -406,6 +436,8 @@ export function installCrochet({root,storage,notify}){
     if ('crochetTime' in action) openEditor('time',id,button);
     if ('crochetCounter' in action) openEditor('counter',id,button);
     if ('crochetCheckpoint' in action) openEditor('checkpoint',id,button);
+    if(action.checkpointPhotos&&editor?.kind==='checkpoint')openEditor('checkpoint',editor.id,button,action.checkpointPhotos);
+    if('checkpointList' in action&&editor?.kind==='checkpoint')openEditor('checkpoint',editor.id,button);
     if ('crochetPattern' in action) openEditor('pattern-change',id,button);
     if ('crochetClose' in action) dialog.close();
     if ('crochetDelete' in action) {
@@ -452,7 +484,28 @@ export function installCrochet({root,storage,notify}){
     if (event.target.id!=='crochet-filter') return;
     statusFilter=event.target.value; render(); $('#crochet-filter').focus();
   });
-  dialog.addEventListener('submit',event=>{event.preventDefault();saveEditor(event.target,false);});
+  dialog.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const current=editor,form=event.target;
+    if(!current||current.saving)return;
+    const fields=new FormData(form),files=fields.getAll('photos').filter(file=>file.name);
+    if(!files.length){saveEditor(form,false,[],fields);return;}
+    const error=$('#crochet-form-error');
+    const total=current.initialPhotos.length-fields.getAll('removePhoto').length+files.length;
+    if(total>checkpointPhotoLimit){error.hidden=false;error.textContent='Keep up to three photos per checkpoint.';return;}
+    const button=form.querySelector('[type="submit"]');
+    current.saving=true;button.disabled=true;error.hidden=true;
+    const text=button.textContent;button.textContent='Preparing photos…';
+    try{
+      const photos=[];
+      for(const file of files)photos.push(await encodeCheckpointPhoto(file));
+      if(dialog.open&&editor===current)saveEditor(form,false,photos,fields);
+    }catch(reason){
+      if(dialog.open&&editor===current){error.hidden=false;error.textContent=reason.message;}
+    }finally{
+      current.saving=false;button.disabled=false;button.textContent=text;
+    }
+  });
   dialog.addEventListener('close',()=>{(anchor?.isConnected?anchor:add).focus({preventScroll:true});editor=null;});
   window.addEventListener('storage',event=>{if (event.key===CROCHET_KEY||event.key===null) { data=loadCrochet(storage);render(); }});
   render();

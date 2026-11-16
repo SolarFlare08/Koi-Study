@@ -276,3 +276,8 @@
   .studio-placement { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .studio-placement button { justify-self: start; grid-column: 1/-1; }
 }
+
+.garden-studio-panel .studio-activities { margin: 0; }
+.studio-activities .studio-control-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.studio-save [data-studio-default-hint] { grid-column: 1/-1; }
+@media(max-width:420px) { .studio-activities .studio-control-grid { grid-template-columns: 1fr; } }

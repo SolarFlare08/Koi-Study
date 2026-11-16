@@ -12,7 +12,7 @@ import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from 
 import {installPlanner} from './planner.js';
 import {gardenPalettes,lightingOptions,seasonOptions,sceneryMotionOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenLooks,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
 import {createGardenStudio} from './garden-studio.js';
-import {gardenViewport} from './garden-layout.js';
+import {gardenViewport,gardenActivityLayout,loadGardenActivityLayouts} from './garden-layout.js';
 import {comparisonPostcardPng,postcardPng} from './garden-postcard.js';
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
@@ -94,7 +94,7 @@ let renderedGardenGrowth, renderedGardenProjects, selectedLandmark=null, gardenH
 let gardenFrom='',gardenThrough='',snapshotThrough='',selectedCourse='';
 let seasonPreview='',comparisonDates=null,snapshotLayoutId='',paintedGardenDesign;
 let renderedGardenDesign;
-const studio=createGardenStudio({getState:()=>state,getAppearance:()=>scheduledAppearance(state.appearance,state.gardenSchedule),commit:saveStudioLayouts,
+const studio=createGardenStudio({getState:()=>state,getAppearance:()=>effectiveAppearance,getDesign:sceneGardenDesign,commit:saveStudioLayouts,
   today:()=>dayKey(),notify:confirmChange,download:async(scene,caption)=>{
     const blob=await postcardPng(scene,caption);
     savePostcard(blob,'garden-studio-'+dayKey()+'.png');
@@ -155,7 +155,11 @@ function saveExamPlan(projectId,exam){
   return true;
 }
 function viewedGardenLayout(){return state.gardenLayouts.find(item=>item.id===snapshotLayoutId);}
-function sceneGardenDesign(){return viewedGardenLayout()?.design||state.gardenDesign;}
+function activityGardenLayout(){
+  return gardenActivityLayout(state.gardenLayouts,state.gardenActivityLayouts,{mode:state.timer.mode,shutdown:activePanel==='evening-lights'});
+}
+function sceneGardenDesign(){return (viewedGardenLayout()||activityGardenLayout())?.design||state.gardenDesign;}
+let previousActivityAppearance,activityWeatherSince=0;
 function renderGardenGrowth(){
   const design=sceneGardenDesign();
   if(renderedGardenGrowth===state.gardenGrowth&&renderedGardenProjects===state.projects&&renderedGardenDesign===design)return;
@@ -811,8 +815,13 @@ function render(){
   if(snapshotLayoutId&&!viewedGardenLayout()){
     snapshotLayoutId='';snapshotThrough='';updateGardenSnapshotLabel();renderedGardenGrowth=null;
   }
-  const viewed=viewedGardenLayout(),design=sceneGardenDesign();
+  const viewed=viewedGardenLayout(),activity=activityGardenLayout(),design=(viewed||activity)?.design||state.gardenDesign;
+  if(previousActivityAppearance!==activity?.appearance){
+    previousActivityAppearance=activity?.appearance;activityWeatherSince=clock.getTime();
+  }
+  app.classList.toggle('evening-layout',activePanel==='evening-lights'&&Boolean(activity)&&!viewed);
   effectiveAppearance=viewed?loadAppearance({...viewed.appearance,lighting:viewed.appearance.lighting==='session'?'day':viewed.appearance.lighting,weatherSince:clock.getTime()}):
+    activity?loadAppearance({...activity.appearance,weatherSince:activityWeatherSince}):
     scheduledAppearance(state.appearance,state.gardenSchedule,clock);
   if(paintedGardenDesign!==design){
     applyGardenDesign($('#landscape .world'),design);
@@ -836,7 +845,7 @@ function render(){
   }
   const activePreset=$('#garden-active-preset');
   if(activePreset){
-    const label=effectiveAppearance.time?`Active since ${timeLabel(timeMinutes(effectiveAppearance.time))} · ${seasonOptions[effectiveAppearance.season].name} · ${lightingOptions[effectiveAppearance.lighting]}`:'Manual appearance';
+    const label=!viewed&&activity?`Activity layout · ${activity.name}`:effectiveAppearance.time?`Active since ${timeLabel(timeMinutes(effectiveAppearance.time))} · ${seasonOptions[effectiveAppearance.season].name} · ${lightingOptions[effectiveAppearance.lighting]}`:'Manual appearance';
     if(activePreset.textContent!==label)activePreset.textContent=label;
   }
   const t=state.timer, overtime=t.status==='overtime';
@@ -1157,21 +1166,22 @@ function openGardenStudio(){
   visitWorkspace('focus');
   openPanel('garden-studio',$('#edit-current-landscape'));
 }
-function saveStudioLayouts(layouts,applied){
-  const {gardenLayouts,gardenDesign,appearance,gardenSchedule}=state;
+function saveStudioLayouts(layouts,applied,assignments=state.gardenActivityLayouts){
+  const {gardenLayouts,gardenDesign,appearance,gardenSchedule,gardenActivityLayouts}=state;
   state.gardenLayouts=layouts;
+  state.gardenActivityLayouts=loadGardenActivityLayouts(assignments,layouts);
   if(applied){
     state.gardenDesign=applied.design;
     state.appearance=loadAppearance(applied.appearance);
     state.gardenSchedule={...gardenSchedule,enabled:false};
   }
-  if(!persist()){Object.assign(state,{gardenLayouts,gardenDesign,appearance,gardenSchedule});return false;}
+  if(!persist()){Object.assign(state,{gardenLayouts,gardenDesign,appearance,gardenSchedule,gardenActivityLayouts});return false;}
   if(applied){
     snapshotThrough='';snapshotLayoutId='';
     renderedGardenGrowth=null;
     updateGardenSnapshotLabel();
-    render();
   }
+  render();
   return true;
 }
 function openGardenCourse(id,anchor){
@@ -1536,6 +1546,7 @@ function openEveningLights(){
   positionEveningCamera();
   openPanel('evening-lights',$('[data-panel="progress"]'));
   app.classList.add('evening-view');
+  render();
   const heading=$('#panel-title');heading.tabIndex=-1;heading.focus({preventScroll:true});
 }
 function saveShutdownSteps(form){
@@ -2844,7 +2855,8 @@ function closePanel(restore=true){
   if(restore&&returnToCaptureInbox&&(['capture-project','capture-link'].includes(activePanel)||activePanel==='task-editor'&&taskDraft?.captureKey)){
     returnToCaptureInbox=false;openCaptureInbox(false);return;
   }
-  app.classList.remove('evening-view');
+  const wasEvening=activePanel==='evening-lights';
+  app.classList.remove('evening-view','evening-layout');
   if(activePanel==='garden-landmark')landmarkPanelSize.disconnect();
   const p=visiblePanel();if(p){if(p.id==='music-panel'){p.classList.add('music-hidden');p.setAttribute('aria-hidden','true');p.inert=true;p.querySelector('h2').id='music-hidden-title';p.setAttribute('aria-labelledby','music-hidden-title');}else p.remove();}
   if(lastAnchor){
@@ -2857,7 +2869,9 @@ function closePanel(restore=true){
   }
   if(selectedLandmark!==null)$(`[data-garden-landmark="${selectedLandmark}"]`)?.classList.remove('landmark-selected');
   selectedLandmark=null;
-  activePanel=null;wake();
+  activePanel=null;
+  if(wasEvening)render();
+  wake();
 }
 function refreshPanel(){
   if(activePanel==='garden-studio')return;
@@ -5582,5 +5596,5 @@ durationForm.onsubmit=e=>{
 
 
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
-function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:1-remaining(state)/t.total,motionPreference.matches,activePanel==='evening-lights'?'night':effectiveAppearance.lighting,effectiveAppearance.motion);requestAnimationFrame(environmentFrame);}
+function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:1-remaining(state)/t.total,motionPreference.matches,activePanel==='evening-lights'&&(!activityGardenLayout()||effectiveAppearance.lighting==='session')?'night':effectiveAppearance.lighting,effectiveAppearance.motion);requestAnimationFrame(environmentFrame);}
 requestAnimationFrame(environmentFrame);

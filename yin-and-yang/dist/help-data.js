@@ -698,6 +698,15 @@ export const helpTopics = [
     action:'crochet', actionLabel:'Open Stitchbook', related:['yarn','shopping-list','journal','daily-rituals'], keywords:'stitchbook crochet hours duration log time pattern hook rows'
   },
   {
+    id:'checkpoint-photos',group:'Stitchbook',title:'Attach progress photos to checkpoints',
+    summary:'Keep a reference picture of a sleeve, seam, or stitch repeat with your resume note.',
+    steps:['In Crochet, open a project’s Checkpoints. Add a resume note and choose up to three JPEG, PNG, or WebP photos before saving.',
+      'For a saved checkpoint, choose Add photos or View / edit photos. Use Remove photo and Save photos to remove or replace an image.',
+      'On the project card, expand Latest checkpoint photos under Resume here to see the most recent checkpoint’s images.'],
+    tip:'Photos are resized and stored on this device. Stitchbook backups include the resized copies.',
+    action:'crochet',actionLabel:'Open Stitchbook',related:['crochet-projects','backup']
+  },
+  {
     id:'shopping-list', group:'Stitchbook', title:'Work out what yarn to buy',
     summary:'See yarn shortages by colorway across planned and in-progress projects.',
     steps:['In Stitchbook, add yarn to the stash. Enter zero grams on hand for a colorway you still need to buy.',
@@ -751,6 +760,16 @@ export const helpTopics = [
       'Choose `Download postcard` in Studio, or `Export view` while viewing a saved layout. Add a caption to include it in the PNG.'],
     tip:'Backups include the live Garden design and your saved layouts.',
     action:'garden-studio',actionLabel:'Open Garden Studio',related:['appearance','garden-growth','garden-postcard','backup']
+  },
+  {
+    id:'activity-layouts',group:'Make it yours',title:'Switch Garden layouts by activity',
+    summary:'Give Focus, Rest, and Shutdown their own saved Studio scenes.',
+    steps:['In Garden, choose Edit landscape. Save each scene you want to use in Studio.',
+      'Under Layout by activity, select a saved layout for Focus, Rest, or Shutdown. The assignment saves immediately.',
+      'Focus and Rest follow the timer mode. Shutdown appears when you open Evening lights and returns to the timer mode’s scene when you close it.',
+      'Choose Default Garden to clear an assignment. Save and apply updates the default Garden.'],
+    tip:'Activity layouts use their saved scenery and appearance with current landmarks. Backups include the assignments in Garden & focus.',
+    action:'garden-studio',actionLabel:'Open Garden Studio',related:['garden-studio','evening-lights','backup']
   },
   {
     id:'garden-postcard',group:'Make it yours',title:'Export a Garden postcard',

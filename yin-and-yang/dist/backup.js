@@ -207,7 +207,7 @@ export function planBackupRestore(storage,current,incoming,sections){
     stateList(apply,'weeklyReflections','Weekly reflections',item=>item.week);
     if(apply)writes.set(JOURNAL_KEY,JSON.stringify(records));
   });
-  section('stitchbook','Stitchbook','Projects, yarn, usage, and crochet logs.',apply=>{
+  section('stitchbook','Stitchbook','Projects, checkpoint photos, yarn, usage, and crochet logs.',apply=>{
     const local=loadCrochet(storage);
     const fields={projects:'Projects',yarn:'Yarn',usage:'Yarn usage',timeLog:'Time logs'};
     const records=Object.fromEntries(Object.entries(fields).map(([key,label])=>[key,merge(label,local[key],incoming.crochet[key])]));
@@ -220,7 +220,7 @@ export function planBackupRestore(storage,current,incoming,sections){
     stateList(apply,'gardenLooks','Saved Garden looks');
     stateList(apply,'soundtracks','Saved soundtracks');
     stateList(apply,'gardenLayouts','Saved Studio layouts');
-    const keys=['settings','appearance','gardenSchedule','gardenDesign','sounds','notifications','intention','spotify','youtube','mediaSource','focusOvertime','focusMode','replanCutoff','studyCapacity','planningCooldown','shutdownSteps','shutdownProgress'];
+    const keys=['settings','appearance','gardenSchedule','gardenDesign','gardenActivityLayouts','sounds','notifications','intention','spotify','youtube','mediaSource','focusOvertime','focusMode','replanCutoff','studyCapacity','planningCooldown','shutdownSteps','shutdownProgress'];
     const changes=keys.filter(key=>comparable(current[key])!==comparable(incoming.state[key]))
       .map(key=>backupConflict(fieldLabel(key),current[key],incoming.state[key]));
     details.push({label:'Preferences',added:0,replaced:changes.length,unchanged:keys.length-changes.length,changes});
@@ -234,7 +234,9 @@ export function applyBackupRestore(storage,plan){writeBackupChanges(storage,plan
 
 const escape=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
 const fieldLabel=field=>field.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^./,char=>char.toUpperCase());
-function conflictValue(value){
+function conflictValue(value,field){
+  if(field==='checkpoints'&&Array.isArray(value))value=value.map(point=>({...point,
+    ...(point.photos?.length&&{photos:point.photos.map(photo=>photo.name)})}));
   if(value===undefined)return 'Missing';
   if(value===null||value==='')return 'Empty';
   if(typeof value==='boolean')return value?'Yes':'No';
@@ -245,7 +247,7 @@ function backupRecordMarkup(change){
   return `<li><details class="backup-conflict"><summary>Replace ${escape(change.title)}</summary>
     <table aria-label="Changed fields"><thead><tr><th scope="col">Field</th><th scope="col">Current</th><th scope="col">Incoming</th></tr></thead>
       <tbody>${change.fields.map(({field,current,incoming})=>`<tr><th scope="row">${escape(fieldLabel(field))}</th>
-        <td><pre>${conflictValue(current)}</pre></td><td><pre>${conflictValue(incoming)}</pre></td></tr>`).join('')}</tbody>
+        <td><pre>${conflictValue(current,field)}</pre></td><td><pre>${conflictValue(incoming,field)}</pre></td></tr>`).join('')}</tbody>
     </table></details></li>`;
 }
 
