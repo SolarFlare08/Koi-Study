@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'3.13.1',date:'2026-11-16',title:'Clearer workspace navigation',changes:[
+    'Improve label and icon contrast on the bottom navigation, including Calendar’s Day, Dusk, and Night themes and the compact More menu.'
+  ]},
   {version:'3.13.0',date:'2026-11-16',title:'Repeating calendar entries and flexible rituals',changes:[
     'Create a task or an event from the same Calendar editor. Switch the type on existing events and standalone tasks.',
     'Repeat events and tasks, and choose custom colors by picker or hex with a live Calendar preview.',

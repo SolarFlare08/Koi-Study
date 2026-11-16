@@ -159,8 +159,6 @@
 #app[data-lighting="day"] .task-detail-panel :is(.task-detail-properties,.task-detail-property,.panel-header,.task-detail-section,.task-detail-footer) { border-color: var(--surface-line); }
 #app[data-lighting="day"] .task-detail-properties { background: #e0ede8; }
 #app[data-lighting="day"] .task-detail-check:hover, #app[data-lighting="day"] .task-detail-check[aria-pressed="true"] { background: #c1ded1; }
-#app[data-lighting="day"] #workspace-tabs button[aria-pressed="true"] { background: #d3e6dd; border-color: #88aea0; }
-#app[data-lighting="day"] #workspace-tabs button[aria-pressed="true"] svg { color: var(--surface-accent); }
 @media(max-width:410px) {
   #app .topbar { column-gap: 4px; padding-inline: 9px; }
   #app .topbar #objects { gap: 1px; }

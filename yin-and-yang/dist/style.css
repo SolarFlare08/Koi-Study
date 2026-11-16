@@ -407,18 +407,26 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
   z-index: 7;
 }
 #workspace-tabs {
+  --workspace-paper: var(--surface-paper);
+  --workspace-ink: var(--surface-ink);
+  --workspace-muted: var(--surface-muted);
+  --workspace-line: var(--surface-line);
+  --workspace-hover: var(--surface-raised);
+  --workspace-selected: var(--surface-accent);
+  --workspace-selected-ink: var(--surface-field);
   position: absolute;
   z-index: 7;
   bottom: max(12px,env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
+  inset-inline: 0;
+  margin-inline: auto;
+  width: max-content;
   display: flex;
   gap: 3px;
   max-width: calc(100% - 24px);
   padding: 4px;
-  border: 1px solid color-mix(in srgb,var(--surface-line) 66%,transparent);
+  border: 1px solid var(--workspace-line);
   border-radius: 13px;
-  background: color-mix(in srgb,var(--surface-paper) 87%,transparent);
+  background: var(--workspace-paper);
 }
 #workspace-tabs button {
   display: flex;
@@ -430,12 +438,18 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
   border: 1px solid transparent;
   border-radius: 8px;
   font-size: 12px;
-  color: var(--surface-muted);
+  font-weight: 550;
+  color: var(--workspace-muted);
 }
 #workspace-tabs button svg { width: 14px; height: 14px; }
-#workspace-tabs button:hover, #workspace-tabs button[aria-pressed="true"] { color: var(--surface-ink); }
-#workspace-tabs button[aria-pressed="true"] { background: #304b59; border-color: #47676e; }
-#workspace-tabs button[aria-pressed="true"] svg { color: #add8c6; }
+#workspace-tabs button:hover, #workspace-tabs #workspace-more[aria-expanded="true"] {
+  color: var(--workspace-ink); background: var(--workspace-hover);
+}
+#workspace-tabs button[aria-pressed="true"],
+#workspace-tabs #workspace-more.workspace-more-current {
+  color: var(--workspace-selected-ink); background: var(--workspace-selected);
+}
+#workspace-tabs button:focus-visible { outline: 2px solid var(--workspace-selected); outline-offset: 1px; }
 #objects {
   grid-column: 2;
   grid-row: 1;

@@ -26,7 +26,7 @@ export const helpTopics = [
       'Open `Tools` for timer settings, appearance, quick notes, music and video, the Field Guide, and Help.',
       'Use Planner for task lists, projects, reviews, and reports. Calendar is the full schedule shared with Planner and the Garden’s 5-hour calendar.',
       'Choose `Search` or press `Ctrl+K` to search across tasks, sticky notes, books, and journal entries, or run a command.'],
-    tip:'Open this guide from the floating Help button, press F1, or search for Help in Ctrl+K.',
+    tip:'The filled tab marks your current workspace. On small screens, More stays highlighted while a workspace in its menu is active. Open Help with F1 or find it in Ctrl+K.',
     related:['search','calendar','backup']
   },
   {

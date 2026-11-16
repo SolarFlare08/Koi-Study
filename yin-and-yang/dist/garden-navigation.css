@@ -21,7 +21,7 @@
 #garden-tools:is(:hover,[aria-expanded="true"]), #open-command-palette:hover {
   border-color: var(--surface-accent); background: var(--surface-raised);
 }
-.garden-action:focus-visible, #workspace-tabs button:focus-visible { outline-color: var(--surface-accent); outline-offset: 2px; }
+.garden-action:focus-visible { outline-color: var(--surface-accent); outline-offset: 2px; }
 #garden-tools[aria-expanded="true"] svg, #workspace-more svg { rotate: 180deg; }
 #workspace-more[aria-expanded="true"] svg { rotate: 0deg; }
 #app.focus-view #garden-tools { display: none; }
@@ -49,7 +49,7 @@
 #workspace-tabs { align-items: center; gap: 5px; }
 .workspace-primary, #workspace-library { display: flex; gap: 3px; }
 #workspace-library {
-  padding-inline-start: 6px; margin-inline-start: 1px; border-inline-start: 1px solid var(--surface-line);
+  padding-inline-start: 6px; margin-inline-start: 1px; border-inline-start: 1px solid var(--workspace-line);
 }
 #workspace-tabs button { flex: none; white-space: nowrap; }
 #workspace-tabs .workspace-label { display: inline; }
@@ -65,14 +65,11 @@
 }
 @media(max-width:640px) {
   #workspace-tabs { overflow: visible; }
-  #workspace-tabs #workspace-more { display: inline-flex; border-inline-start-color: var(--surface-line); }
-  #workspace-tabs #workspace-more:is([aria-expanded="true"],.workspace-more-current) {
-    color: var(--surface-ink); border-color: var(--surface-line); background: var(--surface-raised);
-  }
+  #workspace-tabs #workspace-more { display: inline-flex; }
   #workspace-library {
     display: none; position: absolute; right: 0; bottom: calc(100% + 7px); width: min(252px,calc(100vw - 22px));
-    gap: 3px; padding: 5px; margin: 0; border: 1px solid var(--surface-line); border-radius: 11px;
-    background: var(--surface-paper); box-shadow: 0 10px 26px #12223354;
+    gap: 3px; padding: 5px; margin: 0; border: 1px solid var(--workspace-line); border-radius: 11px;
+    background: var(--workspace-paper); box-shadow: 0 10px 26px #12223354;
   }
   #workspace-more[aria-expanded="true"] + #workspace-library { display: grid; }
   #workspace-library button {
@@ -80,7 +77,7 @@
     text-align: left; min-height: 44px; padding: 6px 8px;
   }
   #workspace-library button > span:first-child { display: inline-flex; grid-row: span 2; align-self: center; }
-  #workspace-library small { display: block; grid-column: 2; color: var(--surface-muted); font-size: 10px; white-space: normal; }
+  #workspace-library small { display: block; grid-column: 2; color: inherit; font-size: 10px; white-space: normal; }
 }
 @media(max-width:350px) {
   #workspace-tabs button { padding-inline: 6px; }
