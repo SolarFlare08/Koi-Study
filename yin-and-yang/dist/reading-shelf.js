@@ -1,5 +1,5 @@
 import {installReadingDiscussion} from './reading-discussion.js';
-import {collectionKinds,loadReadingCollections,readingDay,relinkReadingCollections,rereadRecord,reviewChapter,validReadingDay,bookRating,ratingTier} from './reading-progress.js';
+import {collectionKinds,loadReadingCollections,readingDay,relinkReadingCollections,rereadRecord,reviewChapter,validReadingDay,bookRating,ratingTier,radiantRatingLabels} from './reading-progress.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const normalized=value=>String(value??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
@@ -271,7 +271,7 @@ const bookStatus=book=>book.finished?'finished':book.library?.status||(book.entr
 const statusLabels={...libraryStatuses,finished:'Finished'};
 function bookMonogram(title){return title.trim().split(/\s+/).slice(0,2).map(word=>Array.from(word)[0]).join('').toUpperCase();}
 const coverNumber=book=>Array.from(book.id).reduce((sum,char)=>(sum+char.codePointAt(0))%5,0);
-const bookAttributes=book=>`data-tier="${ratingTier(book.finished?.rating)}" data-cover="${coverNumber(book)}" ${book.finished?.rating===6?'data-perfect':''}`;
+const bookAttributes=book=>`data-tier="${ratingTier(book.finished?.rating)}" data-cover="${coverNumber(book)}"`;
 function coverArt(book){
   return `<span class="reading-cover" ${bookAttributes(book)}>
     <span class="reading-cover-foil" aria-hidden="true">${escape(bookMonogram(book.title))}</span>
@@ -440,7 +440,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
       `<p>${query?'No books match your search.':filter!=='all'?'No books on this shelf yet.':'Add a book to start your library.'}</p>`;
     if(!details.open)return;
     if(review){
-      details.dataset.tier='unrated';delete details.dataset.perfect;
+      details.dataset.tier='unrated';
       history.innerHTML=`<h3 id="reading-detail-title">Review queue</h3>${due.length?noteList(due,true):'<p>No chapter reviews due today.</p>'}
         ${upcoming.length?`<h4>Upcoming reviews</h4><ul>${upcoming.map(note=>`<li>${escape(note.bookTitle)} · ${escape(note.chapter)} · ${formatDay(note.reviewDue)}</li>`).join('')}</ul>`:''}`;
       return;
@@ -453,10 +453,11 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     const memberships=getCollections().filter(group=>group.books.includes(current.id));
     const chips=current.chapters.map(chapter=>`<li>${escape(chapter)}</li>`).join('');
     const rating=current.finished?.rating;
-    details.dataset.tier=ratingTier(rating);details.toggleAttribute('data-perfect',rating===6);
+    const tier=ratingTier(rating),tierLabel=radiantRatingLabels[tier];
+    details.dataset.tier=tier;
     history.innerHTML=`<header class="reading-detail-hero">
       ${coverArt(current)}
-      <div><p class="reading-detail-state">${statusLabels[bookStatus(current)]}</p>
+      <div><p class="reading-detail-state">${statusLabels[bookStatus(current)]}${tierLabel?' · '+tierLabel:''}</p>
         <h3 id="reading-detail-title">${escape(current.title)}</h3>${current.author?`<p class="reading-author">${escape(current.author)}</p>`:''}
         ${stars(rating)}
         ${!current.finished&&current.library?.totalPages?`<p>${current.library.totalPages} pages</p>`:''}

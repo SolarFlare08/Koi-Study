@@ -664,6 +664,11 @@ button.project-context-item:hover { color: var(--planner-accent); }
   margin-inline-start: auto; flex: none; padding: 4px 7px; border-radius: 7px; color: var(--surface-accent);
   background: var(--surface-field); font-size: 11px; max-width: 52%; overflow-wrap: anywhere;
 }
+.landmark-panel .landmark-memento[data-book-tier="crystal"] { border-color: #68af9f; }
+.landmark-panel .landmark-memento[data-book-tier="crystal"] .landmark-result { background: #19544f; color: #d7ffed; }
+.landmark-panel .landmark-memento[data-book-tier="aurora"] { border-color: #d48bce; box-shadow: inset 0 0 0 1px #e7a8d55a; }
+.landmark-panel .landmark-memento[data-book-tier="aurora"] .landmark-result { background: #623665; color: #ffe5ae; }
+.landmark-result small { display: block; font-size: 9px; font-weight: 500; }
 .landmark-dates { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 0; }
 .landmark-dates div { flex: 1 0 auto; }
 .landmark-dates dt { font-size: 10px; color: var(--surface-muted); }

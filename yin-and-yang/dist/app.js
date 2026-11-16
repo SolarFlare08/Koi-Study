@@ -17,6 +17,7 @@ import {comparisonPostcardPng,postcardPng} from './garden-postcard.js';
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
+import {ratingTier,radiantRatingLabels} from './reading-progress.js';
 import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,mergeShelfBooks,readingShelf,saveLibraryBook} from './reading-shelf.js';
 import {installBackup} from './backup.js';
 import {dailyRitualMarkup,ritualComplete,rituals} from './daily-rituals.js';
@@ -1237,13 +1238,14 @@ function gardenLandmarkMarkup(){
   const date=(label,day)=>`<div><dt>${label}</dt><dd><time datetime="${day}">${landmarkDate(day)}</time></dd></div>`;
   const outcome=exam?.result?.score??item.result;
   const note=(exam?.result?.reflection??item.detail)||finished?.takeaway;
+  const tier=ratingTier(finished?.rating),tierLabel=radiantRatingLabels[tier];
   return `${header(type.event,escape(book?.title||project?.name||exam?.title||item.title))}
     <div class="landmark-panel-body" role="region" aria-label="Landmark details" tabindex="0">
       <p id="landmark-save-status" hidden></p>
-      <div class="landmark-memento">
+      <div class="landmark-memento" ${tierLabel?`data-book-tier="${tier}"`:''}>
         <div class="landmark-summary"><div class="landmark-emblem" aria-hidden="true">${icon(type.mark)}</div>
           ${book?.author?`<p class="landmark-byline">${escape(book.author)}</p>`:`<p class="landmark-byline">${type.name}</p>`}
-          ${finished?`<strong class="landmark-result" aria-label="${finished.rating?`Rating ${finished.rating} out of 5`:'Unrated'}">${finished.rating?`<span aria-hidden="true">★</span> ${finished.rating} / 5`:'Unrated'}</strong>`:
+          ${finished?`<strong class="landmark-result" aria-label="${finished.rating?`Rating ${finished.rating} out of 5${tierLabel?', '+tierLabel:''}`:'Unrated'}">${finished.rating?`<span aria-hidden="true">${tier==='aurora'?'✦':'★'} ${finished.rating} / 5</span>${tierLabel?`<small aria-hidden="true">${tierLabel}</small>`:''}`:'Unrated'}</strong>`:
             outcome?`<strong class="landmark-result">${escape(outcome)}</strong>`:''}</div>
         <dl class="landmark-dates">${firstLog?date('First logged',firstLog):''}
           ${date(item.kind==='test'?'Completed':item.kind==='milestone'?'Reached':'Finished',finish)}</dl>

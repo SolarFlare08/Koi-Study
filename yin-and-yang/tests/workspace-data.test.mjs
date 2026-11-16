@@ -54,7 +54,7 @@ test('course skies connect earned exams in date order and keep legacy and standa
 });
 import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from '../dist/day-recap.js';
 import {remainingProjectWork} from '../dist/project-planning.js';
-import {reviewChapter} from '../dist/reading-progress.js';
+import {reviewChapter,ratingTier} from '../dist/reading-progress.js';
 import {needsRetry} from '../dist/mistake-notebook.js';
 import {bundleProgress,loadTaskBundles} from '../dist/task-bundles.js';
 import {entriesInWeek,journalAnniversaries,journalFacets,journalLabels,journalWeek,matchingJournal} from '../dist/journal-patterns.js';
@@ -614,6 +614,9 @@ test('Reading keeps standalone library books, fractional reviews and rereads in 
     rereads:[{id:'reread',finishedOn:'2026-11-16',rating:6}]});
   let restored=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state;
   assert.equal(restored.finishedBooks[0].rating,5.7);
+  assert.equal(ratingTier(5),'crystal');
+  assert.equal(ratingTier(5.9),'crystal');
+  assert.equal(ratingTier(6),'aurora');
   assert.equal(restored.finishedBooks[0].rereads[0].rating,6);
   assert.deepEqual(restored.libraryBooks,state.libraryBooks);
   const edit=editFinishedBook(restored,'review',{title:'The personal library',rating:6,totalPages:410});

@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'3.10.1',date:'2026-11-16',title:'A distinctive 6/5 cover',changes:[
+    'Give 5–5.9/5 books a teal Crystal finish and reserve violet, gold, and starlight for 6/5 Aurora books.',
+    'Show both tiers in Garden lantern details.'
+  ]},
   {version:'3.10.0',date:'2026-11-16',title:'A personal Reading library',changes:[
     'Add books directly to a visual bookshelf and sort or filter by reading status.',
     'Use fractional stars and a bonus 6/5 rating for book reviews and rereads. Covers earn different borders and crystal books shimmer on opening.',

@@ -44,8 +44,10 @@ export function bookRating(value){
 }
 
 export function ratingTier(rating){
-  return rating>=5?'crystal':rating>=4?'gold':rating>=3?'silver':rating>=2?'bronze':rating>=1?'dud':'unrated';
+  return rating===6?'aurora':rating>=5?'crystal':rating>=4?'gold':rating>=3?'silver':rating>=2?'bronze':rating>=1?'dud':'unrated';
 }
+
+export const radiantRatingLabels={crystal:'Crystal',aurora:'Aurora'};
 
 export function rereadRecord(item){
   if(typeof item?.id!=='string'||!item.id||!validReadingDay(item.finishedOn))return null;

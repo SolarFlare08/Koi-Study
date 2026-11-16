@@ -652,8 +652,8 @@ export const helpTopics = [
     summary:'Give books fractional stars or reserve 6/5 for a favorite.',
     steps:['Open a finished book from Reading and choose Write final review or Edit final review.',
       'Enter a rating from 1 to 6. Type a decimal like 4.7, or use a quick rating button. The extra sparkle gives you 6/5. Save finished book to update the cover.',
-      'Cover borders change by rating. 1–1.9 is the dud tier, 2–2.9 is bronze, 3–3.9 is silver, 4–4.9 is gold, and 5–6 is crystal. The final rating sets the cover; rereads keep their own ratings.'],
-    tip:'Crystal covers shimmer when you open a book. Reading respects the system’s reduced-motion setting.',
+      'Cover borders change by rating. 1–1.9 is the dud tier, 2–2.9 is bronze, 3–3.9 is silver, 4–4.9 is gold, 5–5.9 is teal Crystal, and exactly 6/5 earns the violet-and-gold Aurora tier. The final rating sets the cover; rereads keep their own ratings.'],
+    tip:'Crystal and Aurora covers shimmer when you open a book. Its Garden lantern also shows the tier. Reading respects the system’s reduced-motion setting.',
     action:'reading',actionLabel:'Open Reading',related:['reading-shelf','finished-books']
   },
   {
