@@ -3,15 +3,21 @@ import {loadAppearance} from './garden-appearance.js';
 export const gardenPieceOptions={
   mountains:{classic:'Layered peaks',rounded:'Soft ridges',highlands:'Distant highlands'},
   shoreline:{classic:'Reed banks',inlet:'Stone inlet',meadow:'Low meadow'},
-  pavilion:{pagoda:'Lakeside pagoda',tea:'Tea shelter',gate:'Moon gate'},
-  path:{none:'No path',stones:'Stepping stones',lanterns:'Lantern path'}
+  pavilion:{pagoda:'Lakeside pagoda',tiered:'Three-tier pagoda',tea:'Tea shelter',gate:'Moon gate',vermilion:'Vermilion pavilion',bell:'Stone bell tower'},
+  foundation:{auto:'Match the shore',stone:'Stone outcrop',timber:'Timber landing'},
+  boat:{seasonal:'Changes with season',junk:'Junk under sail',sampan:'Covered sampan',skiff:'Reed skiff',lotus:'Lotus ferry',none:'Quiet lake'},
+  lantern:{classic:'Small oval',silk:'Round silk',hex:'Hexagonal bronze',paper:'Paper cylinder',none:'No lantern'},
+  path:{none:'No path',stones:'Stepping stones',lanterns:'Lantern path',boardwalk:'Timber boardwalk'}
 };
 export const gardenCameras={
   wide:{name:'Full landscape',viewBox:[0,0,1600,900]},
   lake:{name:'Across the lake',viewBox:[155,171,1280,720]},
   east:{name:'Pagoda shore',viewBox:[426,229,1152,648]}
 };
-export const defaultGardenDesign={mountains:'classic',shoreline:'classic',pavilion:'pagoda',path:'none',camera:'wide',placements:{}};
+export const defaultPavilionPosition={x:1096,y:615};
+export const defaultGardenDesign={mountains:'classic',shoreline:'classic',pavilion:'pagoda',foundation:'auto',
+  boat:'seasonal',lantern:'classic',path:'none',camera:'wide',pavilionPosition:null,placements:{}};
+export const pavilionBounds={x:[90,1510],y:[557,848]};
 export const gardenStarterLayouts={
   spring:{name:'Blossom walk',design:{mountains:'rounded',shoreline:'meadow',pavilion:'gate',path:'stones',camera:'wide'},
     appearance:{season:'spring',lighting:'day',weather:'petals'}},
@@ -26,9 +32,9 @@ export const placementBounds={x:[65,1535],y:[558,870]};
 export const movableGardenLandmark=item=>['project','book','milestone'].includes(item?.kind);
 export const gardenLandmarkKey=item=>JSON.stringify([item.kind,item.sourceId]);
 
-export function clampGardenPlacement(x,y){
+export function clampGardenPlacement(x,y,bounds=placementBounds){
   return Object.fromEntries(Object.entries({x,y}).map(([axis,value])=>{
-    const [min,max]=placementBounds[axis];
+    const [min,max]=bounds[axis];
     return [axis,Math.round(Math.max(min,Math.min(max,value)))];
   }));
 }
@@ -36,6 +42,9 @@ export function loadGardenDesign(value){
   const design={...defaultGardenDesign,placements:{}};
   for(const [piece,options] of Object.entries(gardenPieceOptions)){
     if(Object.hasOwn(options,value?.[piece]))design[piece]=value[piece];
+  }
+  if(Number.isFinite(value?.pavilionPosition?.x)&&Number.isFinite(value.pavilionPosition.y)){
+    design.pavilionPosition=clampGardenPlacement(value.pavilionPosition.x,value.pavilionPosition.y,pavilionBounds);
   }
   if(Object.hasOwn(gardenCameras,value?.camera))design.camera=value.camera;
   for(const [key,point] of Object.entries(value?.placements||{})){

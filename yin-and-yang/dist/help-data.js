@@ -752,9 +752,9 @@ export const helpTopics = [
   },
   {
     id:'garden-studio',group:'Make it yours',title:'Build a landscape in Garden Studio',
-    summary:'Swap scenery, frame the lake, move landmarks, and save separate layouts.',
-    steps:['On the Garden home screen, choose `Edit landscape`. Start from the live Garden, a seasonal starter layout, or a saved layout. Choose mountains, shoreline, a building, and a path. Change `View` to frame the lake or pagoda shore. Preview a season, palette, lighting, and weather alongside the scenery.',
-      'Under `Move a landmark`, select a tree, lantern, or cairn. Click the preview, drag its pin, or use the sliders with the arrow keys. `Reset this landmark` returns it to automatic placement. Studio positions apply to that layout.',
+    summary:'Choose scenery, place the building and landmarks, and save separate layouts.',
+    steps:['On the Garden home screen, choose `Edit landscape`. Start from the live Garden, a seasonal starter layout, or a saved layout. Choose mountains, shoreline, and a path. Under Buildings, boats and lanterns, choose a building, its base, a boat, and a lantern style. Keep Changes with season for rotating boats or choose Quiet lake to hide the boat. Change `View` to frame the lake or pagoda shore. Preview a season, palette, lighting, and weather alongside the scenery.',
+      'Under `Move scenery`, select the building or an earned landmark. Click the preview, drag its pin, or use the arrow keys on the position sliders. Choose Match the shore for a low plinth on land and a stone outcrop over water. Reset position returns the selected object to its original spot.',
       'Enter a name and choose `Save layout` to keep it in your library. Use `Save and apply` to change the live Garden. Applying a layout pauses daily appearance presets. Use `Save a copy` to make a separate variation.',
       'Set `Archive landmarks through` to keep a semester view to the landmarks earned by that date. Applying that layout to the live Garden includes current landmarks. From the Field Guide, open a saved layout and use `Return to today` to leave the archived view.',
       'Choose `Download postcard` in Studio, or `Export view` while viewing a saved layout. Add a caption to include it in the PNG.'],

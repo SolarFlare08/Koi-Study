@@ -1,6 +1,6 @@
 import {ridge} from './daylight.js';
 import {snowbank} from './seasonal-scenery.js';
-const pavilionOrigin='1096 615';
+import {gardenLantern,placedPavilion} from './garden-ornaments.js';
 const middleRidge=ridge([[0,399],[63,358],[123,291],[163,280],[214,326],[278,395],[360,445],[458,458],[557,504],[712,524],[851,501],[966,475],[1040,438],[1105,384],[1155,318],[1195,308],[1249,351],[1309,401],[1394,424],[1509,457],[1600,436]]);
 const classicMountains=`<path fill="url(#far)" d="${ridge([[0,419],[105,370],[197,405],[291,335],[371,365],[439,414],[531,423],[620,464],[745,460],[822,474],[958,426],[1037,423],[1126,363],[1209,391],[1313,322],[1397,353],[1496,411],[1600,388]])}"/>
 <path fill="url(#middle)" d="${middleRidge}"/>
@@ -9,23 +9,6 @@ const classicMountains=`<path fill="url(#far)" d="${ridge([[0,419],[105,370],[19
 <path class="valley-fog" fill="url(#mist)" d="M0 405h1600v170H0z"/>
 <path fill="url(#near)" d="${ridge([[0,437],[65,417],[122,366],[153,351],[201,383],[259,453],[332,494],[428,518],[555,528],[698,550],[839,551],[955,534],[1065,510],[1163,491],[1245,453],[1308,415],[1345,417],[1401,451],[1488,473],[1600,491]])}"/>
 <path fill="url(#slope-wash)" d="M155 354C188 367 198 397 223 429C248 461 286 486 342 503C285 504 232 481 205 449C180 420 185 381 155 354ZM1343 421C1379 431 1400 460 1457 476C1486 485 1534 485 1578 498C1495 504 1442 494 1406 476C1370 457 1374 439 1343 421Z"/>`;
-const pagoda=`  <g transform="translate(${pavilionOrigin})">
-    <path d="M-21 0h48l8 4h-62Z" fill="#758f77"/>
-    <path d="M-14-35h30V0h-30Z" fill="#c7c3a0"/>
-    <path d="M-11-26h9v17h-9zm14 0h9v17H3z" fill="#728478"/>
-    <path d="M-13-33V0m27-33V0M1-33V0" stroke="#566d5b" stroke-width="2.5"/>
-    <path d="M-28-35q19-5 29-19 10 14 29 19-29 7-58 0Z" fill="var(--pavilion-roof,#456b62)"/>
-    <path d="M-27-35q29 4 57 0m-29-19v-5M22-34v8" fill="none" stroke="#6a8675"/>
-    <ellipse cx="22" cy="-23" rx="3" ry="4" fill="#ae7359"/>
-  </g>`;
-const pagodaLights=`    <g transform="translate(${pavilionOrigin})">
-      <ellipse cy="-17" rx="37" ry="28" fill="url(#lamp-halo)" opacity=".8"/>
-      <path d="M-11-26h9v17h-9zm14 0h9v17H3z" fill="#f9c583"/>
-      <path d="M-11-20h9m5 0h9" stroke="#a67150" stroke-width=".85"/>
-      <circle cx="22" cy="-23" r="16" fill="url(#lamp-halo)"/>
-      <ellipse cx="22" cy="-23" rx="2.8" ry="3.7" fill="#ffd39a"/>
-      <path d="M-10 26h24m-17 5h16m-20 6H3" stroke="#f7c58c" stroke-linecap="round" opacity=".34"/>
-    </g>`;
 const reedWest=`<path d="M0 630C39 639 61 654 88 686C115 719 138 727 176 733C202 737 223 747 241 756C252 762 244 768 227 771C203 775 176 782 159 794C137 808 141 824 158 842L210 900H0Z" fill="url(#shore)"/>
 <path d="M0 663C52 678 71 705 95 739C112 766 139 778 166 788C178 793 174 800 160 804C125 812 101 823 98 837C94 851 118 876 149 900H0Z" fill="url(#bank)"/>
 <path d="M115 724C139 737 165 739 189 745C213 750 233 757 239 762M237 776C205 780 175 788 156 805" fill="none" stroke="#b6c6a8" stroke-width="1.8" stroke-linecap="round" opacity=".65"/>`;
@@ -65,30 +48,21 @@ const meadowWest=`<path d="M0 652Q66 680 126 732Q166 756 251 769Q306 779 258 804
 const meadowEast=`<path d="M1600 759Q1544 778 1480 812Q1410 825 1343 837Q1286 844 1308 869Q1334 888 1394 900H1600Z" fill="url(#shore)"/>
   <path d="M1600 823Q1547 842 1496 865Q1468 881 1484 900H1600Z" fill="url(#bank)"/>
   <path d="M1364 857q71-7 124-30" fill="none" stroke="#c4d2a4" opacity=".57"/>`;
-const shelter=`<g transform="translate(${pavilionOrigin})">
-  <path d="M-37 0h77l8 4h-92Z" fill="#7c9380"/>
-  <path d="M-28-4v-28m17 28v-28M14-4v-28m17 28v-28" stroke="#455d4c" stroke-width="3.5"/>
-  <path d="M-40-29Q-32-37-22-43H23Q32-35 42-31Q0-24-40-29Z" fill="var(--pavilion-roof,#456b62)" stroke="#526e62"/>
-  <path d="M-14-12h25v4h-25zm3 4v4m20-4v4" fill="#ac9775" stroke="#796a57" stroke-width="1"/>
-  <ellipse cx="22" cy="-22" rx="3.2" ry="4.5" fill="#b9765b"/>
-</g>`;
-const gate=`<g transform="translate(${pavilionOrigin})">
-  <path d="M-33 2h66l4 3h-74Z" fill="#7a9584"/>
-  <path d="M-29 0v-23a29 29 0 0 1 58 0V0H17v-22a17 17 0 0 0-34 0V0Z" fill="#bcc4a9" stroke="#708775" stroke-width="2"/>
-  <path d="M-32-29Q-19-52 0-54Q19-52 32-29" fill="none" stroke="var(--pavilion-roof,#456b62)" stroke-width="4"/>
-  <path d="M-27-10h10m35 0h10" stroke="#d2d2b4"/>
-</g>`;
-const shelterLights=`<g transform="translate(${pavilionOrigin})">
-  <ellipse cx="22" cy="-22" rx="25" ry="19" fill="url(#lamp-halo)"/><ellipse cx="22" cy="-22" rx="3" ry="4" fill="#ffcc85"/>
-</g>`;
 const pathPoints=[[1049,630],[1061,627],[1075,624],[1087,622],[1100,624],[1113,625],[1127,624],[1142,621],[1155,617],[1171,613],[1185,610],[1198,606]];
-function shorePath(style){
+function shorePath(style,{lantern}){
   if(style==='none')return '';
+  if(style==='boardwalk'){
+    const deck='M1048 628C1084 615 1119 632 1150 619Q1174 607 1198 605';
+    return `<path d="${deck}" fill="none" stroke="#636e61" stroke-width="7" stroke-linecap="round"/>
+      <path d="${deck}" fill="none" stroke="#b8a484" stroke-width="5" stroke-linecap="round"/>
+      <path d="${deck}" fill="none" stroke="#776c59" stroke-width="5" stroke-dasharray=".8 3.2" opacity=".8"/>`;
+  }
   const stones=pathPoints.map(([x,y],index)=>`<ellipse cx="${x}" cy="${y}" rx="${index%2?5:6}" ry="1.9" fill="#c9c6a7" stroke="#697f71" stroke-width=".7"/>`).join('');
   if(style==='stones')return stones;
   return stones+[2,5,8,11].map(i=>{
     const [x,y]=pathPoints[i];
-    return `<g transform="translate(${x} ${y-2})"><ellipse cy="-4" rx="10" ry="8" fill="url(#lamp-halo)"/><path d="M-3 0v-7h6v7Z" fill="#d9a96e" stroke="#7c705b" stroke-width=".9"/><path d="M-4-7H4L0-10Z" fill="#536d60"/></g>`;
+    return lantern==='none'?'':`<path d="M${x} ${y-1}v-5" stroke="#6f7866" stroke-width="1.3"/>
+      ${gardenLantern(lantern,x,y-7,{lit:true,hanging:false,scale:.55})}`;
   }).join('');
 }
 
@@ -106,11 +80,14 @@ function shoreBank(name,side,options){
   const snow=name==='classic'?snowbank(side):`<path class="season-layer winter-scene" d="${bankSnow[name][side]}" fill="#e2edf0" opacity=".82"/>`;
   return options[name]+snow;
 }
+const pavilionKey=({foundation,lantern,pavilionPosition,shoreline})=>
+  [foundation,lantern,pavilionPosition?.x,pavilionPosition?.y,shoreline].join('|');
+
 export const gardenPieces={
   mountains:{option:'mountains',render:mountains},
   westBank:{option:'shoreline',render:name=>shoreBank(name,'left',{classic:reedWest,inlet:inletWest,meadow:meadowWest})},
   eastBank:{option:'shoreline',render:name=>shoreBank(name,'right',{classic:reedEast,inlet:inletEast,meadow:meadowEast})},
-  pavilion:{option:'pavilion',render:name=>({pagoda,tea:shelter,gate})[name]},
-  pavilionLights:{option:'pavilion',render:name=>({pagoda:pagodaLights,tea:shelterLights,gate:''})[name]},
-  path:{option:'path',render:shorePath}
+  pavilion:{option:'pavilion',key:pavilionKey,render:placedPavilion},
+  pavilionLights:{option:'pavilion',key:pavilionKey,render:(name,design)=>placedPavilion(name,design,true)},
+  path:{option:'path',key:design=>design.lantern,render:shorePath}
 };

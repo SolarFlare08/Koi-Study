@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'3.6.0',date:'2026-11-15',title:'More scenery in Garden Studio',changes:[
+    'Choose new buildings, boats, lanterns, and a timber boardwalk.',
+    'Move the building and choose how its foundation meets the shore or water.',
+    'Scenery choices and positions travel with saved layouts, postcards, and backups. Existing layouts retain their original settings.'
+  ]},
   {version:'3.5.0',date:'2026-11-15',title:'Checkpoint photos and Garden layouts by activity',changes:[
     'Attach up to three reference photos to a crochet checkpoint and reopen them when you resume.',
     'Assign saved Studio layouts to Focus, Rest, and the Evening lights shutdown checklist.',

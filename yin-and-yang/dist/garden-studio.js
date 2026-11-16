@@ -1,11 +1,15 @@
 import {gardenCameras,gardenPieceOptions,gardenStarterLayouts,gardenFrame,loadGardenDesign,loadGardenLayouts,
-  gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities} from './garden-layout.js';
+  gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds} from './garden-layout.js';
 import {loadAppearance,seasonOptions,lightingOptions,gardenPalettes,weatherBySeason} from './garden-appearance.js';
 import {gardenLandmarkPositions,mountGardenPreview} from './scenery.js';
 import {gardenCourses,landmarkTypes} from './garden-growth.js';
+import {pavilionFoundation,pavilionTransform} from './garden-ornaments.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-const pieceLabels={mountains:'Mountains',shoreline:'Shoreline',pavilion:'Building',path:'Path'};
+const buildingTarget='building';
+const pieceLabels={mountains:'Mountains',shoreline:'Shoreline',pavilion:'Building',foundation:'Building base',
+  boat:'Boat',lantern:'Lantern',path:'Path'};
+const waterfrontPieces=['pavilion','foundation','boat','lantern'];
 const options=values=>Object.entries(values).map(([key,label])=>`<option value="${escape(key)}">${escape(label)}</option>`).join('');
 const select=(name,label,values)=>`<label>${label}<select name="${name}">${options(values)}</select></label>`;
 
@@ -36,18 +40,22 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
           </div>
           <p class="studio-stage-help" data-studio-placement-tip></p>
           <div class="studio-landmarks">
-            <label>Move a landmark<select name="landmark"></select></label>
+            <label>Move scenery<select name="landmark"></select></label>
             <div class="studio-placement" hidden>
               <label>Left to right<input type="range" name="x" min="${placementBounds.x[0]}" max="${placementBounds.x[1]}"></label>
               <label>Back to front<input type="range" name="y" min="${placementBounds.y[0]}" max="${placementBounds.y[1]}"></label>
-              <button type="button" class="text-button" data-studio="automatic">Reset this landmark</button>
+              <button type="button" class="text-button" data-studio="automatic">Reset position</button>
+              <small class="studio-foundation-note" data-studio-foundation hidden></small>
             </div>
           </div>
         </div>
         <div class="studio-settings">
           <fieldset><legend>Scenery</legend><div class="studio-control-grid">
-          ${Object.entries(gardenPieceOptions).map(([key,values])=>select(key,pieceLabels[key],values)).join('')}
+          ${Object.entries(gardenPieceOptions).filter(([key])=>!waterfrontPieces.includes(key)).map(([key,values])=>select(key,pieceLabels[key],values)).join('')}
           ${select('camera','View',Object.fromEntries(Object.entries(gardenCameras).map(([key,item])=>[key,item.name])))}
+          </div></fieldset>
+          <fieldset><legend>Buildings, boats and lanterns</legend><div class="studio-control-grid">
+            ${waterfrontPieces.map(key=>select(key,pieceLabels[key],gardenPieceOptions[key])).join('')}
           </div></fieldset>
           <fieldset><legend>Season and light</legend><div class="studio-control-grid">
             ${select('season','Season',Object.fromEntries(Object.entries(seasonOptions).map(([key,item])=>[key,item.name])))}
@@ -119,13 +127,27 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   }
   function pointForSelected(){
     if(!selected)return null;
+    if(selected===buildingTarget)return draft.design.pavilionPosition||defaultPavilionPosition;
     const state=getState(),courses=gardenCourses(state.gardenGrowth,state.projects);
     const landmark=gardenLandmarkPositions(state.gardenGrowth,courses,draft.design.placements)
       .find(({item})=>gardenLandmarkKey(item)===selected);
     const [x,y]=landmark?.position||placementBounds.x;
     return landmark?clampGardenPlacement(x,y):null;
   }
-  function updatePin(point=pointForSelected()){
+  function selectedBounds(){return selected===buildingTarget?pavilionBounds:placementBounds;}
+  function savePosition(point){
+    if(selected===buildingTarget)draft.design.pavilionPosition=point;
+    else draft.design.placements[selected]=point;
+  }
+  function previewPosition(point){
+    if(selected===buildingTarget){
+      for(const id of ['pavilion','pavilionLights']){
+        scene.querySelector('[data-garden-piece="'+id+'"] > g').setAttribute('transform',pavilionTransform(point));
+      }
+    }
+    updatePin(point,true);
+  }
+  function updatePin(point=pointForSelected(),previewing=false){
     const stage=form.querySelector('.studio-stage'),pin=form.querySelector('.studio-pin');
     const [left,top,width,height]=gardenFrame(draft.design.camera);
     const visible=point&&point.x>=left&&point.x<=left+width&&point.y>=top&&point.y<=top+height;
@@ -135,18 +157,29 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       pin.style.top=`${(point.y-top)/height*100}%`;
     }
     form.querySelector('.studio-placement').hidden=!point;
-    if(point){
-      field('x').value=point.x;field('y').value=point.y;
-      form.querySelector('[data-studio="automatic"]').disabled=!Object.hasOwn(draft.design.placements,selected);
+    const building=selected===buildingTarget;
+    const support=form.querySelector('[data-studio-foundation]');
+    support.hidden=!building;
+    if(building){
+      const base=pavilionFoundation({...draft.design,pavilionPosition:previewing?point:draft.design.pavilionPosition});
+      support.textContent={land:'Low plinth · on land',stone:'Stone outcrop',timber:'Timber landing'}[base];
     }
-    form.querySelector('[data-studio-placement-tip]').textContent=!point?(field('landmark').options.length>1?'Select a landmark to place it on the preview.':'Earn a tree, lantern, or cairn to place it here.'):
+    if(point){
+      for(const axis of ['x','y']){
+        const input=field(axis),[min,max]=selectedBounds()[axis];
+        input.min=min;input.max=max;input.value=point[axis];
+      }
+      form.querySelector('[data-studio="automatic"]').disabled=!(building?draft.design.pavilionPosition:Object.hasOwn(draft.design.placements,selected));
+    }
+    form.querySelector('[data-studio-placement-tip]').textContent=!point?'Choose the building or an earned landmark to move it.':
       visible?'Click the scene or drag the pin. You can also use the position sliders.':'The pin is outside this view. Choose Full landscape or use the position sliders.';
   }
   function render(){
     const state=getState(),history=state.gardenGrowth,courses=gardenCourses(history,state.projects);
     const savedLandmarks=landmarks();
-    if(selected&&!savedLandmarks.some(item=>gardenLandmarkKey(item)===selected))selected='';
-    field('landmark').innerHTML='<option value="">Choose a tree, lantern, or cairn</option>'+
+    if(selected&&selected!==buildingTarget&&!savedLandmarks.some(item=>gardenLandmarkKey(item)===selected))selected='';
+    field('landmark').innerHTML='<option value="">Choose what to move</option>'+
+      options({[buildingTarget]:'Building · '+gardenPieceOptions.pavilion[draft.design.pavilion]})+
       options(Object.fromEntries(savedLandmarks.map(item=>[gardenLandmarkKey(item),landmarkTypes[item.kind].name+' · '+item.title])));
     field('landmark').value=selected;
     scene=mountGardenPreview(form.querySelector('.studio-scene'),loadAppearance(draft.appearance),
@@ -191,20 +224,20 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const stage=form.querySelector('.studio-stage');
     const eventPoint=event=>{
       const pane=form.querySelector('.studio-scene svg').getBoundingClientRect(),[left,top,width,height]=gardenFrame(draft.design.camera);
-      return clampGardenPlacement(left+(event.clientX-pane.left)/pane.width*width,top+(event.clientY-pane.top)/pane.height*height);
+      return clampGardenPlacement(left+(event.clientX-pane.left)/pane.width*width,top+(event.clientY-pane.top)/pane.height*height,selectedBounds());
     };
     stage.addEventListener('pointerdown',event=>{
       if(!selected||event.button!==0)return;
       drag={pointer:event.pointerId};
       stage.setPointerCapture(event.pointerId);
-      updatePin(eventPoint(event));
+      previewPosition(eventPoint(event));
     });
-    stage.addEventListener('pointermove',event=>{if(drag?.pointer===event.pointerId)updatePin(eventPoint(event));});
+    stage.addEventListener('pointermove',event=>{if(drag?.pointer===event.pointerId)previewPosition(eventPoint(event));});
     stage.addEventListener('pointerup',event=>{
       if(drag?.pointer!==event.pointerId)return;
-      draft.design.placements[selected]=eventPoint(event);drag=null;render();
+      savePosition(eventPoint(event));drag=null;render();
     });
-    stage.addEventListener('pointercancel',()=>{drag=null;updatePin();});
+    stage.addEventListener('pointercancel',()=>{if(drag){drag=null;render();}});
     form.addEventListener('input',event=>{if(event.target===field('layoutName'))field('layoutName').setCustomValidity('');});
     form.addEventListener('change',event=>{
       const {name,value}=event.target;
@@ -234,7 +267,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(name==='through'){if(!event.target.validity.valid)return;draft.through=value;render();return;}
       if(name==='x'||name==='y'){
         if(!selected)return;
-        draft.design.placements[selected]=clampGardenPlacement(Number(field('x').value),Number(field('y').value));
+        savePosition(clampGardenPlacement(Number(field('x').value),Number(field('y').value),selectedBounds()));
       }else if(Object.hasOwn(gardenPieceOptions,name)||name==='camera')draft.design[name]=value;
       else if(['season','lighting','palette','weather'].includes(name)){
         draft.appearance=loadAppearance({...draft.appearance,[name]:value});
@@ -252,7 +285,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
           for(const key of [...Object.keys(gardenPieceOptions),'camera'])field(key).value=draft.design[key];
           render();status('Scenery reset in this draft.');break;
         case 'automatic':
-          if(selected){delete draft.design.placements[selected];render();field('landmark').focus();}
+          if(selected===buildingTarget)draft.design.pavilionPosition=null;
+          else if(selected)delete draft.design.placements[selected];
+          render();field('landmark').focus();
           break;
         case 'export':exportDraft(button);break;
         case 'delete':

@@ -14,6 +14,7 @@ import {matchCommands} from '../dist/command-palette.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
+import {pavilionFoundation} from '../dist/garden-ornaments.js';
 import {defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
 import {eveningCamera,renderLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
 
@@ -534,4 +535,22 @@ test('Garden activities resolve independently, ignore missing layouts, and survi
   const target=memoryStorage();
   applyBackupRestore(target,planBackupRestore(target,freshState(),incoming,new Set(['garden'])));
   assert.deepEqual(loadState(target).gardenActivityLayouts,assignments);
+});
+
+test('movable Garden buildings use land and water foundations and keep their lights and options through backup',()=>{
+  const state=freshState();
+  const design=loadGardenDesign({pavilion:'tiered',boat:'junk',lantern:'hex',path:'boardwalk',pavilionPosition:{x:785,y:685}});
+  assert.equal(pavilionFoundation(design),'stone');
+  assert.equal(pavilionFoundation(loadGardenDesign({...design,pavilionPosition:{x:1260,y:601}})),'land');
+  assert.equal(pavilionFoundation(loadGardenDesign({...design,foundation:'timber'})),'timber');
+  assert.deepEqual(loadGardenDesign({...design,pavilionPosition:{x:1,y:10}}).pavilionPosition,{x:90,y:557});
+  const markup=renderLandscape(design);
+  assert.match(markup,/data-garden-piece="pavilion" data-variant="tiered"[^>]*><g transform="translate\(785 685\) scale\([^)]*\)" data-foundation="stone"/);
+  assert.match(markup,/data-garden-piece="pavilionLights" data-variant="tiered"[^>]*><g transform="translate\(785 685\)/);
+  assert.match(markup,/data-garden-piece="boat" data-variant="junk"/);
+  state.gardenDesign=design;
+  state.gardenLayouts=[{id:'lake',name:'A quieter lake',design:{...design,boat:'none'}}];
+  const {state:restored}=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[])));
+  assert.deepEqual(restored.gardenDesign,design);
+  assert.deepEqual(restored.gardenLayouts[0].design,{...design,boat:'none'});
 });

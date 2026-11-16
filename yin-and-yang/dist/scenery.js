@@ -2,6 +2,7 @@ export {blossomMarkup} from './landscape.js';
 import {daylight,blend,sunPosition} from './daylight.js';
 import {gardenFrame,gardenLandmarkKey,defaultGardenDesign} from './garden-layout.js';
 import {gardenPieces} from './garden-pieces.js';
+import {styledBoat} from './garden-ornaments.js';
 import {gardenWeather,sceneProgress,sceneryWeatherLayers} from './garden-appearance.js';
 import {alternateBoats,alternateBoatLights,mountainSnowCut,seasonalTree,shoreDetails,snowbank,weatherMarkup} from './seasonal-scenery.js';
 const boatOrigin='783 751';
@@ -157,14 +158,56 @@ function rock(x,y,scale,flip=1){
     <path d="M-29-12Q-21-14-16-20M4-5q10-3 19-4" stroke="#d4d5be" stroke-linecap="round" fill="none" opacity=".4"/>
   </g>`;
 }
-const pieceMarkup=(id,design)=>`<g data-garden-piece="${id}" data-variant="${design[gardenPieces[id].option]}">${gardenPieces[id].render(design[gardenPieces[id].option])}</g>`;
+const seasonalBoat=()=>`<g transform="translate(${boatOrigin})">
+  ${alternateBoats()}
+  <g class="season-layer summer-scene">
+  <ellipse cy="10" rx="50" ry="4" fill="#315e60" opacity=".2"/>
+  <ellipse class="boat-wake" cy="10" rx="48" ry="6" fill="none" stroke="#d2dcc9" opacity=".28"/>
+  <path d="M-63 10h19m83 4h20m-92 5h50" fill="none" stroke="#d9dec9" stroke-linecap="round" opacity=".38"/>
+  <g class="boat-bob">
+    <path d="M-32-2v-15q14-23 34-7L9-3Z" fill="#6d7b60"/>
+    <path d="M-30-15q13-20 32-8l4 7q-15-9-36 1Z" fill="#a7ad87"/>
+    <path d="M-25-4v-11q10-7 23-4L1-4Z" fill="#3e5d56"/>
+    <path d="M-30-16q12-7 32-7M-31-10q6-4 13-5" fill="none" stroke="#d0c9a2" stroke-width=".85" opacity=".65"/>
+    <path d="M-3-16v4" stroke="#344f46" stroke-width=".8"/>
+    <ellipse cx="-3" cy="-9" rx="3.2" ry="4" fill="#a87354"/>
+    <path d="M15-18q5-3 8 2l2 7 10 4h-20l-2-7Z" fill="#426760"/>
+    <path d="M20-15l7 5 5-2" fill="none" stroke="#416760" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="19" cy="-21" r="3" fill="#ab8c6c"/>
+    <path d="M9-22l9-6 9 5q-7 3-18 1Z" fill="#bfa77e"/>
+    <path d="M27-9q13-19 32-24" fill="none" stroke="#435d53" stroke-width="1.45" stroke-linecap="round"/>
+    <path d="M59-33q6 17 5 38" fill="none" stroke="#e9e3c5" stroke-width=".75" opacity=".76"/>
+    <path d="M-49-8Q-23 0 0-1q32 0 49-8Q44 1 34 7q-39 8-70 0Z" fill="#385f5c"/>
+    <path d="M-46-7Q-8 6 45-7M-34 3q27 8 64 2" fill="none" stroke="#c4b693" stroke-width="1.2" stroke-linecap="round" opacity=".72"/>
+  </g>
+  <g transform="translate(64 7)"><ellipse class="fishing-ripple" rx="11" ry="3" fill="none" stroke="#e4e8d5" opacity=".28"/><circle cy="-1" r="1.65" fill="#cf916d"/></g>
+  </g>
+</g>`;
+const seasonalBoatLights=()=>`<g transform="translate(${boatOrigin})">
+    ${alternateBoatLights()}
+    <g class="boat-bob season-layer summer-scene">
+      <circle cx="-3" cy="-9" r="19" fill="url(#lamp-halo)"/>
+      <ellipse cx="-3" cy="-9" rx="3.2" ry="4" fill="#ffcd86"/>
+      <ellipse cx="-3" cy="-9" rx="1.55" ry="2.5" fill="#ffecd0"/>
+    </g>
+  </g>`;
+const boatPiece=(style,lights=false)=>style==='seasonal'?(lights?seasonalBoatLights():seasonalBoat()):
+  `<g transform="translate(${boatOrigin})">${styledBoat(style,lights)}</g>`;
+const scenePieces={...gardenPieces,boat:{option:'boat',render:style=>boatPiece(style)},
+  boatLights:{option:'boat',render:style=>boatPiece(style,true)}};
+const pieceKey=(piece,design)=>piece.key?.(design)||'';
+
+const pieceMarkup=(id,design)=>{
+  const piece=scenePieces[id],value=design[piece.option];
+  return `<g data-garden-piece="${id}" data-variant="${value}" data-piece-key="${pieceKey(piece,design)}">${piece.render(value,design)}</g>`;
+};
 export function applyGardenDesign(scene,design){
   for(const node of scene.querySelectorAll('[data-garden-piece]')){
-    const piece=gardenPieces[node.dataset.gardenPiece];
-    const value=design[piece.option];
-    if(node.dataset.variant===value)continue;
-    node.innerHTML=piece.render(value);
-    node.dataset.variant=value;
+    const piece=scenePieces[node.dataset.gardenPiece];
+    const value=design[piece.option],key=pieceKey(piece,design);
+    if(node.dataset.variant===value&&node.dataset.pieceKey===key)continue;
+    node.innerHTML=piece.render(value,design);
+    node.dataset.variant=value;node.dataset.pieceKey=key;
   }
   scene.setAttribute('viewBox',gardenFrame(design.camera).join(' '));
 }
@@ -222,36 +265,12 @@ ${pieceMarkup("mountains",design)}
   ${snowbank('far')}
   ${rock(1059,625,.23,-1)}${rock(1074,628,.14)}
   ${shoreTree(1142,611,.27)}${shoreTree(1311,584,.46)}${shoreTree(1352,583,.31)}${shoreTree(1431,579,.53)}${shoreTree(1471,585,.34)}
-  ${pieceMarkup("pavilion",design)}
   <path d="M1074 623C1101 619 1129 619 1149 611C1171 602 1187 600 1200 600C1180 611 1160 620 1132 624C1108 627 1092 625 1074 623Z" fill="var(--far-shore-detail,#759986)"/>
 </g>
+${pieceMarkup("pavilion",design)}
 <g id="blossoms" transform="translate(1185 452) scale(.22)"/>
 <g id="garden-growth-lanterns"/>
-<g transform="translate(${boatOrigin})">
-  ${alternateBoats()}
-  <g class="season-layer summer-scene">
-  <ellipse cy="10" rx="50" ry="4" fill="#315e60" opacity=".2"/>
-  <ellipse class="boat-wake" cy="10" rx="48" ry="6" fill="none" stroke="#d2dcc9" opacity=".28"/>
-  <path d="M-63 10h19m83 4h20m-92 5h50" fill="none" stroke="#d9dec9" stroke-linecap="round" opacity=".38"/>
-  <g class="boat-bob">
-    <path d="M-32-2v-15q14-23 34-7L9-3Z" fill="#6d7b60"/>
-    <path d="M-30-15q13-20 32-8l4 7q-15-9-36 1Z" fill="#a7ad87"/>
-    <path d="M-25-4v-11q10-7 23-4L1-4Z" fill="#3e5d56"/>
-    <path d="M-30-16q12-7 32-7M-31-10q6-4 13-5" fill="none" stroke="#d0c9a2" stroke-width=".85" opacity=".65"/>
-    <path d="M-3-16v4" stroke="#344f46" stroke-width=".8"/>
-    <ellipse cx="-3" cy="-9" rx="3.2" ry="4" fill="#a87354"/>
-    <path d="M15-18q5-3 8 2l2 7 10 4h-20l-2-7Z" fill="#426760"/>
-    <path d="M20-15l7 5 5-2" fill="none" stroke="#416760" stroke-width="2.4" stroke-linecap="round"/>
-    <circle cx="19" cy="-21" r="3" fill="#ab8c6c"/>
-    <path d="M9-22l9-6 9 5q-7 3-18 1Z" fill="#bfa77e"/>
-    <path d="M27-9q13-19 32-24" fill="none" stroke="#435d53" stroke-width="1.45" stroke-linecap="round"/>
-    <path d="M59-33q6 17 5 38" fill="none" stroke="#e9e3c5" stroke-width=".75" opacity=".76"/>
-    <path d="M-49-8Q-23 0 0-1q32 0 49-8Q44 1 34 7q-39 8-70 0Z" fill="#385f5c"/>
-    <path d="M-46-7Q-8 6 45-7M-34 3q27 8 64 2" fill="none" stroke="#c4b693" stroke-width="1.2" stroke-linecap="round" opacity=".72"/>
-  </g>
-  <g transform="translate(64 7)"><ellipse class="fishing-ripple" rx="11" ry="3" fill="none" stroke="#e4e8d5" opacity=".28"/><circle cy="-1" r="1.65" fill="#cf916d"/></g>
-  </g>
-</g>
+${pieceMarkup("boat",design)}
 ${pieceMarkup("westBank",design)}
 ${shoreTree(116,739,.64)}${shoreTree(176,767,1.04)}${shoreTree(216,767,.39)}
 ${pieceMarkup("eastBank",design)}
@@ -272,14 +291,7 @@ ${pieceMarkup("path",design)}
   <g class="far-shore">
     ${pieceMarkup("pavilionLights",design)}
   </g>
-  <g transform="translate(${boatOrigin})">
-    ${alternateBoatLights()}
-    <g class="boat-bob season-layer summer-scene">
-      <circle cx="-3" cy="-9" r="19" fill="url(#lamp-halo)"/>
-      <ellipse cx="-3" cy="-9" rx="3.2" ry="4" fill="#ffcd86"/>
-      <ellipse cx="-3" cy="-9" rx="1.55" ry="2.5" fill="#ffecd0"/>
-    </g>
-  </g>
+${pieceMarkup("boatLights",design)}
 </g>
 <g id="stars" fill="#f5e8ce" opacity="0">
   <circle cx="321" cy="116" r="1.2"/><circle cx="1013" cy="87" r="1"/><circle cx="1280" cy="167" r="1.3"/><circle cx="460" cy="237" r=".9"/><circle cx="1107" cy="247" r="1"/><circle cx="620" cy="66" r="1"/><circle cx="1423" cy="88" r=".8"/>
