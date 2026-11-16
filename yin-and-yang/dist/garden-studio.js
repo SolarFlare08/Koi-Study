@@ -4,99 +4,194 @@ import {loadAppearance,seasonOptions,lightingOptions,gardenPalettes,weatherBySea
 import {gardenLandmarkPositions,mountGardenPreview} from './scenery.js';
 import {gardenCourses,landmarkTypes} from './garden-growth.js';
 import {pavilionFoundation,pavilionTransform} from './garden-ornaments.js';
-import {gardenPropTransform} from './garden-props.js';
+import {gardenPropTransform,gardenPropArtwork} from './garden-props.js';
+import {gardenPieces} from './garden-pieces.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const buildingTarget='building',propPrefix='prop:';
 const pieceLabels={mountains:'Mountains',shoreline:'Shoreline',pavilion:'Building',foundation:'Building base',
   boat:'Boat',lantern:'Lantern',path:'Path'};
 const waterfrontPieces=['pavilion','foundation','boat','lantern'];
+const tools={
+  select:['Select','M5 3l13 10-7 1-3 6L5 3z'],
+  props:['Props','M12 3v18M3 12h18M5 5h14v14H5z'],
+  scene:['Terrain','M2 19l7-11 4 6 3-4 6 9H2zM7 11l2 2 2-2'],
+  light:['Light','M12 3v2m0 14v2m9-9h-2M5 12H3m15.4-6.4L17 7m-10 10-1.4 1.4m12.8 0L17 17M7 7 5.6 5.6M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z'],
+  library:['Layouts','M3 6h7l2 2h9v11H3zM3 6V4h7l2 2h7v2']
+};
+const toolIcon=d=>`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+
 const options=values=>Object.entries(values).map(([key,label])=>`<option value="${escape(key)}">${escape(label)}</option>`).join('');
 const select=(name,label,values)=>`<label>${label}<select name="${name}">${options(values)}</select></label>`;
 
-export function createGardenStudio({getState,getAppearance,getDesign,commit,download,today,notify}){
-  let draft,form,selected='',scene=null,drag=null;
+export function createGardenStudio({getState,getAppearance,getDesign,commit,download,today}){
+  let draft,form,selected='',scene=null,drag=null,tool='select',stamp='',zoom=1;
+  let undo=[],redo=[],savedDraft='';
   function open(){
     draft={id:'',name:'',through:'',design:loadGardenDesign(getDesign()),appearance:getAppearance()};
-    selected='';drag=null;
+    selected='';drag=null;stamp='';undo=[];redo=[];zoom=1;tool='select';
+    savedDraft=fingerprint(draft);
   }
   function markup(){
-    return `<form id="garden-studio-form">
-      <div class="studio-library">
-        <label>Layout library<select name="library"></select></label>
-        <button type="button" class="text-button" data-studio="copy">Save a copy</button>
-        <button type="button" class="text-button" data-studio="delete">Delete saved layout</button>
-      </div>
-      <fieldset class="studio-activities">
-        <legend>Layout by activity</legend>
-        <div class="studio-control-grid">${Object.entries(gardenActivities).map(([activity,label])=>
-          `<label>${label}<select data-studio-activity="${activity}"></select></label>`).join('')}</div>
-        <p class="studio-stage-help" data-studio-activity-status role="status"></p>
-      </fieldset>
+    return `<form id="garden-studio-form" novalidate>
+      <header class="studio-top">
+        <div class="studio-title"><h2 id="panel-title">Garden Studio</h2><span data-studio-draft-state></span></div>
+        <label class="studio-name"><span class="studio-sr">Layout name</span><input name="layoutName" maxlength="70" required placeholder="Name this layout"></label>
+        <div class="studio-top-actions">
+          <div class="studio-history">
+            <button type="button" data-studio="undo" title="Undo (Ctrl+Z)" aria-label="Undo">${toolIcon('M9 6l-5 5 5 5M4 11h10a4 4 0 0 1 0 8')}</button>
+            <button type="button" data-studio="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">${toolIcon('M15 6l5 5-5 5m5-5H10a4 4 0 0 0 0 8')}</button>
+          </div>
+          <button type="submit" class="studio-save-button">Save layout</button>
+          <button type="submit" class="panel-primary" value="apply">Save &amp; apply</button>
+          <button type="button" class="icon-button close-panel" aria-label="Close Garden Studio">${toolIcon('m6 6 12 12M18 6 6 18')}</button>
+        </div>
+      </header>
+      <nav class="studio-tools" aria-label="Studio tools">${Object.entries(tools).map(([key,[label,path]])=>
+        `<button type="button" data-studio-tool="${key}" aria-controls="studio-tool-${key}" aria-pressed="false">${toolIcon(path)}<span>${label}</span></button>`).join('')}</nav>
       <div class="studio-workspace">
-        <div class="studio-canvas-column">
-          <div class="studio-stage">
+        <div class="studio-board">
+          <div class="studio-stage" tabindex="0" aria-label="Landscape canvas" aria-describedby="studio-canvas-tip">
             <div class="garden-scene-preview studio-scene" aria-hidden="true"></div>
             <span class="studio-pin" aria-hidden="true" hidden></span>
+            <div class="studio-ghost" aria-hidden="true" hidden></div>
           </div>
-          <p class="studio-stage-help" data-studio-placement-tip></p>
-          <fieldset class="studio-props">
-            <legend>Props</legend>
-            <div class="studio-prop-add">
-              ${select('propKind','Choose a prop',Object.fromEntries(Object.entries(gardenPropTypes).map(([key,item])=>[key,item.name])))}
-              <button type="button" class="text-button" data-studio="add-prop">Add prop</button>
-            </div>
-            <p class="studio-stage-help" data-studio-prop-count></p>
-          </fieldset>
-          <div class="studio-landmarks">
-            <label>Move scenery<select name="landmark"></select></label>
+        </div>
+        <aside class="studio-settings" aria-label="Tool controls">
+          <section id="studio-tool-select" data-tool-panel="select">
+            <h3>Selection</h3>
+            <label>Object<select name="landmark"></select></label>
+            <p class="studio-selection-empty" data-studio-no-selection>Select an object on the canvas or from the list.</p>
             <div class="studio-placement" hidden>
-              <label>Left to right<input type="range" name="x" min="${placementBounds.x[0]}" max="${placementBounds.x[1]}"></label>
-              <label>Back to front<input type="range" name="y" min="${placementBounds.y[0]}" max="${placementBounds.y[1]}"></label>
-              <button type="button" class="text-button" data-studio="automatic">Reset position</button>
-              <div class="studio-prop-edit" data-studio-prop-controls hidden>
-                <label>Size <output name="propSizeValue"></output><input type="range" name="propSize" min="50" max="200" step="5" value="100"></label>
-                <button type="button" class="text-button" data-studio="remove-prop">Remove prop</button>
-              </div>
+              <label>Horizontal position<input type="range" name="x" min="${placementBounds.x[0]}" max="${placementBounds.x[1]}"></label>
+              <label>Vertical position<input type="range" name="y" min="${placementBounds.y[0]}" max="${placementBounds.y[1]}"></label>
               <small class="studio-foundation-note" data-studio-foundation hidden></small>
+              <div data-studio-prop-controls hidden>
+                <label>Size <output name="propSizeValue"></output><input type="range" name="propSize" min="50" max="200" step="5" value="100"></label>
+              </div>
+              <div class="studio-object-actions"><button type="button" data-studio="automatic">Reset position</button>
+                <button type="button" data-studio="remove-prop" hidden>Remove prop</button></div>
             </div>
+          </section>
+          <section id="studio-tool-props" data-tool-panel="props" hidden>
+            <h3>Prop palette</h3>
+            <p>Choose a prop, then click or tap the canvas to place it.</p>
+            <div class="studio-prop-palette">${Object.entries(gardenPropTypes).map(([kind,item])=>
+              `<button type="button" data-studio-stamp="${kind}" aria-pressed="false">${propSwatch(kind)}<span>${item.name}</span></button>`).join('')}</div>
+            <p class="studio-stage-help" data-studio-prop-count></p>
+            <button type="button" class="text-button" data-studio="place-center" disabled>Place in view</button>
+          </section>
+          <section id="studio-tool-scene" data-tool-panel="scene" hidden>
+            <h3>Terrain</h3>
+            <fieldset><legend>Mountains</legend>
+              <div class="studio-mountain-palette">${Object.entries(gardenPieceOptions.mountains).map(([kind,label])=>
+                `<button type="button" data-studio-mountain="${kind}" aria-pressed="false"><svg viewBox="0 70 1600 500" aria-hidden="true">${gardenPieces.mountains.render(kind)}</svg><span>${label}</span></button>`).join('')}</div>
+            </fieldset>
+            <fieldset><legend>Shore and water</legend><div class="studio-control-grid">
+            ${['shoreline','path',...waterfrontPieces].map(key=>select(key,pieceLabels[key],gardenPieceOptions[key])).join('')}
+            </div></fieldset>
+          </section>
+          <section id="studio-tool-light" data-tool-panel="light" hidden>
+            <h3>Light and weather</h3>
+            <div class="studio-control-grid">
+              ${select('season','Season',Object.fromEntries(Object.entries(seasonOptions).map(([key,item])=>[key,item.name])))}
+              ${select('lighting','Lighting',lightingOptions)}
+              ${select('palette','Palette',gardenPalettes)}
+              <label>Weather<select name="weather"></select></label>
+            </div>
+          </section>
+          <section id="studio-tool-library" data-tool-panel="library" hidden>
+            <h3>Layouts</h3>
+            <label>Layout library<select name="library"></select></label>
+            <div class="studio-object-actions">
+              <button type="button" data-studio="copy">Save a copy</button>
+              <button type="button" data-studio="delete">Delete saved layout</button>
+            </div>
+            <fieldset class="studio-activities">
+              <legend>Layout by activity</legend>
+              <div class="studio-control-grid">${Object.entries(gardenActivities).map(([activity,label])=>
+                `<label>${label}<select data-studio-activity="${activity}"></select></label>`).join('')}</div>
+              <p class="studio-stage-help" data-studio-activity-status role="status"></p>
+            </fieldset>
+            <fieldset><legend>Archive and export</legend>
+              <label>Archive landmarks through<input name="through" type="date" max="${today()}"></label>
+              <label>Postcard caption<input name="caption" maxlength="90" placeholder="Optional caption"></label>
+              <div class="studio-object-actions"><button type="button" data-studio="export">Download postcard</button></div>
+            </fieldset>
+            <button type="button" class="text-button" data-studio="reset">Reset scenery</button>
+            <p class="studio-stage-help" data-studio-default-hint hidden>Save &amp; apply updates the default Garden. Assigned activities use their chosen layouts.</p>
+          </section>
+        </aside>
+      </div>
+      <footer class="studio-status">
+        <p id="studio-canvas-tip" data-studio-placement-tip></p>
+        <p role="status" data-studio-status></p>
+        <div class="studio-view">
+          ${select('camera','View',Object.fromEntries(Object.entries(gardenCameras).map(([key,item])=>[key,item.name])))}
+          <div class="studio-zoom" role="group" aria-label="Canvas zoom">
+            <button type="button" data-studio="zoom-out" aria-label="Zoom out">−</button>
+            <button type="button" data-studio="zoom-fit" title="Fit canvas" aria-label="Fit canvas">Fit</button>
+            <button type="button" data-studio="zoom-in" aria-label="Zoom in">+</button>
           </div>
         </div>
-        <div class="studio-settings">
-          <fieldset><legend>Scenery</legend><div class="studio-control-grid">
-          ${Object.entries(gardenPieceOptions).filter(([key])=>!waterfrontPieces.includes(key)).map(([key,values])=>select(key,pieceLabels[key],values)).join('')}
-          ${select('camera','View',Object.fromEntries(Object.entries(gardenCameras).map(([key,item])=>[key,item.name])))}
-          </div></fieldset>
-          <fieldset><legend>Buildings, boats and lanterns</legend><div class="studio-control-grid">
-            ${waterfrontPieces.map(key=>select(key,pieceLabels[key],gardenPieceOptions[key])).join('')}
-          </div></fieldset>
-          <fieldset><legend>Season and light</legend><div class="studio-control-grid">
-            ${select('season','Season',Object.fromEntries(Object.entries(seasonOptions).map(([key,item])=>[key,item.name])))}
-            ${select('lighting','Lighting',lightingOptions)}
-            ${select('palette','Palette',gardenPalettes)}
-            <label>Weather<select name="weather"></select></label>
-          </div></fieldset>
-        </div>
-      </div>
-      <div class="studio-save">
-        <label>Layout name<input name="layoutName" maxlength="70" required placeholder="Fall semester"></label>
-        <label><span>Archive landmarks through <small>(optional)</small></span><input name="through" type="date" max="${today()}"></label>
-        <div class="studio-actions">
-          <button type="button" class="text-button" data-studio="reset">Reset scenery</button>
-          <button type="submit" class="text-button">Save layout</button>
-          <button type="submit" class="panel-primary" value="apply">Save and apply</button>
-        </div>
-        <p class="studio-stage-help" data-studio-default-hint hidden>Save and apply updates the default Garden. Assigned activities still use their chosen layouts.</p>
-      </div>
-      <div class="studio-export">
-        <label><span>Postcard caption <small>(optional)</small></span><input name="caption" maxlength="90" placeholder="A semester by the lake"></label>
-        <button type="button" class="text-button" data-studio="export">Download postcard</button>
-      </div>
-      <p role="status" aria-live="polite" data-studio-status></p>
+      </footer>
     </form>`;
+  }
+  function propSwatch(kind){
+    return `<svg viewBox="-75 -87 150 111" aria-hidden="true">${gardenPropArtwork(kind)}</svg>`;
   }
   const field=name=>form.elements.namedItem(name);
   const status=message=>{form.querySelector('[data-studio-status]').textContent=message;};
+  function fingerprint({name,design,appearance,through}){
+    const {season,lighting,palette,weather,motion}=appearance;
+    return JSON.stringify({name,design,season,lighting,palette,weather,motion,through});
+  }
+  function updateHistoryControls(){
+    const dirty=fingerprint({...draft,name:field('layoutName').value.trim()})!==savedDraft;
+    form.querySelector('[data-studio-draft-state]').textContent=dirty?'Unsaved changes':draft.id?'Saved layout':'Live Garden';
+    form.querySelector('[data-studio="undo"]').disabled=!undo.length;
+    form.querySelector('[data-studio="redo"]').disabled=!redo.length;
+  }
+  function record(before){
+    if(fingerprint(before)===fingerprint(draft))return;
+    undo.push(before);
+    if(undo.length>40)undo.shift();
+    redo=[];
+  }
+  function useHistory(backwards){
+    const source=backwards?undo:redo,destination=backwards?redo:undo;
+    const previous=source.pop();
+    if(!previous)return;
+    destination.push(structuredClone(draft));
+    Object.assign(draft,{design:previous.design,appearance:previous.appearance,through:previous.through});
+    syncFields();render();
+  }
+  function setTool(key){
+    tool=key;
+    for(const button of form.querySelectorAll('[data-studio-tool]'))button.setAttribute('aria-pressed',String(button.dataset.studioTool===key));
+    for(const pane of form.querySelectorAll('[data-tool-panel]'))pane.hidden=pane.dataset.toolPanel!==key;
+    form.querySelector('.studio-ghost').hidden=true;
+    syncStamp();updatePin();
+  }
+  function syncStamp(){
+    const active=tool==='props'&&stamp&&draft.design.props.length<gardenPropLimit;
+    form.querySelector('.studio-stage').toggleAttribute('data-stamping',Boolean(active));
+    for(const button of form.querySelectorAll('[data-studio-stamp]')){
+      button.setAttribute('aria-pressed',String(button.dataset.studioStamp===stamp));
+      button.disabled=draft.design.props.length>=gardenPropLimit;
+    }
+    form.querySelector('[data-studio="place-center"]').disabled=!active;
+    const ghost=form.querySelector('.studio-ghost');
+    if(active)ghost.innerHTML=propSwatch(stamp);
+    else ghost.hidden=true;
+  }
+  function setZoom(level){
+    zoom=Math.max(1,Math.min(2.5,level));
+    form.querySelector('.studio-board').style.setProperty('--studio-zoom',zoom);
+    form.querySelector('[data-studio="zoom-fit"]').textContent=zoom===1?'Fit':`${Math.round(zoom*100)}%`;
+    form.querySelector('[data-studio="zoom-out"]').disabled=zoom===1;
+    form.querySelector('[data-studio="zoom-in"]').disabled=zoom===2.5;
+  }
   function updateLibrary(){
     const starters=Object.fromEntries(Object.entries(gardenStarterLayouts).map(([id,item])=>['starter:'+id,item.name]));
     const saved=Object.fromEntries(getState().gardenLayouts.map(item=>['saved:'+item.id,item.name]));
@@ -127,13 +222,16 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     field('weather').innerHTML=options({auto:'Rotate by season',...weatherBySeason[draft.appearance.season]});
     field('weather').value=draft.appearance.weather;
   }
-  function populate(){
-    updateLibrary();updateActivityChoices();weatherOptions();
-    field('layoutName').value=draft.name;
+  function syncFields(){
+    weatherOptions();
     field('through').value=draft.through;
-    for(const key of [...Object.keys(gardenPieceOptions),'camera'])field(key).value=draft.design[key];
+    for(const key of [...Object.keys(gardenPieceOptions),'camera']){if(key!=='mountains')field(key).value=draft.design[key];}
     for(const key of ['season','lighting','palette'])field(key).value=draft.appearance[key];
-    render();
+  }
+  function populate(){
+    updateLibrary();updateActivityChoices();syncFields();
+    field('layoutName').value=draft.name;
+    render();setTool(tool);setZoom(zoom);
   }
   function landmarks(){
     return getState().gardenGrowth.filter(item=>movableGardenLandmark(item)&&(!draft.through||item.day<=draft.through));
@@ -172,18 +270,20 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   function updatePin(point=pointForSelected(),previewing=false){
     const stage=form.querySelector('.studio-stage'),pin=form.querySelector('.studio-pin');
     const [left,top,width,height]=gardenFrame(draft.design.camera);
-    const visible=point&&point.x>=left&&point.x<=left+width&&point.y>=top&&point.y<=top+height;
-    stage.toggleAttribute('data-placing',Boolean(point));pin.hidden=!visible;
+    const visible=tool==='select'&&point&&point.x>=left&&point.x<=left+width&&point.y>=top&&point.y<=top+height;
+    stage.toggleAttribute('data-placing',tool==='select'&&Boolean(point));pin.hidden=!visible;
     if(visible){
       pin.style.left=`${(point.x-left)/width*100}%`;
       pin.style.top=`${(point.y-top)/height*100}%`;
     }
     form.querySelector('.studio-placement').hidden=!point;
+    form.querySelector('[data-studio-no-selection]').hidden=Boolean(point);
     const building=selected===buildingTarget;
     const support=form.querySelector('[data-studio-foundation]');
     support.hidden=!building;
     const prop=selectedProp();
     form.querySelector('[data-studio-prop-controls]').hidden=!prop;
+    form.querySelector('[data-studio="remove-prop"]').hidden=!prop;
     if(prop){field('propSize').value=prop.size;field('propSizeValue').value=prop.size+'%';}
     if(building){
       const base=pavilionFoundation({...draft.design,pavilionPosition:previewing?point:draft.design.pavilionPosition});
@@ -196,8 +296,11 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       }
       form.querySelector('[data-studio="automatic"]').disabled=!(prop||(building?draft.design.pavilionPosition:Object.hasOwn(draft.design.placements,selected)));
     }
-    form.querySelector('[data-studio-placement-tip]').textContent=!point?'Choose a building, prop, or landmark to move it.':
-      visible?'Click the scene or drag the pin. You can also use the position sliders.':'The pin is outside this view. Choose Full landscape or use the position sliders.';
+    form.querySelector('[data-studio-placement-tip]').textContent=tool==='props'
+      ?stamp?`Click the canvas to place ${gardenPropTypes[stamp].name.toLowerCase()}.`:'Choose a prop from the palette.'
+      :tool!=='select'?'Changes are previewed on the canvas.'
+      :!point?'Click an object or select it from the list.'
+      :visible?'Drag to move. Arrow keys nudge the selected object.':'This object is outside the current view.';
   }
   function render(){
     const state=getState(),history=state.gardenGrowth,courses=gardenCourses(history,state.projects);
@@ -209,8 +312,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       counts.set(prop.kind,count);
       return [propPrefix+prop.id,gardenPropTypes[prop.kind].name+(count>1?' '+count:'')];
     }));
-    form.querySelector('[data-studio="add-prop"]').disabled=props.length>=gardenPropLimit;
-    form.querySelector('[data-studio-prop-count]').textContent=props.length?`${props.length} / ${gardenPropLimit} props`:'Add a prop, then click the preview to place it.';
+    form.querySelector('[data-studio-prop-count]').textContent=props.length?`${props.length} / ${gardenPropLimit} props`:'No props placed yet.';
     field('landmark').innerHTML='<option value="">Choose what to move</option>'+
       options({[buildingTarget]:'Building · '+gardenPieceOptions.pavilion[draft.design.pavilion]})+
       (props.length?`<optgroup label="Props">${options(propOptions)}</optgroup>`:'')+
@@ -218,12 +320,30 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     field('landmark').value=selected;
     scene=mountGardenPreview(form.querySelector('.studio-scene'),loadAppearance(draft.appearance),
       {history,courses,through:draft.through,design:draft.design});
-    updatePin();
+    for(const button of form.querySelectorAll('[data-studio-mountain]')){
+      button.setAttribute('aria-pressed',String(button.dataset.studioMountain===draft.design.mountains));
+    }
+    syncStamp();updateHistoryControls();updatePin();
+  }
+  function placeProp(position){
+    if(!stamp||draft.design.props.length>=gardenPropLimit)return;
+    const before=structuredClone(draft),id=crypto.randomUUID();
+    draft.design.props.push({id,kind:stamp,...clampGardenPlacement(position.x,position.y,gardenPropBounds),size:100});
+    selected=propPrefix+id;
+    record(before);render();status(gardenPropTypes[stamp].name+' placed.');
+  }
+  function removeSelectedProp(){
+    const prop=selectedProp();
+    if(!prop)return;
+    const before=structuredClone(draft);
+    draft.design.props=draft.design.props.filter(item=>item!==prop);selected='';
+    record(before);render();status(gardenPropTypes[prop.kind].name+' removed.');
   }
   function writeCandidate({apply=false,copy=false}={}){
     const name=field('layoutName');
     name.setCustomValidity(name.value.trim()?'':'Enter a name for this layout.');
-    if(!name.reportValidity()||!field('through').reportValidity())return;
+    if(!name.reportValidity())return;
+    if(!field('through').validity.valid){setTool('library');field('through').reportValidity();return;}
     const layouts=getState().gardenLayouts;
     const old=layouts.find(item=>item.id===draft.id);
     if(draft.id&&!old){status('This saved layout was removed in another tab. Save a copy to keep your edits.');if(!copy)return;}
@@ -234,9 +354,10 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     if(!item)return;
     const next=old&&!copy?layouts.map(layout=>layout.id===itemId?item:layout):[...layouts,item];
     if(!commit(next,apply?item:null)){status('Could not save the layout.');return;}
-    draft=structuredClone(item);field('layoutName').value=draft.name;updateLibrary();updateActivityChoices();
+    draft=structuredClone(item);savedDraft=fingerprint(draft);field('layoutName').value=draft.name;
+    updateLibrary();updateActivityChoices();updateHistoryControls();
     const message=apply?'Layout saved and applied as the default Garden.':'Garden layout saved.';
-    status(message);notify(message);
+    status(message);
   }
   async function exportDraft(button){
     if(!field('through').reportValidity())return;
@@ -255,7 +376,27 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     form=element;
     if(!form)return;
     populate();
-    const stage=form.querySelector('.studio-stage');
+    const stage=form.querySelector('.studio-stage'),ghost=form.querySelector('.studio-ghost');
+    function handleKey(event){
+      if(event.key==='Escape'&&tool==='props'&&stamp){
+        event.preventDefault();event.stopPropagation();stamp='';setTool('props');return;
+      }
+      if(event.target.matches('input,select,textarea'))return;
+      const command=(event.ctrlKey||event.metaKey)&&!event.altKey;
+      if(command&&['z','y'].includes(event.key.toLowerCase())){
+        event.preventDefault();event.stopPropagation();
+        useHistory(event.key.toLowerCase()==='z'&&!event.shiftKey);return;
+      }
+      if(event.target!==stage||tool!=='select')return;
+      if(event.key==='Delete'&&selectedProp()){event.preventDefault();removeSelectedProp();return;}
+      const offset={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[event.key];
+      const point=pointForSelected();
+      if(!offset||!point)return;
+      event.preventDefault();
+      const before=structuredClone(draft),distance=event.shiftKey?16:3;
+      savePosition(clampGardenPlacement(point.x+offset[0]*distance,point.y+offset[1]*distance,selectedBounds()));
+      record(before);render();
+    }
     const scenePoint=event=>{
       const pane=form.querySelector('.studio-scene svg').getBoundingClientRect(),[left,top,width,height]=gardenFrame(draft.design.camera);
       return {x:left+(event.clientX-pane.left)/pane.width*width,y:top+(event.clientY-pane.top)/pane.height*height};
@@ -266,24 +407,36 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     };
     stage.addEventListener('pointerdown',event=>{
       if(event.button!==0||drag)return;
+      if(tool==='props'&&stamp){event.stopPropagation();placeProp(scenePoint(event));return;}
+      if(tool!=='select')return;
       const propId=event.target.closest('[data-garden-prop]')?.dataset.gardenProp;
-      if(propId&&(!selected||selected.startsWith(propPrefix))){
-        selected=propPrefix+propId;field('landmark').value=selected;
-      }
-      if(!selected)return;
-      const prop=selectedProp(),point=scenePoint(event),keepAnchor=prop?.id===propId&&Boolean(prop);
-      drag={pointer:event.pointerId,dx:keepAnchor?point.x-prop.x:0,dy:keepAnchor?point.y-prop.y:0};
+      const building=event.target.closest('[data-garden-piece="pavilion"]');
+      const hit=propId?propPrefix+propId:building?buildingTarget:'';
+      if(hit){selected=hit;field('landmark').value=hit;}
+      const anchor=pointForSelected(),point=scenePoint(event);
+      if(!anchor)return;
+      drag={pointer:event.pointerId,dx:hit?point.x-anchor.x:0,dy:hit?point.y-anchor.y:0,before:structuredClone(draft)};
+      stage.focus({preventScroll:true});
       stage.setPointerCapture(event.pointerId);
       previewPosition(eventPoint(event));
     });
-    stage.addEventListener('pointermove',event=>{if(drag?.pointer===event.pointerId)previewPosition(eventPoint(event));});
+    stage.addEventListener('pointermove',event=>{
+      if(drag?.pointer===event.pointerId)previewPosition(eventPoint(event));
+      else if(tool==='props'&&stamp&&event.pointerType==='mouse'&&draft.design.props.length<gardenPropLimit){
+        const point=scenePoint(event),[left,top,width,height]=gardenFrame(draft.design.camera);
+        ghost.hidden=false;ghost.style.left=`${(point.x-left)/width*100}%`;ghost.style.top=`${(point.y-top)/height*100}%`;
+      }
+    });
+    stage.addEventListener('pointerleave',()=>{ghost.hidden=true;});
     stage.addEventListener('pointerup',event=>{
       if(drag?.pointer!==event.pointerId)return;
-      savePosition(eventPoint(event));drag=null;render();
+      const next=eventPoint(event),previous=pointForSelected();
+      if(previous.x!==next.x||previous.y!==next.y){savePosition(next);record(drag.before);}
+      drag=null;render();
     });
     stage.addEventListener('pointercancel',()=>{if(drag){drag=null;render();}});
     form.addEventListener('input',event=>{
-      if(event.target===field('layoutName'))field('layoutName').setCustomValidity('');
+      if(event.target===field('layoutName')){field('layoutName').setCustomValidity('');updateHistoryControls();}
       if(event.target===field('propSize'))field('propSizeValue').value=event.target.value+'%';
     });
     form.addEventListener('change',event=>{
@@ -302,17 +455,20 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         const saved=value.startsWith('saved:')&&getState().gardenLayouts.find(item=>item.id===value.slice(6));
         const key=value.startsWith('starter:')?value.slice(8):'';
         const template=Object.hasOwn(gardenStarterLayouts,key)&&gardenStarterLayouts[key];
-        open();
+        open();tool='library';
         if(saved)draft=structuredClone(saved);
         if(template)draft={...draft,starter:key,name:template.name,design:loadGardenDesign(template.design),
           appearance:loadAppearance({...draft.appearance,...template.appearance,palette:'seasonal'})};
-        populate();
+        savedDraft=fingerprint(draft);populate();
         status(saved?'Saved layout loaded for editing.':template?'Starter layout loaded for editing.':'Live Garden copied into a new draft.');
         return;
       }
       if(name==='landmark'){selected=value;updatePin();return;}
-      if(name==='through'){if(!event.target.validity.valid)return;draft.through=value;render();return;}
-      if(name==='x'||name==='y'){
+      const before=structuredClone(draft);
+      if(name==='through'){
+        if(!event.target.validity.valid)return;
+        draft.through=value;
+      }else if(name==='x'||name==='y'){
         if(!selected)return;
         savePosition(clampGardenPlacement(Number(field('x').value),Number(field('y').value),selectedBounds()));
       }else if(name==='propSize'){
@@ -322,45 +478,52 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         draft.appearance=loadAppearance({...draft.appearance,[name]:value});
         if(name==='season')weatherOptions();
       }else return;
-      render();
+      record(before);render();
     });
+    form.addEventListener('keydown',handleKey);
     form.addEventListener('click',event=>{
+      const toolButton=event.target.closest('[data-studio-tool]');
+      if(toolButton){setTool(toolButton.dataset.studioTool);return;}
+      const stampButton=event.target.closest('[data-studio-stamp]');
+      if(stampButton){stamp=stampButton.dataset.studioStamp;syncStamp();updatePin();return;}
+      const mountainButton=event.target.closest('[data-studio-mountain]');
+      if(mountainButton){
+        const before=structuredClone(draft);
+        draft.design.mountains=mountainButton.dataset.studioMountain;
+        record(before);render();return;
+      }
       const button=event.target.closest('[data-studio]');
       if(!button)return;
       switch(button.dataset.studio){
-        case 'add-prop':{
-          if(draft.design.props.length>=gardenPropLimit)return;
-          const kind=field('propKind').value,model=gardenPropTypes[kind];
-          if(!model)return;
-          const occurrences=draft.design.props.filter(item=>item.kind===kind).length;
-          const id=crypto.randomUUID(),direction=model.x>=800?-1:1;
-          const position=clampGardenPlacement(model.x+direction*(occurrences%6)*38,model.y-Math.floor(occurrences/6)*25,gardenPropBounds);
-          draft.design.props.push({id,kind,...position,size:100});selected=propPrefix+id;
-          render();field('landmark').focus();status(model.name+' added.');break;
+        case 'undo':useHistory(true);break;
+        case 'redo':useHistory(false);break;
+        case 'zoom-in':setZoom(zoom+.25);break;
+        case 'zoom-out':setZoom(zoom-.25);break;
+        case 'zoom-fit':setZoom(1);break;
+        case 'place-center':{
+          const [x,y,w,h]=gardenFrame(draft.design.camera);
+          placeProp({x:x+w/2,y:y+h*.78});break;
         }
-        case 'remove-prop':{
-          const prop=selectedProp();
-          if(!prop)return;
-          draft.design.props=draft.design.props.filter(item=>item!==prop);selected='';
-          render();field('landmark').focus();status(gardenPropTypes[prop.kind].name+' removed.');break;
-        }
+        case 'remove-prop':removeSelectedProp();field('landmark').focus();break;
         case 'copy':writeCandidate({copy:true});break;
-        case 'reset':
+        case 'reset':{
+          const before=structuredClone(draft);
           draft.design=loadGardenDesign();
-          for(const key of [...Object.keys(gardenPieceOptions),'camera'])field(key).value=draft.design[key];
-          render();status('Scenery reset in this draft.');break;
-        case 'automatic':
+          record(before);syncFields();render();status('Scenery reset in this draft.');break;
+        }
+        case 'automatic':{
+          const before=structuredClone(draft);
           if(selected===buildingTarget)draft.design.pavilionPosition=null;
           else if(selected.startsWith(propPrefix)){
             const prop=selectedProp(),{x,y}=gardenPropTypes[prop.kind];savePosition({x,y});
           }else if(selected)delete draft.design.placements[selected];
-          render();field('landmark').focus();
-          break;
+          record(before);render();field('landmark').focus();break;
+        }
         case 'export':exportDraft(button);break;
         case 'delete':
           if(!button.dataset.confirm){button.dataset.confirm='true';button.textContent='Confirm delete';return;}
           if(commit(getState().gardenLayouts.filter(item=>item.id!==draft.id),null)){
-            draft.id='';updateLibrary();updateActivityChoices();field('library').focus();status('Saved layout deleted. The draft is still open.');
+            draft.id='';savedDraft='';updateLibrary();updateActivityChoices();updateHistoryControls();field('library').focus();status('Saved layout deleted. The draft is still open.');
           }
           break;
       }

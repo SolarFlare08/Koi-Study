@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'3.8.0',date:'2026-11-15',title:'A canvas-first Garden Studio',changes:[
+    'Open the landscape in a full-screen editor with a tool rail, zoom, and undo and redo.',
+    'Stamp props onto the canvas from an illustrated palette, then select and adjust them in place.',
+    'Preview mountain silhouettes side by side. Find saved layouts, activity assignments, and postcard export under Layouts.'
+  ]},
   {version:'3.7.0',date:'2026-11-15',title:'Mountain silhouettes and a Garden prop library',changes:[
     'Choose a tall snowcapped summit, ink pillars, a cloud valley, twin peaks, or redesigned low ridges.',
     'Place, resize, and remove props including stone bridges, docks, lanterns, trees, and lily pads.',

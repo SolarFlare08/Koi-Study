@@ -95,7 +95,7 @@ let gardenFrom='',gardenThrough='',snapshotThrough='',selectedCourse='';
 let seasonPreview='',comparisonDates=null,snapshotLayoutId='',paintedGardenDesign;
 let renderedGardenDesign;
 const studio=createGardenStudio({getState:()=>state,getAppearance:()=>effectiveAppearance,getDesign:sceneGardenDesign,commit:saveStudioLayouts,
-  today:()=>dayKey(),notify:confirmChange,download:async(scene,caption)=>{
+  today:()=>dayKey(),download:async(scene,caption)=>{
     const blob=await postcardPng(scene,caption);
     savePostcard(blob,'garden-studio-'+dayKey()+'.png');
   }});
@@ -2603,7 +2603,7 @@ function panelContent(id){
       `<button type="button" data-capture-inbox-tab="${tab}" aria-pressed="${tab===captureInboxTab}">${tab==='inbox'?'Unsorted':'Archive'}</button>`).join('')}</div>
     <p class="capture-shortcuts"><kbd>N</kbd> Next <kbd>P</kbd> Previous${captureInboxTab==='inbox'?' <kbd>F</kbd> File <kbd>L</kbd> Link <kbd>A</kbd> Archive':''}</p>
     <div id="capture-inbox-list">${captureInboxList()}</div>`;
-  if(id==='garden-studio')return header('GARDEN','Garden Studio')+studio.markup();
+  if(id==='garden-studio')return studio.markup();
   if(id==='garden-tools'){
     const tools=[
       ['pagoda','focus','Timer settings','Durations, routines, chimes, and backups'],
