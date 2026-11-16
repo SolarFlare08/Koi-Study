@@ -1242,7 +1242,7 @@ function gardenLandmarkMarkup(){
   return `${header(type.event,escape(book?.title||project?.name||exam?.title||item.title))}
     <div class="landmark-panel-body" role="region" aria-label="Landmark details" tabindex="0">
       <p id="landmark-save-status" hidden></p>
-      <div class="landmark-memento" ${tierLabel?`data-book-tier="${tier}"`:''}>
+      <div class="landmark-memento" ${finished?.rating?`data-book-tier="${tier}"`:''}>
         <div class="landmark-summary"><div class="landmark-emblem" aria-hidden="true">${icon(type.mark)}</div>
           ${book?.author?`<p class="landmark-byline">${escape(book.author)}</p>`:`<p class="landmark-byline">${type.name}</p>`}
           ${finished?`<strong class="landmark-result" aria-label="${finished.rating?`Rating ${finished.rating} out of 5${tierLabel?', '+tierLabel:''}`:'Unrated'}">${finished.rating?`<span aria-hidden="true">${tier==='aurora'?'✦':'★'} ${finished.rating} / 5</span>${tierLabel?`<small aria-hidden="true">${tierLabel}</small>`:''}`:'Unrated'}</strong>`:

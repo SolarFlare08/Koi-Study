@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'3.10.2',date:'2026-11-16',title:'Full-panel book themes in Garden',changes:[
+    'Carry a book’s rating colors across the entire Garden lantern popup.',
+    'Give Crystal and Aurora popups a brief opening shimmer that respects reduced motion.'
+  ]},
   {version:'3.10.1',date:'2026-11-16',title:'A distinctive 6/5 cover',changes:[
     'Give 5–5.9/5 books a teal Crystal finish and reserve violet, gold, and starlight for 6/5 Aurora books.',
     'Show both tiers in Garden lantern details.'
