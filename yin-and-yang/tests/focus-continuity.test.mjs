@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {freshState,loadState,startPause,record,settle,breakIdeasThatFit} from '../dist/state.js';
+import {freshState,loadState,startPause,record,settle,breakIdeasThatFit,startTaskTiming,taskFinishBreak,finishOvertime,overtimeElapsed,loadSoundtracks} from '../dist/state.js';
 import {replaySessions,replayTaskSwitch,replayBlocks,projectSessionTimeline} from '../dist/focus-replay.js';
 import {createBackup,readBackup} from '../dist/backup.js';
 import {examPlan} from '../dist/exam-plans.js';
@@ -101,4 +101,57 @@ test('a timed mistake retry has a stable link after reload and backup, and break
   assert.deepEqual(breakIdeasThatFit(restored.breakIdeas,5*60000).map(idea=>idea.id),['mid']);
   assert.deepEqual(breakIdeasThatFit(restored.breakIdeas,5*60000-1).map(idea=>idea.id),['short']);
   assert.deepEqual(breakIdeasThatFit(restored.breakIdeas,60000),[]);
+});
+
+test('selected tasks over an hour keep both halves and a proportional final break through reload',()=>{
+  const state=freshState(),task={id:'long',text:'Exam review',done:false};
+  state.tasks=[task];const start=+new Date(2026,10,15,17),minute=60000;
+  assert.equal(startTaskTiming(state,task.id,91),true);
+  assert.equal(state.timer.total,45.5*minute);
+  startPause(state,start,task.id);
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  const deadline=restored.timer.endAt;
+  settle(restored,deadline);
+  assert.equal(restored.timer.taskPlan.stage,'interval');
+  assert.equal(restored.timer.total,9.1*minute);
+  startPause(restored,deadline);
+  settle(restored,restored.timer.endAt);
+  assert.equal(restored.timer.taskPlan.stage,'second');
+  assert.equal(restored.timer.total,45.5*minute);
+  startPause(restored,deadline+10*minute,task.id);
+  settle(restored,restored.timer.endAt);
+  assert.equal(restored.timer.total,18.2*minute);
+  assert.equal(restored.timer.taskPlan.stage,'final');
+  assert.equal(task.done,false);
+  taskFinishBreak(state,50);
+  assert.equal(state.timer.total,10*minute);
+});
+
+test('overtime starts at the original deadline and stays distinct in calendar replay after refresh',()=>{
+  const state=freshState(),start=Date.now();
+  state.focusOvertime=true;
+  startPause(state,start);
+  const deadline=state.timer.endAt;
+  assert.equal(settle(state,deadline+42000),null);
+  assert.equal(state.timer.status,'overtime');
+  assert.equal(state.history.length,0);
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  assert.equal(overtimeElapsed(restored.timer,deadline+60000),60000);
+  const completed=finishOvertime(restored,deadline+60000);
+  assert.equal(completed.focusMs,26*60000);
+  assert.equal(completed.overtimeMs,60000);
+  assert.deepEqual(replaySessions(restored.history,restored.timer,deadline+60000)[0].segments.map(item=>[item.action,item.end-item.at]),
+    [['start',25*60000],['overtime',60000]]);
+  assert.equal(restored.timer.mode,'break');
+});
+
+test('soundtracks preserve valid Spotify and YouTube entries across backup',()=>{
+  const state=freshState();
+  state.soundtracks=loadSoundtracks([
+    {id:'1',name:'  Deep work ',source:'spotify',link:'https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO'},
+    {id:'2',name:'Review',source:'youtube',link:'https://youtu.be/M7lc1UVf-VE'},
+    {id:'3',name:'Invalid',source:'youtube',link:'https://example.org'}
+  ]);
+  const {state:restored}=readBackup(JSON.stringify(createBackup(state,{getItem:()=>null},[])));
+  assert.deepEqual(restored.soundtracks.map(item=>item.name),['Deep work','Review']);
 });

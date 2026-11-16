@@ -1,4 +1,4 @@
-const actions=new Set(['start','pause','resume','switch','finish','early','skip']);
+const actions=new Set(['start','pause','resume','switch','overtime','finish','early','skip']);
 const stops=new Set(['pause','finish','early','skip']);
 
 export function loadReplay(value){
@@ -22,7 +22,7 @@ export function addReplayEvent(timer,action,now,task){
 }
 
 export function replayTaskSwitch(timer,task,now){
-  if(timer.mode!=='focus'||!timer.id||timer.block)return;
+  if(timer.mode!=='focus'||!timer.id||timer.block||timer.status==='overtime')return;
   if(timer.status==='running'&&now>=timer.endAt)return;
   const last=timer.replay?.at(-1);
   if((last?.taskId??timer.taskSnapshot?.id??'')!==(task?.id||''))addReplayEvent(timer,'switch',now,task||null);
@@ -32,8 +32,10 @@ export function replaySessions(history,timer,now){
   const sessions=history.filter(item=>item.mode==='focus');
   if(timer?.mode==='focus'&&timer.id&&!sessions.some(item=>item.id===timer.id)){
     sessions.push({id:timer.id,replay:timer.replay,taskId:timer.taskSnapshot?.id,taskTitle:timer.taskSnapshot?.text,
-      projectId:timer.taskSnapshot?.projectId,focusMs:Math.max(0,timer.total-(timer.status==='running'?Math.max(0,timer.endAt-now):timer.remaining)),
-      finishedAt:timer.status==='running'?Math.min(now,timer.endAt):now,live:timer.status});
+      projectId:timer.taskSnapshot?.projectId,focusMs:Math.max(0,timer.total-(timer.status==='running'?Math.max(0,timer.endAt-now):timer.remaining))+
+        (timer.status==='overtime'?Math.max(0,now-timer.endAt):0),
+      finishedAt:timer.status==='running'?Math.min(now,timer.endAt):now,live:timer.status,
+      overtimeMs:timer.status==='overtime'?Math.max(0,now-timer.endAt):0});
   }
   return sessions.map(session=>{
     const events=session.replay||[], segments=[];

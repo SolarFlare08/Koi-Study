@@ -1,3 +1,5 @@
+import {spotifyPath} from './spotify-embed.js';
+import {youtubeContent} from './youtube-embed.js';
 import {loadGardenDesign,loadGardenLayouts} from './garden-layout.js';
 import {loadAppearance,loadGardenLooks} from './garden-appearance.js';
 import {loadSoundSettings} from './garden-audio.js';
@@ -178,8 +180,17 @@ export function breakIdeasThatFit(ideas,ms){
   const best=Math.max(...choices.map(idea=>idea.minutes));
   return choices.filter(idea=>idea.minutes===best);
 }
+export function loadSoundtracks(value){
+  const records=new Map();
+  for(const item of Array.isArray(value)?value:[]){
+    if(typeof item?.id!=='string'||!item.id||typeof item.name!=='string'||!item.name.trim()||typeof item.link!=='string')continue;
+    const valid=item.source==='spotify'?spotifyPath(item.link):item.source==='youtube'?youtubeContent(item.link):null;
+    if(valid)records.set(item.id,{id:item.id,name:item.name.trim().slice(0,80),source:item.source,link:item.link});
+  }
+  return [...records.values()];
+}
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],
     taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],breakIdeas:[],
@@ -254,6 +265,8 @@ export function loadState(storage) {
     });
     for (const key of ['intention','notes','spotify','youtube']) if (typeof raw[key] === 'string') base[key] = raw[key];
     base.mediaSource=raw.mediaSource==='youtube'?'youtube':'spotify';
+    base.soundtracks=loadSoundtracks(raw.soundtracks);
+    base.focusOvertime=raw.focusOvertime===true;
     base.stickyNotes=loadStickyNotes(raw.stickyNotes,base.notes);
     base.gardenGrowth=loadGardenGrowth(raw.gardenGrowth);
     base.finishedBooks=loadFinishedBooks(raw.finishedBooks,base.gardenGrowth,base.dailyRituals,base.readingNotes);
@@ -286,8 +299,11 @@ export function loadState(storage) {
       .map(h=>Array.isArray(h.replay)?{...h,replay:loadReplay(h.replay)}:h);
     base.focusMode=raw.focusMode===true;
     const t=raw.timer;
-    if (t && ['focus','break'].includes(t.mode) && ['idle','running','paused'].includes(t.status) && Number.isFinite(t.remaining) && t.remaining>=0 && t.remaining<=10800000 && Number.isFinite(t.total) && t.total>0 && t.total<=10800000 && (t.status!=='running' || (Number.isFinite(t.endAt) && typeof t.id==='string' && Number.isFinite(t.startedAt)))) {
+    const taskPlan=loadTaskTiming(t?.taskPlan,base.tasks);
+    const maxTimer=taskPlan||t?.taskBreak===true?86400000:10800000;
+    if (t && ['focus','break'].includes(t.mode) && ['idle','running','paused','overtime'].includes(t.status) && Number.isFinite(t.remaining) && t.remaining>=0 && t.remaining<=maxTimer && Number.isFinite(t.total) && t.total>0 && t.total<=maxTimer && (!['running','overtime'].includes(t.status) || (Number.isFinite(t.endAt) && typeof t.id==='string' && Number.isFinite(t.startedAt)))) {
       base.timer={...t};
+      if(taskPlan)base.timer.taskPlan=taskPlan;else delete base.timer.taskPlan;
       if(t.mode!=='focus'||!base.mistakes.some(item=>item.id===t.mistakeId))delete base.timer.mistakeId;
       base.timer.startHandoff=sessionHandoff(t.startHandoff);
       if(Array.isArray(t.replay))base.timer.replay=loadReplay(t.replay);
@@ -310,7 +326,7 @@ export function loadState(storage) {
     return base;
   } catch { return base; }
 }
-export function remaining(state, now=Date.now()) { return state.timer.status==='running' ? Math.max(0,state.timer.endAt-now) : state.timer.remaining; }
+export function remaining(state, now=Date.now()) { return state.timer.status==='overtime'?0:state.timer.status==='running' ? Math.max(0,state.timer.endAt-now) : state.timer.remaining; }
 export function consumeTimerWarning(state,now=Date.now()) {
   const timer=state.timer;
   if (timer.status!=='running'||timer.warningSent) return null;
@@ -345,6 +361,39 @@ export function startPause(state, now=Date.now(), taskId=state.activeTask) {
 export function reset(state, mode=state.timer.mode) {
   state.timer={mode,status:'idle',remaining:duration(state,mode),total:duration(state,mode),endAt:null,startedAt:null,id:null};
 }
+const taskStages=['first','interval','second','final'];
+function loadTaskTiming(plan,tasks){
+  return tasks.some(task=>task.id===plan?.taskId)&&taskStages.includes(plan.stage)&&
+    Number.isInteger(plan.totalMs)&&plan.totalMs>=60000&&plan.totalMs<=86400000
+    ?{taskId:plan.taskId,totalMs:plan.totalMs,stage:plan.stage}:null;
+}
+export function resetTaskTiming(state,plan){
+  const {totalMs,stage}=plan,first=Math.ceil(totalMs/2000)*1000;
+  const rest=stage==='interval'||stage==='final';
+  const length=stage==='first'?(totalMs>3600000?first:totalMs):stage==='second'?totalMs-first:
+    Math.round((stage==='interval'?first:totalMs)/5000)*1000;
+  reset(state,rest?'break':'focus');
+  Object.assign(state.timer,{remaining:length,total:length,taskPlan:{...plan}});
+}
+export function startTaskTiming(state,taskId,minutes){
+  if(!Number.isFinite(minutes)||minutes<=0||minutes>1440)return false;
+  resetTaskTiming(state,{taskId,totalMs:Math.round(minutes*60000),stage:'first'});
+  return true;
+}
+export function taskFinishBreak(state,minutes){
+  reset(state,'break');
+  if(Number.isFinite(minutes)&&minutes>0&&minutes<=1440){
+    const ms=Math.max(1000,Math.round(minutes*12)*1000);
+    Object.assign(state.timer,{total:ms,remaining:ms,taskBreak:true});
+  }
+}
+export const overtimeElapsed=(timer,now=Date.now())=>timer.status==='overtime'?Math.max(0,now-timer.endAt):0;
+export function finishOvertime(state,now=Date.now()){
+  if(state.timer.status!=='overtime')return null;
+  const session=record(state,'completed',now,{early:true});
+  advanceTimer(state,now);
+  return session;
+}
 const blockPhaseLength={focus:50*60000,break:10*60000};
 
 function startBlockPhase(state, mode, taskId, available, split, now, calendarBlock) {
@@ -361,9 +410,15 @@ export function startBlockFocus(state, taskId, available, split, now=Date.now(),
 }
 
 function advanceTimer(state, now) {
-  const {mode,block,sequence}=state.timer;
+  const {mode,block,sequence,taskPlan}=state.timer;
   const next=mode==='focus'?'break':'focus';
-  if(sequence){
+  if(taskPlan){
+    const task=state.tasks.find(item=>item.id===taskPlan.taskId);
+    const ready=task&&!task.waitingFor&&taskStatus(task,new Date(now))==='todo';
+    const stage=taskPlan.stage==='first'?(taskPlan.totalMs>3600000&&ready?'interval':'final'):
+      taskPlan.stage==='interval'?(ready?'second':''):taskPlan.stage==='second'?'final':'';
+    if(stage)resetTaskTiming(state,{...taskPlan,stage});else reset(state,'focus');
+  }else if(sequence){
     if(sequence.index+1<sequence.phases.length)loadRoutinePhase(state,sequence,sequence.index+1);
     else reset(state,'focus');
   }else if (block?.left>0) {
@@ -381,16 +436,19 @@ export function skipPhase(state, now=Date.now()) {
 export function record(state, outcome, now=Date.now(), {early=false}={}) {
   const t=state.timer;
   if(!t.id || state.history.some(h=>h.id===t.id)) return null;
-  const finish=outcome==='completed' && t.endAt && !early ? t.endAt : now;
+  const overtime=t.status==='overtime',overtimeMs=overtimeElapsed(t,now);
+  if(overtime)outcome='completed';
+  const finish=outcome==='completed' && t.endAt && !early&&!overtime ? t.endAt : now;
   const task=t.taskSnapshot||state.tasks.find(task=>task.id===t.block?.taskId);
   const examId=t.mistakeId&&state.mistakes.find(item=>item.id===t.mistakeId)?.examId;
   const examProject=examId&&state.projects.find(project=>project.exams?.some(exam=>exam.id===examId));
   const intention=t.block?(task?.text||state.intention):(state.intention||task?.text||'');
-  const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now)):0,intention,taskTitle:task?.text||'',taskId:task?.id||'',projectId:task?task.projectId||'':examProject?.id||null};
+  const h={id:t.id,mode:t.mode,outcome,finishedAt:finish,day:dayKey(new Date(finish)),focusMs:t.mode==='focus'?Math.max(0,t.total-remaining(state,now))+overtimeMs:0,intention,taskTitle:task?.text||'',taskId:task?.id||'',projectId:task?task.projectId||'':examProject?.id||null};
+  if(overtime)h.overtimeMs=overtimeMs;
   if(t.replay?.length){
     // Record the closing event on the snapshot so a failed save can restore the running timer.
     const snapshot={...t};
-    addReplayEvent(snapshot,outcome==='skipped'?'skip':early?'early':'finish',finish);
+    addReplayEvent(snapshot,outcome==='skipped'?'skip':early&&!overtime?'early':'finish',finish);
     h.replay=snapshot.replay;
   }
   if(t.mode==='focus'){
@@ -409,6 +467,12 @@ export function record(state, outcome, now=Date.now(), {early=false}={}) {
 }
 export function settle(state, now=Date.now()) {
   if(state.timer.status!=='running' || remaining(state,now)>0) return null;
+  const timer=state.timer;
+  if(state.focusOvertime&&timer.mode==='focus'&&!timer.block&&!timer.sequence&&!timer.mistakeId){
+    addReplayEvent(timer,'overtime',timer.endAt);
+    timer.status='overtime';timer.remaining=0;
+    return null;
+  }
   const h=record(state,'completed',now);
   advanceTimer(state,state.timer.endAt);
   return h;

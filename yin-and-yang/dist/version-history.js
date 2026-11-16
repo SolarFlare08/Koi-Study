@@ -1,4 +1,10 @@
 export const releases = [
+  {version:'3.3.0',date:'2026-11-15',title:'Task timers, overtime, and saved soundtracks',changes:[
+    'Save and switch between named Spotify and YouTube soundtracks.',
+    'Check subtasks beside the timer and carry the first unfinished step into the next handoff.',
+    'Match countdowns to task durations, split tasks over an hour, and set the final break to 20% of the task duration.',
+    'Count up after zero with optional focus overtime and show the extra time separately in Calendar Actual.'
+  ]},
   {version:'3.2.1',date:'2026-11-15',title:'Landmark panels fit the Garden',changes:[
     'Keep landmark details above the workspace bar, with an internal scroll area for the editing controls.',
     'Group book dates and ratings, and make the inscription and placement sections easier to scan.'

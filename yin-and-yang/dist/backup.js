@@ -218,8 +218,9 @@ export function planBackupRestore(storage,current,incoming,sections){
     stateList(apply,'history','Focus and rest sessions');stateList(apply,'breakIdeas','Break ideas');stateList(apply,'routines','Timer routines');
     stateList(apply,'gardenGrowth','Garden landmarks',item=>JSON.stringify([item.kind,item.sourceId]));
     stateList(apply,'gardenLooks','Saved Garden looks');
+    stateList(apply,'soundtracks','Saved soundtracks');
     stateList(apply,'gardenLayouts','Saved Studio layouts');
-    const keys=['settings','appearance','gardenSchedule','gardenDesign','sounds','notifications','intention','spotify','youtube','mediaSource','focusMode','replanCutoff','studyCapacity','planningCooldown','shutdownSteps','shutdownProgress'];
+    const keys=['settings','appearance','gardenSchedule','gardenDesign','sounds','notifications','intention','spotify','youtube','mediaSource','focusOvertime','focusMode','replanCutoff','studyCapacity','planningCooldown','shutdownSteps','shutdownProgress'];
     const changes=keys.filter(key=>comparable(current[key])!==comparable(incoming.state[key]))
       .map(key=>backupConflict(fieldLabel(key),current[key],incoming.state[key]));
     details.push({label:'Preferences',added:0,replaced:changes.length,unchanged:keys.length-changes.length,changes});

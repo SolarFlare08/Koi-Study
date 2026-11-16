@@ -41,6 +41,31 @@ export const helpTopics = [
     keywords:'pomodoro countdown colon seconds minutes inactive background tab time'
   },
   {
+    id:'focus-task-timing',group:'Focus & rest',title:'Match the timer to your task',
+    summary:'Use a task’s duration and prepare a proportional break.',
+    steps:['Select a task in Garden from Current task, Tasks, or Find a task by time. Garden uses a scheduled block or the task estimate. Without a duration, it uses the manual timer.',
+      'A task over 60 minutes splits into two halves with a break equal to 20% of the first half. Start each phase when ready or use Skip to advance.',
+      'The final break is 20% of the full task duration. `Finish` → `Take a break` uses the same calculation when you finish early.',
+      'Use the countdown editor to set another length manually. Starting from a calendar block uses its remaining time, and saved routines use their own phases.'],
+    action:'focus',actionLabel:'Open Garden',related:['timer','focus-queue','routines']
+  },
+  {
+    id:'focus-subtasks',group:'Focus & rest',title:'Check off subtasks during focus',
+    summary:'Use the current task’s checklist beside the timer.',
+    steps:['Add subtasks in the task editor and select the task in Garden.',
+      'Choose `Subtasks` beside the timer and check items off as you go. Planner shows the same checkmarks.',
+      'The first unchecked item appears in Pick up here and Warm up with your other handoff details.'],
+    action:'focus',actionLabel:'Open Garden',related:['resume','session-warmup','tasks']
+  },
+  {
+    id:'focus-overtime',group:'Focus & rest',title:'Keep counting in focus overtime',
+    summary:'Continue after zero and record the extra time separately.',
+    steps:['Turn on `Overtime` in Garden before an ordinary or task-timed focus countdown ends. The setting stays on until you turn it off.',
+      'At zero, the timer counts up. Choose `Finish overtime` to record the extra time and prepare the next break.',
+      'Open Calendar → `Actual` to see a separate overtime segment. Calendar-started blocks, routines, and mistake retries end on schedule.'],
+    action:'focus',actionLabel:'Open Garden',related:['timer','focus-replay','focus-task-timing']
+  },
+  {
     id:'routines', group:'Focus & rest', title:'Save timer routines and an intention',
     summary:'Keep favorite focus and break lengths ready to use.',
     steps:['In Garden, open `Tools` → `Timer settings`.',
@@ -720,7 +745,8 @@ export const helpTopics = [
   {
     id:'music', group:'Make it yours', title:'Spotify, YouTube, and app sounds',
     summary:'Play your playlists and choose whether the app makes any sound.',
-    steps:['In Garden, open `Tools` → `Music & video`. Choose Spotify or YouTube, paste a link, and choose `Load`. Each service keeps its own saved link.',
+    steps:['In Garden, open `Tools` → `Music & video`. Choose Spotify or YouTube, paste a link, and choose `Load`. Each service keeps its own most recent link.',
+      'To keep several links, paste a link, expand `Save a soundtrack`, and enter a name. Use `Saved soundtracks` to switch links or `Remove saved` to remove one.',
       'On YouTube, choose `Pop out video` for a mini player inside Yin and Yang. Use `Expand` to return to the full player or hide the video to continue listening.',
       'Use `Open in Spotify` or `Open on YouTube` to play the saved link on the service’s own site.',
       'Optional rain, water, and wind have independent volume sliders. Focus and break chimes have separate sliders too. Zero disables a channel; `Silence` clears the ambience mix.',

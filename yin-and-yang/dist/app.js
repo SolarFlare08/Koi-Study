@@ -1,9 +1,9 @@
-import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit} from './state.js';
+import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit,loadSoundtracks,startTaskTiming,resetTaskTiming,taskFinishBreak,overtimeElapsed,finishOvertime} from './state.js';
 import {renderLandscape,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
-import {handoffLink,sessionHandoff} from './session-handoff.js';
+import {handoffLink,sessionHandoff,nextFocusSubtask} from './session-handoff.js';
 import {installExamPlans} from './exam-plans.js';
 import {installMistakeNotebook,needsRetry} from './mistake-notebook.js';
 import {bundleProgress,installBundleEditor} from './task-bundles.js';
@@ -21,7 +21,7 @@ import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,merg
 import {installBackup} from './backup.js';
 import {dailyRitualMarkup,ritualComplete,rituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
-import {createSpotifyEmbed} from './spotify-embed.js';
+import {createSpotifyEmbed,spotifyPath} from './spotify-embed.js';
 import {createYouTubeEmbed,youtubeContent,youtubeLinks} from './youtube-embed.js';
 import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
 import {installCommandPalette} from './command-palette.js';
@@ -748,6 +748,9 @@ function waitingOn(task){return task?.prerequisiteIds?.length?unfinishedPrerequi
 function focusedTask(date=new Date()){
   if(state.timer.mistakeId)return state.tasks.find(task=>task.id===state.timer.taskSnapshot?.id);
   if(state.timer.block)return state.tasks.find(task=>task.id===state.timer.block.taskId&&!task.waitingFor);
+  const plan=state.timer.taskPlan;
+  const planned=plan&&plan.stage!=='final'&&state.tasks.find(task=>task.id===plan.taskId&&!task.waitingFor&&taskStatus(task,date)!=='done');
+  if(planned)return planned;
   const queue=gardenFocusQueue(date);
   const sessionId=state.timer.mode==='focus'?state.timer.replay?.at(-1)?.taskId||state.timer.taskSnapshot?.id:null;
   const day=dayKey(date);
@@ -758,6 +761,32 @@ function focusedTask(date=new Date()){
   const selectedId=(state.tomorrowPlan?.day!==day||state.activeTaskDay===day?state.activeTask:null)||sessionId;
   return queue.find(task=>task.id===selectedId)||queue[0];
 }
+function taskFocusMinutes(task,now=Date.now()){
+  const schedules=calendarBlocks([task],new Date(now)).filter(openFocusBlock)
+    .map(block=>calendarTaskBlock(task,block.blockId,block.occurrence)).filter(Boolean);
+  const upcoming=schedules.find(slot=>slot.start<=now&&slot.end>now)||schedules.find(slot=>slot.start>now)||schedules.at(-1);
+  return upcoming?.minutes||task.estimate||[...(task.blocks||[])].sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time))[0]?.minutes;
+}
+function selectTaskForTimer(task){
+  const prior=state.timer,previous=focusedTask();
+  state.activeTask=task.id;state.activeTaskDay=dayKey();
+  pauseBundleForTask(task.id);
+  if(prior.block||prior.sequence||prior.mistakeId||
+    prior.taskPlan?.taskId===task.id&&prior.taskPlan.stage!=='final'||
+    prior.id&&prior.mode==='focus'&&previous?.id===task.id)return;
+  const wasRunning=prior.status==='running'&&prior.mode==='focus';
+  if(prior.id)record(state,'skipped');
+  if(!startTaskTiming(state,task.id,taskFocusMinutes(task))&&(prior.id||prior.mode!=='focus'||prior.taskPlan))reset(state,'focus');
+  if(wasRunning)toggleFocusTimer(task);
+}
+function saveTaskSelection(task){
+  checkCompletion();
+  const {activeTask,activeTaskDay,activeBundle,timer}=state,length=state.history.length;
+  selectTaskForTimer(task);
+  if(persist())return true;
+  Object.assign(state,{activeTask,activeTaskDay,activeBundle,timer});state.history.length=length;
+  return false;
+}
 function gardenTasks(){return state.tasks.filter(task=>!state.projects.some(project=>project.id===task.projectId&&project.archived));}
 
 function projectTimerLocked(){return Boolean(state.timer.block||state.timer.mode==='focus'&&state.timer.id);}
@@ -767,11 +796,7 @@ function resumeProject(projectId){
   if(projectTimerLocked()){confirmChange('Finish or reset the current focus timer before switching projects.');return;}
   const task=nextProjectTask(projectId);
   if(!task){confirmChange('This project has no task ready in the focus queue.');return;}
-  const {activeTask,activeTaskDay,activeBundle}=state;
-  pauseBundleForTask(task.id);
-  state.activeTask=task.id;
-  state.activeTaskDay=dayKey();
-  if(!persist()){Object.assign(state,{activeTask,activeTaskDay,activeBundle});return;}
+  if(!saveTaskSelection(task))return;
   visitWorkspace('focus');
   refreshTasks();
   const context=$('#focus-project-context');
@@ -813,9 +838,11 @@ function render(){
     const label=effectiveAppearance.time?`Active since ${timeLabel(timeMinutes(effectiveAppearance.time))} · ${seasonOptions[effectiveAppearance.season].name} · ${lightingOptions[effectiveAppearance.lighting]}`:'Manual appearance';
     if(activePreset.textContent!==label)activePreset.textContent=label;
   }
-  const ms=remaining(state),seconds=Math.ceil(ms/1000),mins=Math.floor(seconds/60),secs=seconds%60,t=state.timer;
-  $('#countdown').innerHTML=`${String(mins).padStart(2,'0')}<span>:</span>${String(secs).padStart(2,'0')}`;
-  $('#countdown').setAttribute('aria-label',`${mins} minutes ${secs} seconds of ${t.mode==='focus'?'focus':'rest'} remaining`);
+  const t=state.timer, overtime=t.status==='overtime';
+  const ms=remaining(state),seconds=overtime?Math.floor(overtimeElapsed(t,clock.getTime())/1000):Math.ceil(ms/1000);
+  const mins=Math.floor(seconds/60),secs=seconds%60;
+  $('#countdown').innerHTML=`${overtime?'+':''}${String(mins).padStart(2,'0')}<span>:</span>${String(secs).padStart(2,'0')}`;
+  $('#countdown').setAttribute('aria-label',overtime?`${mins} minutes ${secs} seconds of overtime`:`${mins} minutes ${secs} seconds of ${t.mode==='focus'?'focus':'rest'} remaining`);
   const [hour,period]=clock.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}).split(/\s+/);
   $('#wall-clock').innerHTML=hour+'<small>'+period+'</small>';
 
@@ -834,6 +861,13 @@ function render(){
   finishTaskButton.hidden=!task||t.mode!=='focus'||Boolean(t.mistakeId);
   currentTaskButton.disabled=Boolean(t.mistakeId);
   renderSessionExtras(t);
+  const list=$('#focus-subtasks'),subtasks=task?.subtasks||[];
+  list.hidden=!subtasks.length||Boolean(t.mistakeId);
+  const checklist=`Subtasks · ${subtasks.filter(item=>item.done).length}/${subtasks.length}`;
+  if(list.textContent!==checklist)list.textContent=checklist;
+  const extra=$('#focus-overtime');
+  extra.hidden=t.mode!=='focus'||Boolean(t.block||t.sequence||t.mistakeId)||overtime;
+  extra.setAttribute('aria-pressed',String(state.focusOvertime));
   const recent=t.mode==='break'?state.history.findLast(item=>item.mode==='focus'&&item.outcome==='completed'):null;
   const previousFocus=t.mode==='break'?(resumeTaskId||recent?.replay?.at(-1)?.taskId||recent?.taskId):null;
   const resume=(previousFocus&&state.tasks.find(item=>item.id===previousFocus))||task;
@@ -877,8 +911,9 @@ function render(){
   const sequence=t.sequence;
   const phase=sequence?.phases[sequence.index];
   const routineCaption=$('#routine-phase');
-  const phaseText=phase?`${sequence.name} · ${sequence.index+1}/${sequence.phases.length} · ${phase.name}`:'';
-  routineCaption.hidden=!phase;
+  const phaseText=phase?`${sequence.name} · ${sequence.index+1}/${sequence.phases.length} · ${phase.name}`:
+    overtime?'Overtime':t.taskPlan?.totalMs>3600000?({first:'Task focus · Half 1 of 2',interval:'Rest before half 2',second:'Task focus · Half 2 of 2',final:'Task break'})[t.taskPlan.stage]:'';
+  routineCaption.hidden=!phaseText;
   $('#end-routine').hidden=!phase;
   if(routineCaption.textContent!==phaseText)routineCaption.textContent=phaseText;
   const outcomeButton=$('#focus-goal'), outcomeText=t.id?(t.goal||'Set outcome'):'Warm up';
@@ -886,22 +921,28 @@ function render(){
   if(outcomeButton.textContent!==outcomeText)outcomeButton.textContent=outcomeText;
   outcomeButton.title=!t.id?'Review your handoff, note, and outcome':t.goal?`Edit outcome: ${t.goal}`:'Set an outcome for this focus session';
   $('#review-focus').hidden=!pendingFocusReview();
-  timerButton.innerHTML=icon(running?'pause':'play')+`<span>${running?'Pause':t.status==='paused'?'Continue':t.mode==='focus'?'Begin focus':'Begin rest'}</span>`;
+  timerButton.innerHTML=icon(running?'pause':'play')+`<span>${overtime?'Finish overtime':running?'Pause':t.status==='paused'?'Continue':t.mode==='focus'?'Begin focus':'Begin rest'}</span>`;
   $('[data-mode="focus"]').setAttribute('aria-pressed',t.mode==='focus');
   $('[data-mode="break"]').setAttribute('aria-pressed',t.mode==='break');
-  app.classList.toggle('focus-running',running);
+  app.classList.toggle('focus-running',running||overtime);
   const progress=todayProgress(state);
   if(progress.completed!==lastBlossoms){$('#blossoms').innerHTML=blossomMarkup(progress.completed);lastBlossoms=progress.completed;}
   renderGardenGrowth();
-  document.title=t.status==='idle'?'Yin and Yang — A quiet place to focus':`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} · ${t.mode==='focus'?'Focus':'Rest'} — Yin and Yang`;
+  document.title=t.status==='idle'?'Yin and Yang — A quiet place to focus':`${overtime?'+':''}${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} · ${t.mode==='focus'?'Focus':'Rest'} — Yin and Yang`;
 }
 function checkCompletion(){
-  const now=Date.now(),wasBlock=Boolean(state.timer.block),wasRoutine=Boolean(state.timer.sequence);
+  const now=Date.now(),wasOvertime=state.timer.status==='overtime',wasBlock=Boolean(state.timer.block),wasRoutine=Boolean(state.timer.sequence);
   let completed=null;
   let focused=false;
   for(let phase=settle(state,now);phase;phase=settle(state,now)){
     completed=phase;
     if(phase.mode==='focus'){focused=true;resumeTaskId=phase.replay?.at(-1)?.taskId??phase.taskId??null;}
+  }
+  if(!wasOvertime&&state.timer.status==='overtime'){
+    const text='Focus time is up. Overtime is counting until you finish.';
+    persist();render();toast(text);announce(text);wake();
+    notifyTimer('Focus overtime',text,state.timer.id+'-overtime');
+    return;
   }
   const warning=completed?null:consumeTimerWarning(state,now);
   if(!completed&&!warning)return;
@@ -951,6 +992,13 @@ async function toggleNotifications(){
 }
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
 function toggleFocusTimer(task,now=Date.now()){
+  if(finishOvertime(state,now)){
+    nextPenguinThought();
+    resumeTaskId=task?.id||null;
+    planner.refreshReporting();
+    toast('Overtime recorded. Your break is ready.');
+    return;
+  }
   const freshFocus=!state.timer.id&&state.timer.mode==='focus';
   const bundle=freshFocus&&!task?activeBundleStatus(new Date(now)):null;
   if(bundle?.next&&!bundle.run.paused)return;
@@ -967,16 +1015,30 @@ function toggleFocusTimer(task,now=Date.now()){
     state.timer.calendarBlock={occurrence,blockId:blockId||null,taskDay};
   }
 }
-timerButton.onclick=()=>action(()=>{toggleFocusTimer(focusedTask());announce(state.timer.status==='running'?`${state.timer.mode} timer started.`:'Timer paused.');});
+timerButton.onclick=()=>action(()=>{
+  const overtime=state.timer.status==='overtime';
+  toggleFocusTimer(focusedTask());
+  announce(overtime?'Overtime recorded.':state.timer.status==='running'?`${state.timer.mode} timer started.`:'Timer paused.');
+});
+$('#focus-subtasks').onclick=()=>openPanel('focus-subtasks',$('#focus-subtasks'));
+$('#focus-overtime').onclick=()=>action(()=>{
+  state.focusOvertime=!state.focusOvertime;
+  announce(state.focusOvertime?'Overtime enabled.':'Overtime off.');
+});
 $('#reset-timer').onclick=()=>action(()=>{
-  if(state.timer.id){record(state,'skipped');toast('Timer reset. The unfinished session was marked skipped.');}
-  const {sequence,goal}=state.timer;
+  if(state.timer.id){
+    const session=record(state,'skipped');
+    toast(session?.outcome==='completed'?'Overtime saved. Timer reset.':'Timer reset. The unfinished session was marked skipped.');
+  }
+  const {sequence,goal,taskPlan,taskBreak,total}=state.timer;
   if(sequence)loadRoutinePhase(state,sequence,sequence.index);
+  else if(taskPlan)resetTaskTiming(state,taskPlan);
+  else if(taskBreak)taskFinishBreak(state,total/12000);
   else reset(state);
   if(goal)state.timer.goal=goal;
 });
-$('#skip-timer').onclick=()=>action(()=>{const skipped=skipPhase(state);toast(skipped?'Session skipped. It won’t count as completed.':`${state.timer.mode==='focus'?'Focus':'Rest'} timer ready.`);});
-document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>{if(el.dataset.mode===state.timer.mode)return;action(()=>{if(state.timer.id){record(state,'skipped');toast('Unfinished session marked skipped.');}reset(state,el.dataset.mode);});});
+$('#skip-timer').onclick=()=>action(()=>{const skipped=skipPhase(state);toast(skipped?.outcome==='completed'?'Overtime recorded.':skipped?'Session skipped. It won’t count as completed.':`${state.timer.mode==='focus'?'Focus':'Rest'} timer ready.`);});
+document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>{if(el.dataset.mode===state.timer.mode)return;action(()=>{if(state.timer.id){const session=record(state,'skipped');toast(session?.outcome==='completed'?'Overtime recorded.':'Unfinished session marked skipped.');}reset(state,el.dataset.mode);});});
 currentTaskButton.onclick=()=>{
   if(activePanel==='focus-task'){closePanel();return;}
   openPanel('focus-task',currentTaskButton);
@@ -1055,7 +1117,7 @@ document.addEventListener('fullscreenchange',()=>{const full=!!document.fullscre
 function wake(){
   clearTimeout(idleTimeout);
   app.classList.remove('is-idle');
-  if(state.focusMode&&state.timer.status==='running'&&!activePanel)idleTimeout=setTimeout(()=>app.classList.add('is-idle'),4000);
+  if(state.focusMode&&['running','overtime'].includes(state.timer.status)&&!activePanel)idleTimeout=setTimeout(()=>app.classList.add('is-idle'),4000);
 }
 for(const event of ['pointermove','pointerdown','keydown','focusin'])document.addEventListener(event,wake,{passive:true});
 document.addEventListener('pointermove',event=>{
@@ -1125,11 +1187,12 @@ function gardenCourseMarkup(){
       ${item.result?`<small>${escape(item.result)}</small>`:''}</span><time datetime="${item.day}">${landmarkDate(item.day)}</time></button></li>`).join('')}</ol>
     <button type="button" class="text-button" data-garden-history-open>Garden Field Guide</button>`;
 }
-function hasHandoff(task){return Boolean(task?.resumeNote||task?.resumeLocation||task?.resumeResource);}
+function hasHandoff(task){return Boolean(task?.resumeNote||task?.resumeLocation||task?.resumeResource||nextFocusSubtask(task));}
 function handoffDetails(task){
-  const resource=handoffLink(task.resumeResource);
+  const resource=handoffLink(task.resumeResource),next=nextFocusSubtask(task);
   return `${task.resumeLocation?`<p><strong>${escape(task.resumeLocation)}</strong></p>`:''}
     ${task.resumeNote?`<p class="handoff-note">${escape(task.resumeNote)}</p>`:''}
+    ${next?`<p class="handoff-note">Next unfinished subtask · ${escape(next.text)}</p>`:''}
     ${resource?`<a class="handoff-resource" href="${escape(resource)}" target="_blank" rel="noopener noreferrer">Open resource ${icon('external')}</a>`:''}`;
 }
 function handoffFields(task){
@@ -2315,6 +2378,13 @@ function panelContent(id){
         <button class="text-button" type="submit" value="save">Save outcome</button>
       </div>
     </form>`;
+  if(id==='focus-subtasks'){
+    const task=focusedTask(),items=task?.subtasks||[];
+    return header('CURRENT TASK',escape(task?.text||'Subtasks'))+
+      (items.length?`<ul class="focus-subtask-list">${items.map(item=>`<li><label>
+        <input type="checkbox" data-focus-subtask="${escape(item.id)}" data-subtask-parent="${escape(task.id)}" ${item.done?'checked':''}>
+        <span>${escape(item.text)}</span></label></li>`).join('')}</ul>`:'<p>No subtasks for the current task.</p>');
+  }
   if(id==='fit-task')return `${header('CURRENT TASK','Find a task by time')}
     <label class="field-label" for="fit-minutes">Minutes available</label>
     <input id="fit-minutes" type="number" min="1" max="1440" value="${fitMinutes}">
@@ -2469,6 +2539,17 @@ function panelContent(id){
     <div class="media-sources" role="group" aria-label="Media source">
       <button type="button" data-media-source="spotify">Spotify</button><button type="button" data-media-source="youtube">YouTube</button>
     </div>
+    <div class="soundtrack-controls">
+      <label for="soundtrack-picker">Saved soundtracks</label><div class="music-link">
+        <select id="soundtrack-picker"></select><button type="button" class="text-button" id="remove-soundtrack" disabled>Remove saved</button>
+      </div>
+      <details><summary>Save a soundtrack</summary>
+        <form id="soundtrack-form"><label for="soundtrack-name">Name</label>
+          <input id="soundtrack-name" name="name" maxlength="80" placeholder="Deep work" required>
+          <p>Uses the link in the player field below.</p>
+          <button class="panel-primary">Save soundtrack</button>
+        </form></details>
+    </div>
     <label class="field-label" for="media-link" id="media-link-label">Media link</label>
     <form id="media-form" class="music-link"><input id="media-link" type="url" required><button class="panel-primary" type="submit">Load</button></form>
     <div class="music-mini-bar" hidden><strong>YouTube</strong><button type="button" id="restore-media-panel">Expand</button><button type="button" id="hide-media-mini" title="Hide video and keep playing" aria-label="Hide video and keep playing">×</button></div>
@@ -2533,6 +2614,12 @@ function positionPanel(panel,anchor){
   const placement=anchor.isConnected?anchor:anchor.classList.contains('recap-entry')&&recapOrigin?.isConnected?recapOrigin:anchor;
   const r=placement.getBoundingClientRect(),w=panel.offsetWidth,h=panel.offsetHeight,W=window.innerWidth,H=window.innerHeight;
   let x=r.left+r.width/2-w/2,y=r.top-h+15;
+  if(panel.classList.contains('focus-checklist-panel')){
+    const timer=$('.sky').getBoundingClientRect();
+    if(timer.left-12-w>=14)x=timer.left-12-w;
+    else if(timer.right+12+w<=W-14)x=timer.right+12;
+    else if(r.bottom+12+h<=H-66)y=r.bottom+12;
+  }
   if(anchor.classList.contains('garden-action')) y=r.bottom+9;
   if(y<16)y=r.bottom-15;
   panel.style.left=`${Math.max(14,Math.min(x,W-w-14))}px`;
@@ -2549,7 +2636,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden','music-mini');panel.querySelector('.music-mini-bar').hidden=true;panel.setAttribute('aria-hidden','false');panel.setAttribute('aria-modal','true');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.removeAttribute('aria-label');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':id==='focus-subtasks'?'panel focus-checklist-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
   if(id==='appearance')renderSeasonPreview();
@@ -2738,16 +2825,17 @@ function renderDailyRituals(date){
   const showReading=day?.annotate?.title||date===dayKey(now)||date===dayKey(shiftDay(now,1));
   return dailyRitualMarkup(date,day,journal.completedAt(date),showReading?annotationContext(state.dailyRituals,date):null);
 }
-const replayLabels={start:'Started',pause:'Paused',resume:'Resumed',switch:'Switched to',finish:'Timer finished',early:'Finished early',skip:'Skipped'};
+const replayLabels={start:'Started',pause:'Paused',resume:'Resumed',switch:'Switched to',overtime:'Overtime began',finish:'Timer finished',early:'Finished early',skip:'Skipped'};
 const replayClock=at=>new Date(at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
 function focusReplayMarkup(){
   const session=replaySessions(state.history,state.timer,Date.now()).find(item=>item.id===lastAnchor?.dataset.replaySession);
   if(!session)return header('CALENDAR','Session unavailable');
-  const status=session.live==='running'?'In progress':session.live==='paused'?'Paused':session.events.at(-1)?.action==='early'?'Finished early':
+  const status=session.live==='overtime'?'In overtime':session.live==='running'?'In progress':session.live==='paused'?'Paused':session.events.at(-1)?.action==='early'?'Finished early':
     session.outcome==='skipped'?'Skipped':'Completed';
   const duration=formatDuration(session.focusMs);
   return `${header('ACTUAL FOCUS',escape(session.events[0]?.title||session.taskTitle||'Focus session'))}
     <p class="replay-summary"><strong>${duration} focused</strong><span>${status}</span></p>
+    ${session.overtimeMs?`<p>Overtime · ${formatDuration(session.overtimeMs)}</p>`:''}
     ${session.estimated?`<p>Estimated ${replayClock(session.finishedAt-session.focusMs)}–${replayClock(session.finishedAt)}. This older session only saved its duration and finish time.</p>`:
       `<ol class="replay-events">${session.events.map(item=>`<li><time datetime="${new Date(item.at).toISOString()}">${escape(replayClock(item.at))}</time>
         <span>${replayLabels[item.action]}${item.action==='switch'||item.action==='start'&&item.title?` · ${escape(item.title||'Unassigned focus')}`:''}</span></li>`).join('')}</ol>`}
@@ -2756,7 +2844,7 @@ function focusReplayMarkup(){
 function actualBlockMarkup(block){
   const {session,segment,start,end,lane,lanes}=block;
   const title=segment.title||'Unassigned focus';
-  const note=session.estimated?'Estimated':session.live==='running'?'In progress':session.live==='paused'?'Paused':session.outcome==='skipped'?'Skipped':'Actual';
+  const note=segment.action==='overtime'?'Overtime':session.estimated?'Estimated':session.live==='running'?'In progress':session.live==='paused'?'Paused':session.outcome==='skipped'?'Skipped':'Actual';
   const label=`${title}, ${replayClock(segment.at)} to ${replayClock(segment.end)}, ${note}`;
   return `<button type="button" class="calendar-block replay-block" data-replay-session="${escape(session.id)}"
     data-replay-segment="${block.index}" data-replay-status="${note.toLowerCase()}" aria-haspopup="dialog" title="${escape(label)}" aria-label="${escape(label)}"
@@ -2765,7 +2853,7 @@ function actualBlockMarkup(block){
 }
 function actualReplayKey(now){
   const t=state.timer;
-  return JSON.stringify([state.history.length,state.history.at(-1)?.id,t.id,t.status,t.replay?.length,t.replay?.at(-1)?.at,t.status==='running'?Math.floor(+now/60000):null]);
+  return JSON.stringify([state.history.length,state.history.at(-1)?.id,t.id,t.status,t.replay?.length,t.replay?.at(-1)?.at,['running','overtime'].includes(t.status)?Math.floor(+now/60000):null]);
 }
 function updateActualCalendar(now){
   if(!planner.calendarVisible()||!plannerDays.length||actualReplayKey(now)===replayRenderKey||activePanel==='focus-replay')return;
@@ -3042,14 +3130,16 @@ function finishCurrentTask(button){
   const priorTimer=state.timer, priorSelection=state.activeTask, priorHistoryLength=state.history.length;
   const today=new Date(now);
   const wasBundle=activeBundleStatus(today);
+  const minutes=priorTimer.taskPlan?.taskId===task.id?priorTimer.taskPlan.totalMs/60000:taskFocusMinutes(task,now);
   const occurrence=finishTaskOccurrence(task,today,priorTimer);
   const undo=taskStatus(task,occurrence)!=='done'?recordTaskCompletion(state,task,true,occurrence,now):null;
   if(priorTimer.mode==='focus')record(state,'completed',now,{early:true});
   state.activeTask=null;
-  reset(state,button.dataset.finishTask);
+  if(button.dataset.finishTask==='break')taskFinishBreak(state,minutes);else reset(state,'focus');
   const active=activeBundleStatus(today);
   const finishedBundle=wasBundle?.next?.id===task.id&&!wasBundle.run.paused&&!active?.next;
   const next=finishedBundle?undefined:focusedTask();
+  if(next&&state.timer.mode==='focus')startTaskTiming(state,next.id,taskFocusMinutes(next,now));
   if(next||state.timer.mode==='break'||!finishedBundle&&(!active?.next||active.run.paused))toggleFocusTimer(next,now);
   if(!persist()){
     undo?.(state);
@@ -3091,9 +3181,10 @@ taskMenu.addEventListener('click',event=>{
   }
   if(action==='focus'){
     if(waitingOn(task).length){announce('Finish the prerequisites before focusing on this task.');return;}
-    pauseBundleForTask(task.id);
-    state.activeTask=state.activeTask===task.id?null:task.id;
-    if(state.activeTask)state.activeTaskDay=dayKey();
+    if(state.activeTask===task.id){
+      state.activeTask=null;
+      if(state.timer.taskPlan&&!state.timer.id)reset(state,'focus');
+    }else if(!saveTaskSelection(task))return;
   }
   let undo,message;
   if(action==='complete'){
@@ -4105,10 +4196,8 @@ taskSidebar.addEventListener('click',event=>{
   if(button.classList.contains('task-active')){
     const task=state.tasks.find(item=>item.id===card.dataset.task);
     if(!task||waitingOn(task).length)return;
-    pauseBundleForTask(task.id);
-    state.activeTask=card.dataset.task;
-    state.activeTaskDay=dayKey();
-    persist();refreshTasks();
+    if(!saveTaskSelection(task))return;
+    refreshTasks();
     taskSidebar.querySelector(`[data-task="${CSS.escape(state.activeTask)}"] .task-active`)?.focus();
   }
 });
@@ -4122,10 +4211,47 @@ taskSidebar.addEventListener('change',event=>{
   taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-check`)?.focus();
   confirmChange(checkbox.checked?'Task completed.':'Task reopened.',undo);
 });
-function spotifyPath(link){try{const u=new URL(link);if(u.protocol!=='https:'||u.hostname!=='open.spotify.com')return null;return u.pathname.match(/^\/(?:intl-[a-z]+\/)?(playlist|album|track)\/([a-zA-Z0-9]{10,40})\/?$/)?.slice(1).join('/')||null;}catch{return null;}}
 function setMediaStatus(message){
   const status=$('#media-status');
   if(status)status.textContent=message;
+}
+function renderSoundtracks(selected){
+  const picker=$('#soundtrack-picker');
+  const current=selected??state.soundtracks.find(item=>item.source===state.mediaSource&&item.link===state[state.mediaSource])?.id??'';
+  picker.innerHTML='<option value="">Choose a saved soundtrack</option>'+state.soundtracks.map(item=>
+    `<option value="${escape(item.id)}">${escape(item.name)} · ${item.source==='youtube'?'YouTube':'Spotify'}</option>`).join('');
+  picker.value=current;
+  $('#remove-soundtrack').disabled=!picker.value;
+}
+function applySoundtrack(id){
+  const item=state.soundtracks.find(track=>track.id===id);
+  $('#remove-soundtrack').disabled=!item;
+  if(!item)return;
+  const previous=state[item.source],source=state.mediaSource;
+  if(previous===item.link&&source===item.source)return;
+  state[item.source]=item.link;state.mediaSource=item.source;
+  if(!persist()){
+    state[item.source]=previous;state.mediaSource=source;renderSoundtracks();
+    return;
+  }
+  mountMedia();renderSoundtracks(id);positionPanel(visiblePanel(),lastAnchor);
+}
+function saveSoundtrack(form){
+  const field=form.elements.name,name=field.value.trim(),source=state.mediaSource,link=$('#media-link').value.trim();
+  if(!name){field.focus();return;}
+  const match=state.soundtracks.find(item=>item.source===source&&item.name.toLowerCase()===name.toLowerCase());
+  const [item]=loadSoundtracks([{id:match?.id||crypto.randomUUID(),name,source,link}]);
+  if(!item){
+    setMediaStatus('Paste a valid link for the current service before saving.');
+    $('#media-link').focus();return;
+  }
+  const previous=state.soundtracks;
+  state.soundtracks=match?previous.map(track=>track===match?item:track):[...previous,item];
+  if(!persist()){state.soundtracks=previous;return;}
+  renderSoundtracks();
+  field.value='';form.closest('details').open=false;
+  $('#soundtrack-picker').focus();
+  setMediaStatus('Soundtrack saved.');
 }
 function mountMedia(){
   const wrap=$('#music-player-wrap'),source=state.mediaSource;
@@ -4143,6 +4269,7 @@ function mountMedia(){
   external.textContent='Open '+(youtube?'on ':'in ')+label;
   $('#remove-player').hidden=!state[source];
   $('#pop-out-youtube').hidden=!youtube||!track;
+  renderSoundtracks();
   setMediaStatus(track?'Press play in the '+label+' player.':'Paste a link to start '+label+'.');
   if(!track)return;
   if(youtube)youtubeEmbed.mount(wrap,track);else spotifyEmbed.mount(wrap,track);
@@ -4327,10 +4454,7 @@ root.addEventListener('click',e=>{
     const minutes=Number($('#fit-minutes').value);
     const task=tasksWithinTime(gardenFocusQueue(),minutes,fitEnergy).find(item=>item.id===fit.dataset.fitTask);
     if(!task||state.timer.block||state.timer.mode==='focus'&&state.timer.id)return;
-    const {activeTask,activeTaskDay,activeBundle}=state;
-    pauseBundleForTask(task.id);
-    state.activeTask=task.id;state.activeTaskDay=dayKey();
-    if(!persist()){Object.assign(state,{activeTask,activeTaskDay,activeBundle});return;}
+    if(!saveTaskSelection(task))return;
     closePanel(false);refreshTasks();timerButton.focus({preventScroll:true});
     announce(`Current task: ${task.text}`);return;
   }
@@ -4387,10 +4511,8 @@ root.addEventListener('click',e=>{
   if(btn.dataset.focusTask){
     const task=gardenFocusQueue().find(item=>item.id===btn.dataset.focusTask);
     if(!task||state.timer.block)return;
-    pauseBundleForTask(task.id);
-    state.activeTask=task.id;
-    state.activeTaskDay=dayKey();
-    closePanel(false);persist();refreshTasks();
+    if(!saveTaskSelection(task))return;
+    closePanel(false);refreshTasks();
     timerButton.focus({preventScroll:true});
     announce(`Current task: ${task.text}`);
     return;
@@ -4479,6 +4601,15 @@ root.addEventListener('click',e=>{
     panel.setAttribute('aria-hidden','true');panel.querySelector('.music-mini-bar').hidden=true;
     mediaPanelAnchor().focus({preventScroll:true});return;
   }
+  if(btn.id==='remove-soundtrack'){
+    const id=$('#soundtrack-picker').value;
+    if(!id)return;
+    const previous=state.soundtracks;
+    state.soundtracks=previous.filter(item=>item.id!==id);
+    if(!persist()){state.soundtracks=previous;return;}
+    renderSoundtracks('');$('#soundtrack-picker').focus();
+    setMediaStatus('Saved soundtrack removed.');return;
+  }
   if(btn.id==='remove-player'){
     state[state.mediaSource]='';persist();mountMedia();$('#media-link').focus();
     positionPanel(visiblePanel(),lastAnchor);return;
@@ -4566,6 +4697,19 @@ root.addEventListener('pointerup',event=>endFocusQueueDrag(event,true));
 root.addEventListener('pointercancel',event=>endFocusQueueDrag(event,false));
 root.addEventListener('lostpointercapture',event=>endFocusQueueDrag(event,false));
 root.addEventListener('change',event=>{
+  if(event.target.id==='soundtrack-picker'){applySoundtrack(event.target.value);return;}
+  const itemId=event.target.dataset.focusSubtask;
+  if(itemId){
+    const task=state.tasks.find(item=>item.id===event.target.dataset.subtaskParent);
+    const sub=task?.subtasks.find(item=>item.id===itemId);
+    if(!sub)return;
+    const previous=sub.done;
+    sub.done=event.target.checked;
+    if(!persist()){sub.done=previous;event.target.checked=previous;return;}
+    refreshTasks();
+    announce(sub.done?'Subtask completed.':'Subtask reopened.');
+    return;
+  }
   if(event.target.id==='task-important'){
     if(event.target.checked){event.target.dataset.previous=$('#task-priority').value;$('#task-priority').value='1';}
     else $('#task-priority').value=['2','3'].includes(event.target.dataset.previous)?event.target.dataset.previous:'4';
@@ -5046,6 +5190,7 @@ root.addEventListener('submit',e=>{
     openSchedule('calendar',calendarToggle,new Date(`${date}T00:00:00`),Math.max(0,timeMinutes(time)-60));
     confirmChange(existing?'Block updated.':'Block scheduled.',undo);
   }
+  if(e.target.id==='soundtrack-form'){saveSoundtrack(e.target);return;}
   if(e.target.id==='media-form'){
     const source=state.mediaSource,link=$('#media-link').value.trim();
     const valid=source==='youtube'?youtubeContent(link):spotifyPath(link);

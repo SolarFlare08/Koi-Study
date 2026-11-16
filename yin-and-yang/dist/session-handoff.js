@@ -6,9 +6,11 @@ export function handoffLink(value){
   }catch{return '';}
 }
 
+export const nextFocusSubtask=task=>task?.subtasks?.find(item=>!item.done);
+
 export function sessionHandoff(value){
   const location=typeof value?.resumeLocation==='string'?value.resumeLocation.trim().slice(0,240):'';
-  const note=typeof value?.resumeNote==='string'?value.resumeNote.trim().slice(0,500):'';
+  const note=(typeof value?.resumeNote==='string'?value.resumeNote.trim().slice(0,500):'')||nextFocusSubtask(value)?.text||'';
   const resource=handoffLink(value?.resumeResource);
   return location||note||resource?{resumeLocation:location,resumeNote:note,resumeResource:resource}:null;
 }
