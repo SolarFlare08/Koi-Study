@@ -1,12 +1,15 @@
 export const personalCalendarId='personal';
 export const calendarColors={jade:'Jade',blue:'Blue',plum:'Plum',rose:'Rose',amber:'Amber',slate:'Slate'};
+export const calendarThemes={day:'Day',dusk:'Dusk',night:'Night'};
+export const calendarTheme=value=>Object.hasOwn(calendarThemes,value)?value:'day';
+export const calendarColor=value=>Object.hasOwn(calendarColors,value)?value:'';
 export const defaultCalendar={id:personalCalendarId,name:'Personal',color:'jade'};
 export function loadCalendars(value){
   const calendars=new Map([[defaultCalendar.id,defaultCalendar]]);
   for(const item of Array.isArray(value)?value:[]){
     const name=typeof item?.name==='string'?item.name.trim().slice(0,60):'';
     if(!name||typeof item.id!=='string'||!/^[a-z0-9_-]{1,80}$/i.test(item.id)||item.id==='tasks')continue;
-    calendars.set(item.id,{id:item.id,name,color:Object.hasOwn(calendarColors,item.color)?item.color:'jade'});
+    calendars.set(item.id,{id:item.id,name,color:calendarColor(item.color)||'jade'});
   }
   return [...calendars.values()];
 }
@@ -25,7 +28,7 @@ function importedCalendarColor(id){
 }
 export function eventCalendarColor(event,calendars){
   const id=eventCalendarId(event,calendars);
-  return event.manual?(calendars.find(calendar=>calendar.id===id)?.color||'jade'):importedCalendarColor(id);
+  return calendarColor(event.color)||(event.manual?(calendars.find(calendar=>calendar.id===id)?.color||'jade'):importedCalendarColor(id));
 }
 export function calendarCatalog(calendars,events){
   const imports=new Map();

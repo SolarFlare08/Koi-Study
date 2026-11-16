@@ -2,7 +2,7 @@ import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,res
 import {renderLandscape,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, weekDays, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
-import {calendarCatalog,calendarColors,calendarSlotMinute,eventCalendarColor,eventCalendarId,loadCalendars,personalCalendarId,visibleCalendarEvents} from './calendar-layers.js';
+import {calendarCatalog,calendarColors,calendarColor,calendarTheme,calendarSlotMinute,eventCalendarColor,eventCalendarId,loadCalendars,personalCalendarId,visibleCalendarEvents} from './calendar-layers.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
 import {handoffLink,sessionHandoff,nextFocusSubtask} from './session-handoff.js';
 import {installExamPlans} from './exam-plans.js';
@@ -819,6 +819,7 @@ function resumeProject(projectId){
 
 function render(){
   syncFocusMode();
+  if(app.dataset.calendarTheme!==state.calendarTheme){app.dataset.calendarTheme=state.calendarTheme;$('#calendar-theme').value=state.calendarTheme;}
   const clock=new Date();
   if(snapshotLayoutId&&!viewedGardenLayout()){
     snapshotLayoutId='';snapshotThrough='';updateGardenSnapshotLabel();renderedGardenGrowth=null;
@@ -1089,6 +1090,12 @@ miniCalendar.addEventListener('click',event=>{
   if(block)openCalendarBlock(block);
 });
 $('#close-calendar').onclick=()=>closeCalendar();
+$('#calendar-theme').onchange=event=>{
+  const previous=state.calendarTheme;
+  state.calendarTheme=calendarTheme(event.target.value);
+  if(!persist()){state.calendarTheme=previous;event.target.value=previous;}
+  render();
+};
 $('#planner-appearance').onclick=()=>openPanel('appearance',$('#planner-appearance'));
 $('#resume-task').onclick=()=>openPanel('resume',$('#resume-task'));
 $('#focus-bundle').onclick=()=>openPanel('focus-bundle',$('#focus-bundle'));
@@ -4381,13 +4388,43 @@ function openCalendarEvent(anchor,draft=null){
   eventDraft=draft;
   openPanel('event-editor',anchor);
 }
+function calendarColorPicker(label,selected,inherited){
+  const options=inherited===undefined?calendarColors:{'':'Calendar default',...calendarColors};
+  return `<fieldset class="calendar-color-picker"><legend>${label}</legend><div class="calendar-color-choices">
+    ${Object.entries(options).map(([color,name])=>`<label class="calendar-color-choice">
+      <input type="radio" class="sr-only" name="color" value="${color}" ${selected===color?'checked':''}>
+      <span class="calendar-color-dot" data-event-tone="${color||inherited}"></span><span>${name}</span>
+    </label>`).join('')}
+    </div></fieldset>`;
+}
+function calendarColorPreview(title,detail,color){
+  return `<div class="calendar-color-preview" data-event-tone="${color}">
+    <span class="calendar-preview-label">Preview</span><strong data-color-preview-title>${escape(title)}</strong><small data-color-preview-detail>${escape(detail)}</small>
+  </div>`;
+}
+function updateCalendarColorPreview(form){
+  const preview=form.querySelector('.calendar-color-preview');
+  const picked=calendarColor(form.elements.color.value);
+  const event=form.id==='calendar-event-form',calendar=event&&state.calendars.find(item=>item.id===form.elements.calendarId.value);
+  const color=picked||calendar?.color||'jade';
+  preview.dataset.eventTone=color;
+  preview.querySelector('[data-color-preview-title]').textContent=event?
+    form.elements.title.value.trim()||'Untitled event':form.elements.name.value.trim()||'Your calendar';
+  const when=event?(form.elements.allDay.checked?'All day':form.elements.startTime.value?timeLabel(timeMinutes(form.elements.startTime.value)):''):'';
+  preview.querySelector('[data-color-preview-detail]').textContent=event?
+    [when,calendar?.name,picked?calendarColors[color]+' override':'Calendar default'].filter(Boolean).join(' · '):
+    calendarColors[color]+' · default for events';
+  const inherited=form.querySelector('input[name="color"][value=""] + .calendar-color-dot');
+  if(inherited)inherited.dataset.eventTone=calendar?.color||'jade';
+}
 function calendarListEditor(){
   const calendar=state.calendars.find(item=>item.id===lastAnchor?.dataset.calendarListEdit);
-  const removable=calendar&&calendar.id!==personalCalendarId;
+  const removable=calendar&&calendar.id!==personalCalendarId,color=calendar?.color||'jade';
   return `${header('MY CALENDARS',calendar?'Edit calendar':'New calendar')}
     <form id="calendar-list-form" data-calendar-id="${escape(calendar?.id)}">
       <label class="event-field">Name<input name="name" value="${escape(calendar?.name)}" maxlength="60" placeholder="School, work, or personal" required></label>
-      <label class="event-field">Color<select name="color">${Object.entries(calendarColors).map(([value,label])=>`<option value="${value}" ${value===calendar?.color?'selected':''}>${label}</option>`).join('')}</select></label>
+      ${calendarColorPicker('Calendar color',color)}
+      ${calendarColorPreview(calendar?.name||'Your calendar',calendarColors[color]+' · default for events',color)}
       <p class="event-error" role="alert" hidden></p>
       <div class="panel-actions">${removable?'<button type="button" class="text-button event-delete" data-calendar-list-delete>Remove calendar</button>':''}
         <button class="panel-primary">Save calendar</button></div>
@@ -4444,6 +4481,9 @@ function calendarEventEditor(){
   const allDay=event?Boolean(event.day):Boolean(draft.allDay);
   const endDay=event?.day?dayKey(shiftDay(new Date(event.endDay+'T00:00:00'),-1)):allDay?draft.date:dayKey(end);
   const selectedCalendar=event?eventCalendarId(event,state.calendars):defaultEventCalendar();
+  const color=calendarColor(event?.color);
+  const catalogEntry=state.calendars.find(item=>item.id===selectedCalendar);
+  const inherited=catalogEntry?.color||'jade';
   const time=date=>timeValue(date.getHours()*60+date.getMinutes());
   const timeField=(name,value,label)=>`<label class="event-field" data-event-time ${allDay?'hidden':''}>${label}<input name="${name}" type="time" value="${value}" required ${allDay?'disabled':''}></label>`;
   return `${header('CALENDAR',event?'Edit event':'Add event')}
@@ -4457,9 +4497,10 @@ function calendarEventEditor(){
         ${timeField('endTime',time(end),'End time')}
       </div>
       <label class="event-field">Calendar<select name="calendarId">${state.calendars.map(item=>`<option value="${escape(item.id)}" ${item.id===selectedCalendar?'selected':''}>${escape(item.name)}${state.hiddenCalendars.includes(item.id)?' (hidden)':''}</option>`).join('')}</select></label>
-      <label class="event-field">Notes <textarea name="description" rows="3" maxlength="3000" placeholder="Optional">${escape(event?.description)}</textarea></label>
-      ${eventBufferFields(event,allDay)}
-      ${flexibilityFields(event?.flexibility)}
+      ${calendarColorPicker('Event color',color,inherited)}
+      ${calendarColorPreview(event?.title||'Untitled event',[allDay?'All day':timeLabel(timeMinutes(time(start))),catalogEntry?.name,color?calendarColors[color]+' override':'Calendar default'].filter(Boolean).join(' · '),color||inherited)}
+      <label class="event-field">Notes <textarea name="description" rows="2" maxlength="3000" placeholder="Optional">${escape(event?.description)}</textarea></label>
+      <details class="event-advanced"><summary>Planning options</summary>${eventBufferFields(event,allDay)}${flexibilityFields(event?.flexibility)}</details>
       <p class="event-error" role="alert" hidden></p>
       <div class="panel-actions">${event?'<button type="button" class="text-button event-delete" id="delete-calendar-event">Delete event</button>':''}<button class="panel-primary">Save event</button></div>
     </form>`;
@@ -5102,6 +5143,7 @@ root.addEventListener('click',e=>{
   }
 });
 root.addEventListener('input',e=>{
+  if(e.target.form?.matches('#calendar-event-form,#calendar-list-form'))updateCalendarColorPreview(e.target.form);
   if(e.target.name==='resumeResource')e.target.setCustomValidity('');
   if(e.target.form?.id==='build-week-form'){
     const results=$('#week-draft-results');
@@ -5234,6 +5276,7 @@ root.addEventListener('change',event=>{
     ['date','time','estimate','minutes','deadline','repeat'].includes(event.target.name))updateScheduleEditor(form);
   if(event.target.name==='prerequisite')$('#prerequisite-error').hidden=true;
   if(form?.id==='replan-form')form.querySelector('[type="submit"]').disabled=!form.querySelector('input:checked');
+  if(form?.matches('#calendar-event-form,#calendar-list-form'))updateCalendarColorPreview(form);
   if(form?.id==='calendar-event-form'){
     const fields=form.elements, allDay=fields.allDay.checked;
     if(event.target===fields.startDay&&fields.endDay.value<fields.startDay.value)fields.endDay.value=fields.startDay.value;
@@ -5442,6 +5485,8 @@ root.addEventListener('submit',e=>{
     try{
       event=calendarEventFromFields({...Object.fromEntries(fields),allDay:fields.has('allDay')},editing||`manual:${crypto.randomUUID()}`);
     }catch(err){error.textContent=err.message;error.hidden=false;return;}
+    const color=calendarColor(fields.get('color'));
+    if(color)event.color=color;
     event.calendarId=state.calendars.some(calendar=>calendar.id===fields.get('calendarId'))?fields.get('calendarId'):personalCalendarId;
     if(flexibility)event.flexibility=flexibility;
     state.calendarEvents=editing?prior.map(item=>item.id===editing?event:item):[...prior,event];

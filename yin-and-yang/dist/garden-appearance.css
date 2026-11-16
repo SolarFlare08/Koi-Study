@@ -126,33 +126,33 @@
   --surface-line:#9cb7ac; --surface-ink:#223e3c; --surface-muted:#4b6862;
   --surface-accent:#2d655c; --surface-button:#356e63; --surface-button-hover:#27584f; --surface-danger:#903f42;
 }
-#app[data-lighting="day"] :is(.panel,#task-menu,#toast,#calendar-panel) { color-scheme: light; }
-#app[data-lighting="day"] #calendar-panel {
+#app[data-lighting="day"]:not([data-workspace="calendar"]) :is(.panel,#task-menu,#toast,#calendar-panel) { color-scheme: light; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel {
   --planner-sidebar:#e0ede8; --planner-line:#bdd1c9; --planner-ink:#223e3c; --planner-muted:#48655e;
   --planner-accent:#266457; --planner-tint:#d3e6dd; --calendar-heading:#deebe6;
   background: linear-gradient(145deg,#f5faf7,#e5f0ea);
 }
-#app[data-lighting="day"] #calendar-panel :is(.planner-nav-item,.planner-task-more,.planner-event,[data-calendar-layout]):hover,
-#app[data-lighting="day"] #calendar-panel :is(.planner-event-stack,.planner-month-cell.other-month,.planner-report-stats div) { background: var(--planner-tint); }
-#app[data-lighting="day"] #calendar-panel :is(.planner-label,[data-priority="3"]) { --priority-ink:#315e91; color: inherit; }
-#app[data-lighting="day"] #calendar-panel [data-priority="1"] { --priority-ink:#a34c44; }
-#app[data-lighting="day"] #calendar-panel [data-priority="2"] { --priority-ink:#865d32; }
-#app[data-lighting="day"] #calendar-panel .planner-check { border-color: var(--priority-ink,#6d8d83); }
-#app[data-lighting="day"] #calendar-panel .planner-task-done .planner-check { background: #c3ded2; }
-#app[data-lighting="day"] #calendar-panel :is(#calendar-layout-controls,#calendar-toolbar .calendar-nav) { background: var(--surface-field); }
-#app[data-lighting="day"] #calendar-panel #calendar-layout-controls [aria-pressed="true"] { background: var(--planner-tint); }
-#app[data-lighting="day"] #calendar-panel :is(#calendar-scroll,.planner-column.planner-drop) { background: #f4f9f6; }
-#app[data-lighting="day"] #calendar-panel :is(.calendar-today,.calendar-day-current,.planner-month-task,.calendar-all-day-task) { background: #d9ebe1; }
-#app[data-lighting="day"] #calendar-panel .calendar-day.calendar-drop-target { background-color: #c1ded1; }
-#app[data-lighting="day"] #calendar-panel .calendar-block { background: #cfe7dd; border-color: #97b9ad; border-left-color: var(--priority-ink,#538c7c); }
-#app[data-lighting="day"] #calendar-panel .calendar-block:hover { background: #bcdacf; }
-#app[data-lighting="day"] #calendar-panel .calendar-block span { color: var(--planner-muted); }
-#app[data-lighting="day"] #calendar-panel .calendar-day-heading:hover { background: #c9e1d5; }
-#app[data-lighting="day"] #calendar-panel :is(#planner-heading-actions button,#planner-board-tools nav button):hover { background: var(--planner-tint); }
-#app[data-lighting="day"] #calendar-panel #planner-heading-actions .planner-heading-add:hover, #app[data-lighting="day"] #calendar-panel .planner-primary:hover { background: #1f5147; }
-#app[data-lighting="day"] #calendar-panel .planner-activity-icon { background: #d1e7dc; }
-#app[data-lighting="day"] #calendar-panel .planner-activity-row[data-activity="focus"] .planner-activity-icon { background: #d8e9ee; }
-#app[data-lighting="day"] #calendar-panel .planner-activity-row[data-activity="skipped"] .planner-activity-icon { background: #f0deda; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel :is(.planner-nav-item,.planner-task-more,.planner-event,[data-calendar-layout]):hover,
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel :is(.planner-event-stack,.planner-month-cell.other-month,.planner-report-stats div) { background: var(--planner-tint); }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel :is(.planner-label,[data-priority="3"]) { --priority-ink:#315e91; color: inherit; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel [data-priority="1"] { --priority-ink:#a34c44; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel [data-priority="2"] { --priority-ink:#865d32; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .planner-check { border-color: var(--priority-ink,#6d8d83); }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .planner-task-done .planner-check { background: #c3ded2; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel :is(#calendar-layout-controls,#calendar-toolbar .calendar-nav) { background: var(--surface-field); }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel #calendar-layout-controls [aria-pressed="true"] { background: var(--planner-tint); }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel :is(#calendar-scroll,.planner-column.planner-drop) { background: #f4f9f6; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel :is(.calendar-today,.calendar-day-current,.planner-month-task,.calendar-all-day-task) { background: #d9ebe1; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .calendar-day.calendar-drop-target { background-color: #c1ded1; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .calendar-block { background: #cfe7dd; border-color: #97b9ad; border-left-color: var(--priority-ink,#538c7c); }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .calendar-block:hover { background: #bcdacf; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .calendar-block span { color: var(--planner-muted); }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .calendar-day-heading:hover { background: #c9e1d5; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel :is(#planner-heading-actions button,#planner-board-tools nav button):hover { background: var(--planner-tint); }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel #planner-heading-actions .planner-heading-add:hover, #app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .planner-primary:hover { background: #1f5147; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .planner-activity-icon { background: #d1e7dc; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .planner-activity-row[data-activity="focus"] .planner-activity-icon { background: #d8e9ee; }
+#app[data-lighting="day"]:not([data-workspace="calendar"]) #calendar-panel .planner-activity-row[data-activity="skipped"] .planner-activity-icon { background: #f0deda; }
 #app[data-lighting="day"] .task-detail-panel {
   --surface-button:#356e63; --surface-button-hover:#27584f;
 }

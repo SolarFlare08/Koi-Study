@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'3.12.0',date:'2026-11-16',title:'Calendar themes and live color previews',changes:[
+    'Choose a Day, Dusk, or Night Calendar theme independently of the Garden timer. Day defaults to warm off-white.',
+    'Preview calendar and event colors with swatches, and choose individual event colors or inherit the calendar default.',
+    'Calendar backups and day templates carry the new settings and event colors.'
+  ]},
   {version:'3.11.1',date:'2026-11-16',title:'Task colors at a glance',changes:[
     'Set or clear a task’s color from its calendar block or task actions. Its scheduled blocks and task rows share that color.'
   ]},

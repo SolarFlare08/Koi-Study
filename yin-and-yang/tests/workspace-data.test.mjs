@@ -1,5 +1,5 @@
 import {test} from 'node:test';
-import {calendarCatalog,calendarSlotMinute,eventCalendarColor,loadCalendars,visibleCalendarEvents} from '../dist/calendar-layers.js';
+import {calendarCatalog,calendarSlotMinute,calendarTheme,eventCalendarColor,loadCalendars,visibleCalendarEvents} from '../dist/calendar-layers.js';
 import {calendarBlocks,calendarEventFromFields} from '../dist/calendar.js';
 import {captureCalendarDay,copyCalendarDay,loadDayTemplates,previewCalendarDay} from '../dist/calendar-day-templates.js';
 import {loadProjectResources} from '../dist/project-planning.js';
@@ -657,4 +657,26 @@ test('calendar visibility follows event calendars without removing commitments o
   assert.deepEqual(restored.calendarEvents,state.calendarEvents);
   assert.equal(calendarSlotMinute(545,1440),540);
   assert.equal(calendarSlotMinute(5000,1440),1425);
+});
+
+test('event colors can override or inherit and survive Calendar backups and day templates',()=>{
+  const state=freshState();
+  assert.equal(state.calendarTheme,'day');
+  assert.equal(calendarTheme('session'),'day');
+  state.calendarTheme='dusk';
+  state.calendars=loadCalendars([{id:'personal',name:'Personal',color:'blue'}]);
+  const day='2026-11-17';
+  state.calendarEvents=[{...calendarEventFromFields({title:'Reading',description:'',startDay:day,endDay:day,startTime:'11:00',endTime:'12:00'},'one'),calendarId:'personal',color:'rose'}];
+  const [event]=state.calendarEvents;
+  assert.equal(eventCalendarColor(event,state.calendars),'rose');
+  assert.equal(eventCalendarColor({...event,color:''},state.calendars),'blue');
+  assert.equal(eventCalendarColor({...event,color:'invalid'},state.calendars),'blue');
+  const [template]=loadDayTemplates([{id:'one',name:'Day',rows:captureCalendarDay([],state.calendarEvents,day)}]);
+  const [copy]=copyCalendarDay(template,'2026-11-18',[0],state).events;
+  assert.equal(copy.color,'rose');
+  const storage=memoryStorage(),backup=readBackup(JSON.stringify(createBackup(state,storage,[])));
+  applyBackupRestore(storage,planBackupRestore(storage,freshState(),backup,new Set(['calendar'])));
+  const restored=loadState(storage);
+  assert.equal(restored.calendarTheme,'dusk');
+  assert.equal(restored.calendarEvents[0].color,'rose');
 });

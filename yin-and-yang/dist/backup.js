@@ -177,6 +177,9 @@ export function planBackupRestore(storage,current,incoming,sections){
     if(apply)state.gardenClearedDone={...current.gardenClearedDone,...incoming.state.gardenClearedDone};
   });
   section('calendar','Calendar','Events and recurring unavailable hours.',apply=>{
+    if(current.calendarTheme!==incoming.state.calendarTheme)details.push({label:'Calendar appearance',added:0,replaced:1,unchanged:0,
+      changes:[backupConflict('Calendar theme',current.calendarTheme,incoming.state.calendarTheme)]});
+    if(apply)state.calendarTheme=incoming.state.calendarTheme;
     stateList(apply,'calendars','Calendars');stateList(apply,'hiddenCalendars','Hidden calendars',id=>id);
     stateList(apply,'calendarEvents','Events');stateList(apply,'calendarDayTemplates','Day templates');stateList(apply,'availability','Availability rules');
   });

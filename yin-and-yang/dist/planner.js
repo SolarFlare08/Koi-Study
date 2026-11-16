@@ -647,6 +647,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     $('#planner-layout-label').hidden=sectionView||standalone;
     $('#planner-toggle-sidebar').hidden=standalone;
     $('#calendar-layout-controls').hidden=!standalone;
+    $('#calendar-theme-control').hidden=!standalone;
+    $('#planner-appearance').hidden=standalone;
     root.querySelectorAll('[data-calendar-layout]').forEach(button=>{
       button.setAttribute('aria-pressed',String(button.dataset.calendarLayout===layout));
       button.disabled=actual&&button.dataset.calendarLayout==='month';
