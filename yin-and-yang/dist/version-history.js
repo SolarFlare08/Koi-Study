@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'3.11.1',date:'2026-11-16',title:'Task colors at a glance',changes:[
+    'Set or clear a task’s color from its calendar block or task actions. Its scheduled blocks and task rows share that color.'
+  ]},
   {version:'3.11.0',date:'2026-11-16',title:'A dedicated Calendar workspace',changes:[
     'Use a mini month and separate color-coded calendars for personal, school, work, or imported events.',
     'Click a time slot, an all-day row, or a month cell to start an event at that date and time.',

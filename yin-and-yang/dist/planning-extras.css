@@ -897,3 +897,15 @@ button.project-context-item:hover { color: var(--planner-accent); }
   background: color-mix(in srgb,var(--planner-accent) 18%,var(--surface-field));
   font-size: 9px; line-height: 1;
 }
+
+.task-color-picker { margin: 9px 0; padding: 8px; min-width: 0; border: 1px solid var(--surface-line); border-radius: 8px; }
+.task-color-picker legend { padding: 0 4px; color: var(--surface-muted); font-size: 11px; }
+.task-color-choices { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
+.task-color-choices button {
+  display: flex; align-items: center; gap: 6px; padding: 4px 5px; min-height: 28px; border: 1px solid transparent;
+  border-radius: 5px; color: var(--surface-ink); font-size: 11px; text-align: left;
+}
+.task-color-choices button[aria-pressed="true"] { border-color: var(--task-color,var(--surface-line)); background: var(--surface-raised); }
+.task-color-choices button:hover { background: var(--surface-raised); }
+.task-color-choices .task-color-swatch { flex: none; }
+#app :is(.task-card,.planner-task)[data-task-color]:not([data-task-color=""]) { border-inline-start: 3px solid var(--task-color); padding-inline-start: 8px; }

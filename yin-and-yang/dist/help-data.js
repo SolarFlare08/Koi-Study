@@ -240,9 +240,9 @@ export const helpTopics = [
   {
     id:'calendar-task-colors',group:'Calendar & planning',title:'Mark important calendar tasks and choose colors',
     summary:'Flag priority tasks and identify them by color across calendar views.',
-    steps:['In Calendar, choose `New task`. Turn on `Important` to set the task’s priority to P1 and show a star on the calendar.',
-      'Choose `Calendar color` near the task name. The same color appears on its blocks. Choose `Default` to use the standard calendar colors.',
-      'Open an existing task to change either setting. For a task with extra scheduled blocks, open the task editor to update all of its blocks.'],
+    steps:['In Calendar, choose `More → New task`. Turn on `Important` to set the task’s priority to P1 and show a star on the calendar.',
+      'Click a scheduled task block and choose a swatch under Task color. You can also open a task’s actions menu and choose Change color, or use Task color near its name in the task editor.',
+      'The color applies to that task and all of its blocks. Choose Default to clear it.'],
     action:'calendar',actionLabel:'Open Calendar',related:['tasks','calendar']
   },
   {

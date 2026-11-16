@@ -88,7 +88,7 @@ const desktopTasks=matchMedia('(min-width: 981px)');
 let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1,agendaOffset=0;
 let taskDraft=null,blockDraft=null,calendarLayoutDay='',calendarOpenMinute,eventDraft=null;
 let railDate='',railMonth=null,railMarkup='';
-let calendarAnchor=null,calendarExit=null,menuTaskId=null,menuAnchor=null;
+let calendarAnchor=null,calendarExit=null,menuTaskId=null,menuAnchor=null,taskColorMenuId=null;
 const plannerDateCount=43;
 let plannerDays=[],plannerColumnWidth=0,plannerOffset=0,plannerVisibleRange='',plannerScrollEnd;
 let dragOffset=0,workspace='focus';
@@ -1589,7 +1589,7 @@ function taskCard(task,status,date,currentId,prerequisites){
   }
   const selected=status==='todo'&&currentId===task.id;
   const name=escape(task.text);
-  return `<li class="task-card${selected?' task-selected':''}" data-task="${escape(task.id)}" draggable="true">
+  return `<li class="task-card${selected?' task-selected':''}" data-task="${escape(task.id)}" data-task-color="${taskCalendarColor(task.calendarColor)}" draggable="true">
     <div class="task-card-title">
       ${status==='upcoming'?'':`<input type="checkbox" class="task-check" aria-label="${status==='done'?'Reopen':'Complete'} ${name}" ${status==='done'?'checked':''}>`}
       <button type="button" class="task-open" aria-label="Edit ${name}" aria-haspopup="dialog">${name}</button>
@@ -2148,7 +2148,7 @@ function taskEditor(){
           </div>
           <div class="task-calendar-options">
             <label class="task-important"><input type="checkbox" id="task-important" name="important" ${taskPriority(values)===1?'checked':''}> Important</label>
-            <label class="task-calendar-color" for="task-calendar-color">Calendar color
+            <label class="task-calendar-color" for="task-calendar-color">Task color
               <span class="task-color-swatch" data-task-color="${taskCalendarColor(values.calendarColor)}" aria-hidden="true"></span>
               <select id="task-calendar-color" name="calendarColor"><option value="">Default</option>${Object.entries(taskCalendarColors).map(([key,label])=>
                 `<option value="${key}" ${values.calendarColor===key?'selected':''}>${label}</option>`).join('')}</select>
@@ -2242,12 +2242,47 @@ function taskSectionOptions(projectId,current){
   const sections=state.projects.find(project=>project.id===projectId)?.sections||[];
   return '<option value="">No section</option>'+sections.map(section=>`<option value="${escape(section.id)}" ${section.id===current?'selected':''}>${escape(section.name)}</option>`).join('');
 }
+function taskColorPicker(task){
+  const color=taskCalendarColor(task.calendarColor);
+  return `<fieldset class="task-color-picker" data-color-task="${escape(task.id)}">
+    <legend>Task color</legend><div class="task-color-choices">
+      ${Object.entries({'':'Default',...taskCalendarColors}).map(([value,label])=>`<button type="button" data-task-color-choice="${value}" data-task-color="${value}" aria-pressed="${color===value}">
+        <span class="task-color-swatch" aria-hidden="true"></span>${label}
+      </button>`).join('')}
+    </div></fieldset>`;
+}
+
+function saveQuickTaskColor(button){
+  const task=state.tasks.find(item=>item.id===button.closest('[data-color-task]').dataset.colorTask);
+  if(!task)return;
+  const color=taskCalendarColor(button.dataset.taskColorChoice),previous=task.calendarColor||'';
+  if(color===previous)return;
+  task.calendarColor=color;
+  if(!persist()){task.calendarColor=previous;return;}
+
+  const anchor=lastAnchor,scope=anchor?.closest('#mini-calendar,#calendar-panel,#task-sidebar');
+  const {block,occurrence}=anchor?.dataset||{};
+  refreshTasks();
+  if(anchor&&!anchor.isConnected){
+    const matches=[...(scope?.querySelectorAll('[data-task="'+CSS.escape(task.id)+'"]')||[])];
+    const sameBlock=matches.find(el=>el.matches('.calendar-block,.planner-event,.calendar-all-day-task,.planner-month-task')&&
+      el.dataset.block===block&&el.dataset.occurrence===occurrence);
+    const taskMenuButton=matches.map(el=>el.querySelector('.task-more,.planner-task-more')).find(Boolean);
+    lastAnchor=sameBlock||(activePanel==='calendar-block'?anchor:taskMenuButton||(inSchedule()?$('#planner-heading'):taskToggle));
+    lastAnchor?.setAttribute('aria-expanded','true');
+  }
+  refreshPanel();
+  visiblePanel()?.querySelector('[data-task-color-choice][aria-pressed="true"]')?.focus({preventScroll:true});
+  announce(color?`Task color set to ${taskCalendarColors[color]}.`:'Default task color restored.');
+}
+
 function calendarBlockPreview(){
   const task=state.tasks.find(item=>item.id===lastAnchor.dataset.task);
   return `${header('CALENDAR BLOCK',escape(task?.text||'Task unavailable'))}
     <p id="block-focus-time"></p>
     <p id="block-actual-focus"></p>
     <p class="task-waiting" id="block-prerequisites" hidden></p>
+    ${task?taskColorPicker(task):''}
     <div class="panel-actions calendar-block-actions">
       <button class="panel-primary" type="button" id="start-block-focus">${icon('play')} Start focus</button>
       <button type="button" class="text-button" id="edit-calendar-block">${lastAnchor.dataset.block?'Edit block':'Edit task'}</button>
@@ -2714,6 +2749,10 @@ function panelContent(id){
       <button type="button" class="text-button" data-view-project="${escape(project.id)}">Open project</button></div>`;
   }
   if(id==='calendar-block')return calendarBlockPreview();
+  if(id==='task-color'){
+    const task=state.tasks.find(item=>item.id===taskColorMenuId);
+    return header('TASK COLOR',escape(task?.text||'Task unavailable'))+(task?taskColorPicker(task):'');
+  }
   if(id==='task-tradeoffs')return tradeoffsMarkup();
   if(id==='focus-replay')return focusReplayMarkup();
   if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><button type="button" class="text-button" id="open-backup">Backup and restore</button><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}<button type="button" class="text-button" id="open-break-ideas">Manage break ideas</button>${timerRoutines()}`;
@@ -3346,7 +3385,7 @@ function openTaskMenu(id,anchor,x,y){
   menuTaskId=id;
   menuAnchor=anchor;
   const status=taskStatus(task,taskOccurrence(anchor));
-  const actions=[['edit','Edit task'],['priority',task.priority?'Remove priority':'Prioritize'],['schedule','Add a block…']];
+  const actions=[['edit','Edit task'],['color','Change color…'],['priority',task.priority?'Remove priority':'Prioritize'],['schedule','Add a block…']];
   actions.push(['duplicate','Duplicate task']);
   if(anchor.classList.contains('calendar-block'))actions.unshift(['block-focus','Start focus…']);
   if(anchor.dataset.block)actions.push(['edit-block','Edit block'],['remove-block','Remove block']);
@@ -3458,6 +3497,7 @@ taskMenu.addEventListener('click',event=>{
   closeTaskMenu(false);
   if(action==='block-focus'){openCalendarBlock(anchor);return;}
   if(action==='edit'){openTaskEditor(task.id,anchor);return;}
+  if(action==='color'){taskColorMenuId=task.id;openPanel('task-color',anchor);return;}
   if(action==='plan-deadline'){openDeadlinePlanner(task.id,anchor);return;}
   if(action==='schedule'||action==='edit-block'){openBlockEditor(task.id,anchor,action==='edit-block'?anchor.dataset.block:null);return;}
   if(action==='delete'){deleteTask(task.id);return;}
@@ -4700,6 +4740,8 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const color=e.target.closest('[data-task-color-choice]');
+  if(color){saveQuickTaskColor(color);return;}
   const deleteCalendar=e.target.closest('[data-calendar-list-delete]');
   if(deleteCalendar){removeCalendar(deleteCalendar);return;}
   const resource=e.target.closest('[data-resource-edit],[data-resource-pin],[data-resource-remove]');

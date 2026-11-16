@@ -158,7 +158,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const waiting=!complete&&task.prerequisiteIds?.length
       ?unfinishedPrerequisites(task,new Map(state().tasks.map(item=>[item.id,item])))
       :[];
-    return `<article class="planner-task${complete?' planner-task-done':''}" data-task="${escape(task.id)}" data-occurrence="${escape(current)}" data-priority="${priority}" draggable="true">
+    return `<article class="planner-task${complete?' planner-task-done':''}" data-task="${escape(task.id)}" data-task-color="${taskCalendarColor(task.calendarColor)}" data-occurrence="${escape(current)}" data-priority="${priority}" draggable="true">
       <button type="button" class="planner-check" data-complete-task aria-pressed="${complete}" aria-label="${complete?'Reopen':'Complete'} ${title}">${complete?'✓':''}</button>
       <div class="planner-task-copy">
         <button type="button" class="planner-task-title" data-edit-task>${title}</button>
