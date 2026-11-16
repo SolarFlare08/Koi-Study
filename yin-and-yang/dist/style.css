@@ -13,10 +13,9 @@
 .sky{top:8%;color:#34565a;text-shadow:0 2px 18px #f9f2df55}.mode-tabs{background:#f3eddf35;border-color:#40656722}.mode-tabs button{color:#627b78}.mode-tabs button[aria-pressed=true]{color:#2d5355;background:#f9f3e18c}
 .start-button{background:#365e5c;border-color:#365e5c;color:#faf0dc;box-shadow:0 3px 16px #35595516}.start-button:hover{background:#284e4e}.timer-actions>.icon-button{color:#4e706b}.timer-actions>.icon-button:hover{background:#355e5c12}
 #current-task{color:#55726c}#objects{background:#f5f0e2e8;border-color:#fff8e3aa;box-shadow:0 5px 30px #2e555321}.world-object{color:#587069}.world-object:hover,.world-object[aria-expanded=true],.world-object:focus-visible{background:#43675c10;color:#284e4e}
-button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#315450;opacity:.65}.lake-mist{animation:lake-light 16s ease-in-out infinite alternate}@keyframes lake-light{from{opacity:.26}to{opacity:.46}}
+button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#315450;opacity:.65}.lake-ripples{animation:lake-light 23s ease-in-out infinite alternate}@keyframes lake-light{from{opacity:.36}to{opacity:.62}}
 @media(max-height:740px) and (min-width:701px){.sky{top:6%}}
 @media(max-width:700px){.sky{top:13%}}
-@media(prefers-reduced-motion:reduce){.lake-mist{animation:none}}
 /* Readable throughout sunrise, daylight, and dusk. */
 .topbar,.sky{color:var(--scene-ink,#34565a)}
 #current-task,.timer-actions>.icon-button{color:var(--scene-muted,#55726c)}

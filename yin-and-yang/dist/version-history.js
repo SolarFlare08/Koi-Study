@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'3.13.3',date:'2026-11-16',title:'Softer summer scenery',changes:[
+    'Scatter summer fireflies at different depths and give them independent drift and glow.',
+    'Replace the Summer heat streaks and sharp lake lines with soft haze and tapered ripples.'
+  ]},
   {version:'3.13.2',date:'2026-11-16',title:'A clearer Garden sidebar',changes:[
     'Collapse the Garden task list to keep the five-hour calendar in view. The sidebar remembers your choice.',
     'Give short blocks room for readable titles and show very brief blocks as selectable marks. Keep Help clear of the sidebar and give its icon a visible dot.'

@@ -120,14 +120,27 @@ export function alternateBoatLights(){
   </g>`;
 }
 
+const summerFireflies=[
+  [193,638],[247,711],[308,609],[329,672],[374,791],[429,723],
+  [484,647],[521,804],[565,718],[620,815],[666,671],[697,753],
+  [743,601],[770,844],[821,683],[855,805],[901,735],[942,635],
+  [973,765],[1033,708],[1091,814],[1184,761],[1247,672],[1298,800]
+];
+
 export function weatherMarkup(){
   const particles=(count,draw)=>Array.from({length:count},(_,i)=>draw((i*173+37)%1600,(i*101+27)%900,i)).join('');
   const floating=(shape,count)=>particles(count,(x,y,i)=>`<g transform="${pos(x,y,.44+(i%4)*.21)}"><path class="weather-drift" style="--weather-delay:-${i%17}s" d="${shape}"/></g>`);
   const fallingSnow=particles(58,(x,y,i)=>`<circle class="weather-snowflake" style="--weather-delay:-${i%15}s" cx="${x}" cy="${y}" r="${.85+i%4*.46}"/>`);
   const rain=particles(76,(x,y,i)=>`<path class="weather-raindrop" style="--weather-delay:-${(i%19)*.12}s" d="M${x} ${y}l-3 ${9+i%8}"/>`);
-  const fireflies=particles(23,(x,y,i)=>`<g class="summer-firefly" style="--weather-delay:-${i*.53}s">
-    <circle cx="${175+x*.79}" cy="${635+y*.19}" r="8" fill="url(#lamp-halo)"/>
-    <circle cx="${175+x*.79}" cy="${635+y*.19}" r="${1+i%3*.3}" fill="#fff1b0"/></g>`);
+  const fireflies=summerFireflies.map(([x,y],i)=>{
+    const angle=i*2.4;
+    const driftX=(17*Math.cos(angle)).toFixed(1),driftY=(13*Math.sin(angle)).toFixed(1);
+    const pace=.8+(i%5)*.1,delay=(i*.77).toFixed(2);
+    const size=[.95,1.3,1.15,1.55][i%4];
+    return `<g class="summer-firefly" style="--weather-delay:-${delay}s;--firefly-pace:${pace};--firefly-x:${driftX}px;--firefly-y:${driftY}px">
+      <circle cx="${x}" cy="${y}" r="${size*6}" fill="url(#lamp-halo)"/>
+      <circle cx="${x}" cy="${y}" r="${size}" fill="#fff1b0"/></g>`;
+  }).join('');
   return `<g class="weather-layer weather-petals" fill="#e9aeb6">${floating('M-4 2Q-5-2 5-3Q4 3-4 2Z',23)}</g>
     <g class="season-layer summer-scene firefly-layer">${fireflies}</g>
     <g class="weather-layer weather-leaves" fill="#d99156">${floating(maple,20)}</g>
@@ -135,5 +148,9 @@ export function weatherMarkup(){
     <g class="weather-layer weather-mist"><path class="weather-cloudbank" fill="url(#mist)" opacity=".68" d="M0 397h1600v262H0z"/><path fill="url(#mist)" opacity=".39" d="M0 544h1600v177H0z"/></g>
     <g class="weather-layer weather-frost"><path class="weather-cloudbank" fill="url(#ice-mist)" opacity=".79" d="M0 372h1600v324H0z"/><path fill="url(#ice-mist)" opacity=".56" d="M0 551h1600v241H0z"/></g>
     <g class="weather-layer weather-snow" fill="#edf6fb">${fallingSnow}</g>
-    <g class="weather-layer weather-heat"><path fill="url(#heat-haze)" opacity=".42" d="M0 180h1600v470H0z"/><path class="weather-shimmer" fill="none" stroke="#ffedbb" stroke-linecap="round" stroke-width="1.6" d="M550 560q18-4 49 0m38 10q39-4 70 0m117-12q21-4 46-1m102 7q17-3 40 0m-345 29q31-3 59 1m54 13q41-4 72 0m-287 16q25-3 44 0"/></g>`;
+    <g class="weather-layer weather-heat" fill="url(#heat-haze)">
+      <ellipse class="weather-shimmer" cx="464" cy="537" rx="410" ry="103"/>
+      <ellipse class="weather-shimmer" cx="867" cy="572" rx="375" ry="83" style="--weather-delay:-7s"/>
+      <ellipse class="weather-shimmer" cx="1165" cy="501" rx="338" ry="94" style="--weather-delay:-13s"/>
+    </g>`;
 }

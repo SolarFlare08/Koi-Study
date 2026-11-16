@@ -7,6 +7,16 @@ import {renderGardenProps} from './garden-props.js';
 import {gardenWeather,sceneProgress,sceneryWeatherLayers} from './garden-appearance.js';
 import {alternateBoats,alternateBoatLights,mountainSnowCut,seasonalTree,shoreDetails,snowbank,weatherMarkup} from './seasonal-scenery.js';
 const boatOrigin='783 751';
+const lakeRipples=[
+  [233,600,97,5],[482,590,118,4],[889,604,102,6],[1113,583,147,4],
+  [321,660,149,7],[683,647,106,5],[1010,681,172,6],
+  [194,726,95,7],[465,787,130,9],[837,825,187,10],[1119,770,159,7]
+];
+function lakeRippleMarkup(){
+  return `<g class="lake-ripples" fill="url(#lake-ripple)" opacity=".5">${lakeRipples.map(([x,y,width,height])=>
+    `<path transform="translate(${x} ${y}) scale(${width/100} ${height})" d="M0 .52C22 .5 30 .16 55 .23S78 .58 100 .35C80 .7 71 .62 54 .46S24 .64 0 .52Z"/>`
+  ).join('')}</g>`;
+}
 function pine(x,y,scale=1){
   return `<g transform="translate(${x} ${y}) scale(${scale})">
     <path d="M-9 1C1-28 1-55-4-82C-8-109 4-133 10-166L15-180C18-149 9-129 7-107C3-83 11-56 9-29Q8-13 14 1Z" fill="#315858"/>
@@ -225,7 +235,8 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <linearGradient id="water" x2="0" y2="1"><stop stop-color="var(--water-horizon,#ced7c6)"/><stop offset=".35" stop-color="var(--water-middle,#adc9bc)"/><stop offset="1" stop-color="var(--water-near,#6d9c98)"/></linearGradient>
 <linearGradient id="mist" x2="0" y2="1"><stop stop-color="#f6eddc" stop-opacity="0"/><stop offset=".5" stop-color="#f6eddc" stop-opacity=".8"/><stop offset="1" stop-color="#f6eddc" stop-opacity="0"/></linearGradient>
 <linearGradient id="ice-mist" x2="0" y2="1"><stop stop-color="#e4f2f5" stop-opacity="0"/><stop offset=".55" stop-color="#dcebf0" stop-opacity=".76"/><stop offset="1" stop-color="#dcebf0" stop-opacity="0"/></linearGradient>
-<linearGradient id="heat-haze" x2="0" y2="1"><stop stop-color="#f9da91" stop-opacity="0"/><stop offset=".62" stop-color="#ffdfa6" stop-opacity=".63"/><stop offset="1" stop-color="#ffdfa6" stop-opacity="0"/></linearGradient>
+<radialGradient id="heat-haze"><stop stop-color="#fff0c4" stop-opacity=".29"/><stop offset=".46" stop-color="#ffe2aa" stop-opacity=".13"/><stop offset="1" stop-color="#ffe2aa" stop-opacity="0"/></radialGradient>
+<linearGradient id="lake-ripple" x2="1" y2="0"><stop stop-color="#e6e4cc" stop-opacity="0"/><stop offset=".43" stop-color="#e6e4cc" stop-opacity=".36"/><stop offset="1" stop-color="#e6e4cc" stop-opacity="0"/></linearGradient>
 <linearGradient id="reflection" x2="0" y2="1"><stop stop-color="#fce4bb" stop-opacity=".7"/><stop offset="1" stop-color="#fce4bb" stop-opacity="0"/></linearGradient>
 <radialGradient id="halo"><stop stop-color="#ffe9bd" stop-opacity=".65"/><stop offset="1" stop-color="#ffe9bd" stop-opacity="0"/></radialGradient>
 <radialGradient id="lamp-halo"><stop stop-color="#ffbe75" stop-opacity=".52"/><stop offset=".36" stop-color="#e6a66d" stop-opacity=".24"/><stop offset="1" stop-color="#e6a66d" stop-opacity="0"/></radialGradient>
@@ -254,7 +265,7 @@ ${pieceMarkup("mountains",design)}
 <path fill="url(#water)" d="M0 548q297-24 524-6t463-1 613 6v353H0Z"/>
 <path class="valley-fog shore-fog" fill="url(#mist)" d="M0 474h1600v133H0z"/>
 <g id="shine"><ellipse cx="0" cy="640" rx="105" ry="150" fill="url(#halo)" opacity=".35"/><g stroke="#fff1cd" stroke-linecap="round" opacity=".65"><path d="M-64 556H62M-43 563H49M-78 575H66M-28 590H42M-62 612H82M-38 646H59M-69 695H51"/><path d="M-108 573h19m169 27h32m-132 62h24m-65 66h34" opacity=".5"/></g></g>
-<g class="lake-mist" fill="none" stroke="#e3e7d3" stroke-width="1" opacity=".4"><path d="M175 588h206m-105 28h83m176-12h189m285-22h232m-100 42h180M101 677h184m134-13h144m337 19h182m180-10h118M277 753h217m371 22h191m59-43h157"/><path d="M411 579h31m400 39h72m-207 97h54m410-57h39m-752 158h91"/></g>
+${lakeRippleMarkup()}
 <g fill="none" stroke="#f3ebcf" stroke-linecap="round">
   <path class="lake-glimmer" d="M650 734h20m-12 5h7" opacity="0"/>
   <path class="lake-glimmer glimmer-late" d="M878 704h13m-8 4h4" opacity="0"/>

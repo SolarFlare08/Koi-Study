@@ -82,17 +82,25 @@
 .weather-cover-west { transform: translateX(calc((1 - var(--scene-overcast,0))*-230px)); }
 .weather-cover-east { transform: translateX(calc((1 - var(--scene-overcast,0))*230px)); }
 .firefly-layer { opacity: calc(var(--scene-fireflies,0)*var(--scene-twilight,0)); transition: opacity var(--weather-transition,8s) ease-in-out; }
-.summer-firefly { opacity: .6; animation: firefly-glow var(--firefly-speed,9s) var(--weather-delay,0s) ease-in-out infinite alternate; }
-@keyframes firefly-glow { from { opacity: .23; translate: -4px 3px; } to { opacity: .95; translate: 9px -8px; } }
+.summer-firefly {
+  opacity: .55;
+  animation: firefly-glow calc(var(--firefly-speed,12s) * var(--firefly-pace)) var(--weather-delay) ease-in-out infinite;
+}
+@keyframes firefly-glow {
+  0%, 100% { opacity: .22; translate: 0 0; }
+  27% { opacity: .9; translate: var(--firefly-x) var(--firefly-y); }
+  58% { opacity: .32; translate: calc(var(--firefly-x) * .28) calc(var(--firefly-y) * -1.15); }
+  80% { opacity: .65; translate: calc(var(--firefly-x) * -.6) calc(var(--firefly-y) * -.52); }
+}
 .weather-drift { animation: weather-drift var(--drift-speed,24s) var(--weather-delay,0s) ease-in-out infinite; }
 .weather-snowflake { opacity: .62; animation: weather-snow var(--snow-speed,22s) var(--weather-delay,0s) linear infinite; }
 .weather-raindrop { opacity: .48; animation: weather-rain var(--rain-speed,3.8s) var(--weather-delay,0s) linear infinite; }
 .weather-ripple { animation: weather-ripple var(--ripple-speed,6s) ease-out infinite alternate; }
 .weather-cloudbank { animation: fog-breathe var(--mist-speed,45s) ease-in-out infinite alternate; }
-.weather-shimmer { animation: weather-shimmer var(--shimmer-speed,11s) ease-in-out infinite alternate; }
+.weather-shimmer { opacity: .65; animation: weather-shimmer var(--shimmer-speed,21s) var(--weather-delay,0s) ease-in-out infinite alternate; }
 #app[data-motion="lively"] {
-  --weather-transition:5s; --firefly-speed:5s; --drift-speed:13s; --snow-speed:11s;
-  --rain-speed:2s; --ripple-speed:3s; --mist-speed:24s; --shimmer-speed:5s;
+  --weather-transition:5s; --firefly-speed:7s; --drift-speed:13s; --snow-speed:11s;
+  --rain-speed:2s; --ripple-speed:3s; --mist-speed:24s; --shimmer-speed:12s;
 }
 #app[data-motion="lively"] #landscape .cloud-drift { animation-duration: 48s; }
 #app[data-motion="lively"] #landscape .boat-bob { animation-duration: 4.5s; }
@@ -117,8 +125,8 @@
 }
 @keyframes weather-ripple { from { opacity: .16; } to { opacity: .55; } }
 @keyframes weather-shimmer {
-  from { opacity: .16; translate: 0 -1px; }
-  to { opacity: .64; translate: 7px 2px; }
+  from { opacity: .45; translate: -16px 2px; }
+  to { opacity: .82; translate: 15px -5px; }
 }
 
 #app[data-lighting="day"] {
