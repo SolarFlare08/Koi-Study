@@ -127,9 +127,30 @@ const summerFireflies=[
   [973,765],[1033,708],[1091,814],[1184,761],[1247,672],[1298,800]
 ];
 
+function driftingParticles(shape,count,seed){
+  // Jitter each cell independently so the scene stays spread out across refreshes.
+  let state=seed;
+  const next=()=>{
+    state=(Math.imul(state,1664525)+1013904223)>>>0;
+    return state/4294967296;
+  };
+  const rows=4,columns=Math.ceil(count/rows);
+  return Array.from({length:count},(_,i)=>{
+    const x=Math.round((i%columns+.07+next()*.86)*1600/columns);
+    const y=Math.round((Math.floor(i/columns)+.07+next()*.86)*900/rows);
+    const size=(.43+next()*.59).toFixed(2),tilt=Math.round(next()*150-75);
+    const dx=Math.round(next()*124-30),dy=Math.round(next()*66+22);
+    const pace=(.76+next()*.68).toFixed(2),delay=(next()*35).toFixed(2);
+    return `<g transform="translate(${x} ${y})">
+      <g class="weather-drift" style="--weather-delay:-${delay}s;--drift-pace:${pace};--drift-x:${dx}px;--drift-y:${dy}px">
+        <path transform="rotate(${tilt}) scale(${size})" d="${shape}"/>
+      </g>
+    </g>`;
+  }).join('');
+}
+
 export function weatherMarkup(){
   const particles=(count,draw)=>Array.from({length:count},(_,i)=>draw((i*173+37)%1600,(i*101+27)%900,i)).join('');
-  const floating=(shape,count)=>particles(count,(x,y,i)=>`<g transform="${pos(x,y,.44+(i%4)*.21)}"><path class="weather-drift" style="--weather-delay:-${i%17}s" d="${shape}"/></g>`);
   const fallingSnow=particles(58,(x,y,i)=>`<circle class="weather-snowflake" style="--weather-delay:-${i%15}s" cx="${x}" cy="${y}" r="${.85+i%4*.46}"/>`);
   const rain=particles(76,(x,y,i)=>`<path class="weather-raindrop" style="--weather-delay:-${(i%19)*.12}s" d="M${x} ${y}l-3 ${9+i%8}"/>`);
   const fireflies=summerFireflies.map(([x,y],i)=>{
@@ -141,9 +162,9 @@ export function weatherMarkup(){
       <circle cx="${x}" cy="${y}" r="${size*6}" fill="url(#lamp-halo)"/>
       <circle cx="${x}" cy="${y}" r="${size}" fill="#fff1b0"/></g>`;
   }).join('');
-  return `<g class="weather-layer weather-petals" fill="#e9aeb6">${floating('M-4 2Q-5-2 5-3Q4 3-4 2Z',23)}</g>
+  return `<g class="weather-layer weather-petals" fill="#e9aeb6">${driftingParticles('M-4 2Q-5-2 5-3Q4 3-4 2Z',24,42)}</g>
     <g class="season-layer summer-scene firefly-layer">${fireflies}</g>
-    <g class="weather-layer weather-leaves" fill="#d99156">${floating(maple,20)}</g>
+    <g class="weather-layer weather-leaves" fill="#d99156">${driftingParticles(maple,20,73)}</g>
     <g class="weather-layer weather-rain"><path fill="#557383" opacity=".12" d="M0 0h1600v900H0z"/><g stroke="#c2d6d9" stroke-linecap="round" stroke-width="1.2">${rain}</g><g class="weather-ripple" fill="none" stroke="#dae6dc" opacity=".45"><ellipse cx="475" cy="698" rx="13" ry="2.6"/><ellipse cx="917" cy="626" rx="12" ry="2.4"/><ellipse cx="1069" cy="790" rx="21" ry="3"/></g></g>
     <g class="weather-layer weather-mist"><path class="weather-cloudbank" fill="url(#mist)" opacity=".68" d="M0 397h1600v262H0z"/><path fill="url(#mist)" opacity=".39" d="M0 544h1600v177H0z"/></g>
     <g class="weather-layer weather-frost"><path class="weather-cloudbank" fill="url(#ice-mist)" opacity=".79" d="M0 372h1600v324H0z"/><path fill="url(#ice-mist)" opacity=".56" d="M0 551h1600v241H0z"/></g>

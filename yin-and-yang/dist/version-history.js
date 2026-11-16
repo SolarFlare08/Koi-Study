@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'3.13.4',date:'2026-11-16',title:'Scattered petals and leaves',changes:[
+    'Spread spring petals and autumn leaves across the landscape and vary their paths, speed, and timing.'
+  ]},
   {version:'3.13.3',date:'2026-11-16',title:'Softer summer scenery',changes:[
     'Scatter summer fireflies at different depths and give them independent drift and glow.',
     'Replace the Summer heat streaks and sharp lake lines with soft haze and tapered ripples.'

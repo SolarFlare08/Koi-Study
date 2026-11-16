@@ -764,7 +764,7 @@ export const helpTopics = [
       'Choose lighting. `Follow timer` ties sunrise and sunset to focus progress; fixed day or night looks keep a steady atmosphere.',
       'Use the `Season wheel` to preview Spring, Summer, Autumn, or Winter on the same view of the lake. Choose `Apply season` to switch the live Garden, or save a named look directly from the preview.',
       'Set weather manually or choose `Rotate every 8 minutes` for seasonal changes. Summer heat brings a soft warm haze over the lake.',
-      'Watch showers crossfade into lake mist and the cloud cover pull apart as skies clear. Each season has a signature detail: spring petals, drifting summer fireflies, autumn leaves, or winter flurries.',
+      'Watch showers crossfade into lake mist and the cloud cover pull apart as skies clear. Spring petals and autumn leaves drift across the scene independently. Summer brings fireflies and winter brings flurries.',
       'Under `Scenery motion`, choose Still for a static scene, Gentle for slow movement, or Lively for faster movement. Still also holds the timer-driven sun in place. This setting applies across all saved looks.',
       'Choose a palette and lighting, then use `Saved Garden looks` to name and save the combination. Looks are silent by default. To include rain, water, and wind, set their levels in Music first and check the ambient sound option when saving.',
       'Select a saved look to apply its colors, weather, motion, and ambience. Applying a named look pauses the daily schedule. Saving with the same name updates that look.',
