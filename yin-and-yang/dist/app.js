@@ -1,7 +1,8 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit,loadSoundtracks,startTaskTiming,resetTaskTiming,taskFinishBreak,overtimeElapsed,finishOvertime} from './state.js';
 import {renderLandscape,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
-import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
+import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, weekDays, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
+import {calendarCatalog,calendarColors,calendarSlotMinute,eventCalendarColor,eventCalendarId,loadCalendars,personalCalendarId,visibleCalendarEvents} from './calendar-layers.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
 import {handoffLink,sessionHandoff,nextFocusSubtask} from './session-handoff.js';
 import {installExamPlans} from './exam-plans.js';
@@ -72,6 +73,9 @@ const root=$('#panel-root');
 const taskSidebar=$('#task-sidebar');
 const calendarPanel=$('#calendar-panel');
 const calendarScroll=$('#calendar-scroll');
+const calendarRail=$('#calendar-sidebar');
+const calendarRailToggle=$('#calendar-toggle-sidebar');
+const compactCalendarRail=matchMedia('(max-width: 860px)');
 const calendarGrid=$('#calendar-grid');
 const calendarTray=$('#calendar-task-tray');
 const calendarShelf=$('#calendar-queue');
@@ -82,7 +86,8 @@ const taskMenu=$('#task-menu');
 const builtinRoutines=[{id:'classic',name:'Classic',focus:25*60000,rest:5*60000},{id:'deep',name:'Deep work',focus:50*60000,rest:10*60000}];
 const desktopTasks=matchMedia('(min-width: 981px)');
 let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1,agendaOffset=0;
-let taskDraft=null,blockDraft=null,calendarLayoutDay='',calendarOpenMinute;
+let taskDraft=null,blockDraft=null,calendarLayoutDay='',calendarOpenMinute,eventDraft=null;
+let railDate='',railMonth=null,railMarkup='';
 let calendarAnchor=null,calendarExit=null,menuTaskId=null,menuAnchor=null;
 const plannerDateCount=43;
 let plannerDays=[],plannerColumnWidth=0,plannerOffset=0,plannerVisibleRange='',plannerScrollEnd;
@@ -351,7 +356,7 @@ const planner=installPlanner({
   projectReward:id=>gardenReward(state.gardenGrowth,'project',id),
   finishProject:project=>recordGardenGrowth('project',project.id,project.name),
   previewSchedule:previewTaskSchedule,
-  calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,dailyRituals:renderDailyRituals,blockProgress:progressForBlock,notify:confirmChange,completeTask:markTask,hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden||Boolean(document.querySelector('dialog[open]'))
+  calendarChanged:showPlannerCalendar,calendarDate:leadingPlannerDay,calendarRail:renderCalendarRail,shownEvents:shownCalendarEvents,eventAppearance:calendarEventAppearance,dailyRituals:renderDailyRituals,blockProgress:progressForBlock,notify:confirmChange,completeTask:markTask,hasPanel:()=>Boolean(activePanel)||!taskMenu.hidden||Boolean(document.querySelector('dialog[open]'))
 });
 const penguinThoughts=[
   'Small steps still carry you forward.',
@@ -2673,6 +2678,7 @@ function panelContent(id){
       <div class="panel-actions"><button type="button" class="text-button" data-finish-task="break" data-task-id="${escape(task.id)}">Take a break</button><button type="button" class="panel-primary" data-finish-task="focus" data-task-id="${escape(task.id)}">${inBundle&&(!nextStep||!nextStep.ready)?'Finish task':'Keep going'}</button></div>`;
   }
   if(id==='event-editor')return calendarEventEditor();
+  if(id==='calendar-list-editor')return calendarListEditor();
   if(id==='replan-today')return replanMarkup();
   if(id==='plan-tomorrow')return planTomorrowMarkup();
   if(id==='plan-deadline')return deadlinePlannerMarkup();
@@ -2839,7 +2845,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden','music-mini');panel.querySelector('.music-mini-bar').hidden=true;panel.setAttribute('aria-hidden','false');panel.setAttribute('aria-modal','true');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.removeAttribute('aria-label');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs','calendar-day-templates','project-resources'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':['focus-subtasks','project-context'].includes(id)?'panel focus-checklist-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','calendar-list-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs','calendar-day-templates','project-resources'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':['focus-subtasks','project-context'].includes(id)?'panel focus-checklist-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
   if(id==='appearance')renderSeasonPreview();
@@ -2953,10 +2959,67 @@ function syncCalendarProgress(now){
     if(button.dataset.blockLabel)button.setAttribute('aria-label',button.dataset.blockLabel+(status?`, ${blockProgressLabels[status]}`:''));
   }
 }
+function shownCalendarEvents(){
+  return workspace==='calendar'?visibleCalendarEvents(state.calendarEvents,state.calendars,state.hiddenCalendars):state.calendarEvents;
+}
+function calendarEventAppearance(event){
+  return `data-event-tone="${eventCalendarColor(event,state.calendars)}"`;
+}
+
+function renderCalendarRail(selectedDate,monthOverride){
+  if(workspace!=='calendar')return;
+  const key=dayKey(selectedDate);
+  if(key!==railDate){railDate=key;railMonth=selectedDate;}
+  if(monthOverride)railMonth=monthOverride;
+  const first=new Date(railMonth.getFullYear(),railMonth.getMonth(),1),start=weekDays(first)[0];
+  const today=dayKey();
+  const calendars=calendarCatalog(state.calendars,state.calendarEvents);
+  const row=calendar=>`<div class="calendar-list-entry"><label>
+    <input type="checkbox" data-calendar-visibility="${escape(calendar.id)}" ${state.hiddenCalendars.includes(calendar.id)?'':'checked'}>
+    <span class="calendar-color-dot" data-event-tone="${calendar.color}"></span><span>${escape(calendar.name)}</span></label>
+    ${!calendar.imported&&calendar.id!=='tasks'?`<button type="button" class="calendar-list-edit" data-calendar-list-edit="${escape(calendar.id)}" aria-label="Edit ${escape(calendar.name)} calendar">${icon('sliders')}</button>`:''}</div>`;
+  const monthLabel=railMonth.toLocaleDateString([],{month:'long',year:'numeric'});
+  const markup=`<div class="calendar-mini-month">
+    <div class="calendar-mini-heading"><strong>${monthLabel}</strong>
+      <button type="button" data-calendar-mini-step="-1" aria-label="Previous mini-calendar month">${icon('left')}</button>
+      <button type="button" data-calendar-mini-step="1" aria-label="Next mini-calendar month">${icon('right')}</button></div>
+    <div class="calendar-mini-dates">
+      ${weekDays(first).map(day=>`<span aria-hidden="true">${day.toLocaleDateString([],{weekday:'narrow'})}</span>`).join('')}
+      ${Array.from({length:42},(_,index)=>{
+        const date=shiftDay(start,index),id=dayKey(date);
+        return `<button type="button" data-calendar-mini-day="${id}" aria-label="${escape(date.toLocaleDateString([],{dateStyle:'full'}))}" aria-pressed="${id===key}"
+          ${id===today?'aria-current="date"':''} ${date.getMonth()!==first.getMonth()?'class="other-month"':''}>${date.getDate()}</button>`;
+      }).join('')}
+    </div></div>
+    <section class="calendar-list"><header><h3>My calendars</h3>
+      <button type="button" data-calendar-list-new aria-label="Add calendar" title="Add calendar">${icon('plus')}</button></header>
+      ${calendars.filter(item=>!item.imported).map(row).join('')}
+      ${row({id:'tasks',name:'Tasks & rituals',color:'slate'})}
+    </section>
+    ${calendars.some(item=>item.imported)?`<section class="calendar-list"><header><h3>Imported calendars</h3></header>${calendars.filter(item=>item.imported).map(row).join('')}</section>`:''}`;
+  if(markup===railMarkup)return;
+  const focused=calendarRail.contains(document.activeElement)?{...document.activeElement.dataset}:null;
+  calendarRail.innerHTML=markup;railMarkup=markup;
+  if(focused){
+    for(const [data,value] of Object.entries(focused)){
+      const target=[...calendarRail.querySelectorAll('button,input')].find(el=>el.dataset[data]===value);
+      if(target){target.focus({preventScroll:true});break;}
+    }
+  }
+}
+
+function syncCalendarRail(){
+  const open=compactCalendarRail.matches?calendarPanel.classList.contains('calendar-rail-open'):
+    !calendarPanel.classList.contains('calendar-rail-collapsed');
+  calendarRailToggle.setAttribute('aria-expanded',String(open));
+}
+compactCalendarRail.addEventListener('change',syncCalendarRail);
+syncCalendarRail();
+
 function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=block.end){
   const {task,blockId,start,end,lane,lanes,continues,occurrence}=block;
   const time=`${timeLabel(start)} – ${timeLabel(end)}`;
-  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" data-calendar-event="${escape(block.event.id)}" aria-haspopup="dialog" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(block.event.title)}</strong><span>${time}</span></button>`;
+  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(block.event)} data-calendar-event="${escape(block.event.id)}" aria-haspopup="dialog" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}" style="--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}"><strong>${escape(block.event.title)}</strong><span>${time}</span></button>`;
   const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
   const done=!openFocusBlock(block);
   const {status}=progressForBlock(block);
@@ -2973,9 +3036,10 @@ function calendarStartMinute(date,visibleDays){
   const tasks=planner.calendarTasks();
   const sessions=workspace==='calendar'&&actualCalendar?replaySessions(state.history,state.timer,Date.now()):null;
   let minute=sessions?Infinity:8*60;
+  const events=shownCalendarEvents();
   for(let offset=0;offset<visibleDays;offset++){
     const day=shiftDay(date,offset);
-    const blocks=sessions?replayBlocks(sessions,day,$('#calendar-project').value):calendarBlocks(tasks,day,state.calendarEvents);
+    const blocks=sessions?replayBlocks(sessions,day,$('#calendar-project').value):calendarBlocks(tasks,day,events);
     for(const block of blocks){
       minute=Math.min(minute,Math.max(0,block.start-30));
     }
@@ -3003,7 +3067,7 @@ function renderCalendarShelf(){
   const scroll=calendarTray.scrollTop;
   const query=calendarShelfSearch.value.trim().toLowerCase();
   const projects=new Map(state.projects.map(project=>[project.id,project.name]));
-  const tasks=planner.calendarTasks().filter(task=>taskStatus(task)!=='done');
+  const tasks=planner.calendarTasks({includeHidden:true}).filter(task=>taskStatus(task)!=='done');
   $('#calendar-queue-count').textContent=tasks.length||'';
   const rows=tasks.filter(task=>`${task.text} ${projects.get(task.projectId)||'Inbox'}`.toLowerCase().includes(query))
     .sort((a,b)=>taskPriority(a)-taskPriority(b)||a.text.localeCompare(b.text)).map(task=>{
@@ -3082,23 +3146,25 @@ function setCalendarActivity(actual){
 }
 function renderPlannerDays(now=new Date()){
   const today=dayKey(now),minute=now.getHours()*60+now.getMinutes();
-  const tasks=planner.calendarTasks(),showCompleted=$('#planner-completed').checked;
+  const tasks=planner.calendarTasks(),showCompleted=$('#planner-completed').checked,events=shownCalendarEvents();
   const actual=workspace==='calendar'&&actualCalendar;
   const sessions=actual?replaySessions(state.history,state.timer,+now):null;
   replayRenderKey=actual?actualReplayKey(now):'';
   const headers=plannerDays.map(date=>{
     const key=dayKey(date),current=key===today;
     const allDay=actual?[]:tasks.filter(task=>!task.time&&(taskOccursOn(task,date)||!task.date&&task.deadline===key)&&(showCompleted||taskStatus(task,date)!=='done'));
-    const imports=actual?[]:allDayEvents(state.calendarEvents,date);
+    const imports=actual?[]:allDayEvents(events,date);
+    const create=workspace==='calendar'&&!actual;
     const stamp=`<span>${current?'Today':date.toLocaleDateString([],{weekday:'short'})}</span><strong>${date.getDate()}</strong>`;
     const dayLabel=escape(date.toLocaleDateString([],{dateStyle:'full'}));
     const heading=workspace==='calendar'?`<button class="calendar-day-heading" type="button" data-calendar-day="${key}" aria-label="Open day view for ${dayLabel}">${stamp}</button>`:`<div class="calendar-day-heading">${stamp}</div>`;
-    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${actual?'':renderDailyRituals(key)}${allDay.length||imports.length?`<div class="calendar-all-day">${allDay.map(task=>`<button type="button" class="calendar-all-day-task${taskStatus(task,date)==='done'?' all-day-done':''}" data-task-color="${taskCalendarColor(task.calendarColor)}" data-important="${taskPriority(task)===1}" aria-label="${escape(task.text)}${taskPriority(task)===1?', important':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
+    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${actual||create&&state.hiddenCalendars.includes('tasks')?'':renderDailyRituals(key)}${create||allDay.length||imports.length?`<div class="calendar-all-day" ${create?`data-calendar-all-day-create="${key}"`:''}>
+      ${create?`<button type="button" class="calendar-all-day-new" data-calendar-all-day-create="${key}" aria-label="Add an all-day event on ${dayLabel}">+</button>`:''}${allDay.map(task=>`<button type="button" class="calendar-all-day-task${taskStatus(task,date)==='done'?' all-day-done':''}" data-task-color="${taskCalendarColor(task.calendarColor)}" data-important="${taskPriority(task)===1}" aria-label="${escape(task.text)}${taskPriority(task)===1?', important':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(event)} data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
   }).join('');
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
   const columns=plannerDays.map(date=>{
     const blocks=actual?layoutBlocks(replayBlocks(sessions,date,$('#calendar-project').value)).map(actualBlockMarkup).join(''):
-      calendarBlocks(tasks,date,state.calendarEvents).filter(block=>block.event||showCompleted||openFocusBlock(block)||progressForBlock(block).focusMs).map(block=>calendarBlockMarkup(block,date)).join('');
+      calendarBlocks(tasks,date,events).filter(block=>block.event||showCompleted||openFocusBlock(block)||progressForBlock(block).focusMs).map(block=>calendarBlockMarkup(block,date)).join('');
     const nowLine=dayKey(date)===today?`<div class="mini-now calendar-now" style="--now-minute:${minute}" title="Current time"></div>`:'';
     return `<div class="calendar-day${dayKey(date)===today?' calendar-day-current':''}" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${blocks}${nowLine}</div>`;
   }).join('');
@@ -3150,6 +3216,7 @@ function updatePlannerViewport(){
   const start=dateLabel(plannerDays[first]),end=dateLabel(plannerDays[last]);
   $('#calendar-range').textContent=first===last?plannerDays[first].toLocaleDateString([],{dateStyle:'full'}):`${start} – ${end}, ${plannerDays[last].getFullYear()}`;
   $('#calendar-jump-date').value=dayKey(plannerDays[first]);
+  renderCalendarRail(plannerDays[first]);
   if(workspace==='calendar'&&actualCalendar){
     const columns=calendarGrid.querySelectorAll('.calendar-day');
     const hasVisible=[...columns].slice(first,last+1).some(column=>column.querySelector('[data-replay-session]'));
@@ -3185,13 +3252,33 @@ function scrollCalendarTo(date=new Date(),minute){
   }
 }
 
+const calendarSlotPreview=document.createElement('span');
+calendarSlotPreview.className='calendar-slot-preview';
+calendarSlotPreview.setAttribute('aria-hidden','true');
+function calendarPointerMinute(event,column){
+  const bounds=column.getBoundingClientRect();
+  return calendarSlotMinute(event.clientY-bounds.top,bounds.height);
+}
+calendarScroll.addEventListener('pointermove',event=>{
+  const column=workspace==='calendar'&&!actualCalendar&&!activePanel&&event.pointerType==='mouse'&&
+    !event.target.closest('button')&&event.target.closest('.calendar-day');
+  if(!column){calendarSlotPreview.remove();return;}
+  const minute=calendarPointerMinute(event,column);
+  calendarSlotPreview.style.top=`${minute/14.4}%`;
+  calendarSlotPreview.textContent=`+ ${timeLabel(minute)}`;
+  if(calendarSlotPreview.parentElement!==column)column.append(calendarSlotPreview);
+});
+calendarScroll.addEventListener('pointerleave',()=>calendarSlotPreview.remove());
 calendarScroll.addEventListener('scroll',()=>{
+  calendarSlotPreview.remove();
   updatePlannerViewport();
   clearTimeout(plannerScrollEnd);
   plannerScrollEnd=setTimeout(extendPlannerDates,160);
 },{passive:true});
 calendarScroll.addEventListener('keydown',event=>{
-  if(event.target!==calendarScroll||!['ArrowLeft','ArrowRight'].includes(event.key))return;
+  if(event.target!==calendarScroll)return;
+  if(event.key==='Enter'&&workspace==='calendar'&&!actualCalendar){event.preventDefault();openCalendarEvent(calendarScroll);return;}
+  if(!['ArrowLeft','ArrowRight'].includes(event.key))return;
   event.preventDefault();
   scrollCalendarTo(shiftDay(leadingPlannerDay(),event.key==='ArrowRight'?1:-1));
 });
@@ -3215,6 +3302,7 @@ function openSchedule(destination,anchor,date=new Date(),minute){
   }
   $('#sidebar-calendar').setAttribute('aria-expanded',String(destination==='calendar'));
   calendarLayoutDay='';
+  calendarPanel.classList.remove('calendar-rail-open');syncCalendarRail();
   calendarOpenMinute=minute;
   planner.open(destination,date,minute!==undefined);
   $('#planner-heading').focus({preventScroll:true});
@@ -3559,7 +3647,8 @@ for(const calendar of [calendarPanel,miniCalendar]){
 function openCalendarBlock(block){
   if(block.dataset.calendarEvent){
     const event=state.calendarEvents.find(item=>item.id===block.dataset.calendarEvent);
-    openPanel(event?.manual?'event-editor':'imported-event',block);return;
+    if(event?.manual)openCalendarEvent(block);else openPanel('imported-event',block);
+    return;
   }
   openPanel('calendar-block',block);
   updateBlockPreview(Date.now());
@@ -4245,12 +4334,76 @@ function eventBufferFields(event,allDay=false){
     <label class="event-field">Minutes after<input name="bufferAfter" type="number" min="0" max="180" placeholder="0" value="${value('bufferAfter')}"></label></div>
     <p>Reserve travel, setup, or recovery time in week drafts and deadline plans.</p></fieldset>`;
 }
+function defaultEventCalendar(){
+  return state.calendars.find(item=>!state.hiddenCalendars.includes(item.id))?.id||personalCalendarId;
+}
+function openCalendarEvent(anchor,draft=null){
+  eventDraft=draft;
+  openPanel('event-editor',anchor);
+}
+function calendarListEditor(){
+  const calendar=state.calendars.find(item=>item.id===lastAnchor?.dataset.calendarListEdit);
+  const removable=calendar&&calendar.id!==personalCalendarId;
+  return `${header('MY CALENDARS',calendar?'Edit calendar':'New calendar')}
+    <form id="calendar-list-form" data-calendar-id="${escape(calendar?.id)}">
+      <label class="event-field">Name<input name="name" value="${escape(calendar?.name)}" maxlength="60" placeholder="School, work, or personal" required></label>
+      <label class="event-field">Color<select name="color">${Object.entries(calendarColors).map(([value,label])=>`<option value="${value}" ${value===calendar?.color?'selected':''}>${label}</option>`).join('')}</select></label>
+      <p class="event-error" role="alert" hidden></p>
+      <div class="panel-actions">${removable?'<button type="button" class="text-button event-delete" data-calendar-list-delete>Remove calendar</button>':''}
+        <button class="panel-primary">Save calendar</button></div>
+    </form>`;
+}
+function saveCalendarList(form){
+  const fields=new FormData(form),name=String(fields.get('name')).trim(),id=form.dataset.calendarId||crypto.randomUUID();
+  const error=form.querySelector('.event-error'),previous=state.calendars;
+  if(!name||previous.some(item=>item.id!==id&&item.name.toLowerCase()===name.toLowerCase())){
+    error.textContent=name?'A calendar with that name already exists.':'Enter a name for this calendar.';
+    error.hidden=false;return;
+  }
+  const existing=previous.some(item=>item.id===id);
+  if(form.dataset.calendarId&&!existing)return;
+  state.calendars=loadCalendars([...previous.filter(item=>item.id!==id),{id,name,color:fields.get('color')}]);
+  if(!persist()){state.calendars=previous;return;}
+  closePanel(false);renderCalendar();
+  calendarRail.querySelector('[data-calendar-list-edit="'+CSS.escape(id)+'"]')?.focus({preventScroll:true});
+  confirmChange(existing?'Calendar updated.':'Calendar created.');
+}
+function removeCalendar(button){
+  const id=button.form.dataset.calendarId;
+  const calendar=state.calendars.find(item=>item.id===id&&item.id!==personalCalendarId);
+  if(!calendar)return;
+  if(!button.dataset.confirm){
+    button.dataset.confirm='true';button.textContent='Confirm removal';
+    const error=button.form.querySelector('.event-error');
+    error.hidden=false;error.textContent='Its events will move to the default calendar.';return;
+  }
+  const previous=state.calendars,events=state.calendarEvents,hidden=state.hiddenCalendars;
+  const moved=new Map();
+  state.calendars=previous.filter(item=>item.id!==id);
+  state.hiddenCalendars=hidden.filter(value=>value!==id);
+  state.calendarEvents=events.map(event=>{
+    if(!event.manual||event.calendarId!==id)return event;
+    const updated={...event,calendarId:personalCalendarId};
+    moved.set(event.id,updated);return updated;
+  });
+  if(!persist()){Object.assign(state,{calendars:previous,calendarEvents:events,hiddenCalendars:hidden});return;}
+  closePanel(false);renderCalendar();calendarRail.querySelector('[data-calendar-list-new]')?.focus();
+  confirmChange('Calendar removed. Its events were moved.',latest=>{
+    if(latest.calendars.some(item=>item.id===id))return false;
+    latest.calendars.push(calendar);
+    if(hidden.includes(id))latest.hiddenCalendars.push(id);
+    latest.calendarEvents=latest.calendarEvents.map(event=>moved.get(event.id)===event?{...event,calendarId:id}:event);
+    return true;
+  });
+}
 function calendarEventEditor(){
   const event=state.calendarEvents.find(item=>item.manual&&item.id===lastAnchor?.dataset.calendarEvent);
-  const draft=calendarDraft();
+  const draft=eventDraft||calendarDraft();
   const start=event?.start!==undefined?new Date(event.start):new Date(`${draft.date}T${draft.time}:00`);
   const end=event?.end!==undefined?new Date(event.end):new Date(+start+3600000);
-  const allDay=Boolean(event?.day);
+  const allDay=event?Boolean(event.day):Boolean(draft.allDay);
+  const endDay=event?.day?dayKey(shiftDay(new Date(event.endDay+'T00:00:00'),-1)):allDay?draft.date:dayKey(end);
+  const selectedCalendar=event?eventCalendarId(event,state.calendars):defaultEventCalendar();
   const time=date=>timeValue(date.getHours()*60+date.getMinutes());
   const timeField=(name,value,label)=>`<label class="event-field" data-event-time ${allDay?'hidden':''}>${label}<input name="${name}" type="time" value="${value}" required ${allDay?'disabled':''}></label>`;
   return `${header('CALENDAR',event?'Edit event':'Add event')}
@@ -4260,9 +4413,10 @@ function calendarEventEditor(){
       <div class="event-date-grid">
         <label class="event-field"><span data-event-start-label>${allDay?'First day':'Start date'}</span><input name="startDay" type="date" value="${event?.day||dayKey(start)}" required></label>
         ${timeField('startTime',time(start),'Start time')}
-        <label class="event-field"><span data-event-end-label>${allDay?'Last day':'End date'}</span><input name="endDay" type="date" value="${allDay?dayKey(shiftDay(new Date(event.endDay+'T00:00:00'),-1)):dayKey(end)}" required></label>
+        <label class="event-field"><span data-event-end-label>${allDay?'Last day':'End date'}</span><input name="endDay" type="date" value="${endDay}" required></label>
         ${timeField('endTime',time(end),'End time')}
       </div>
+      <label class="event-field">Calendar<select name="calendarId">${state.calendars.map(item=>`<option value="${escape(item.id)}" ${item.id===selectedCalendar?'selected':''}>${escape(item.name)}${state.hiddenCalendars.includes(item.id)?' (hidden)':''}</option>`).join('')}</select></label>
       <label class="event-field">Notes <textarea name="description" rows="3" maxlength="3000" placeholder="Optional">${escape(event?.description)}</textarea></label>
       ${eventBufferFields(event,allDay)}
       ${flexibilityFields(event?.flexibility)}
@@ -4287,7 +4441,34 @@ $('#calendar-jump-date').addEventListener('change',event=>{
   if(planner.calendarVisible())scrollCalendarTo(date);
   else planner.jumpMonth(date);
 });
+calendarPanel.addEventListener('change',event=>{
+  const id=event.target.dataset.calendarVisibility;
+  if(!id)return;
+  const previous=state.hiddenCalendars;
+  state.hiddenCalendars=event.target.checked?previous.filter(item=>item!==id):[...new Set([...previous,id])];
+  if(!persist()){state.hiddenCalendars=previous;event.target.checked=!event.target.checked;return;}
+  renderCalendar();
+});
 calendarPanel.addEventListener('click',event=>{
+  if(event.target.closest('#calendar-toggle-sidebar')){
+    calendarPanel.classList.toggle(compactCalendarRail.matches?'calendar-rail-open':'calendar-rail-collapsed');
+    syncCalendarRail();return;
+  }
+  const miniStep=event.target.closest('[data-calendar-mini-step]');
+  if(miniStep){
+    const step=Number(miniStep.dataset.calendarMiniStep);
+    renderCalendarRail(new Date(railDate+'T12:00:00'),new Date(railMonth.getFullYear(),railMonth.getMonth()+step,1));return;
+  }
+  const miniDay=event.target.closest('[data-calendar-mini-day]');
+  if(miniDay){
+    const date=new Date(miniDay.dataset.calendarMiniDay+'T12:00:00');
+    if(planner.calendarVisible())scrollCalendarTo(date,calendarStartMinute(date,Number(calendarPanel.dataset.visibleDays)));
+    else planner.jumpMonth(date);
+    if(compactCalendarRail.matches){calendarPanel.classList.remove('calendar-rail-open');syncCalendarRail();calendarRailToggle.focus();}
+    return;
+  }
+  const listEditor=event.target.closest('[data-calendar-list-new],[data-calendar-list-edit]');
+  if(listEditor){openPanel('calendar-list-editor',listEditor);return;}
   const templates=event.target.closest('[data-calendar-day-templates]');
   if(templates){openDayTemplates(templates);return;}
   const tradeoffs=event.target.closest('[data-open-tradeoffs]');
@@ -4367,7 +4548,7 @@ calendarPanel.addEventListener('click',event=>{
     return;
   }
   const addEvent=event.target.closest('[data-calendar-add-event]');
-  if(addEvent){openPanel('event-editor',addEvent);return;}
+  if(addEvent){openCalendarEvent(addEvent);return;}
   const add=event.target.closest('[data-calendar-new]');
   if(add){
     const project=$('#calendar-project').value;
@@ -4385,11 +4566,26 @@ calendarPanel.addEventListener('click',event=>{
   if(block){openCalendarBlock(block);return;}
   const allDay=event.target.closest('.calendar-all-day-task');
   if(allDay){if(allDay.dataset.calendarEvent)openCalendarBlock(allDay);else openTaskEditor(allDay.dataset.task,allDay);return;}
+  if(workspace==='calendar'&&!actualCalendar){
+    const button=event.target.closest('button');
+    const allDayTarget=event.target.closest('[data-calendar-all-day-create]');
+    const monthCell=event.target.closest('.planner-month-cell[data-board-day]');
+    if((allDayTarget&&(!button||button===allDayTarget))||(monthCell&&!button)){
+      const date=allDayTarget?.dataset.calendarAllDayCreate||monthCell.dataset.boardDay;
+      openCalendarEvent(button||$('#planner-heading'),{date,time:'09:00',allDay:true});return;
+    }
+    const column=!button&&event.target.closest('#calendar-scroll .calendar-day[data-date]');
+    if(column){
+      const time=timeValue(calendarPointerMinute(event,column));
+      calendarSlotPreview.remove();
+      openCalendarEvent(calendarScroll,{date:column.dataset.date,time});return;
+    }
+  }
   const trayTask=event.target.closest('.calendar-tray-task');
   if(trayTask)openBlockEditor(trayTask.dataset.task,trayTask,null,workspace==='calendar'?calendarDraft():null);
 });
 calendarScroll.addEventListener('dblclick',event=>{
-  if(workspace==='calendar'&&actualCalendar)return;
+  if(workspace==='calendar')return;
   const day=event.target.closest('.calendar-day');
   if(!day||event.target.closest('button'))return;
   openTaskEditor(null,calendarScroll,{date:day.dataset.date,time:timeValue(dropMinute(event,day))});
@@ -4504,6 +4700,8 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const deleteCalendar=e.target.closest('[data-calendar-list-delete]');
+  if(deleteCalendar){removeCalendar(deleteCalendar);return;}
   const resource=e.target.closest('[data-resource-edit],[data-resource-pin],[data-resource-remove]');
   if(resource){resourceAction(resource);return;}
   if(e.target.closest('#cancel-resource-edit')){
@@ -5191,6 +5389,7 @@ root.addEventListener('submit',e=>{
     confirmChange(kind==='annotate'?'Annotation log saved.':'Crochet link saved.');
     return;
   }
+  if(e.target.id==='calendar-list-form'){saveCalendarList(e.target);return;}
   if(e.target.id==='calendar-event-form'){
     const form=e.target, fields=new FormData(form), editing=form.dataset.eventId, prior=state.calendarEvents;
     if(editing&&!prior.some(item=>item.id===editing&&item.manual))return;
@@ -5201,11 +5400,13 @@ root.addEventListener('submit',e=>{
     try{
       event=calendarEventFromFields({...Object.fromEntries(fields),allDay:fields.has('allDay')},editing||`manual:${crypto.randomUUID()}`);
     }catch(err){error.textContent=err.message;error.hidden=false;return;}
+    event.calendarId=state.calendars.some(calendar=>calendar.id===fields.get('calendarId'))?fields.get('calendarId'):personalCalendarId;
     if(flexibility)event.flexibility=flexibility;
     state.calendarEvents=editing?prior.map(item=>item.id===editing?event:item):[...prior,event];
     if(!persist()){state.calendarEvents=prior;return;}
     finishCalendarEventChange(event);
-    confirmChange(editing?'Event updated.':'Event added.');
+    const hidden=state.hiddenCalendars.includes(event.calendarId);
+    confirmChange(hidden?'Event saved to a hidden calendar.':editing?'Event updated.':'Event added.');
     return;
   }
   if(e.target.id==='event-buffer-form'){

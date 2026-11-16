@@ -1,4 +1,5 @@
 import {calendarBlocks,calendarTaskBlock,calendarEventFromFields,shiftDay,timeValue} from './calendar.js';
+import {personalCalendarId} from './calendar-layers.js';
 import {dayKey,taskOccursOn,taskPriority,taskCalendarColor} from './state.js';
 
 const dateFor=day=>new Date(day+'T12:00:00');
@@ -19,6 +20,7 @@ export function loadDayTemplates(value){
       if(!Number.isInteger(start)||start<0||start>=1440||!Number.isInteger(duration)||duration<1||duration>(allDay?366:1440))continue;
       rows.push({kind:row.kind,title:clean(row.title,500),description:clean(row.description,2000),
         allDay,start,...(allDay?{days:duration}:{minutes:duration}),
+        ...(row.kind==='event'&&row.calendarId?{calendarId:clean(row.calendarId,80)}:{}),
         taskKey:clean(row.taskKey,200),projectId:clean(row.projectId,200),priorityLevel:[1,2,3,4].includes(row.priorityLevel)?row.priorityLevel:4,
         calendarColor:taskCalendarColor(row.calendarColor)});
     }
@@ -38,14 +40,14 @@ export function captureCalendarDay(tasks,events,day){
       return taskRow(block.task,{start:block.start,minutes:entry?.minutes??(block.end-block.start)});
     }
     const event=block.event,end=new Date(event.end);
-    return {kind:'event',title:event.title,description:event.description,start:block.start,
+    return {kind:'event',title:event.title,description:event.description,start:block.start,...(event.manual&&{calendarId:event.calendarId}),
       minutes:Math.max(1,dayDistance(day,dayKey(end))*1440+minute(end)-block.start)};
   });
   const scheduled=new Set(timed.filter(row=>row.kind==='task').map(row=>row.taskKey));
   const untimed=tasks.filter(task=>!task.time&&taskOccursOn(task,date)&&!scheduled.has(task.id))
     .map(task=>taskRow(task,{allDay:true}));
   const allDay=events.filter(event=>event.day===day).map(event=>({kind:'event',title:event.title,
-    description:event.description,allDay:true,days:dayDistance(day,event.endDay)}));
+    description:event.description,allDay:true,...(event.manual&&{calendarId:event.calendarId}),days:dayDistance(day,event.endDay)}));
   return [...allDay,...untimed,...timed];
 }
 
@@ -69,16 +71,18 @@ export function previewCalendarDay(template,day,tasks,events){
   });
 }
 
-export function copyCalendarDay(template,day,indices,{tasks,projects,calendarEvents}){
+export function copyCalendarDay(template,day,indices,{tasks,projects,calendarEvents,calendars=[]}){
   const selected=new Set(indices);
   const preview=previewCalendarDay(template,day,tasks,calendarEvents).filter(item=>selected.has(item.index)&&!item.unavailable);
   const date=dateFor(day),copies=new Map(),events=[];
   for(const {row,index} of preview){
     if(row.kind==='event'){
       const end=row.start+(row.minutes||0);
-      events.push(calendarEventFromFields({title:row.title,description:row.description,allDay:row.allDay,startDay:day,
+      const saved=calendarEventFromFields({title:row.title,description:row.description,allDay:row.allDay,startDay:day,
         endDay:dayKey(shiftDay(date,row.allDay?row.days-1:Math.floor(end/1440))),
-        startTime:timeValue(row.start),endTime:timeValue(end%1440)},'manual:'+crypto.randomUUID()));
+        startTime:timeValue(row.start),endTime:timeValue(end%1440)},'manual:'+crypto.randomUUID());
+      if(row.calendarId)saved.calendarId=calendars.some(item=>item.id===row.calendarId)?row.calendarId:personalCalendarId;
+      events.push(saved);
       continue;
     }
     const key=row.taskKey||index;

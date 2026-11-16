@@ -1,4 +1,5 @@
 import {test} from 'node:test';
+import {calendarCatalog,calendarSlotMinute,eventCalendarColor,loadCalendars,visibleCalendarEvents} from '../dist/calendar-layers.js';
 import {calendarBlocks,calendarEventFromFields} from '../dist/calendar.js';
 import {captureCalendarDay,copyCalendarDay,loadDayTemplates,previewCalendarDay} from '../dist/calendar-day-templates.js';
 import {loadProjectResources} from '../dist/project-planning.js';
@@ -635,4 +636,25 @@ test('renaming a library book moves its annotations, collections and linked note
   assert.equal(edit.changes.dailyRituals['2026-11-16'].annotate.title,'New title');
   assert.deepEqual(edit.changes.readingCollections[0].books,[edit.bookId]);
   assert.equal(edit.changes.stickyNotes[0].related[0].id,edit.bookId);
+});
+
+test('calendar visibility follows event calendars without removing commitments or backup data',()=>{
+  const state=freshState();
+  state.calendars=loadCalendars([{id:'school',name:' School ',color:'plum'}]);
+  state.hiddenCalendars=['school','import:School.ics'];
+  const day='2026-11-17';
+  const timed=(id,fields)=>({...calendarEventFromFields({title:id,description:'',startDay:day,endDay:day,startTime:'11:00',endTime:'12:00'},id),...fields});
+  state.calendarEvents=[timed('default',{}),timed('class',{calendarId:'school'}),timed('import',{manual:false,source:'School.ics'})];
+  assert.deepEqual(calendarCatalog(state.calendars,state.calendarEvents).map(item=>item.name),['Personal','School','School']);
+  assert.equal(eventCalendarColor(state.calendarEvents[1],state.calendars),'plum');
+  assert.deepEqual(visibleCalendarEvents(state.calendarEvents,state.calendars,state.hiddenCalendars).map(event=>event.id),['default']);
+  assert.equal(calendarBlocks([],new Date(day+'T12:00:00'),state.calendarEvents).length,3);
+  const template={rows:captureCalendarDay([],state.calendarEvents,day)};
+  assert.ok(copyCalendarDay(template,'2026-11-18',[0,1,2],state).events.some(event=>event.calendarId==='school'));
+  const restored=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state;
+  assert.deepEqual(restored.calendars,state.calendars);
+  assert.deepEqual(restored.hiddenCalendars,state.hiddenCalendars);
+  assert.deepEqual(restored.calendarEvents,state.calendarEvents);
+  assert.equal(calendarSlotMinute(545,1440),540);
+  assert.equal(calendarSlotMinute(5000,1440),1425);
 });

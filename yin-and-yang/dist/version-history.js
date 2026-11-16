@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'3.11.0',date:'2026-11-16',title:'A dedicated Calendar workspace',changes:[
+    'Use a mini month and separate color-coded calendars for personal, school, work, or imported events.',
+    'Click a time slot, an all-day row, or a month cell to start an event at that date and time.',
+    'Hide calendars from the view while keeping their events in planning. Existing events stay in Personal or their imported calendar.'
+  ]},
   {version:'3.10.2',date:'2026-11-16',title:'Full-panel book themes in Garden',changes:[
     'Carry a book’s rating colors across the entire Garden lantern popup.',
     'Give Crystal and Aurora popups a brief opening shimmer that respects reduced motion.'

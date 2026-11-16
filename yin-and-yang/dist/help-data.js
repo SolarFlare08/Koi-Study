@@ -231,7 +231,7 @@ export const helpTopics = [
   {
     id:'day-templates',group:'Calendar & planning',title:'Reuse a calendar day',
     summary:'Save a named schedule and copy selected blocks to another date.',
-    steps:['In Calendar, switch to Planned and click Day templates. Choose a source date, name the template, and save it.',
+    steps:['In Calendar, switch to Planned and choose More → Day templates. Choose a source date, name the template, and save it.',
       'Choose your template and a destination date. The preview flags timed overlaps with existing commitments and with other blocks in the template.',
       'Uncheck anything you want to leave out, then click Copy selected. Leave overlapping blocks checked if you want to keep them.'],
     tip:'Copied tasks start open and copied events are editable. Multiple selected blocks for the same task stay together. The source day stays intact.',
@@ -439,9 +439,19 @@ export const helpTopics = [
     action:'calendar', actionLabel:'Open Calendar', related:['timer','reporting','replan']
   },
   {
+    id:'calendar-lists',group:'Calendar & planning',title:'Organize events into calendars',
+    summary:'Keep separate color-coded calendars for school, work, and personal plans.',
+    steps:['Open Calendar. Under My calendars, click the plus button and give the calendar a name and color. On smaller screens, tap Calendars to open the sidebar.',
+      'When creating or editing an event, pick its calendar from the Calendar field. Use the checkboxes in the sidebar to show or hide calendars or the Tasks & rituals row.',
+      'Use the mini month to jump to a date. Each imported .ics file appears as a separate calendar in the sidebar.',
+      'Use the edit button next to a calendar name to change its name or color. Removing a custom calendar moves its events to Personal.'],
+    tip:'Hidden events stay saved and still count as commitments in Planner. Calendar settings are saved on this device and included in backups.',
+    action:'calendar',actionLabel:'Open Calendar',related:['calendar','events','calendar-import','backup']
+  },
+  {
     id:'events', group:'Calendar & planning', title:'Add events and all-day commitments',
     summary:'Put meetings and appointments on the calendar without making them tasks.',
-    steps:['Open Calendar and choose `Add event`.',
+    steps:['Click an empty time in Calendar to open a new event at that date and time. Click the plus in an all-day row or click an empty spot in Month to start an all-day event. You can also choose Create event.',
       'Enter a title, optional description, and start/end dates and times. Turn on All day for a date-only event.',
       'Save the event. Click a manually created event to edit or delete it.',
       'For a timed event, set `Minutes before` and `Minutes after` under `Planning buffers` to reserve travel, setup, or recovery time. On an imported event, open its details and choose `Save buffers`.',
@@ -510,7 +520,7 @@ export const helpTopics = [
     id:'calendar-import', group:'Calendar & planning', title:'Import a calendar or Canvas schedule',
     summary:'Bring events in from an iCalendar (.ics) file.',
     steps:['Download an `.ics` calendar file from the source you use. In Canvas, look for Calendar → Calendar Feed.',
-      'Open Calendar → `Import .ics` and choose the downloaded file.',
+      'Open Calendar → More → `Import .ics` and choose the downloaded file.',
       'Import it to add its supported events and recurring occurrences to the shared schedule.',
       'To refresh imported data, download a new file and import it again. The import panel also lists imported sources with Remove controls.'],
     tip:'This is a file import, not a live Canvas account connection or automatic background sync.',
@@ -519,7 +529,7 @@ export const helpTopics = [
   {
     id:'calendar-export', group:'Calendar & planning', title:'Export a calendar as .ics',
     summary:'Take a day, week, or project schedule to another calendar.',
-    steps:['Open Calendar or a project in Planner and choose `Export .ics`.',
+    steps:['Open Calendar → More → `Export .ics`, or choose Export .ics from a project in Planner.',
       'Choose Day, Week (Monday through Sunday), or Project. For a project, also select an end date.',
       'Choose `Download .ics`, then import the file into your other calendar. Day and week exports can include standalone events; project exports include its timed task blocks.'],
     action:'calendar', actionLabel:'Open Calendar', related:['calendar','calendar-import'], keywords:'ics ical download export'

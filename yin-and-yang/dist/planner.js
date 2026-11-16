@@ -41,7 +41,7 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>'',nextProjectTask,resumeProject,openResources,projectTimerLocked,projectReward,finishProject,openExamPlans,isActualCalendar,bundleStatus,startBundle,stopBundle,editBundle}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,calendarRail,shownEvents,eventAppearance,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>'',nextProjectTask,resumeProject,openResources,projectTimerLocked,projectReward,finishProject,openExamPlans,isActualCalendar,bundleStatus,startBundle,stopBundle,editBundle}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
@@ -107,7 +107,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     }
   }
 
-  function calendarTasks() {
+  function calendarTasks({includeHidden=false}={}) {
+    if(!includeHidden&&view==='calendar'&&state().hiddenCalendars.includes('tasks'))return [];
     return matchingTasks().filter(task=>completed.checked||task.repeat!=='none'||!task.done);
   }
 
@@ -380,15 +381,17 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const month=date.getMonth(), first=new Date(date.getFullYear(),month,1);
     const start=weekDays(first)[0], today=dayKey();
     const headings=weekDays(first).map(day=>`<div class="planner-month-weekday">${day.toLocaleDateString([],{weekday:'short'})}</div>`).join('');
+    const events=shownEvents();
     const cells=Array.from({length:42},(_,index)=>{
       const day=shiftDay(start,index), key=dayKey(day);
       const allDay=tasks.filter(task=>!task.time&&nextTaskDate(task,day,true)===key&&(completed.checked||taskStatus(task,day)!=='done'));
       return `<section class="planner-month-cell${day.getMonth()!==month?' other-month':''}" data-board-day="${key}">
         <button type="button" data-month-day="${key}" aria-label="Open ${escape(day.toLocaleDateString([],{dateStyle:'full'}))}" ${key===today?'aria-current="date"':''}>${day.getDate()}</button>
-        ${dailyRituals(key)}
+        ${view==='calendar'?`<button type="button" class="calendar-month-create" data-calendar-all-day-create="${key}" aria-label="Add event on ${escape(day.toLocaleDateString([],{dateStyle:'full'}))}">+</button>`:''}
+        ${view!=='calendar'||!state().hiddenCalendars.includes('tasks')?dailyRituals(key):''}
         ${allDay.map(task=>`<button type="button" class="planner-month-task${taskStatus(task,day)==='done'?' all-day-done':''}" data-month-task data-task-color="${taskCalendarColor(task.calendarColor)}" data-important="${taskPriority(task)===1}" aria-label="${escape(task.text)}${taskPriority(task)===1?', important':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}
-        ${allDayEvents(state().calendarEvents,day).map(event=>`<button type="button" class="planner-month-event" data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}
-        ${calendarBlocks([],day,state().calendarEvents).map(block=>`<button type="button" class="planner-month-event" data-calendar-event="${escape(block.event.id)}" title="${escape(block.event.title)}">${timeLabel(block.start)} · ${escape(block.event.title)}</button>`).join('')}
+        ${allDayEvents(events,day).map(event=>`<button type="button" class="planner-month-event" ${eventAppearance(event)} data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}
+        ${calendarBlocks([],day,events).map(block=>`<button type="button" class="planner-month-event" ${eventAppearance(block.event)} data-calendar-event="${escape(block.event.id)}" title="${escape(block.event.title)}">${timeLabel(block.start)} · ${escape(block.event.title)}</button>`).join('')}
         ${timeStack(tasks,key)}</section>`;
     }).join('');
     return `<div class="planner-month-grid">${headings}${cells}</div>`;
@@ -600,6 +603,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const standalone=view==='calendar';
     const actual=standalone&&isActualCalendar();
     sidebar.hidden=standalone;
+    $('#calendar-sidebar').hidden=!standalone;
+    $('#calendar-toggle-sidebar').hidden=!standalone;
     if (!standalone) renderSidebar();
     const sectionView=['filters','reporting','search','review','workload','health','bundles','waiting'].includes(view);
     const calendar=timeLayout()&&!sectionView;
@@ -613,18 +618,28 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       detail.innerHTML=`${icon(view==='inbox'?'inbox':'check')} ${count} open ${count===1?'task':'tasks'}`;
     }
     renderProjectOverview(project);
-    $('#planner-breadcrumb').textContent=standalone?'Schedule':project?.archived?'Archived project':'Task workspace';
+    $('#planner-breadcrumb').textContent=standalone?'Calendar':project?.archived?'Archived project':'Task workspace';
     const addTask=`<button class="planner-heading-add${standalone?'':' planner-mobile-add'}" type="button" ${standalone?'data-calendar-new':'data-planner-add'}>${icon('plus')} New task</button>`;
     const settings=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:view==='reporting'?`<button type="button" data-report-export>${icon('download')} Export CSV</button>`:'';
     const replan=standalone||view==='today'?'<button type="button" data-replan-today aria-haspopup="dialog">Replan today</button>':'';
-    $('#planner-heading-actions').innerHTML=actual?'':addTask+settings+replan+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button><button type="button" data-calendar-day-templates aria-haspopup="dialog">Day templates</button>`:'<button type="button" data-plan-tomorrow aria-haspopup="dialog">Plan tomorrow</button><button type="button" data-plan-deadline aria-haspopup="dialog">Plan to deadline</button>');
+    const actions=$('#planner-heading-actions');
+    if(standalone){
+      actions.innerHTML=actual?'':`<button type="button" class="planner-primary" data-calendar-add-event>${icon('plus')} Create event</button>
+        <details class="calendar-tools"><summary>More</summary><div class="planner-popover">
+          ${addTask}${replan}<button type="button" data-open-availability>Availability</button>
+          <button type="button" data-open-tradeoffs>Fit a task today</button>
+          <button type="button" data-calendar-day-templates>Day templates</button>
+          <button type="button" data-manage="calendar-import">Import .ics</button>
+          <button type="button" data-manage="calendar-export">Export .ics</button>
+        </div></details>`;
+    }else actions.innerHTML=addTask+settings+replan+'<button type="button" data-plan-tomorrow aria-haspopup="dialog">Plan tomorrow</button><button type="button" data-plan-deadline aria-haspopup="dialog">Plan to deadline</button>';
     if(!standalone)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-build-week aria-haspopup="dialog">Build my week</button>');
     if(view==='today')$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-day-recap aria-haspopup="dialog">End-of-day recap</button>');
-    if(!actual)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-availability aria-haspopup="dialog">Availability</button>');
-    if(!actual&&(standalone||view==='today'))$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-tradeoffs aria-haspopup="dialog">Fit a task today</button>');
+    if(!standalone)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-availability aria-haspopup="dialog">Availability</button>');
+    if(!standalone&&view==='today')$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-tradeoffs aria-haspopup="dialog">Fit a task today</button>');
     if(!standalone)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-mistakes aria-haspopup="dialog">Mistake notebook</button>');
     if(view==='bundles')$('#planner-heading-actions').innerHTML='<button type="button" class="planner-heading-add" data-bundle-new aria-haspopup="dialog">+ New bundle</button>';
-    if(standalone&&!actual||project)$('#planner-heading-actions').insertAdjacentHTML('beforeend',
+    if(project)$('#planner-heading-actions').insertAdjacentHTML('beforeend',
       `<button type="button" data-manage="calendar-export" data-value="${escape(project?.id)}">Export .ics</button>`);
     if(project)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="milestones" aria-haspopup="dialog">Milestones</button>');
     if(project)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-manage="decisions" aria-haspopup="dialog">Decision log</button>');
@@ -668,6 +683,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     $('#planner-quick-strip').innerHTML=quick?.key==='top'?quickForm('top',quick.defaults):'';
     if (calendar) calendarChanged(date,calendarLayouts[layout],enteringTimeline);
     else renderContent();
+    if(standalone)calendarRail(calendar?calendarDate():date);
   }
 
   function open(destination,anchorDate,timeFocus=false) {
@@ -869,12 +885,14 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       if(!data.events.length)throw new Error(data.skipped?'No supported events were found in this file.':'No calendar events were found.');
       if(data.events.length>10000)throw new Error('This file expands to more than 10,000 events. Export a shorter range.');
       const source=file.name.slice(0,150);
-      const oldById=new Map(state().calendarEvents.map(event=>[event.id,event]));
+      const oldById=new Map(state().calendarEvents.filter(event=>!event.manual&&event.source===source).map(event=>[event.id,event]));
       const events=new Map(state().calendarEvents.filter(event=>event.source!==source).map(event=>[event.id,event]));
       for(const event of data.events){
-        const old=oldById.get(event.id),settings={};
+        const scopedId=`ics-source:${JSON.stringify([source,event.id])}`;
+        const old=oldById.get(scopedId)||oldById.get(event.id),settings={};
+        const id=old?.id||scopedId;
         for(const key of ['bufferBefore','bufferAfter'])if(!event.day&&old?.[key])settings[key]=old[key];
-        events.set(event.id,{...event,source,...settings});
+        events.set(id,{...event,id,source,...settings});
       }
       if(events.size>10000)throw new Error('Remove an existing calendar before exceeding 10,000 imported events.');
       const previous=state().calendarEvents;
