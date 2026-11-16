@@ -10,10 +10,11 @@ import {loadFinishedBooks,loadReadingNotes} from './reading-shelf.js';
 import {loadReadingCollections} from './reading-progress.js';
 import {loadAvailability} from './availability.js';
 import {loadStickyNotes} from './sticky-notes.js';
-import {projectDecision,projectMilestone,taskTemplate} from './project-planning.js';
+import {projectDecision,projectMilestone,taskTemplate,loadProjectResources} from './project-planning.js';
 import {loadGardenGrowth} from './garden-growth.js';
 import {addReplayEvent,loadReplay} from './focus-replay.js';
 import {loadExamPlans} from './exam-plans.js';
+import {loadDayTemplates} from './calendar-day-templates.js';
 import {handoffLink,sessionHandoff} from './session-handoff.js';
 import {loadMistakes} from './mistake-notebook.js';
 import {loadTaskBundles} from './task-bundles.js';
@@ -190,7 +191,7 @@ export function loadSoundtracks(value){
   return [...records.values()];
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], calendarDayTemplates:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],
     taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],breakIdeas:[],
@@ -219,6 +220,7 @@ export function loadState(storage) {
     base.gardenLayouts=loadGardenLayouts(raw.gardenLayouts);
     base.gardenSchedule=loadGardenSchedule(raw.gardenSchedule);
     base.calendarEvents=loadCalendarEvents(raw.calendarEvents);
+    base.calendarDayTemplates=loadDayTemplates(raw.calendarDayTemplates);
     if(isTime(raw.replanCutoff))base.replanCutoff=raw.replanCutoff;
     if(Number.isInteger(raw.planningCooldown)&&raw.planningCooldown>=0&&raw.planningCooldown<=30)base.planningCooldown=raw.planningCooldown;
     base.dailyRituals=loadDailyRituals(raw.dailyRituals);
@@ -277,6 +279,7 @@ export function loadState(storage) {
       id:project.id,name:project.name,color:/^#[\da-f]{6}$/i.test(project.color)?project.color:'#d94b49',favorite:project.favorite===true,archived:project.archived===true,
       sections:Array.isArray(project.sections)?project.sections.filter(section=>section&&typeof section.id==='string'&&typeof section.name==='string'):[],
       milestones:Array.isArray(project.milestones)?project.milestones.map(projectMilestone).filter(Boolean):[],
+      ...loadProjectResources(project),
       decisions:Array.isArray(project.decisions)?project.decisions.map(projectDecision).filter(Boolean):[],
       exams:loadExamPlans(project.exams),
       weeklyGoals:Object.fromEntries(['focusMinutes','chapters'].filter(key=>

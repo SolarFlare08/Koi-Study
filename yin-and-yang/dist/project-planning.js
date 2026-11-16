@@ -1,3 +1,23 @@
+import {handoffLink} from './session-handoff.js';
+
+export function projectResource(value){
+  const title=typeof value?.title==='string'?value.title.trim().slice(0,80):'';
+  const kind=value?.kind;
+  const content=typeof value?.value==='string'?value.value.trim().slice(0,2000):'';
+  const entry=kind==='link'?handoffLink(content):content;
+  return typeof value?.id==='string'&&value.id&&title&&entry&&['link','note','path'].includes(kind)
+    ?{id:value.id,title,kind,value:entry}:null;
+}
+
+export function loadProjectResources(project){
+  const resources=new Map();
+  for(const entry of Array.isArray(project?.resources)?project.resources:[]){
+    const resource=projectResource(entry);
+    if(resource)resources.set(resource.id,resource);
+  }
+  return {resources:[...resources.values()],pinnedResourceId:resources.has(project?.pinnedResourceId)?project.pinnedResourceId:''};
+}
+
 const strings=(values,limit)=>Array.isArray(values)
   ? [...new Set(values.filter(value=>typeof value==='string').map(value=>value.trim().slice(0,limit)).filter(Boolean))]
   : [];

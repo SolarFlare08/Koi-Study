@@ -1,4 +1,7 @@
 import {test} from 'node:test';
+import {calendarBlocks,calendarEventFromFields} from '../dist/calendar.js';
+import {captureCalendarDay,copyCalendarDay,loadDayTemplates,previewCalendarDay} from '../dist/calendar-day-templates.js';
+import {loadProjectResources} from '../dist/project-planning.js';
 import assert from 'node:assert/strict';
 import {applyBackupRestore,createBackup,loadRestorePoints,planBackupRestore,readBackup,restoreBackup,saveRestorePoint} from '../dist/backup.js';
 import {CAPTURE_PREFIX,readCaptures} from '../dist/capture.js';
@@ -468,4 +471,50 @@ test('YouTube links normalize to official watch and embed URLs',()=>{
   assert.equal(new URL(urls.embed).searchParams.get('origin'),'http://localhost:5180');
   assert.deepEqual(youtubeContent('https://www.youtube.com/playlist?list=PL1234567890'),{video:'',list:'PL1234567890'});
   assert.equal(youtubeContent('https://www.youtube.com.other.example/watch?v=M7lc1UVf-VE'),null);
+});
+
+test('day templates preserve selected task blocks and report destination overlaps',()=>{
+  const source='2026-11-17',target='2026-11-18',state=freshState();
+  state.projects.push({id:'lab',name:'Lab'});
+  state.tasks.push({id:'write',text:'Lab report',done:true,date:source,time:'09:00',estimate:40,projectId:'lab',
+    blocks:[{id:'second',date:source,time:'13:00',minutes:25}]});
+  state.calendarEvents.push(
+    calendarEventFromFields({title:'Office hours',description:'Ask about methods',startDay:source,endDay:source,startTime:'14:00',endTime:'14:30'},'manual:office'),
+    calendarEventFromFields({title:'Appointment',description:'',startDay:target,endDay:target,startTime:'09:15',endTime:'10:00'},'manual:appointment')
+  );
+  const [template]=loadDayTemplates([{id:'lab-day',name:'Lab day',rows:captureCalendarDay(state.tasks,state.calendarEvents,source)}]);
+  const preview=previewCalendarDay(template,target,state.tasks,state.calendarEvents);
+  assert.deepEqual(preview.map(entry=>entry.conflicts),[['Appointment'],[],[]]);
+  const skippedEvent=copyCalendarDay(template,target,[0,1],state);
+  assert.equal(skippedEvent.events.length,0);
+  assert.equal(skippedEvent.tasks.length,1);
+  assert.equal(skippedEvent.tasks[0].id===state.tasks[0].id,false);
+  assert.equal(skippedEvent.tasks[0].done,false);
+  assert.equal(skippedEvent.tasks[0].projectId,'lab');
+  assert.deepEqual(calendarBlocks(skippedEvent.tasks,new Date(target+'T12:00:00')).map(block=>[block.start,block.end]),[[540,580],[780,805]]);
+  const copiedEvent=copyCalendarDay(template,target,[2],state).events[0];
+  assert.equal(copiedEvent.manual,true);
+  assert.equal(dayKey(new Date(copiedEvent.start)),target);
+  assert.equal(state.tasks[0].done,true);
+});
+
+test('day templates and pinned resources round-trip in their backup sections',()=>{
+  const storage=memoryStorage(),state=freshState();
+  const resources=loadProjectResources({pinnedResourceId:'note',resources:[
+    {id:'unsafe',title:'Bad link',kind:'link',value:'javascript:alert(1)'},
+    {id:'note',title:'Lab protocol',kind:'note',value:'Read section 4'},
+    {id:'path',title:'Draft',kind:'path',value:'C:/Labs/draft.md'}
+  ]});
+  assert.equal(resources.resources.length,2);
+  assert.equal(loadProjectResources({pinnedResourceId:'missing',resources:resources.resources}).pinnedResourceId,'');
+  state.projects.push({id:'lab',name:'Lab',...resources});
+  state.calendarDayTemplates.push(...loadDayTemplates([{id:'lab-day',name:'Lab day',rows:[{kind:'task',title:'Read',allDay:true}]}]));
+  storage.setItem(STORAGE_KEY,JSON.stringify(state));
+  assert.deepEqual(loadState(storage).projects[0].resources,resources.resources);
+  assert.equal(loadState(storage).projects[0].pinnedResourceId,'note');
+  assert.deepEqual(loadState(storage).calendarDayTemplates,state.calendarDayTemplates);
+  const target=memoryStorage();
+  restoreBackup(target,readBackup(JSON.stringify(createBackup(state,storage,[]))));
+  assert.equal(loadState(target).projects[0].pinnedResourceId,'note');
+  assert.equal(loadState(target).calendarDayTemplates[0].name,'Lab day');
 });

@@ -229,6 +229,15 @@ export const helpTopics = [
     action:'waiting',actionLabel:'Open Waiting for',related:['tasks','focus-queue','project-health']
   },
   {
+    id:'day-templates',group:'Calendar & planning',title:'Reuse a calendar day',
+    summary:'Save a named schedule and copy selected blocks to another date.',
+    steps:['In Calendar, switch to Planned and click Day templates. Choose a source date, name the template, and save it.',
+      'Choose your template and a destination date. The preview flags timed overlaps with existing commitments and with other blocks in the template.',
+      'Uncheck anything you want to leave out, then click Copy selected. Leave overlapping blocks checked if you want to keep them.'],
+    tip:'Copied tasks start open and copied events are editable. Multiple selected blocks for the same task stay together. The source day stays intact.',
+    action:'calendar',actionLabel:'Open Calendar',related:['calendar','multiple-blocks','backup']
+  },
+  {
     id:'calendar-task-colors',group:'Calendar & planning',title:'Mark important calendar tasks and choose colors',
     summary:'Flag priority tasks and identify them by color across calendar views.',
     steps:['In Calendar, choose `New task`. Turn on `Important` to set the task’s priority to P1 and show a star on the calendar.',
@@ -284,6 +293,15 @@ export const helpTopics = [
       'Enter the decision, date, and reason. Choose an optional milestone and check the affected project tasks.',
       'Save the decision. Reopen the log to edit a decision or open its linked work.'],
     action:'planner', actionLabel:'Open Planner', related:['projects','project-resume']
+  },
+  {
+    id:'project-resources',group:'Tasks & projects',title:'Keep a project resource shelf',
+    summary:'Save reference material and pin the resource you need for your next session.',
+    steps:['In Planner, select a project and open Resource shelf in Project Overview.',
+      'Save a web link, reference note, or file path. Use Edit or Remove to maintain the shelf.',
+      'Choose Pin for focus on one resource, then click Resume project in Project Overview to see it beside the Garden timer.'],
+    tip:'Web links open in a new tab. File paths are shown as selectable text for use in your file manager.',
+    action:'planner',actionLabel:'Open Planner',related:['project-resume','resume','backup']
   },
   {
     id:'project-resume', group:'Tasks & projects', title:'Resume work on a project',

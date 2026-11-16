@@ -177,7 +177,7 @@ export function planBackupRestore(storage,current,incoming,sections){
     if(apply)state.gardenClearedDone={...current.gardenClearedDone,...incoming.state.gardenClearedDone};
   });
   section('calendar','Calendar','Events and recurring unavailable hours.',apply=>{
-    stateList(apply,'calendarEvents','Events');stateList(apply,'availability','Availability rules');
+    stateList(apply,'calendarEvents','Events');stateList(apply,'calendarDayTemplates','Day templates');stateList(apply,'availability','Availability rules');
   });
   section('notes','Notes','Sticky notes and captured thoughts.',apply=>{
     stateList(apply,'stickyNotes','Sticky notes');stateList(apply,'captureArchive','Archived thoughts',item=>item.key);

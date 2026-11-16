@@ -30,7 +30,8 @@ import {installVersionHistory} from './version-history.js';
 import {canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,scheduleImpact,todayTradeoffs} from './scheduling.js';
 import {nextTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
-import {taskTemplate} from './project-planning.js';
+import {taskTemplate,projectResource} from './project-planning.js';
+import {validTemplateDay,loadDayTemplates,captureCalendarDay,previewCalendarDay,copyCalendarDay} from './calendar-day-templates.js';
 import {estimateSummary,suggestTaskEstimate} from './planner-report.js';
 import {loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime} from './calendar.js';
@@ -338,7 +339,7 @@ const planner=installPlanner({
   root:calendarPanel,getState:()=>state,commit:()=>{const saved=persist();refreshTasks();return saved;},
   editTask:openTaskEditor,openBlock:openCalendarBlock,taskMenu:openTaskMenu,
   linkedNotes:id=>linkedStickyNotes('project',id),
-  nextProjectTask, resumeProject, projectTimerLocked,
+  nextProjectTask, resumeProject, openResources:openProjectResources, projectTimerLocked,
   openExamPlans:(project,anchor)=>examPlans.open(project,null,anchor),
   bundleStatus:taskBundleStatus, startBundle, stopBundle, editBundle,
   isActualCalendar:()=>actualCalendar,
@@ -2360,7 +2361,191 @@ function timerNotificationControls(){
     <p class="panel-subtle">${notificationStatus()}</p>
     <button type="button" class="text-button" id="timer-open-sounds">Adjust chimes and ambience</button></section>`;
 }
+let dayTemplateSource='',dayTemplateTarget='',dayTemplateId='';
+let resourceProjectId='',resourceEditId='';
+
+function openDayTemplates(anchor){
+  const date=planner.calendarVisible()?leadingPlannerDay():planner.calendarAnchor();
+  dayTemplateSource=dayKey(date);
+  dayTemplateTarget=dayKey(shiftDay(date,1));
+  dayTemplateId=state.calendarDayTemplates.find(item=>item.id===dayTemplateId)?.id||state.calendarDayTemplates[0]?.id||'';
+  openPanel('calendar-day-templates',anchor);
+}
+
+function dayTemplateRows(template,selected){
+  const rows=previewCalendarDay(template,dayTemplateTarget,gardenTasks(),state.calendarEvents);
+  if(!rows.length)return '<p>Choose a valid destination date to preview the blocks.</p>';
+  return rows.map(({row,index,conflicts,overlaps,unavailable})=>{
+    const time=row.allDay?(row.kind==='task'?'Untimed task':row.days>1?`All day · ${row.days} days`:'All day'):`${timeLabel(row.start)} · ${row.minutes} min`;
+    return `<label class="day-template-row">
+      <input type="checkbox" name="row" value="${index}" ${unavailable?'disabled':!selected||selected.has(index)?'checked':''}>
+      <span><strong>${escape(row.title)}</strong><small>${time} · ${row.kind==='event'?'Event':'Task'}</small>
+      ${unavailable?'<small>This time is unavailable on the selected date.</small>':''}
+      ${conflicts.length?`<small class="template-conflict">Overlaps ${escape(conflicts.join(', '))}</small>`:''}
+      ${overlaps?.length?'<small>Overlaps another block in this template</small>':''}</span></label>`;
+  }).join('');
+}
+
+function dayTemplatesMarkup(){
+  const template=state.calendarDayTemplates.find(item=>item.id===dayTemplateId);
+  return `${header('CALENDAR','Day templates')}
+    <form id="save-day-template" class="template-form">
+      <h3>Save a day</h3>
+      <div class="template-fields">
+        <label>Source date<input id="day-template-source" type="date" name="date" required value="${dayTemplateSource}"></label>
+        <label>Template name<input name="name" placeholder="Lab Tuesday" maxlength="80" required></label>
+      </div>
+      <div class="panel-actions"><button class="panel-primary" type="submit">Save template</button></div>
+      <p class="template-error" role="alert" hidden></p>
+    </form>
+    ${template?`<form id="apply-day-template" class="template-form">
+      <h3>Copy to a date</h3>
+      <div class="template-fields">
+        <label>Template<select id="day-template-picker">${state.calendarDayTemplates.map(item=>`<option value="${escape(item.id)}" ${item===template?'selected':''}>${escape(item.name)}</option>`).join('')}</select></label>
+        <label>Destination date<input type="date" id="day-template-target" name="date" required value="${dayTemplateTarget}"></label>
+      </div>
+      <fieldset class="day-template-rows"><legend>Blocks to copy</legend><div id="day-template-preview">${dayTemplateRows(template)}</div></fieldset>
+      <p class="template-error" role="alert" hidden></p>
+      <div class="panel-actions"><button type="submit" class="panel-primary">Copy selected</button>
+        <button type="button" class="text-button" id="delete-day-template">Delete template</button></div>
+    </form>`:'<p>Save a day to preview how its schedule would fit on another date.</p>'}`;
+}
+
+function templateFormError(form,message){
+  const error=form.querySelector('.template-error');
+  error.textContent=message;error.hidden=false;
+}
+
+function updateDayTemplates(templates,id){
+  const previous=state.calendarDayTemplates;
+  state.calendarDayTemplates=templates;
+  if(!persist()){state.calendarDayTemplates=previous;return false;}
+  dayTemplateId=id;refreshPanel();
+  ($('#day-template-picker')||$('#day-template-source')).focus({preventScroll:true});
+  return true;
+}
+
+function saveDayTemplate(form){
+  const fields=new FormData(form),date=fields.get('date');
+  const name=String(fields.get('name')).trim();
+  if(!name)return templateFormError(form,'Enter a name for this template.');
+  const rows=captureCalendarDay(gardenTasks(),state.calendarEvents,date);
+  const [item]=loadDayTemplates([{id:crypto.randomUUID(),name,rows}]);
+  if(!item)return templateFormError(form,'Choose a date with calendar blocks or dated tasks.');
+  dayTemplateSource=date;
+  if(updateDayTemplates([...state.calendarDayTemplates,item],item.id))toast('Day template saved.');
+}
+
+function applyDayTemplate(form){
+  const fields=new FormData(form),date=fields.get('date');
+  const item=state.calendarDayTemplates.find(entry=>entry.id===dayTemplateId);
+  if(!item||!validTemplateDay(date))return templateFormError(form,'Choose a template and a destination date.');
+  let copy;
+  try{copy=copyCalendarDay(item,date,fields.getAll('row').map(Number),state);}
+  catch(error){return templateFormError(form,error.message);}
+  if(!copy.count)return templateFormError(form,'Select at least one available block.');
+  const {tasks,calendarEvents}=state;
+  state.tasks=[...tasks,...copy.tasks];
+  state.calendarEvents=[...calendarEvents,...copy.events];
+  if(!persist()){state.tasks=tasks;state.calendarEvents=calendarEvents;return;}
+  openSchedule('calendar',lastAnchor,new Date(date+'T12:00:00'));
+  refreshTasks();
+  toast(`Copied ${copy.count} ${copy.count===1?'block':'blocks'}.`);
+}
+
+const resourceKinds={link:'Web link',note:'Reference note',path:'File path'};
+function resourceContent(resource){
+  if(resource.kind==='link')return `<a href="${escape(resource.value)}" target="_blank" rel="noopener noreferrer">Open link</a>`;
+  if(resource.kind==='path')return `<code>${escape(resource.value)}</code>`;
+  return `<p class="imported-description">${escape(resource.value)}</p>`;
+}
+
+function openProjectResources(id,anchor){
+  resourceProjectId=id;resourceEditId='';
+  openPanel('project-resources',anchor);
+}
+
+function projectResourcesMarkup(){
+  const project=state.projects.find(item=>item.id===resourceProjectId);
+  if(!project)return header('RESOURCE SHELF','Project unavailable');
+  const editing=project.resources?.find(resource=>resource.id===resourceEditId);
+  return `${header(escape(project.name),'Resource shelf')}
+    <ul class="resource-shelf-list">${(project.resources||[]).map(resource=>{
+      const id=escape(resource.id),pinned=resource.id===project.pinnedResourceId;
+      return `<li>
+        <div><small>${resourceKinds[resource.kind]}${pinned?' · Pinned for focus':''}</small><strong>${escape(resource.title)}</strong></div>
+        ${resourceContent(resource)}
+        <div class="panel-actions">
+          <button type="button" class="text-button" data-resource-pin="${id}">${pinned?'Unpin':'Pin for focus'}</button>
+          <button type="button" class="text-button" data-resource-edit="${id}">Edit</button>
+          <button type="button" class="text-button" data-resource-remove="${id}">Remove</button>
+        </div></li>`;
+    }).join('')}</ul>
+    <form id="project-resource-form" class="template-form">
+      <h3>${editing?'Edit resource':'Add a resource'}</h3>
+      <div class="template-fields">
+        <label>Name<input id="resource-title" name="title" required maxlength="80" value="${escape(editing?.title||'')}"></label>
+        <label>Type<select name="kind">${Object.entries(resourceKinds).map(([kind,label])=>`<option value="${kind}" ${kind===editing?.kind?'selected':''}>${label}</option>`).join('')}</select></label>
+      </div>
+      <label>Link, note, or path<textarea name="value" rows="3" maxlength="2000" required>${escape(editing?.value||'')}</textarea></label>
+      <p class="template-error" role="alert" hidden></p>
+      <div class="panel-actions"><button type="submit" class="panel-primary">Save resource</button>
+        ${editing?'<button type="button" class="text-button" id="cancel-resource-edit">Cancel edit</button>':''}</div>
+    </form>`;
+}
+
+function saveProjectResources(project,resources,pinnedResourceId,undo){
+  const previous=state.projects;
+  state.projects=previous.map(item=>item===project?{...item,resources,pinnedResourceId}:item);
+  if(!persist()){state.projects=previous;return false;}
+  resourceEditId='';planner.render();
+  lastAnchor=$('[data-project-resources="'+CSS.escape(project.id)+'"]')||lastAnchor;
+  lastAnchor?.setAttribute('aria-expanded','true');
+  refreshPanel();
+  if(undo)confirmChange('Resource removed.',undo);
+  return true;
+}
+
+function submitProjectResource(form){
+  const project=state.projects.find(item=>item.id===resourceProjectId);
+  if(!project)return;
+  const fields=Object.fromEntries(new FormData(form));
+  const resource=projectResource({...fields,id:resourceEditId||crypto.randomUUID()});
+  if(!resource)return templateFormError(form,fields.kind==='link'?'Enter a name and a valid http:// or https:// link.':'Enter a name and some content.');
+  const resources=project.resources||[];
+  const next=resourceEditId?resources.map(item=>item.id===resource.id?resource:item):[...resources,resource];
+  if(saveProjectResources(project,next,project.pinnedResourceId||'')){
+    $('#resource-title')?.focus({preventScroll:true});
+    toast('Resource saved.');
+  }
+}
+
+function resourceAction(button){
+  const project=state.projects.find(item=>item.id===resourceProjectId);
+  const {resourceEdit,resourcePin,resourceRemove}=button.dataset;
+  const resource=project?.resources?.find(item=>item.id===(resourceEdit||resourcePin||resourceRemove));
+  if(!resource)return;
+  if(resourceEdit){
+    resourceEditId=resource.id;refreshPanel();$('#resource-title').focus();return;
+  }
+  const pinned=resource.id===project.pinnedResourceId;
+  if(resourcePin){
+    if(saveProjectResources(project,project.resources,pinned?'':resource.id))
+      $('[data-resource-pin="'+CSS.escape(resource.id)+'"]')?.focus({preventScroll:true});
+    return;
+  }
+  if(saveProjectResources(project,project.resources.filter(item=>item!==resource),pinned?'':project.pinnedResourceId,latest=>{
+    const target=latest.projects.find(item=>item.id===project.id);
+    if(!target||target.resources.some(item=>item.id===resource.id))return false;
+    target.resources.push(resource);
+    if(pinned&&!target.pinnedResourceId)target.pinnedResourceId=resource.id;
+    return true;
+  }))$('#resource-title')?.focus({preventScroll:true});
+}
+
 function panelContent(id){
+  if(id==='calendar-day-templates')return dayTemplatesMarkup();
+  if(id==='project-resources')return projectResourcesMarkup();
   if(id==='evening-lights')return eveningLightsMarkup();
   if(id==='focus-bundle')return focusBundleMarkup();
   if(id==='availability')return availabilityMarkup();
@@ -2497,7 +2682,10 @@ function panelContent(id){
     const task=focusedTask();
     const project=task&&state.projects.find(item=>item.id===task.projectId);
     if(!project)return header('PROJECT','Project unavailable');
+    const pinned=project.resources?.find(resource=>resource.id===project.pinnedResourceId);
     return `${header(escape(project.name),escape(task.text))}
+      ${pinned?`<section class="pinned-project-resource">
+        <small>Pinned resource</small><h3>${escape(pinned.title)}</h3>${resourceContent(pinned)}</section>`:''}
       ${hasHandoff(task)?handoffDetails(task):''}
       ${task.description?`<p class="imported-description">${escape(task.description)}</p>`:''}
       ${linkedStickyNotes('project',project.id)}
@@ -2636,7 +2824,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden','music-mini');panel.querySelector('.music-mini-bar').hidden=true;panel.setAttribute('aria-hidden','false');panel.setAttribute('aria-modal','true');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.removeAttribute('aria-label');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':id==='focus-subtasks'?'panel focus-checklist-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs','calendar-day-templates','project-resources'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':['focus-subtasks','project-context'].includes(id)?'panel focus-checklist-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
   if(id==='appearance')renderSeasonPreview();
@@ -4082,6 +4270,8 @@ $('#calendar-jump-date').addEventListener('change',event=>{
   else planner.jumpMonth(date);
 });
 calendarPanel.addEventListener('click',event=>{
+  const templates=event.target.closest('[data-calendar-day-templates]');
+  if(templates){openDayTemplates(templates);return;}
   const tradeoffs=event.target.closest('[data-open-tradeoffs]');
   if(tradeoffs){tradeoffTaskId='';tradeoffPreview=[];openPanel('task-tradeoffs',tradeoffs);return;}
   const mistakes=event.target.closest('[data-open-mistakes]');
@@ -4296,6 +4486,22 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const resource=e.target.closest('[data-resource-edit],[data-resource-pin],[data-resource-remove]');
+  if(resource){resourceAction(resource);return;}
+  if(e.target.closest('#cancel-resource-edit')){
+    resourceEditId='';refreshPanel();$('#resource-title').focus();return;
+  }
+  if(e.target.closest('#delete-day-template')){
+    const removed=state.calendarDayTemplates.find(item=>item.id===dayTemplateId);
+    if(!removed)return;
+    const remaining=state.calendarDayTemplates.filter(item=>item!==removed);
+    if(updateDayTemplates(remaining,remaining[0]?.id||''))confirmChange('Day template deleted.',latest=>{
+      if(latest.calendarDayTemplates.some(item=>item.id===removed.id))return false;
+      latest.calendarDayTemplates.push(removed);
+      return true;
+    });
+    return;
+  }
   const homeTool=e.target.closest('[data-home-tool]');
   if(homeTool){
     const id=homeTool.dataset.homeTool;
@@ -4697,6 +4903,19 @@ root.addEventListener('pointerup',event=>endFocusQueueDrag(event,true));
 root.addEventListener('pointercancel',event=>endFocusQueueDrag(event,false));
 root.addEventListener('lostpointercapture',event=>endFocusQueueDrag(event,false));
 root.addEventListener('change',event=>{
+  if(event.target.id==='day-template-source'){dayTemplateSource=event.target.value;return;}
+  if(event.target.id==='day-template-target'||event.target.id==='day-template-picker'){
+    const form=event.target.form;
+    const choices=[...form.querySelectorAll('input[name=row]:not(:disabled)')];
+    const selected=event.target.id==='day-template-target'&&choices.length
+      ?new Set([...form.querySelectorAll('input[name=row]:is(:checked,:disabled)')].map(input=>Number(input.value))):null;
+    if(event.target.id==='day-template-picker')dayTemplateId=event.target.value;
+    dayTemplateTarget=form.elements.date.value;
+    const template=state.calendarDayTemplates.find(item=>item.id===dayTemplateId);
+    $('#day-template-preview').innerHTML=dayTemplateRows(template,selected);
+    form.querySelector('.template-error').hidden=true;
+    return;
+  }
   if(event.target.id==='soundtrack-picker'){applySoundtrack(event.target.value);return;}
   const itemId=event.target.dataset.focusSubtask;
   if(itemId){
@@ -4805,6 +5024,9 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='save-day-template'){saveDayTemplate(e.target);return;}
+  if(e.target.id==='apply-day-template'){applyDayTemplate(e.target);return;}
+  if(e.target.id==='project-resource-form'){submitProjectResource(e.target);return;}
   if(e.target.id==='garden-postcard-form'){downloadGardenPostcard(e.target);return;}
   if(e.target.id==='garden-comparison-form'){submitGardenComparison(e.target,e.submitter);return;}
   if(e.target.id==='landmark-inscription-form'){saveLandmarkInscription(e.target);return;}

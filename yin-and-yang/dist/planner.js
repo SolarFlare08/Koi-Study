@@ -41,7 +41,7 @@ const plainDate=key=>shortDay(parseDay(key));
 const scheduledTime=value=>timeLabel(timeMinutes(value));
 const blankId=()=>crypto.randomUUID();
 
-export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>'',nextProjectTask,resumeProject,projectTimerLocked,projectReward,finishProject,openExamPlans,isActualCalendar,bundleStatus,startBundle,stopBundle,editBundle}) {
+export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu,calendarChanged,calendarDate,dailyRituals,blockProgress,notify,completeTask,hasPanel,previewSchedule,linkedNotes=()=>'',nextProjectTask,resumeProject,openResources,projectTimerLocked,projectReward,finishProject,openExamPlans,isActualCalendar,bundleStatus,startBundle,stopBundle,editBundle}) {
   const $=selector=>root.querySelector(selector);
   const sidebar=$('#planner-sidebar'), content=$('#planner-content'), dialog=$('#planner-dialog');
   const sidebarToggle=$('#planner-toggle-sidebar'), smallScreen=matchMedia('(max-width: 680px)');
@@ -578,6 +578,9 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
           data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-task-day="${escape(block.taskDay)}" aria-haspopup="dialog">
           <strong>${escape(block.task.text)}</strong><span>${shortDay(block.start)} · ${timestamp(block.start)}–${timestamp(block.end)}</span></button></li>`).join('')}</ul>`:
           '<p>No upcoming blocks in the next 14 days.</p>'}</section>
+        <section><h3>Resource shelf</h3><button type="button" class="project-context-item" data-project-resources="${escape(project.id)}" aria-haspopup="dialog">
+          <strong>${project.resources?.length?`${project.resources.length} saved${project.resources.length===1?' resource':' resources'}`:'Add a resource'}</strong>
+          <span>${escape(project.resources?.find(resource=>resource.id===project.pinnedResourceId)?.title||'Links, notes, and file paths')}</span></button></section>
         <section><h3>Linked notes</h3>${notes||'<p>No linked notes.</p>'}</section>
         <section><h3>Exam prep</h3><button type="button" class="project-context-item" data-project-exams="${escape(project.id)}" aria-haspopup="dialog">
           <strong>${project.exams?.length?`${project.exams.length} ${project.exams.length===1?'exam plan':'exam plans'}`:'Add an exam plan'}</strong>
@@ -614,7 +617,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const addTask=`<button class="planner-heading-add${standalone?'':' planner-mobile-add'}" type="button" ${standalone?'data-calendar-new':'data-planner-add'}>${icon('plus')} New task</button>`;
     const settings=project?`<button type="button" data-manage="section">+ Section</button><button type="button" data-manage="project" data-value="${escape(project.id)}">Project settings</button>`:filter?`<button type="button" data-manage="filter" data-value="${escape(filter.id)}">Edit filter</button>`:view==='reporting'?`<button type="button" data-report-export>${icon('download')} Export CSV</button>`:'';
     const replan=standalone||view==='today'?'<button type="button" data-replan-today aria-haspopup="dialog">Replan today</button>':'';
-    $('#planner-heading-actions').innerHTML=actual?'':addTask+settings+replan+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button>`:'<button type="button" data-plan-tomorrow aria-haspopup="dialog">Plan tomorrow</button><button type="button" data-plan-deadline aria-haspopup="dialog">Plan to deadline</button>');
+    $('#planner-heading-actions').innerHTML=actual?'':addTask+settings+replan+(standalone?`<button type="button" data-calendar-add-event>${icon('plus')} Add event</button><button type="button" data-manage="calendar-import">Import .ics</button><button type="button" data-calendar-day-templates aria-haspopup="dialog">Day templates</button>`:'<button type="button" data-plan-tomorrow aria-haspopup="dialog">Plan tomorrow</button><button type="button" data-plan-deadline aria-haspopup="dialog">Plan to deadline</button>');
     if(!standalone)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-build-week aria-haspopup="dialog">Build my week</button>');
     if(view==='today')$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-day-recap aria-haspopup="dialog">End-of-day recap</button>');
     if(!actual)$('#planner-heading-actions').insertAdjacentHTML('beforeend','<button type="button" data-open-availability aria-haspopup="dialog">Availability</button>');
@@ -1066,6 +1069,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       }
       return;
     }
+    if(data.projectResources)return openResources(data.projectResources,button);
     if(data.resumeProject)return resumeProject(data.resumeProject);
     if(data.removeCalendar){
       const source=data.removeCalendar;

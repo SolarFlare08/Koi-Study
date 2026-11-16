@@ -703,3 +703,34 @@ button.project-context-item:hover { color: var(--planner-accent); }
 #soundtrack-form p { margin: 0; }
 #soundtrack-form button { justify-self: start; }
 @media(max-width:700px) { .focus-checklist-panel { max-height: 42svh; } }
+
+.template-form { display: grid; gap: 12px; }
+.template-form + .template-form { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--surface-line); }
+.template-form h3, .pinned-project-resource h3 { margin: 0; }
+.template-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(135px, 100%),1fr)); gap: 10px; }
+.template-form label { display: grid; min-width: 0; gap: 4px; font-size: 12px; }
+.template-form :is(input:not([type="checkbox"]),select,textarea) {
+  min-width: 0; width: 100%; padding: 8px 9px; color: var(--surface-ink);
+  background: var(--surface-field); border: 1px solid var(--surface-line); border-radius: 7px;
+}
+.template-form .panel-actions,.resource-shelf-list .panel-actions { justify-content: flex-start; flex-wrap: wrap; margin: 0; }
+.day-template-rows { min-width: 0; margin: 0; padding: 0; border: 0; }
+.day-template-rows legend { padding: 0; margin-bottom: 5px; font-size: 12px; }
+#day-template-preview,.resource-shelf-list { display: grid; gap: 6px; }
+.template-form .day-template-row {
+  grid-template-columns: auto minmax(0,1fr); align-items: start; gap: 8px;
+  padding: 7px 9px; border: 1px solid var(--surface-line); border-radius: 7px;
+}
+.day-template-row input { width: auto; margin: 2px 0 0; accent-color: var(--surface-accent); }
+.day-template-row small,.resource-shelf-list small,.pinned-project-resource small { display: block; color: var(--surface-muted); }
+.day-template-row strong,.resource-shelf-list strong,.resource-shelf-list code,.pinned-project-resource { overflow-wrap: anywhere; }
+.day-template-row .template-conflict,.template-form .template-error { color: var(--surface-danger); }
+.resource-shelf-list { padding: 0; margin: 0 0 16px; list-style: none; }
+.resource-shelf-list:empty { display: none; }
+.resource-shelf-list li,.pinned-project-resource {
+  display: grid; min-width: 0; gap: 6px; padding: 10px;
+  border: 1px solid var(--surface-line); border-radius: 9px;
+}
+.resource-shelf-list li p,.pinned-project-resource p { margin: 0; }
+.pinned-project-resource { margin-bottom: 14px; background: var(--surface-raised); }
+.resource-shelf-list a,.pinned-project-resource a { color: var(--surface-accent); text-decoration: underline; }

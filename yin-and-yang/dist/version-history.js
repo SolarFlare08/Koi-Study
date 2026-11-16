@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'3.4.0',date:'2026-11-15',title:'Reusable calendar days and project resources',changes:[
+    'Save day templates, preview scheduling overlaps, and copy selected blocks or events to another date.',
+    'Keep links, reference notes, and file paths in Project Overview. Pin one resource to show when you resume a project in Garden.',
+    'Backups include day templates in Calendar and resource shelves in Projects.'
+  ]},
   {version:'3.3.0',date:'2026-11-15',title:'Task timers, overtime, and saved soundtracks',changes:[
     'Save and switch between named Spotify and YouTube soundtracks.',
     'Check subtasks beside the timer and carry the first unfinished step into the next handoff.',
