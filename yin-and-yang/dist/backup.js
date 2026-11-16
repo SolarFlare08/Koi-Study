@@ -196,9 +196,10 @@ export function planBackupRestore(storage,current,incoming,sections){
       for(const {key,text,createdAt,context} of captures)writes.set(key,JSON.stringify({text,createdAt,context}));
     }
   });
-  section('reading','Reading','Annotation logs match by calendar day.',apply=>{
+  section('reading','Reading','Library books, reviews, and annotation logs matched by calendar day.',apply=>{
     rituals(apply,'annotate','Annotation logs');stateList(apply,'readingNotes','Chapter notes');
     stateList(apply,'finishedBooks','Finished books and reviews');
+    stateList(apply,'libraryBooks','Library books');
     stateList(apply,'readingCollections','Reading collections');
   });
   section('journal','Journal','Entries, weekly reflections, templates, and daily completion marks.',apply=>{

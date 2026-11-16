@@ -17,7 +17,7 @@ import {comparisonPostcardPng,postcardPng} from './garden-postcard.js';
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
-import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,mergeShelfBooks,readingShelf} from './reading-shelf.js';
+import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,mergeShelfBooks,readingShelf,saveLibraryBook} from './reading-shelf.js';
 import {installBackup} from './backup.js';
 import {dailyRitualMarkup,ritualComplete,rituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
@@ -204,7 +204,7 @@ function positionEveningCamera(){
 }
 function finishReadingBook(book){
   const record=finishedBook({id:crypto.randomUUID(),title:book.title,author:book.author,finishedOn:dayKey(),
-    totalPages:book.entries.find(entry=>entry.totalPages)?.totalPages});
+    totalPages:book.library?.totalPages||book.entries.find(entry=>entry.totalPages)?.totalPages});
   if(!record||book.finished)return false;
   const previous=state.finishedBooks;
   state.finishedBooks=[...previous,record];
@@ -413,6 +413,7 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
     state.readingNotes=previous;
     return false;
   },openCalendar:()=>calendarToggle.click(),linkedNotes:id=>linkedStickyNotes('book',id),
+  getLibrary:()=>state.libraryBooks,saveLibrary:(id,values)=>saveReadingChanges(saveLibraryBook(state,id,values)),
   getFinished:()=>state.finishedBooks,bookReward:id=>gardenReward(state.gardenGrowth,'book',id),
   getCollections:()=>state.readingCollections,saveCollections:collections=>{
     const previous=state.readingCollections;state.readingCollections=collections;
@@ -493,6 +494,7 @@ function showWorkspace(next){
   $('#crochet-workspace').hidden=next!=='crochet';
   $('#journal-workspace').hidden=next!=='journal';
   $('#notes-workspace').hidden=next!=='notes';
+  if(next!=='reading')reading.close();
   $('#reading-workspace').hidden=next!=='reading';
   if(next==='notes')stickyBoard.render();
   if(next==='reading')reading.render();
@@ -534,7 +536,7 @@ function visitWorkspace(name){
 }
 function relatedNoteTargets(){
   return [
-    ...readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks).map(book=>({kind:'book',id:book.id,title:book.author?`${book.title} · ${book.author}`:book.title})),
+    ...readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks).map(book=>({kind:'book',id:book.id,title:book.author?`${book.title} · ${book.author}`:book.title})),
     ...state.projects.map(project=>({kind:'project',id:project.id,title:project.name})),
     ...loadJournal(storage).map(entry=>({kind:'journal',id:entry.id,title:`${entry.title} · ${entry.date}`}))
   ];
@@ -565,7 +567,7 @@ function commandEntries(){
     detail:note.body.trim().replace(/\s+/g,' ').slice(0,100),search:note.body,
     run:()=>{visitWorkspace('notes');stickyBoard.focusNote(note.id);}
   }));
-  const books=readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks).map(book=>({
+  const books=readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks).map(book=>({
     kind:'Book',title:book.title,detail:book.author,search:book.chapters.join(' '),
     run:()=>{visitWorkspace('reading');reading.openBook(book.id);}
   }));
@@ -1223,7 +1225,7 @@ function gardenLandmarkMarkup(){
   const item=state.gardenGrowth[selectedLandmark];
   if(!item)return header('GARDEN','Landmark unavailable');
   const type=landmarkTypes[item.kind];
-  const book=item.kind==='book'?readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks)
+  const book=item.kind==='book'?readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks)
     .find(book=>book.finished?.id===item.sourceId):null;
   const project=item.kind==='project'&&state.projects.find(project=>project.id===item.sourceId);
   const examProject=item.kind==='test'&&state.projects.find(project=>project.exams?.some(exam=>exam.id===item.sourceId));

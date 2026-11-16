@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'3.10.0',date:'2026-11-16',title:'A personal Reading library',changes:[
+    'Add books directly to a visual bookshelf and sort or filter by reading status.',
+    'Use fractional stars and a bonus 6/5 rating for book reviews and rereads. Covers earn different borders and crystal books shimmer on opening.',
+    'Reading backups include personal library entries alongside existing annotations, reviews, and collections.'
+  ]},
   {version:'3.9.0',date:'2026-11-15',title:'Illustrated waterfront palettes',changes:[
     'Pick shoreline, path, building, foundation, boat, and lantern styles from illustrated tiles in Terrain.',
     'Try eleven new scenery styles and five new stampable props, including a vermilion bridge, rock cascade, and floating lantern.'

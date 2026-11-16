@@ -611,14 +611,15 @@ export const helpTopics = [
     action:'calendar', actionLabel:'Open Calendar', related:['reading-shelf','daily-rituals'], keywords:'book annotation bookmark chapters pages target'
   },
   {
-    id:'reading-shelf', group:'Reading & journal', title:'Browse your reading shelf',
-    summary:'See annotation history, finished chapters, and your latest bookmark by book.',
-    steps:['Open the Reading tab.',
-      'Search for a book or sort by last read, finish date, or rating.',
+    id:'reading-shelf', group:'Reading & journal', title:'Build your Reading library',
+    summary:'Add books directly to your bookshelf and open their reviews and annotation history.',
+    steps:['Open Reading and click Add book. Enter a title, optional author and page count, and choose Want to read or Reading.',
+      'Filter the bookshelf by status, search, or sort by title, recent activity, finish date, or rating. Select a cover to open the book.',
+      'In an unfinished book, use Edit library entry to change its information or shelf, or Mark book finished to move it to Finished.',
       'If a typo split a book, open the duplicate and choose `Merge duplicate book`. Pick the book you want to keep. Logs, chapter notes, and sticky links move there. If both are finished, their review text is combined and the kept book’s completion and lantern take priority.',
       'Read `Where you left off`, chapters annotated, and the dated history of your logs. Enter total pages and page numbers in your Annotate logs to get a pace forecast. When recent progress varies, Reading shows a range of sittings.',
       'Use `Add chapter note` on a book to save a question, quote, or insight. Choose `Schedule review` on a note to see it again in three days.',
-      'Use `Open Calendar` and the daily Annotate item to add your next log or goal. Ctrl+K can also find a book and open its history directly.'],
+      'Use Calendar and the daily Annotate item to add your next log or goal. Ctrl+K can also find a book and open its history directly.'],
     tip:'Books are grouped by title and author. Keeping those consistent keeps your history together.',
     action:'reading', actionLabel:'Open Reading', related:['reading-collections','chapter-reviews','reading-discussion','finished-books','reading-goal','search']
   },
@@ -647,14 +648,23 @@ export const helpTopics = [
     action:'reading', actionLabel:'Open Reading', related:['reading-shelf','chapter-reviews']
   },
   {
+    id:'book-ratings',group:'Reading & journal',title:'Rate books and rereads',
+    summary:'Give books fractional stars or reserve 6/5 for a favorite.',
+    steps:['Open a finished book from Reading and choose Write final review or Edit final review.',
+      'Enter a rating from 1 to 6. Type a decimal like 4.7, or use a quick rating button. The extra sparkle gives you 6/5. Save finished book to update the cover.',
+      'Cover borders change by rating. 1–1.9 is the dud tier, 2–2.9 is bronze, 3–3.9 is silver, 4–4.9 is gold, and 5–6 is crystal. The final rating sets the cover; rereads keep their own ratings.'],
+    tip:'Crystal covers shimmer when you open a book. Reading respects the system’s reduced-motion setting.',
+    action:'reading',actionLabel:'Open Reading',related:['reading-shelf','finished-books']
+  },
+  {
     id:'finished-books', group:'Reading & journal', title:'Edit finished books and write reviews',
     summary:'Correct book details and keep a final review, rating, and takeaway.',
-    steps:['In Reading, choose `Finished books` to filter the shelf, then open a book. To finish a book, open it on the full shelf and choose `Mark book finished`.',
+    steps:['In Reading, choose `Finished` to filter the shelf, then open a book. To finish a book, open it on the full shelf and choose `Mark book finished`.',
       'Choose `Edit book details` to correct the title, author, finish date, or page count. Annotation history and links follow a title or author change.',
-      'Choose `Write final review` or `Edit final review` to add your thoughts, an optional rating out of five, and a main takeaway. Choose `Save finished book`.',
+      'Choose `Write final review` or `Edit final review` to add your thoughts, an optional rating, including a bonus 6/5, and a main takeaway. Choose `Save finished book`.',
       'Choose `Log a reread` to save a separate finish date, rating, and review. Use `Edit reread` to revise that entry.'],
     tip:'Reading backups include your finished books and reviews.',
-    action:'reading', actionLabel:'Open Reading', related:['reading-shelf','garden-growth','backup']
+    action:'reading', actionLabel:'Open Reading', related:['reading-shelf','book-ratings','garden-growth','backup']
   },
   {
     id:'journal', group:'Reading & journal', title:'Write and revisit journal entries',

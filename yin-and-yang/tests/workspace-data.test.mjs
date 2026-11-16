@@ -7,7 +7,7 @@ import {applyBackupRestore,createBackup,loadRestorePoints,planBackupRestore,read
 import {CAPTURE_PREFIX,readCaptures} from '../dist/capture.js';
 import {CROCHET_KEY,loadCrochet,logCrochetTime} from '../dist/crochet.js';
 import {JOURNAL_KEY,loadJournal} from '../dist/journal.js';
-import {annotationContext,editFinishedBook,mergeShelfBooks,readingForecast,readingShelf} from '../dist/reading-shelf.js';
+import {annotationContext,editFinishedBook,mergeShelfBooks,readingForecast,readingShelf,saveLibraryBook} from '../dist/reading-shelf.js';
 import {youtubeContent,youtubeLinks} from '../dist/youtube-embed.js';
 import {dayKey,STORAGE_KEY,freshState,loadState,taskPriority} from '../dist/state.js';
 import {matchCommands} from '../dist/command-palette.js';
@@ -599,4 +599,37 @@ test('new waterfront styles and props render and round-trip with a Studio layout
     assert.equal(pavilionFoundation(shore),'land');
     assert.equal(pavilionFoundation(loadGardenDesign({...shore,pavilionPosition:{x:650,y:717}})),'stone');
   }
+});
+
+test('Reading keeps standalone library books, fractional reviews and rereads in backups',()=>{
+  const state=freshState();
+  const result=saveLibraryBook(state,'',{title:'A personal library',author:'W. Lin',totalPages:410,status:'reading'});
+  Object.assign(state,result.changes);
+  const [book]=readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks);
+  assert.equal(book.library.totalPages,410);
+  assert.equal(book.library.status,'reading');
+  assert.deepEqual(book.entries,[]);
+  assert.ok(saveLibraryBook(state,'',{title:' A Personal Library ',author:'W. Lin'}).error);
+  state.finishedBooks.push({id:'review',title:book.title,author:book.author,finishedOn:'2026-11-16',rating:5.7,
+    rereads:[{id:'reread',finishedOn:'2026-11-16',rating:6}]});
+  let restored=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state;
+  assert.equal(restored.finishedBooks[0].rating,5.7);
+  assert.equal(restored.finishedBooks[0].rereads[0].rating,6);
+  assert.deepEqual(restored.libraryBooks,state.libraryBooks);
+  const edit=editFinishedBook(restored,'review',{title:'The personal library',rating:6,totalPages:410});
+  assert.equal(edit.changes.libraryBooks[0].id,edit.bookId);
+  assert.equal(edit.changes.finishedBooks[0].rating,6);
+});
+
+test('renaming a library book moves its annotations, collections and linked notes',()=>{
+  const state=freshState();
+  const added=saveLibraryBook(state,'',{title:'Old title',status:'want'});
+  Object.assign(state,added.changes);
+  state.dailyRituals['2026-11-16']={annotate:{title:'Old title',chapters:'1'}};
+  state.readingCollections=[{id:'collection',books:[added.bookId]}];
+  state.stickyNotes=[{id:'note',related:[{kind:'book',id:added.bookId}]}];
+  const edit=saveLibraryBook(state,added.bookId,{title:'New title',status:'reading'});
+  assert.equal(edit.changes.dailyRituals['2026-11-16'].annotate.title,'New title');
+  assert.deepEqual(edit.changes.readingCollections[0].books,[edit.bookId]);
+  assert.equal(edit.changes.stickyNotes[0].related[0].id,edit.bookId);
 });

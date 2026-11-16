@@ -39,9 +39,17 @@ export function relinkReadingCollections(collections,from,to){
   });
 }
 
+export function bookRating(value){
+  return typeof value==='number'&&Number.isFinite(value)&&value>=1&&value<=6?Math.round(value*10)/10:null;
+}
+
+export function ratingTier(rating){
+  return rating>=5?'crystal':rating>=4?'gold':rating>=3?'silver':rating>=2?'bronze':rating>=1?'dud':'unrated';
+}
+
 export function rereadRecord(item){
   if(typeof item?.id!=='string'||!item.id||!validReadingDay(item.finishedOn))return null;
   return {id:item.id,finishedOn:item.finishedOn,
-    rating:Number.isInteger(item.rating)&&item.rating>=1&&item.rating<=5?item.rating:null,
+    rating:bookRating(item.rating),
     review:typeof item.review==='string'?item.review.trim().slice(0,6000):''};
 }

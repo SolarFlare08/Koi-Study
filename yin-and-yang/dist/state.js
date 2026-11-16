@@ -6,7 +6,7 @@ import {loadSoundSettings} from './garden-audio.js';
 import {captureTaskChange} from './task-undo.js';
 import {loadGardenSchedule} from './garden-appearance.js';
 import {loadDailyRituals} from './daily-rituals.js';
-import {loadFinishedBooks,loadReadingNotes} from './reading-shelf.js';
+import {loadFinishedBooks,loadReadingNotes,loadLibraryBooks} from './reading-shelf.js';
 import {loadReadingCollections} from './reading-progress.js';
 import {loadAvailability} from './availability.js';
 import {loadStickyNotes} from './sticky-notes.js';
@@ -192,7 +192,7 @@ export function loadSoundtracks(value){
 }
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], calendarDayTemplates:[], dailyRituals:{}, studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
-    replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
+    replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], libraryBooks:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],
     taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],gardenActivityLayouts:{},breakIdeas:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
@@ -227,6 +227,7 @@ export function loadState(storage) {
     base.dailyRituals=loadDailyRituals(raw.dailyRituals);
     base.readingNotes=loadReadingNotes(raw.readingNotes);
     base.readingCollections=loadReadingCollections(raw.readingCollections);
+    base.libraryBooks=loadLibraryBooks(raw.libraryBooks);
     base.availability=loadAvailability(raw.availability);
     base.mistakes=loadMistakes(raw.mistakes);
     if(Array.isArray(raw.breakIdeas))base.breakIdeas=[...new Map(raw.breakIdeas.flatMap(idea=>
