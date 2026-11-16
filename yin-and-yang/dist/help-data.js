@@ -752,14 +752,22 @@ export const helpTopics = [
   },
   {
     id:'garden-studio',group:'Make it yours',title:'Build a landscape in Garden Studio',
-    summary:'Choose scenery, place the building and landmarks, and save separate layouts.',
-    steps:['On the Garden home screen, choose `Edit landscape`. Start from the live Garden, a seasonal starter layout, or a saved layout. Choose mountains, shoreline, and a path. Under Buildings, boats and lanterns, choose a building, its base, a boat, and a lantern style. Keep Changes with season for rotating boats or choose Quiet lake to hide the boat. Change `View` to frame the lake or pagoda shore. Preview a season, palette, lighting, and weather alongside the scenery.',
-      'Under `Move scenery`, select the building or an earned landmark. Click the preview, drag its pin, or use the arrow keys on the position sliders. Choose Match the shore for a low plinth on land and a stone outcrop over water. Reset position returns the selected object to its original spot.',
+    summary:'Choose mountain silhouettes, place scenery, and save separate layouts.',
+    steps:['On the Garden home screen, choose `Edit landscape`. Start from the live Garden, a seasonal starter layout, or a saved layout. Choose mountains, shoreline, and a path. Snowcapped summit has a tall central peak with snow year-round. Under Buildings, boats and lanterns, choose a building, its base, a boat, and a lantern style. Keep Changes with season for rotating boats or choose Quiet lake to hide the boat. Change `View` to frame the lake or pagoda shore. Preview a season, palette, lighting, and weather alongside the scenery.',
+      'Under `Move scenery`, select the building, a prop, or an earned landmark. Click the preview, drag its pin, or use the arrow keys on the position sliders. Choose Match the shore for a low plinth on land and a stone outcrop over water. Reset position returns the selected object to its original spot.',
       'Enter a name and choose `Save layout` to keep it in your library. Use `Save and apply` to change the live Garden. Applying a layout pauses daily appearance presets. Use `Save a copy` to make a separate variation.',
       'Set `Archive landmarks through` to keep a semester view to the landmarks earned by that date. Applying that layout to the live Garden includes current landmarks. From the Field Guide, open a saved layout and use `Return to today` to leave the archived view.',
       'Choose `Download postcard` in Studio, or `Export view` while viewing a saved layout. Add a caption to include it in the PNG.'],
     tip:'Backups include the live Garden design and your saved layouts.',
     action:'garden-studio',actionLabel:'Open Garden Studio',related:['appearance','garden-growth','garden-postcard','backup']
+  },
+  {
+    id:'garden-props',group:'Make it yours',title:'Place props in the Garden',
+    summary:'Arrange bridges, plants, water details, and stone lanterns in a Studio layout.',
+    steps:['Open Garden → Edit landscape. Under Props, choose an item and click Add prop. You can add more than one of each kind.',
+      'Click or drag in the preview to place the selected prop. You can also choose it under Move scenery and use the position sliders. Use Size to resize it, or Remove prop to take it out.',
+      'Save your layout. Props appear in the live Garden when you apply the layout and are included in postcards and backups.'],
+    action:'garden-studio',actionLabel:'Open Garden Studio',related:['garden-studio','activity-layouts','garden-postcard']
   },
   {
     id:'activity-layouts',group:'Make it yours',title:'Switch Garden layouts by activity',

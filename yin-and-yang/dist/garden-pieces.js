@@ -1,4 +1,5 @@
 import {ridge} from './daylight.js';
+import {mountainScene} from './garden-mountains.js';
 import {snowbank} from './seasonal-scenery.js';
 import {gardenLantern,placedPavilion} from './garden-ornaments.js';
 const middleRidge=ridge([[0,399],[63,358],[123,291],[163,280],[214,326],[278,395],[360,445],[458,458],[557,504],[712,524],[851,501],[966,475],[1040,438],[1105,384],[1155,318],[1195,308],[1249,351],[1309,401],[1394,424],[1509,457],[1600,436]]);
@@ -16,26 +17,7 @@ const reedEast=`<path d="M1600 745C1546 750 1512 760 1478 782C1439 808 1408 809 
 <path d="M1600 799C1541 791 1510 808 1480 826C1457 840 1449 862 1436 878L1417 900H1600Z" fill="url(#bank)"/>
 <path d="M1314 850C1350 846 1382 851 1408 858M1452 803C1472 796 1488 786 1506 778" fill="none" stroke="#c3d0b2" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>`;
 
-const profiles={
-  rounded:[
-    [[0,401],[230,349],[420,382],[610,351],[815,420],[1060,334],[1240,365],[1430,339],[1600,395]],
-    [[0,450],[230,374],[465,450],[690,406],[931,459],[1200,388],[1440,408],[1600,454]],
-    [[0,484],[160,453],[380,478],[655,520],[860,517],[1030,463],[1240,481],[1450,452],[1600,491]]
-  ],
-  highlands:[
-    [[0,369],[160,316],[335,355],[520,298],[730,395],[905,343],[1120,278],[1290,339],[1440,303],[1600,358]],
-    [[0,436],[150,355],[310,406],[501,366],[740,455],[909,375],[1080,426],[1270,364],[1437,427],[1600,395]],
-    [[0,472],[205,431],[425,496],[610,471],[820,524],[1050,480],[1200,498],[1410,450],[1600,478]]
-  ]
-};
-function mountains(style){
-  if(style==='classic')return classicMountains;
-  return profiles[style].map((points,index)=>{
-    const fill=['far','middle','near'][index],slope=ridge(points);
-    const snow=points.map(([x,y])=>[x,y+26]);
-    return `<path d="${slope}" fill="url(#${fill})"/>${index===1?`<path class="season-layer winter-scene" d="${ridge(points)+' '+ridge(snow)}" fill="#e4edef" fill-rule="evenodd" opacity=".7"/>`:''}`;
-  }).join('');
-}
+const mountains=style=>style==='classic'?classicMountains:mountainScene(style);
 const inletWest=`<path d="M0 631Q77 650 110 706Q128 735 244 746C304 756 277 797 230 803Q167 817 189 850L236 900H0Z" fill="url(#shore)"/>
   <path d="M0 680Q91 708 139 753Q187 779 230 768Q196 799 138 810Q113 831 170 900H0Z" fill="url(#bank)"/>
   <path d="M111 727q55 45 117 30M230 789q-63 16-85 38" fill="none" stroke="#cbd0ad" stroke-width="2" opacity=".66"/>`;

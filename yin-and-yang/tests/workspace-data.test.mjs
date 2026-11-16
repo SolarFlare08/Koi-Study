@@ -15,7 +15,7 @@ import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
 import {pavilionFoundation} from '../dist/garden-ornaments.js';
-import {defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
+import {gardenPieceOptions,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
 import {eveningCamera,renderLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
 
 test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
@@ -553,4 +553,27 @@ test('movable Garden buildings use land and water foundations and keep their lig
   const {state:restored}=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[])));
   assert.deepEqual(restored.gardenDesign,design);
   assert.deepEqual(restored.gardenLayouts[0].design,{...design,boat:'none'});
+});
+
+test('Garden mountain presets have distinct artwork and props survive layout and backup round trips',()=>{
+  const presets=Object.keys(gardenPieceOptions.mountains).map(mountains=>renderLandscape(loadGardenDesign({mountains})));
+  const mountainMarkup=presets.map(svg=>svg.split('data-garden-piece="mountains"')[1].split('d="M0 548')[0]);
+  assert.equal(new Set(mountainMarkup.map(markup=>markup.slice(markup.indexOf('>')))).size,presets.length);
+  assert.match(presets[1],/data-summit-snow/);
+  const props=loadGardenProps([
+    {id:'bridge',kind:'bridge',x:-9,y:711,size:190},
+    {id:'lamp',kind:'lantern',x:1451,y:865,size:300},
+    {id:'bad',kind:'invalid',x:1,y:2},
+    {id:'bad2',kind:'reeds',x:3,y:Infinity}
+  ]);
+  assert.deepEqual(props.map(prop=>[prop.id,prop.x,prop.size]),[['bridge',32,190],['lamp',1451,200]]);
+  const state=freshState(),design=loadGardenDesign({mountains:'summit',props});
+  state.gardenDesign=design;
+  state.gardenLayouts=[{id:'river',name:'River crossing',design}];
+  const {state:restored}=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[])));
+  assert.deepEqual(restored.gardenDesign,design);
+  assert.deepEqual(restored.gardenLayouts[0].design.props,props);
+  const svg=renderLandscape(restored.gardenDesign);
+  assert.equal(svg.split('data-garden-prop="lamp"').length-1,2);
+  assert.equal(svg.split('data-garden-prop="bridge"').length-1,1);
 });

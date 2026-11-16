@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'3.7.0',date:'2026-11-15',title:'Mountain silhouettes and a Garden prop library',changes:[
+    'Choose a tall snowcapped summit, ink pillars, a cloud valley, twin peaks, or redesigned low ridges.',
+    'Place, resize, and remove props including stone bridges, docks, lanterns, trees, and lily pads.',
+    'Saved layouts, postcards, and backups include custom props. Older layouts keep their selected presets and open with no added props.'
+  ]},
   {version:'3.6.0',date:'2026-11-15',title:'More scenery in Garden Studio',changes:[
     'Choose new buildings, boats, lanterns, and a timber boardwalk.',
     'Move the building and choose how its foundation meets the shore or water.',

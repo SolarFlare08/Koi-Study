@@ -3,6 +3,7 @@ import {daylight,blend,sunPosition} from './daylight.js';
 import {gardenFrame,gardenLandmarkKey,defaultGardenDesign} from './garden-layout.js';
 import {gardenPieces} from './garden-pieces.js';
 import {styledBoat} from './garden-ornaments.js';
+import {renderGardenProps} from './garden-props.js';
 import {gardenWeather,sceneProgress,sceneryWeatherLayers} from './garden-appearance.js';
 import {alternateBoats,alternateBoatLights,mountainSnowCut,seasonalTree,shoreDetails,snowbank,weatherMarkup} from './seasonal-scenery.js';
 const boatOrigin='783 751';
@@ -193,20 +194,21 @@ const seasonalBoatLights=()=>`<g transform="translate(${boatOrigin})">
   </g>`;
 const boatPiece=(style,lights=false)=>style==='seasonal'?(lights?seasonalBoatLights():seasonalBoat()):
   `<g transform="translate(${boatOrigin})">${styledBoat(style,lights)}</g>`;
-const scenePieces={...gardenPieces,boat:{option:'boat',render:style=>boatPiece(style)},
+const propPiece={option:'props',key:design=>JSON.stringify(design.props||[]),render:items=>renderGardenProps(items||[])};
+const scenePieces={...gardenPieces,props:propPiece,propLights:{...propPiece,render:items=>renderGardenProps(items||[],true)},boat:{option:'boat',render:style=>boatPiece(style)},
   boatLights:{option:'boat',render:style=>boatPiece(style,true)}};
 const pieceKey=(piece,design)=>piece.key?.(design)||'';
 
 const pieceMarkup=(id,design)=>{
-  const piece=scenePieces[id],value=design[piece.option];
-  return `<g data-garden-piece="${id}" data-variant="${value}" data-piece-key="${pieceKey(piece,design)}">${piece.render(value,design)}</g>`;
+  const piece=scenePieces[id],value=Array.isArray(design[piece.option])?'custom':design[piece.option];
+  return `<g data-garden-piece="${id}" data-variant="${value}">${piece.render(design[piece.option],design)}</g>`;
 };
 export function applyGardenDesign(scene,design){
   for(const node of scene.querySelectorAll('[data-garden-piece]')){
     const piece=scenePieces[node.dataset.gardenPiece];
-    const value=design[piece.option],key=pieceKey(piece,design);
-    if(node.dataset.variant===value&&node.dataset.pieceKey===key)continue;
-    node.innerHTML=piece.render(value,design);
+    const variant=design[piece.option],value=Array.isArray(variant)?'custom':variant,key=pieceKey(piece,design);
+    if(node.dataset.variant===value&&(node.dataset.pieceKey||'')===key)continue;
+    node.innerHTML=piece.render(variant,design);
     node.dataset.variant=value;node.dataset.pieceKey=key;
   }
   scene.setAttribute('viewBox',gardenFrame(design.camera).join(' '));
@@ -283,11 +285,13 @@ ${rock(1514,844,1.05,-1)}${rock(1462,850,.49)}${rock(1418,854,.33,-1)}
 </g>
 ${shoreDetails()}
 ${pieceMarkup("path",design)}
+${pieceMarkup("props",design)}
 <g id="garden-growth-trees"/>
 <g id="garden-growth-cairns"/>
 <rect id="night-shade" width="1600" height="900" fill="#071730" opacity="0"/>
 <g id="evening-lights" opacity="0">
   <g id="garden-growth-lights"/>
+  ${pieceMarkup("propLights",design)}
   <g class="far-shore">
     ${pieceMarkup("pavilionLights",design)}
   </g>

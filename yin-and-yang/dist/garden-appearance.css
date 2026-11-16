@@ -281,3 +281,11 @@
 .studio-activities .studio-control-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
 .studio-save [data-studio-default-hint] { grid-column: 1/-1; }
 @media(max-width:420px) { .studio-activities .studio-control-grid { grid-template-columns: 1fr; } }
+
+.studio-props { margin: 6px 0 0; }
+.studio-prop-add { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 9px; }
+.studio-prop-add button { white-space: nowrap; padding-bottom: 8px; }
+.studio-prop-edit { grid-column: 1/-1; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; }
+.studio-prop-edit[hidden] { display: none; }
+.studio-prop-edit output { color: var(--surface-muted); }
+.studio-stage [data-garden-prop] { cursor: grab; }

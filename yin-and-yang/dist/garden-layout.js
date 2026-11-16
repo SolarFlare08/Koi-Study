@@ -1,7 +1,7 @@
 import {loadAppearance} from './garden-appearance.js';
 
 export const gardenPieceOptions={
-  mountains:{classic:'Layered peaks',rounded:'Soft ridges',highlands:'Distant highlands'},
+  mountains:{classic:'Layered peaks',summit:'Snowcapped summit',karst:'Ink pillars',valley:'Cloud valley',twins:'Twin peaks',rounded:'Soft ridges',highlands:'Distant highlands'},
   shoreline:{classic:'Reed banks',inlet:'Stone inlet',meadow:'Low meadow'},
   pavilion:{pagoda:'Lakeside pagoda',tiered:'Three-tier pagoda',tea:'Tea shelter',gate:'Moon gate',vermilion:'Vermilion pavilion',bell:'Stone bell tower'},
   foundation:{auto:'Match the shore',stone:'Stone outcrop',timber:'Timber landing'},
@@ -16,8 +16,33 @@ export const gardenCameras={
 };
 export const defaultPavilionPosition={x:1096,y:615};
 export const defaultGardenDesign={mountains:'classic',shoreline:'classic',pavilion:'pagoda',foundation:'auto',
-  boat:'seasonal',lantern:'classic',path:'none',camera:'wide',pavilionPosition:null,placements:{}};
+  boat:'seasonal',lantern:'classic',path:'none',camera:'wide',pavilionPosition:null,placements:{},props:[]};
 export const pavilionBounds={x:[90,1510],y:[557,848]};
+export const gardenPropBounds={x:[32,1568],y:[446,883]};
+export const gardenPropLimit=36;
+export const gardenPropTypes={
+  bridge:{name:'Stone arch bridge',x:1200,y:673},
+  dock:{name:'Wooden dock',x:1428,y:781},
+  lantern:{name:'Stone lantern',x:1158,y:621},
+  bamboo:{name:'Bamboo grove',x:1496,y:828},
+  pine:{name:'Leaning pine',x:290,y:843},
+  plum:{name:'Plum blossoms',x:98,y:758},
+  rocks:{name:'Shore rocks',x:377,y:809},
+  reeds:{name:'Golden reeds',x:1442,y:804},
+  lilies:{name:'Lily pads',x:529,y:768},
+  crane:{name:'White crane',x:1260,y:705}
+};
+export function loadGardenProps(value){
+  const props=new Map();
+  for(const item of Array.isArray(value)?value:[]){
+    if(typeof item?.id!=='string'||!/^[a-z0-9_-]{1,80}$/i.test(item.id)||!Object.hasOwn(gardenPropTypes,item.kind)||
+      !Number.isFinite(item.x)||!Number.isFinite(item.y))continue;
+    const size=Number.isFinite(item.size)?Math.max(50,Math.min(200,Math.round(item.size/5)*5)):100;
+    props.set(item.id,{id:item.id,kind:item.kind,...clampGardenPlacement(item.x,item.y,gardenPropBounds),size});
+    if(props.size===gardenPropLimit)break;
+  }
+  return [...props.values()];
+}
 export const gardenStarterLayouts={
   spring:{name:'Blossom walk',design:{mountains:'rounded',shoreline:'meadow',pavilion:'gate',path:'stones',camera:'wide'},
     appearance:{season:'spring',lighting:'day',weather:'petals'}},
@@ -39,7 +64,7 @@ export function clampGardenPlacement(x,y,bounds=placementBounds){
   }));
 }
 export function loadGardenDesign(value){
-  const design={...defaultGardenDesign,placements:{}};
+  const design={...defaultGardenDesign,placements:{},props:loadGardenProps(value?.props)};
   for(const [piece,options] of Object.entries(gardenPieceOptions)){
     if(Object.hasOwn(options,value?.[piece]))design[piece]=value[piece];
   }
