@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'3.2.1',date:'2026-11-15',title:'Landmark panels fit the Garden',changes:[
+    'Keep landmark details above the workspace bar, with an internal scroll area for the editing controls.',
+    'Group book dates and ratings, and make the inscription and placement sections easier to scan.'
+  ]},
   {version:'3.2.0',date:'2026-11-15',title:'Calendar task colors and YouTube playback',changes:[
     'Mark a calendar task Important and assign one color to all of its blocks.',
     'Open Spotify or YouTube from Music & video, keep a link for each service, and watch YouTube in a floating player inside the app.'

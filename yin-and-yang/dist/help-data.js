@@ -153,7 +153,7 @@ export const helpTopics = [
       'In Garden, open `Progress` → `Open Garden Field Guide`, or find it with `Ctrl+K`. Filter the illustrated entries by landmark type and date range. Choose an entry to highlight it in the landscape.',
       'Set an end date and choose `View Garden at end date` to see all landmarks earned through that day. Use `Return to today` to exit the historical view.',
       'Open a tree, lantern, or cairn and expand `Place landmark`. Choose West shore, Lake island, or Pagoda shore. Enter a group name and leave the area on Automatic to reuse that group’s area. A new group without an area starts at Lake island.',
-      'Click or tab to a landmark in Garden to open its details. A book lantern shows the finish date, first logged reading date if available, and final rating. Choose `Open in Reading` for the full entry.',
+      'Click or tab to a landmark in Garden to open its details. A book lantern shows the finish date, first logged reading date if available, and final rating. Scroll inside the landmark panel to reach the inscription and placement controls on smaller screens. Choose `Open in Reading` for the full entry.',
       'Save a Planner exam result to add a star to the project’s course constellation. Open a constellation from the sky or the Field Guide to see its exams in date order.',
       'In Garden history, choose `Record a test or milestone`. Add a title and date, plus a result or note if you want one. Tests add stars and personal milestones add cairns.'],
     tip:'Each project or book earns one landmark. Garden history is included in backups.',

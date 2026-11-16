@@ -634,3 +634,54 @@ button.project-context-item:hover { color: var(--planner-accent); }
 .music-mini .youtube-embed { margin: 0; }
 
 .calendar-block-actions { flex-wrap: wrap; }
+
+.landmark-panel.panel {
+  display: flex; flex-direction: column; width: 348px; min-width: 0; padding: 0; overflow: hidden;
+  max-width: var(--landmark-max-width,calc(100vw - 24px));
+  max-height: var(--landmark-max-height,calc(100svh - 120px));
+  background: var(--surface-paper);
+}
+.landmark-panel .panel-header {
+  flex: none; align-items: start; gap: 8px; margin: 0; padding: 15px 15px 12px;
+  border-bottom: 1px solid var(--surface-line);
+}
+.landmark-panel .panel-header .icon-button { flex: none; margin: -3px -3px 0 0; width: 36px; height: 36px; }
+.landmark-panel .panel-header h2 { overflow-wrap: anywhere; }
+.landmark-panel-body {
+  min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable;
+  scrollbar-width: thin; scrollbar-color: var(--surface-line) transparent; padding: 12px 13px 14px 15px;
+}
+.landmark-panel-body:focus-visible { outline: 2px solid var(--surface-accent); outline-offset: -2px; }
+.landmark-panel .landmark-memento {
+  display: grid; align-items: start; gap: 11px; padding: 11px; margin: 0;
+  border: 1px solid var(--surface-line);
+}
+.landmark-summary { display: flex; align-items: center; gap: 8px; }
+.landmark-summary .landmark-emblem { width: 31px; }
+.landmark-summary .landmark-emblem svg { width: 16px; height: 16px; }
+.landmark-panel .landmark-byline { margin: 0; color: var(--surface-ink); font-weight: 650; overflow-wrap: anywhere; }
+.landmark-panel .landmark-result {
+  margin-inline-start: auto; flex: none; padding: 4px 7px; border-radius: 7px; color: var(--surface-accent);
+  background: var(--surface-field); font-size: 11px; max-width: 52%; overflow-wrap: anywhere;
+}
+.landmark-dates { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 0; }
+.landmark-dates div { flex: 1 0 auto; }
+.landmark-dates dt { font-size: 10px; color: var(--surface-muted); }
+.landmark-dates dd { margin: 2px 0 0; font-size: 12px; color: var(--surface-ink); }
+.landmark-panel .landmark-detail { margin: 10px 0; }
+.landmark-dedication .landmark-inscription { margin-top: 10px; }
+.landmark-links { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin: 12px 0; }
+.landmark-links :is(.panel-primary,.text-button) { min-height: 34px; }
+.landmark-editors { display: grid; gap: 5px; }
+.landmark-editors .landmark-record { padding: 0; border: 1px solid var(--surface-line); border-radius: 8px; }
+.landmark-editors summary {
+  display: list-item; min-height: 38px; padding: 10px 9px; border-radius: 8px; font-weight: 650;
+}
+.landmark-editors summary:focus-visible { outline: 2px solid var(--surface-accent); outline-offset: -2px; }
+.landmark-editors summary:hover, .landmark-editors details[open] summary { background: var(--surface-raised); }
+.landmark-editors summary small { float: right; margin-inline-start: 6px; color: var(--surface-muted); font-weight: 500; }
+.landmark-editors form { margin: 0 !important; padding: 10px; min-width: 0; }
+.landmark-editors form select { width: 100%; min-width: 0; padding: 7px 9px; min-height: 36px; border-radius: 7px; }
+.landmark-editors form small { color: var(--surface-muted); }
+.landmark-editors form button { justify-self: start; }
+#landmark-save-status { margin: 0 0 8px; padding: 5px 8px; border-radius: 6px; color: var(--surface-ink); background: var(--surface-raised); }

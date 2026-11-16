@@ -1157,31 +1157,40 @@ function gardenLandmarkMarkup(){
   const courseId=examProject?.id||item.courseId;
   const finished=book?.finished;
   const firstLog=book?.entries.filter(entry=>entry.date<=finished.finishedOn).at(-1)?.date;
+  const finish=finished?.finishedOn||exam?.result?.takenOn||item.day;
+  const date=(label,day)=>`<div><dt>${label}</dt><dd><time datetime="${day}">${landmarkDate(day)}</time></dd></div>`;
+  const outcome=exam?.result?.score??item.result;
+  const note=(exam?.result?.reflection??item.detail)||finished?.takeaway;
   return `${header(type.event,escape(book?.title||project?.name||exam?.title||item.title))}
-    <div class="landmark-memento"><div class="landmark-emblem" aria-hidden="true">${icon(type.mark)}</div>
-      <div>${book?.author?`<p>${escape(book.author)}</p>`:''}
-        ${firstLog?`<p>First logged ${landmarkDate(firstLog)}</p>`:''}
-        <p>${item.kind==='test'?'Completed':item.kind==='milestone'?'Reached':'Finished'} ${landmarkDate(finished?.finishedOn||exam?.result?.takenOn||item.day)}</p>
-        ${finished?`<strong>${finished.rating?`Final rating · ${finished.rating} / 5`:'Unrated'}</strong>`:''}
-        ${(exam?.result?.score??item.result)?`<strong>${escape(exam?.result?.score??item.result)}</strong>`:''}</div></div>
-    ${(exam?.result?.reflection??item.detail)||finished?.takeaway?`<p class="landmark-detail">${escape((exam?.result?.reflection??item.detail)||finished.takeaway)}</p>`:''}
-    <div class="panel-actions">${book?`<button type="button" class="panel-primary" data-landmark-book="${escape(book.id)}">Open in Reading</button>`:''}
-      ${examProject?`<button type="button" class="panel-primary" data-landmark-exam="${escape(item.sourceId)}" data-exam-project="${escape(examProject.id)}">Open exam plan</button>`:''}
-      ${project?`<button type="button" class="panel-primary" data-view-project="${escape(project.id)}">Open project</button>`:''}
-      ${courseId?`<button type="button" class="text-button" data-guide-course="${escape(courseId)}">View constellation</button>`:''}
-      <button type="button" class="text-button" data-garden-history-open>Garden Field Guide</button></div>
-    ${item.kind!=='test'?landmarkInscriptionMarkup(item):''}
-    ${item.kind!=='test'?`<details class="landmark-record"><summary>Place landmark${item.zone?` · ${gardenZones[item.zone]}`:''}</summary>
-      <form id="landmark-place">${placementFields(item)}<button class="panel-primary">Save placement</button></form></details>`:''}`;
-}
-function landmarkInscriptionMarkup(item){
-  return `${item.inscription?`<blockquote class="landmark-inscription">${escape(item.inscription)}</blockquote>
-    <button type="button" class="text-button" data-inscription-postcard>Use as postcard caption</button>`:''}
-    <details class="landmark-record"><summary>${item.inscription?'Edit inscription':'Add inscription'}</summary>
-      <form id="landmark-inscription-form" data-kind="${escape(item.kind)}" data-source="${escape(item.sourceId)}">
-        <label>Dedication<input name="inscription" maxlength="90" value="${escape(item.inscription)}" placeholder="For the work we did together"></label>
-        <button class="panel-primary">Save inscription</button>
-      </form></details>`;
+    <div class="landmark-panel-body" role="region" aria-label="Landmark details" tabindex="0">
+      <p id="landmark-save-status" hidden></p>
+      <div class="landmark-memento">
+        <div class="landmark-summary"><div class="landmark-emblem" aria-hidden="true">${icon(type.mark)}</div>
+          ${book?.author?`<p class="landmark-byline">${escape(book.author)}</p>`:`<p class="landmark-byline">${type.name}</p>`}
+          ${finished?`<strong class="landmark-result" aria-label="${finished.rating?`Rating ${finished.rating} out of 5`:'Unrated'}">${finished.rating?`<span aria-hidden="true">★</span> ${finished.rating} / 5`:'Unrated'}</strong>`:
+            outcome?`<strong class="landmark-result">${escape(outcome)}</strong>`:''}</div>
+        <dl class="landmark-dates">${firstLog?date('First logged',firstLog):''}
+          ${date(item.kind==='test'?'Completed':item.kind==='milestone'?'Reached':'Finished',finish)}</dl>
+      </div>
+      ${note?`<p class="landmark-detail">${escape(note)}</p>`:''}
+      ${item.inscription?`<div class="landmark-dedication"><blockquote class="landmark-inscription">${escape(item.inscription)}</blockquote>
+        <button type="button" class="text-button" data-inscription-postcard>Use as postcard caption</button></div>`:''}
+      <div class="landmark-links">${book?`<button type="button" class="panel-primary" data-landmark-book="${escape(book.id)}">Open in Reading</button>`:''}
+        ${examProject?`<button type="button" class="panel-primary" data-landmark-exam="${escape(item.sourceId)}" data-exam-project="${escape(examProject.id)}">Open exam plan</button>`:''}
+        ${project?`<button type="button" class="panel-primary" data-view-project="${escape(project.id)}">Open project</button>`:''}
+        ${courseId?`<button type="button" class="text-button" data-guide-course="${escape(courseId)}">View constellation</button>`:''}
+        <button type="button" class="text-button" data-garden-history-open>Garden Field Guide</button></div>
+      ${item.kind!=='test'?`<div class="landmark-editors">
+        <details class="landmark-record" name="landmark-editor"><summary>${item.inscription?'Edit inscription':'Add inscription'}</summary>
+          <form id="landmark-inscription-form" data-kind="${escape(item.kind)}" data-source="${escape(item.sourceId)}">
+            <label>Dedication<input name="inscription" maxlength="90" value="${escape(item.inscription)}" placeholder="For the work we did together"></label>
+            <button class="panel-primary">Save inscription</button>
+          </form></details>
+        <details class="landmark-record" name="landmark-editor">
+          <summary>Place landmark <small>${item.zone?gardenZones[item.zone]:'Automatic'}</small></summary>
+          <form id="landmark-place">${placementFields(item)}<button class="panel-primary">Save placement</button></form>
+        </details></div>`:''}
+    </div>`;
 }
 function saveLandmarkInscription(form){
   const previous=state.gardenGrowth;
@@ -1193,13 +1202,17 @@ function saveLandmarkInscription(form){
   state.gardenGrowth=previous.map((item,i)=>i===index?{...record,...(inscription&&{inscription})}:item);
   if(!persist()){state.gardenGrowth=previous;return;}
   renderGardenGrowth();openGardenLandmark(index);
-  confirmChange(inscription?'Landmark inscription saved.':'Landmark inscription cleared.');
+  confirmLandmarkEdit(inscription?'Landmark inscription saved.':'Landmark inscription cleared.');
+}
+function confirmLandmarkEdit(message){
+  const status=$('#landmark-save-status');
+  status.textContent=message;status.hidden=false;announce(message);
 }
 function placementFields(item={}){
   const groups=new Map(state.gardenGrowth.filter(entry=>entry.group&&entry.zone).map(entry=>[entry.group.toLowerCase(),entry]));
   return `<label>Area<select name="zone"><option value="">Automatic</option>${Object.entries(gardenZones).map(([id,name])=>
     `<option value="${id}" ${item.zone===id?'selected':''}>${name}</option>`).join('')}</select></label>
-    <label>Group <span>(optional)</span><input name="group" maxlength="80" list="landmark-groups" value="${escape(item.group)}" placeholder="Project or semester"></label>
+    <label><span>Group <small>(optional)</small></span><input name="group" maxlength="80" list="landmark-groups" value="${escape(item.group)}" placeholder="Project or semester"></label>
     <datalist id="landmark-groups">${[...groups.values()].map(entry=>`<option value="${escape(entry.group)}">${gardenZones[entry.zone]}</option>`).join('')}</datalist>`;
 }
 function selectedPlacement(kind,zone,group){
@@ -2465,8 +2478,45 @@ function panelContent(id){
       <button type="button" class="text-button" id="pop-out-youtube" hidden>Pop out video</button><button type="button" class="text-button" id="remove-player" hidden>Remove player</button></div>
     ${soundControls()}`;
 }
+function positionLandmarkPanel(panel,anchor){
+  const viewport=window.visualViewport;
+  const x=viewport?.offsetLeft||0,y=viewport?.offsetTop||0;
+  const right=x+(viewport?.width||innerWidth),bottom=y+(viewport?.height||innerHeight);
+  const appBounds=app.getBoundingClientRect(),dock=workspaceNav.getBoundingClientRect();
+  const header=$('.topbar').getBoundingClientRect();
+  const floor=Math.min(bottom,appBounds.bottom)-12;
+  const navCeiling=dock.height&&dock.top>y+130?dock.top-10:floor;
+  const lower=Math.min(floor,navCeiling);
+  const upper=Math.max(y+12,header.bottom+9);
+  const top=upper+130<=lower?upper:y+12;
+  const left=x+12;
+  const rail=taskSidebar.getBoundingClientRect();
+  const railEdge=rail.width&&rail.left-left>=370?rail.left-12:right-12;
+  const edge=Math.min(right-12,railEdge);
+  panel.style.setProperty('--landmark-max-height',Math.max(0,lower-top)+'px');
+  panel.style.setProperty('--landmark-max-width',Math.max(0,edge-left)+'px');
+
+  const r=anchor.getBoundingClientRect(),width=panel.offsetWidth,height=panel.offsetHeight,gap=12;
+  const besideRight=r.right+gap,besideLeft=r.left-gap-width;
+  let px=r.left+(r.width-width)/2,py=r.top+(r.height-height)/2;
+  if(besideRight+width<=edge)px=besideRight;
+  else if(besideLeft>=left)px=besideLeft;
+  else if(r.bottom+gap+height<=lower)py=r.bottom+gap;
+  else if(r.top-gap-height>=top)py=r.top-gap-height;
+
+  panel.style.left=Math.max(left,Math.min(px,edge-width))+'px';
+  panel.style.top=Math.max(top,Math.min(py,lower-height))+'px';
+}
+function repositionLandmark(){
+  if(activePanel==='garden-landmark')positionPanel(visiblePanel(),landmarkAnchor(selectedLandmark));
+}
+const landmarkPanelSize=new ResizeObserver(repositionLandmark);
+window.visualViewport?.addEventListener('resize',repositionLandmark);
+window.visualViewport?.addEventListener('scroll',repositionLandmark);
+
 function positionPanel(panel,anchor){
   if(!anchor||!panel)return;
+  if(panel.classList.contains('landmark-panel')){positionLandmarkPanel(panel,landmarkAnchor(selectedLandmark));return;}
   if(panel.classList.contains('capture-panel')){
     if(capturePointer){
       const {x,y}=capturePointer;
@@ -2485,11 +2535,6 @@ function positionPanel(panel,anchor){
   let x=r.left+r.width/2-w/2,y=r.top-h+15;
   if(anchor.classList.contains('garden-action')) y=r.bottom+9;
   if(y<16)y=r.bottom-15;
-  if(placement.matches('[data-garden-landmark]')){
-    const right=r.right+12,left=r.left-w-12;
-    if(right+w<W-14||left>=14){x=right+w<W-14?right:left;y=r.top+(r.height-h)/2;}
-    else y=r.bottom+h+12<H-16?r.bottom+12:r.top-h-12;
-  }
   panel.style.left=`${Math.max(14,Math.min(x,W-w-14))}px`;
   panel.style.top=`${Math.max(16,Math.min(y,H-h-16))}px`;
 }
@@ -2504,7 +2549,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden','music-mini');panel.querySelector('.music-mini-bar').hidden=true;panel.setAttribute('aria-hidden','false');panel.setAttribute('aria-modal','true');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.removeAttribute('aria-label');panel.inert=false;}
-  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
+  else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
   if(id==='appearance')renderSeasonPreview();
@@ -2514,6 +2559,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   if(scheduleForm)updateScheduleEditor(scheduleForm);
   if(id==='music')syncSound();
   positionPanel(panel,anchor);wake();
+  if(id==='garden-landmark')landmarkPanelSize.observe(panel);
   const firstControl=panel.querySelector(id==='garden-tools'?'[data-home-tool]':id==='appearance'?'input:checked':'input,textarea,select')||panel.querySelector('button');
   const initialFocus=['replan-today','plan-tomorrow','plan-deadline','build-week','project-context','schedule-drop','garden-landmark','garden-comparison','garden-studio'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
   if(initialFocus.id==='panel-title')initialFocus.tabIndex=-1;
@@ -2524,6 +2570,7 @@ function closePanel(restore=true){
     returnToCaptureInbox=false;openCaptureInbox(false);return;
   }
   app.classList.remove('evening-view');
+  if(activePanel==='garden-landmark')landmarkPanelSize.disconnect();
   const p=visiblePanel();if(p){if(p.id==='music-panel'){p.classList.add('music-hidden');p.setAttribute('aria-hidden','true');p.inert=true;p.querySelector('h2').id='music-hidden-title';p.setAttribute('aria-labelledby','music-hidden-title');}else p.remove();}
   if(lastAnchor){
     lastAnchor.setAttribute('aria-expanded','false');
@@ -4635,7 +4682,7 @@ root.addEventListener('submit',e=>{
     const previous=state.gardenGrowth;
     state.gardenGrowth=previous.map((entry,i)=>i===index?{...record,...selectedPlacement(item.kind,zone,group)}:entry);
     if(!persist()){state.gardenGrowth=previous;return;}
-    renderGardenGrowth();openGardenLandmark(index);confirmChange('Landmark placement saved.');return;
+    renderGardenGrowth();openGardenLandmark(index);confirmLandmarkEdit('Landmark placement saved.');return;
   }
   if(e.target.id==='garden-range'){
     const {from,through}=Object.fromEntries(new FormData(e.target));
@@ -5084,7 +5131,7 @@ document.addEventListener('keydown',e=>{
   if(captureInboxShortcut(e))return;
   const p=visiblePanel();
   if(e.key==='Tab'&&p){
-    const controls=[...p.querySelectorAll('button,input,textarea,select,a[href],iframe')].filter(el=>!el.disabled&&el.offsetParent!==null&&(el.type!=='radio'||el.checked));
+    const controls=[...p.querySelectorAll('button,input,textarea,select,a[href],iframe,summary,[tabindex="0"]')].filter(el=>!el.disabled&&el.offsetParent!==null&&(el.type!=='radio'||el.checked));
     const focused=document.activeElement, first=controls[0], last=controls.at(-1);
     if(pendingUndo&&(focused===undoButton||!e.shiftKey&&focused===last||e.shiftKey&&focused===first)){
       e.preventDefault();
