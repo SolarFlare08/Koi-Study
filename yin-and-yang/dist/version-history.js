@@ -1,4 +1,10 @@
 export const releases = [
+  {version:'5.3.0',date:'2026-11-17',title:'Study questions and semester memories',changes:[
+    'Paint several timed calendar copies, then place them together.',
+    'Capture blockers beside the timer and print course question sheets with mistakes, page references, and meeting answers.',
+    'Set per-book spoiler cutoffs for reviews and discussion sheets. Add dated margin replies to saved journal entries.',
+    'Replay the growth of your Garden over a semester in the Field Guide.'
+  ]},
   {version:'5.2.0',date:'2026-11-17',title:'Garden companions',changes:[
     'Open a mini timer over your work for session controls and quick capture.',
     'Move multiple calendar blocks together with an overlap preview. Draft smaller subtasks when logged focus repeatedly exceeds an estimate.',

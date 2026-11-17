@@ -1,0 +1,6 @@
+:root{color-scheme:dark;font:14px 'Segoe UI',sans-serif;color:#e9f2ee;background:#172e35}
+*{box-sizing:border-box}body{margin:0}main{padding:18px 22px;background:linear-gradient(150deg,#28484a,#192e39);min-height:100vh}
+header,nav,form div{display:flex;align-items:center;gap:8px}header{justify-content:space-between}header span{letter-spacing:.09em}small,label{color:#c1d5cc}
+output{display:block;font-size:clamp(38px,16vw,68px);font-weight:300;line-height:1.15;font-variant-numeric:tabular-nums}p{margin:3px 0 13px;overflow-wrap:anywhere}
+button,input{font:inherit;border:1px solid #66827e;background:#20393f;color:inherit;border-radius:8px;padding:7px 11px}button{cursor:pointer}button:disabled{opacity:.45}
+nav button:first-child{background:#c9e5d7;color:#17312c}form{margin-top:15px;border-top:1px solid #4a6668;padding-top:10px}label{display:block;font-size:12px;margin-bottom:5px}input{width:100%;min-width:0}form small{display:block;margin-top:4px}

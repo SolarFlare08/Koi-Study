@@ -19,6 +19,31 @@
 .sky .session-tools .resume-task:hover { background:color-mix(in srgb,currentColor 10%,transparent); }
 .daily-focus-goal { order:10; font-size:10px; letter-spacing:.04em; padding:8px 2px; margin-top:7px; color:var(--scene-ink); border-bottom:2px solid transparent; border-image:linear-gradient(to right,currentColor var(--goal-progress),transparent var(--goal-progress)) 1; }
 .focus-goal-dialog { max-width:450px; }
+.study-companion { width:min(480px,94vw); }
+.study-companion :is(form,label,article),.office-items { display:grid; gap:7px; }
+.study-companion article,.office-items form,.split-hint { margin-block:10px; }
+.study-companion blockquote { margin:5px 0; padding-inline-start:12px; border-inline-start:2px solid var(--surface-accent); white-space:pre-wrap; }
+.study-companion :is(input:not([type=checkbox]),textarea,select),.brush-bar :is(input,select) { padding:7px; min-width:0; border:1px solid var(--surface-line); border-radius:6px; background:var(--surface-field);color:var(--surface-ink);font:inherit; }
+.study-companion textarea { min-height:68px;resize:vertical; }
+.study-companion button,.brush-bar button,.semester-replay button { padding:6px 10px; border:1px solid var(--surface-line); border-radius:7px; }
+.companion-actions,.brush-bar { display:flex;flex-wrap:wrap;align-items:center;gap:8px; }
+.brush-bar { padding:8px 12px;background:var(--surface-field);color:var(--surface-ink); }
+.brush-bar label { display:flex;gap:6px;align-items:center; }
+.brush-bar select { max-width:min(240px,65vw); }.brush-bar input[type=number] { width:75px; }
+.brush-active .calendar-day { cursor:crosshair;touch-action:none;user-select:none; }
+#app:not([data-workspace=calendar]) #calendar-brush,#calendar-panel:has(#planner-calendar-view[hidden]) #calendar-brush { display:none; }
+#stuck-now { flex:none;font-size:11px;border:1px solid color-mix(in srgb,currentColor 30%,transparent);border-radius:8px;padding:7px; }
+.brush-ghost { position:absolute;inset-inline:2px;z-index:4;pointer-events:none;border:2px dashed #337967;border-radius:5px;background:#b7dfcde6;color:#16392d;padding:2px 4px;overflow:hidden;font-size:11px; }
+.semester-replay { width:min(760px,95vw);max-width:95vw; }
+.semester-replay .garden-scene-preview { height:auto;aspect-ratio:16/9;margin-block:10px;overflow:hidden;border-radius:9px; }
+.semester-replay .garden-scene-preview svg { width:100%;height:100%; }
+#office-print { display:none; }
+@media print {
+  body:has(> #office-print)>:not(#office-print) { display:none!important; }
+  body:has(> #office-print) dialog::backdrop { display:none; }
+  #office-print { display:block;background:white;color:black;padding:8mm;font:12pt/1.5 Georgia,serif; }
+  #office-print section { break-inside:avoid; }
+}
 .batch-move { width:min(470px,94vw); }
 .batch-move label { display:grid; gap:4px; margin:8px 0; }
 .batch-move fieldset { border:1px solid var(--surface-line); border-radius:8px; margin:12px 0; }

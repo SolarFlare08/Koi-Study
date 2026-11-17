@@ -104,16 +104,17 @@ function landmarkGround(x,y,scale){
     <path d="M-25 3Q-2-5 23 1" fill="none" stroke="var(--shore-upper,#9cb28d)" stroke-width="1.7" opacity=".72"/>
   </g>`;
 }
-export function gardenGrowthMarkup(history,{courses=[],through='',design=defaultGardenDesign}={}){
+export function gardenGrowthMarkup(history,{courses=[],through='',visible,design=defaultGardenDesign}={}){
   const trees=[],lanterns=[],lights=[];
   const stars=[],cairns=[];
   let hasIsland=false;
   const layout=gardenLandmarkPositions(history,courses,design.placements);
   for(const course of courses){
-    const points=course.stars.filter(({item})=>!through||item.day<=through).map(({index})=>layout[index].position.slice(0,2).join(','));
+    const points=course.stars.filter(({item,index})=>(!through||item.day<=through)&&(!visible||visible.has(index))).map(({index})=>layout[index].position.slice(0,2).join(','));
     if(points.length>1)stars.push(`<polyline points="${points.join(' ')}" fill="none" stroke="#9ec6d8" stroke-width="1.4" opacity=".75"/>`);
   }
-  for(const {item,position} of layout){
+  for(const {item,index,position} of layout){
+    if(visible&&!visible.has(index))continue;
     if(through&&item.day>through)continue;
     const [x,y,scale]=position;
     const placed=Object.hasOwn(design.placements,gardenLandmarkKey(item));
@@ -361,11 +362,11 @@ function paintLight(nodes,p,lighting,width,height){
   nodes.app.style.setProperty('--scene-twilight',Math.min(1,Math.max(.22,(light.night-.16)*1.4)));
 }
 
-export function mountGardenPreview(container,appearance,{history=[],courses=[],through='',design=defaultGardenDesign}={}){
+export function mountGardenPreview(container,appearance,{history=[],courses=[],through='',visible,design=defaultGardenDesign}={}){
   const template=document.createElement('template');
   template.innerHTML=renderLandscape(design);
   const scene=template.content.firstElementChild;
-  const art=gardenGrowthMarkup(history,{courses,through,design});
+  const art=gardenGrowthMarkup(history,{courses,through,visible,design});
   for(const [part,markup] of Object.entries(art))scene.querySelector(`#garden-growth-${part}`).innerHTML=markup;
   paintLight(lightNodes(scene,container),sceneProgress(0,appearance.lighting,false,'still'),appearance.lighting,1600,900);
   applySceneryAppearance(container,appearance,gardenWeather(appearance,appearance.weatherSince));

@@ -12,6 +12,7 @@ export function loadJournal(storage){
     const items=JSON.parse(storage.getItem(JOURNAL_KEY));
     return Array.isArray(items)?items.filter(item=>typeof item?.id==='string'&&typeof item.title==='string'&&typeof item.body==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(item.date))
       .map(item=>({...item,...(item.mood!==undefined&&typeof item.mood!=='string'?{mood:''}:{}),
+        ...(item.margins===undefined?{}:{margins:(Array.isArray(item.margins)?item.margins:[]).filter(n=>typeof n?.quote==='string'&&typeof n.reply==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(n.day))}),
         ...(item.tags===undefined?{}:{tags:journalLabels(item.tags)}),...(item.themes===undefined?{}:{themes:journalLabels(item.themes)})})):[];
   }catch{return [];}
 }
@@ -139,7 +140,7 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
         <details><summary>Save as template</summary><label>Template name<input id="journal-template-name" maxlength="80"></label>
           <button type="button" data-journal-template="save">Save current text as template</button></details></div>`}</div>
       <label class="journal-writing"><span class="sr-only">Entry</span><textarea name="body" placeholder="What stayed with you today?" required>${esc(item?.body)}</textarea></label>
-      <div><p id="journal-error" role="alert" hidden></p><footer><span id="journal-word-count"></span><span id="journal-draft-status" role="status">${item?.draft?'Draft saved':''}</span><button type="submit" value="save">${entryId?'Save completed entry':'Mark complete'}</button><button type="submit" value="delete" formnovalidate ${item?'':'hidden'}>${item?.draft?'Discard draft':'Delete entry'}</button></footer></div></form>`;
+      <div><p id="journal-error" role="alert" hidden></p><footer><span id="journal-word-count"></span><span id="journal-draft-status" role="status">${item?.draft?'Draft saved':''}</span>${entryId?'<button type="button" data-margin>Margin notes</button>':''}<button type="submit" value="save">${entryId?'Save completed entry':'Mark complete'}</button><button type="submit" value="delete" formnovalidate ${item?'':'hidden'}>${item?.draft?'Discard draft':'Delete entry'}</button></footer></div></form>`;
     const body=dialog.querySelector('[name="body"]');
     const updateWordCount=()=>{
       const count=body.value.match(/\S+/g)?.length||0;
@@ -238,6 +239,25 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
   }
   dialog.addEventListener('change',event=>{if(event.target.id==='journal-template')updateTemplateControls();});
   dialog.addEventListener('click',event=>{
+    if(event.target.closest('[data-margin]')){
+      const form=dialog.querySelector('form'),field=form.elements.body;
+      const quote=field.value.slice(field.selectionStart,field.selectionEnd).trim(),id=form.dataset.entryId;
+      const notes=loadJournal(storage).find(entry=>entry.id===id)?.margins||[];
+      const panel=document.createElement('dialog');panel.className='workspace-dialog study-companion';panel.setAttribute('aria-label','Journal margin notes');
+      panel.innerHTML=`<header><h2>Margin notes</h2><button type="button" aria-label="Close">×</button></header>
+        ${notes.map(n=>`<article><small>${esc(n.day)}</small><blockquote>${esc(n.quote)}</blockquote><p>${esc(n.reply)}</p></article>`).join('')}
+        ${quote?`<form><blockquote>${esc(quote)}</blockquote><label>Today’s response<textarea required maxlength="3000"></textarea></label><button class="workspace-primary">Save margin note</button></form>`:'<p>Select a sentence in the entry, then open Margin notes to respond.</p>'}<p role="status"></p>`;
+      document.body.append(panel);panel.querySelector('header button').onclick=()=>panel.close();
+      panel.onclose=()=>panel.remove();panel.showModal();
+      if(quote)panel.querySelector('form').onsubmit=e=>{
+        e.preventDefault();const reply=panel.querySelector('textarea').value.trim();if(!reply)return;
+        const latest=loadJournal(storage),entry=latest.find(item=>item.id===id);
+        if(!entry||!entry.body.includes(quote)){panel.querySelector('[role=status]').textContent='Select a sentence from the saved entry.';return;}
+        entry.margins=[...(entry.margins||[]),{day:dayKey(),quote,reply}];
+        if(save(latest,false)){panel.close();notify('Margin note saved.');}else panel.querySelector('[role=status]').textContent='Could not save this response.';
+      };
+      return;
+    }
     if(event.target.closest('[data-journal-close]')){dialog.close();return;}
     const action=event.target.closest('[data-journal-template]')?.dataset.journalTemplate;
     if(!action)return;
@@ -282,7 +302,7 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
       error.textContent='Enter a title and an entry.';error.hidden=false;return;
     }
     const next=latest.filter(item=>item.id!==id&&item.id!==draftId);
-    if(!deleting)next.push({id,title,body,date:data.get('date'),mood:data.get('mood'),projectId:data.get('projectId'),
+    if(!deleting)next.push({id,title,body,...(previous?.margins?{margins:previous.margins}:{}),date:data.get('date'),mood:data.get('mood'),projectId:data.get('projectId'),
       tags:journalLabels(data.get('tags')),themes:journalLabels(data.get('themes')),updatedAt:Date.now()});
     if(!save(next)){
       error.textContent='Storage is unavailable. Keep this editor open to copy your entry.';error.hidden=false;return;

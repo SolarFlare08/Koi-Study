@@ -26,6 +26,9 @@ import {installFocusCompass,focusWeek} from './focus-compass.js';
 import {timerProgress,extendTimer} from './state.js';
 import {installMiniTimer} from './mini-timer.js';
 import {installBatchMove} from './calendar-batch.js';
+import {installBrush} from './calendar-brush.js';
+import {installOfficeHours} from './office-hours.js';
+import {openSemesterReplay} from './semester-replay.js';
 import {dailyRitualMarkup,loadRitualSchedules,ritualComplete,rituals,scheduledRituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed,spotifyPath} from './spotify-embed.js';
@@ -440,6 +443,8 @@ const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>stat
 const compass=installFocusCompass({getState:()=>state,save:()=>{const ok=persist();if(ok)syncSound();return ok;},notify:toast,
   beforeTimerChange:checkCompletion,afterTimerChange:()=>{render();wake();if(activePanel==='pagoda')refreshPanel();$('#toggle-timer').focus({preventScroll:true});}});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
+$('#stuck-now').onclick=$('#focus-stuck').onclick=installOfficeHours({getState:()=>state,focusedTask,notify:toast,switchTask:()=>currentTaskButton.click(),
+  save:questions=>{const previous=state.studyQuestions;state.studyQuestions=questions;if(persist())return true;state.studyQuestions=previous;return false;}});
 installMiniTimer({launch:$('#open-mini-timer'),getState:()=>state,taskTitle:()=>focusedTask()?.text,
   toggle:()=>timerButton.click(),extend:()=>action(()=>extendTimer(state,300000)),
   capture:text=>{saveCapture(storage,text,currentCaptureContext());renderCaptures();},notify:toast});
@@ -893,6 +898,8 @@ function render(){
   finishTaskButton.hidden=!task||t.mode!=='focus'||Boolean(t.mistakeId);
   currentTaskButton.disabled=Boolean(t.mistakeId);
   renderSessionExtras(t);
+  $('#focus-stuck').hidden=t.mode!=='focus';
+  $('#stuck-now').hidden=t.mode!=='focus'||!t.id;
   compass.render(clock.getTime());
   const list=$('#focus-subtasks'),subtasks=task?.subtasks||[];
   list.hidden=!subtasks.length||Boolean(t.mistakeId);
@@ -1351,6 +1358,7 @@ function gardenHistoryMarkup(){
       <label>Through<input type="date" name="through" max="${dayKey()}" value="${gardenThrough}"></label>
       <div class="panel-actions"><button class="text-button" type="submit">Filter dates</button>
       <button class="panel-primary" type="submit" value="snapshot">View Garden at end date</button>
+      <button type="button" data-semester-replay>Play time-lapse</button>
       ${gardenFrom||gardenThrough?'<button class="text-button" type="button" data-garden-clear-range>Clear dates</button>':''}</div>
       <p id="garden-range-error" role="alert" hidden></p></form>
     ${courses.length?`<div class="field-courses"><h3>Course constellations</h3><ul>${courses.map(course=>
@@ -3132,12 +3140,17 @@ function renderCalendar(){
   planner.render();
 }
 installBatchMove({button:$('#calendar-batch'),getState:()=>state,visibleTasks:()=>planner.calendarTasks(),visibleEvents:shownCalendarEvents,startDay:leadingPlannerDay,notify:toast,
-  save:changes=>{
+  save:commitCalendarCopies});
+function commitCalendarCopies(changes){
     const previous={tasks:state.tasks,calendarEvents:state.calendarEvents};
     Object.assign(state,changes);
     if(!persist()){Object.assign(state,previous);return false;}
     refreshTasks();return true;
-  }});
+}
+const closeBrush=installBrush({button:$('#calendar-brush'),grid:calendarGrid,scroller:calendarScroll,getState:()=>state,commit:commitCalendarCopies,
+  canPaint:()=>workspace==='calendar'&&!actualCalendar&&planner.calendarVisible(),initialDay:()=>dayKey(leadingPlannerDay()),minuteAt:calendarPointerMinute,notify:toast,
+  sources:()=>[...planner.calendarTasks().filter(t=>!t.done).map(t=>({id:t.id,type:'task',title:t.text,minutes:t.estimate||60})),
+    ...shownCalendarEvents().filter(e=>!e.day).map(e=>({id:e.id,type:'event',title:e.title,minutes:Math.min(1440,Math.max(1,Math.round((e.end-e.start)/60000)))}))]});
 
 function currentCalendarMinute(){
   const now=new Date();
@@ -3254,6 +3267,8 @@ function updateActualCalendar(now){
 }
 function setCalendarActivity(actual){
   actualCalendar=actual;
+  if(actual)closeBrush();
+  $('#calendar-brush').hidden=actual;
   $('#calendar-batch').hidden=actual;
   for(const button of $('#calendar-activity-mode').children){
     button.setAttribute('aria-pressed',String((button.dataset.calendarActivity==='actual')===actual));
@@ -5147,6 +5162,14 @@ root.addEventListener('click',e=>{
   }
   if(e.target.closest('[data-open-postcard]')){openGardenPostcard();return;}
   if(e.target.closest('[data-open-garden-comparison]')){openGardenComparison();return;}
+  if(e.target.closest('[data-semester-replay]')){
+    const range=$('#garden-range'),from=range.elements.from.value,through=range.elements.through.value;
+    if(!range.reportValidity())return;
+    if(from&&through&&from>through){toast('Choose an end date after the start.');return;}
+    const history=state.gardenGrowth,courses=gardenCourses(history,state.projects),design=sceneGardenDesign();
+    openSemesterReplay({history,from,through,label:item=>landmarkDate(item.day)+' · '+landmarkTypes[item.kind].event+' · '+item.title,
+      paint:(container,visible)=>mountGardenPreview(container,{...effectiveAppearance,lighting:'dusk',motion:'still'},{history,courses,design,visible})});return;
+  }
   if(e.target.closest('#apply-preview-season')){applyPreviewSeason();return;}
   if(e.target.closest('[data-inscription-postcard]')){
     const caption=state.gardenGrowth[selectedLandmark]?.inscription;

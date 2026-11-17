@@ -23,6 +23,7 @@ import {blockFlexibility,waitingForRecord} from './task-readiness.js';
 import {loadWeeklyReflections} from './journal-patterns.js';
 
 export const STORAGE_KEY = 'yin-and-yang.v1';
+import {loadQuestions} from './office-hours.js';
 export const taskEnergyLevels={light:'Light',moderate:'Moderate',demanding:'Demanding'};
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 export const taskFrequencies = { none:'Does not repeat', daily:'Every day', weekdays:'Weekdays', weekly:'Every week', monthly:'Every month', yearly:'Every year', interval:'Every N days' };
@@ -207,7 +208,7 @@ export function loadSoundtracks(value){
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true, taskBoardCollapsed:false }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], calendars:loadCalendars(), hiddenCalendars:[], calendarTheme:'day', calendarDayTemplates:[], dailyRituals:{}, ritualSchedules:loadRitualSchedules(), studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], libraryBooks:[], readingShelfRows:loadShelfRows(), readingBookends:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
-    shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],
+    shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],studyQuestions:[],
     taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],gardenActivityLayouts:{},breakIdeas:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
@@ -250,6 +251,7 @@ export function loadState(storage) {
     base.readingBookends=loadBookends(raw.readingBookends);
     base.availability=loadAvailability(raw.availability);
     base.mistakes=loadMistakes(raw.mistakes);
+    base.studyQuestions=loadQuestions(raw.studyQuestions);
     if(Array.isArray(raw.breakIdeas))base.breakIdeas=[...new Map(raw.breakIdeas.flatMap(idea=>
       typeof idea?.id==='string'&&breakIdeaMinutes.includes(idea.minutes)&&typeof idea.text==='string'&&idea.text.trim()
         ?[[idea.id,{id:idea.id,minutes:idea.minutes,text:idea.text.trim().slice(0,160)}]]:[])).values()];

@@ -158,6 +158,7 @@ export function planBackupRestore(storage,current,incoming,sections){
     stateList(apply,'plannerFilters','Saved views');stateList(apply,'plannerLabels','Labels',item=>item);
     stateList(apply,'taskActivity','Task completions');stateList(apply,'scheduleMoves','Schedule moves');
     stateList(apply,'mistakes','Mistake notebook');
+    stateList(apply,'studyQuestions','Office-hours questions');
     stateList(apply,'taskBundles','Task bundles');
     const run=incoming.state.activeBundle;
     if(run){

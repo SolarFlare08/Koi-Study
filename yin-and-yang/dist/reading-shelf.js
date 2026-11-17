@@ -18,6 +18,7 @@ export function loadLibraryBooks(value){
     const id=bookKey(title,author);
     books.set(id,{id,title,author,status:Object.hasOwn(libraryStatuses,item.status)?item.status:'want',
       totalPages:pageCount(item.totalPages),addedOn:validReadingDay(item.addedOn)?item.addedOn:'',
+      ...(Number.isInteger(item.cutoff)&&item.cutoff>0?{cutoff:item.cutoff}:{}),
       ...(cleanText(item.lender,120)?{lender:cleanText(item.lender,120),returnBy:validReadingDay(item.returnBy)?item.returnBy:''}:{}),
       ...(item.archived===true?{archived:true}:{}),
       ...(Number.isSafeInteger(item.shelfOrder)&&item.shelfOrder>=0?{shelfOrder:item.shelfOrder}:{})});
@@ -45,6 +46,12 @@ export function annotationContext(rituals,date,book){
 }
 
 const noteKinds={question:'Question',quote:'Quote',insight:'Insight'};
+
+export function withinCutoff(chapter,limit){
+  if(!limit)return true;
+  const match=String(chapter).trim().match(/^(?:ch(?:apters?)?\.?\s*)?(\d+)(?:\s*[-–—]\s*(\d+))?(?:\s*[:·].*)?$/i);
+  return !!match&&Math.max(Number(match[1]),Number(match[2]||0))<=limit;
+}
 
 export function loadReadingNotes(value){
   if(!Array.isArray(value))return [];
@@ -262,6 +269,10 @@ export function manageShelfBook(state,id,action,targetId){
     const index=libraryBooks.findIndex(entry=>entry.id===item.id);
     if(index<0)libraryBooks.push(record);else libraryBooks[index]=record;
   };
+  if(action==='cutoff'){
+    update(book,{cutoff:Number(targetId)});
+    return {bookId:id,changes:{libraryBooks}};
+  }
   if(action==='return'){
     update(book,{lender:'',returnBy:''});
     return {bookId:id,changes:{libraryBooks}};
@@ -451,7 +462,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
   const status=root.querySelector('#reading-note-status');
   const shelf=()=>readingShelf(getRituals(),getNotes(),getFinished(),getLibrary());
   const discussion=installReadingDiscussion(root,noteKinds);
-  const notesForBook=(book,notes=getNotes())=>notes.filter(note=>bookKey(note.bookTitle,note.bookAuthor)===book.id);
+  const notesForBook=(book,notes=getNotes())=>notes.filter(note=>bookKey(note.bookTitle,note.bookAuthor)===book.id&&withinCutoff(note.chapter,book.library?.cutoff));
 
   function collectionMarkup(books){
     const groups=getCollections();
@@ -535,13 +546,14 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
 
   function noteEditor(book,notes){
     const note=notes.find(item=>item.id===editingNote);
-    const chapter=note?.chapter||book.entries.find(entry=>entry.chapters.length)?.chapters.at(-1)||'';
+    const suggestedChapters=book.chapters.filter(chapter=>withinCutoff(chapter,book.library?.cutoff));
+    const chapter=note?.chapter||book.entries.flatMap(entry=>entry.chapters.filter(c=>withinCutoff(c,book.library?.cutoff)).slice(-1))[0]||'';
     return `<section class="reading-notes"><div class="reading-chapter-heading"><h4>Chapter notes</h4>
       <button type="button" data-reading-discussion aria-haspopup="dialog">Discussion sheet</button></div>
       <details ${note?'open':''}><summary>${note?'Edit chapter note':'Add chapter note'}</summary>
         <form id="reading-note-form">
           <label>Chapter<input name="chapter" maxlength="120" required list="reading-note-chapters" value="${escape(chapter)}"></label>
-          <datalist id="reading-note-chapters">${book.chapters.map(item=>`<option value="${escape(item)}"></option>`).join('')}</datalist>
+          <datalist id="reading-note-chapters">${suggestedChapters.map(item=>`<option value="${escape(item)}"></option>`).join('')}</datalist>
           <label>Type<select name="kind">${Object.entries(noteKinds).map(([value,label])=>`<option value="${value}" ${note?.kind===value?'selected':''}>${label}</option>`).join('')}</select></label>
           <label>Note<textarea name="text" maxlength="2000" required rows="4">${escape(note?.text)}</textarea></label>
           <label class="reading-note-check"><input name="queued" type="checkbox" ${note?.queued?'checked':''}> Schedule chapter review</label>
@@ -551,7 +563,8 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
 
   function render(){
     const query=normalized(search.value);
-    const notes=getNotes(),queued=notes.filter(note=>note.queued);
+    const limits=new Map(getLibrary().map(book=>[book.id,book.cutoff]));
+    const notes=getNotes(),queued=notes.filter(note=>note.queued&&withinCutoff(note.chapter,limits.get(bookKey(note.bookTitle,note.bookAuthor))));
     const due=queued.filter(note=>!note.reviewDue||note.reviewDue<=readingDay());
     const upcoming=queued.filter(note=>note.reviewDue>readingDay()).sort((a,b)=>a.reviewDue.localeCompare(b.reviewDue));
     reviewButton.textContent=`Review queue${due.length?` (${due.length})`:''}`;
@@ -647,6 +660,9 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
       ${current.finished?'':forecastMarkup(current)}
       ${chips?`<h4>Chapters annotated</h4><ul class="reading-chapters">${chips}</ul>`:''}
       ${linkedNotes(current.id)}
+      <details class="reading-merge"><summary>Spoiler cutoff · ${current.library?.cutoff?'Chapter '+current.library.cutoff:'Off'}</summary>
+        <form id="reading-cutoff"><label>Show notes through chapter<input name="chapter" type="number" min="1" max="99999" placeholder="No cutoff" value="${current.library?.cutoff||''}"></label>
+        <p>Later chapters and unnumbered notes stay hidden from reviews and discussion sheets. Clear the number to show everything.</p><button>Save cutoff</button></form></details>
       ${noteEditor(current,notesForBook(current,notes))}
       ${current.entries.length?`<h4>Annotation history</h4><ol class="reading-timeline">${current.entries.map(entry=>`<li>
         <time datetime="${entry.date}">${escape(formatDay(entry.date))}</time>
@@ -803,6 +819,10 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     showDetail(book.dataset.readingBook,book);
   });
   history.addEventListener('submit',event=>{
+    if(event.target.id==='reading-cutoff'){
+      event.preventDefault();const result=manageBook(selected,'cutoff',event.target.elements.chapter.value);
+      if(result.error)status.textContent=result.error;else render();return;
+    }
     if(event.target.id==='reading-loan'){
       event.preventDefault();
       const result=manageBook(selected,'loan',Object.fromEntries(new FormData(event.target)));

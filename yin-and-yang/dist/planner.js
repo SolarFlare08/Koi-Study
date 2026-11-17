@@ -569,6 +569,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       ${task?.resumeNote?`<p>Next step · ${escape(task.resumeNote)}</p>`:''}
       ${locked&&task?'<p>Finish or reset the current focus timer to switch projects.</p>':''}</div>
       <div class="project-overview-actions"><button type="button" class="planner-primary" data-resume-project="${escape(project.id)}" ${!task||locked?'disabled':''}>Resume project</button>
+      <button type="button" data-office-course="${escape(project.id)}">Office-hours sheet</button>
       ${reward?'<span class="garden-growth-status" id="project-growth-status" tabindex="-1">Finished · Tree planted</span>':!project.archived?
         '<button type="button" class="garden-growth-action" data-finish-project>Mark project finished</button>':''}</div></section>
       <div class="project-overview-sections">
