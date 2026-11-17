@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'3.13.5',date:'2026-11-16',title:'More natural weather patterns',changes:[
+    'Remove the repeating alignment of petals, leaves, rain, and snow. Space particles freely and vary their timing across all seasons.'
+  ]},
   {version:'3.13.4',date:'2026-11-16',title:'Scattered petals and leaves',changes:[
     'Spread spring petals and autumn leaves across the landscape and vary their paths, speed, and timing.'
   ]},

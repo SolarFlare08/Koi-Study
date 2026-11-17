@@ -96,8 +96,8 @@
   opacity: .72;
   animation: weather-drift calc(var(--drift-speed,24s) * var(--drift-pace)) var(--weather-delay) ease-in-out infinite;
 }
-.weather-snowflake { opacity: .62; animation: weather-snow var(--snow-speed,22s) var(--weather-delay,0s) linear infinite; }
-.weather-raindrop { opacity: .48; animation: weather-rain var(--rain-speed,3.8s) var(--weather-delay,0s) linear infinite; }
+.weather-snowflake { opacity: .62; animation: weather-snow calc(var(--snow-speed,22s) * var(--precipitation-pace)) var(--weather-delay,0s) linear infinite; }
+.weather-raindrop { opacity: .48; animation: weather-rain calc(var(--rain-speed,3.8s) * var(--precipitation-pace)) var(--weather-delay,0s) linear infinite; }
 .weather-ripple { animation: weather-ripple var(--ripple-speed,6s) ease-out infinite alternate; }
 .weather-cloudbank { animation: fog-breathe var(--mist-speed,45s) ease-in-out infinite alternate; }
 .weather-shimmer { opacity: .65; animation: weather-shimmer var(--shimmer-speed,21s) var(--weather-delay,0s) ease-in-out infinite alternate; }

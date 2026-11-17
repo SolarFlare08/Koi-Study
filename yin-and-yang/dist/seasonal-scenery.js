@@ -127,32 +127,45 @@ const summerFireflies=[
   [973,765],[1033,708],[1091,814],[1184,761],[1247,672],[1298,800]
 ];
 
-function driftingParticles(shape,count,seed){
-  // Jitter each cell independently so the scene stays spread out across refreshes.
+function weatherParticles(count,seed,draw){
   let state=seed;
-  const next=()=>{
+  const random=()=>{
     state=(Math.imul(state,1664525)+1013904223)>>>0;
     return state/4294967296;
   };
-  const rows=4,columns=Math.ceil(count/rows);
-  return Array.from({length:count},(_,i)=>{
-    const x=Math.round((i%columns+.07+next()*.86)*1600/columns);
-    const y=Math.round((Math.floor(i/columns)+.07+next()*.86)*900/rows);
-    const size=(.43+next()*.59).toFixed(2),tilt=Math.round(next()*150-75);
-    const dx=Math.round(next()*124-30),dy=Math.round(next()*66+22);
-    const pace=(.76+next()*.68).toFixed(2),delay=(next()*35).toFixed(2);
+  const positions=[];
+  for(let i=0;i<count;i++){
+    let best,spacing=-1;
+    // Keep empty pockets small without snapping particles to rows or diagonals.
+    for(let sample=0;sample<9;sample++){
+      const x=Math.round(16+random()*1568),y=Math.round(16+random()*868);
+      let nearest=Infinity;
+      for(const [px,py] of positions)nearest=Math.min(nearest,(x-px)**2+(y-py)**2);
+      if(nearest>spacing){best=[x,y];spacing=nearest;}
+    }
+    positions.push(best);
+  }
+  return positions.map(([x,y])=>draw(x,y,random)).join('');
+}
+
+function driftingParticles(shape,count,seed){
+  return weatherParticles(count,seed,(x,y,random)=>{
+    const size=(.43+random()*.59).toFixed(2),tilt=Math.round(random()*150-75);
+    const dx=Math.round(random()*124-30),dy=Math.round(random()*66+22);
+    const pace=(.76+random()*.68).toFixed(2),delay=(random()*35).toFixed(2);
     return `<g transform="translate(${x} ${y})">
       <g class="weather-drift" style="--weather-delay:-${delay}s;--drift-pace:${pace};--drift-x:${dx}px;--drift-y:${dy}px">
         <path transform="rotate(${tilt}) scale(${size})" d="${shape}"/>
       </g>
     </g>`;
-  }).join('');
+  });
 }
 
 export function weatherMarkup(){
-  const particles=(count,draw)=>Array.from({length:count},(_,i)=>draw((i*173+37)%1600,(i*101+27)%900,i)).join('');
-  const fallingSnow=particles(58,(x,y,i)=>`<circle class="weather-snowflake" style="--weather-delay:-${i%15}s" cx="${x}" cy="${y}" r="${.85+i%4*.46}"/>`);
-  const rain=particles(76,(x,y,i)=>`<path class="weather-raindrop" style="--weather-delay:-${(i%19)*.12}s" d="M${x} ${y}l-3 ${9+i%8}"/>`);
+  const fallingSnow=weatherParticles(58,91,(x,y,random)=>
+    `<circle class="weather-snowflake" style="--weather-delay:-${(random()*22).toFixed(2)}s;--precipitation-pace:${(.78+random()*.51).toFixed(2)}" cx="${x}" cy="${y}" r="${(.85+random()*1.38).toFixed(2)}"/>`);
+  const rain=weatherParticles(76,116,(x,y,random)=>
+    `<path class="weather-raindrop" style="--weather-delay:-${(random()*4).toFixed(2)}s;--precipitation-pace:${(.86+random()*.28).toFixed(2)}" d="M${x} ${y}l-3 ${9+Math.floor(random()*8)}"/>`);
   const fireflies=summerFireflies.map(([x,y],i)=>{
     const angle=i*2.4;
     const driftX=(17*Math.cos(angle)).toFixed(1),driftY=(13*Math.sin(angle)).toFixed(1);

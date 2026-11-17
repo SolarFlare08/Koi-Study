@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {daylight,sunPosition} from '../dist/daylight.js';
 import {animateLandscape} from '../dist/scenery.js';
+import {weatherMarkup} from '../dist/seasonal-scenery.js';
 import {gardenWeather,loadAppearance,loadGardenLooks,sceneProgress,sceneryWeatherLayers,scheduledAppearance,weatherInterval} from '../dist/garden-appearance.js';
 
 test('sunrise brightens into day; sunset darkens into night',()=>{
@@ -104,4 +105,26 @@ test('seasonal weather rotates every eight minutes and manual weather holds acro
   const saved=loadAppearance({...summer,weather:'rain'},start+weatherInterval);
   assert.equal(saved.weatherSince,start);
   assert.equal(gardenWeather(saved,start+weatherInterval*8),'rain');
+});
+
+test('seasonal weather does not align particles in long diagonal bands',()=>{
+  const markup=weatherMarkup();
+  const petals=markup.slice(markup.indexOf('weather-petals'),markup.indexOf('firefly-layer'));
+  const leaves=markup.slice(markup.indexOf('weather-leaves'),markup.indexOf('weather-rain'));
+  const fields=[
+    [petals.matchAll(/translate\((\d+) (\d+)\)/g),24,4],
+    [leaves.matchAll(/translate\((\d+) (\d+)\)/g),20,4],
+    [markup.matchAll(/class="weather-raindrop"[^>]* d="M(\d+) (\d+)/g),76,8],
+    [markup.matchAll(/class="weather-snowflake"[^>]* cx="(\d+)" cy="(\d+)"/g),58,7]
+  ];
+  for(const [matches,count,maxAligned] of fields){
+    const positions=[...matches].map(([,x,y])=>[Number(x),Number(y)]);
+    assert.equal(positions.length,count);
+    for(const degrees of [20,30,45,60,120,150]){
+      const angle=degrees*Math.PI/180;
+      const offsets=positions.map(([x,y])=>y*Math.cos(angle)-x*Math.sin(angle));
+      assert.ok(offsets.every(start=>offsets.filter(offset=>offset>=start&&offset<start+30).length<=maxAligned),
+        count+' particles formed a band at '+degrees+' degrees');
+    }
+  }
 });
