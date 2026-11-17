@@ -23,6 +23,7 @@ import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,mana
 import {installBackup} from './backup.js';
 import {installAutomaticBackup} from './automatic-backup.js';
 import {installFocusCompass} from './focus-compass.js';
+import {timerProgress} from './state.js';
 import {dailyRitualMarkup,loadRitualSchedules,ritualComplete,rituals,scheduledRituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed,spotifyPath} from './spotify-embed.js';
@@ -434,7 +435,8 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
   mergeBooks:(source,target)=>saveReadingChanges(mergeShelfBooks(state,source,target))});
 const automaticBackup=installAutomaticBackup({storage,getState:()=>state,getCaptures:availableCaptures});
 const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast,automaticBackup});
-const compass=installFocusCompass({getState:()=>state,save:()=>{const ok=persist();if(ok)syncSound();return ok;},notify:toast});
+const compass=installFocusCompass({getState:()=>state,save:()=>{const ok=persist();if(ok)syncSound();return ok;},notify:toast,
+  beforeTimerChange:checkCompletion,afterTimerChange:()=>{render();wake();if(activePanel==='pagoda')refreshPanel();$('#toggle-timer').focus({preventScroll:true});}});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
 const openVersionHistory=installVersionHistory($('#version-history'));
@@ -1056,10 +1058,10 @@ $('#reset-timer').onclick=()=>action(()=>{
     const session=record(state,'skipped');
     toast(session?.outcome==='completed'?'Overtime saved. Timer reset.':'Timer reset. The unfinished session was marked skipped.');
   }
-  const {sequence,goal,taskPlan,taskBreak,total}=state.timer;
+  const {sequence,goal,taskPlan,taskBreak,total,baseTotal}=state.timer;
   if(sequence)loadRoutinePhase(state,sequence,sequence.index);
   else if(taskPlan)resetTaskTiming(state,taskPlan);
-  else if(taskBreak)taskFinishBreak(state,total/12000);
+  else if(taskBreak)taskFinishBreak(state,(baseTotal||total)/12000);
   else reset(state);
   if(goal)state.timer.goal=goal;
 });
@@ -6182,5 +6184,5 @@ durationForm.onsubmit=e=>{
 
 
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
-function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:1-remaining(state)/t.total,motionPreference.matches,activePanel==='evening-lights'&&(!activityGardenLayout()||effectiveAppearance.lighting==='session')?'night':effectiveAppearance.lighting,effectiveAppearance.motion);requestAnimationFrame(environmentFrame);}
+function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:timerProgress(state),motionPreference.matches,activePanel==='evening-lights'&&(!activityGardenLayout()||effectiveAppearance.lighting==='session')?'night':effectiveAppearance.lighting,effectiveAppearance.motion);requestAnimationFrame(environmentFrame);}
 requestAnimationFrame(environmentFrame);

@@ -21,12 +21,28 @@
 .focus-goal-dialog { max-width:450px; }
 .focus-goal-dialog header { display:flex; align-items:start; justify-content:space-between; }
 .focus-goal-dialog header small { font-size:10px; letter-spacing:.16em; }
-.focus-goal-dialog h2 { margin-top:10px; }
+.focus-goal-dialog h2 { margin-top:6px; }
 .focus-goal-dialog p { line-height:1.7; }
 .focus-goal-dialog label { display:grid; gap:8px; }
-.focus-goal-dialog input { padding:12px; border:1px solid var(--surface-line,#879c9c); border-radius:8px; }
-.goal-presets { display:flex; gap:8px; margin:12px 0 24px; }
+.focus-goal-dialog input { padding:12px; border:1px solid var(--surface-line); border-radius:8px; background:var(--surface-field); color:var(--surface-ink); }
+.goal-presets { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px; }
 .goal-presets button { padding:8px 12px; border:1px solid var(--surface-line,#879c9c); border-radius:20px; }
+.focus-compass .quick-timer-button { min-height:29px; padding:3px 9px; border:1px solid color-mix(in srgb,currentColor 24%,transparent); border-radius:18px; white-space:nowrap; }
+.focus-compass :is(.quick-timer-button,#compass-bell):hover { background:color-mix(in srgb,currentColor 12%,transparent); }
+.focus-week { display:grid; gap:8px; margin-bottom:6px; padding:12px; border:1px solid var(--surface-line); border-radius:12px; background:var(--surface-field); }
+.focus-week-bars { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; }
+.focus-week-bars button { min-width:0; display:grid; justify-items:center; gap:5px; padding:5px 1px; border-radius:6px; border:1px solid transparent; }
+.focus-week-bars button:is(:hover,[aria-pressed=true]) { background:var(--surface-raised); border-color:var(--surface-line); }
+.focus-week-value,.focus-week-day { font-size:10px; font-variant-numeric:tabular-nums; text-align:center; align-content:center; }
+.focus-week-value { min-height:25px; }
+.focus-week-track { position:relative; display:block; width:54%; height:60px; border-radius:3px; background:color-mix(in srgb,var(--surface-ink) 9%,transparent); }
+.focus-week-track i { position:absolute; inset:auto 0 0; height:var(--week-focus); background:var(--surface-accent); opacity:.65; border-radius:3px; }
+.focus-week-bars [data-goal-met=true] i { opacity:1; }
+.focus-week-track b { position:absolute; left:-2px; right:-2px; bottom:clamp(0px,var(--week-target),calc(100% - 1px)); border-top:1px dashed var(--surface-ink); opacity:.6; }
+.focus-week .focus-week-detail { min-height:2em; color:var(--surface-ink); }
+.quick-timer-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(74px,1fr)); gap:8px; margin-top:14px; }
+.quick-timer-options button { min-height:42px; padding:7px; border:1px solid var(--surface-line); border-radius:9px; background:var(--surface-field); font-variant-numeric:tabular-nums; }
+.quick-timer-options button:is(:hover,.current-length) { border-color:var(--surface-accent); background:var(--surface-raised); }
 .automatic-backup-card { padding:16px; border:1px solid var(--surface-line,#879c9c); border-radius:12px; margin:18px 0; }
 .automatic-backup-card p { line-height:1.6; }
 .automatic-backup-card button { padding:9px 12px; border:1px solid var(--surface-line,#879c9c); border-radius:8px; }

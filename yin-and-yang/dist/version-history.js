@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.1.0',date:'2026-11-17',title:'A little more time',changes:[
+    'Set Focus and Rest lengths from Quick times beside the countdown. For task-timed sessions, change just the current phase.',
+    'Add 1, 5, or 10 minutes to a running or paused session without restarting it or moving the sun backward.',
+    'Open the daily goal to see the last seven days of focus, how often you met your target, and completed and skipped sessions by day.'
+  ]},
   {version:'5.0.1',date:'2026-11-17',title:'Browser startup fix',changes:[
     'Restore the clock, timer, and workspace controls in browser tabs by keeping Windows backup messaging inside the desktop app.',
     'Keep Session tools closed until opened and continue saving automatic browser restore points.'

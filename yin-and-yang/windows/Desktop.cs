@@ -31,6 +31,8 @@ internal sealed class Desktop : Form
     [DllImport("user32.dll")] private static extern bool ReleaseCapture();
     [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wparam, IntPtr lparam);
 
+    protected override bool ShowWithoutActivation { get { return verify || base.ShowWithoutActivation; } }
+
     protected override void WndProc(ref Message message)
     {
         base.WndProc(ref message);
@@ -335,19 +337,38 @@ internal sealed class Desktop : Form
                 {
                     string snapshot = serializer.Deserialize<string>(await view.ExecuteScriptAsync("window.gardenDesktopSnapshot()"));
                     WriteBackup(snapshot);
-                    var checks = await view.ExecuteScriptAsync(@"(function(){
+                    var checks = await view.ExecuteScriptAsync(@"(function(){try{
                         const goal=document.querySelector('.daily-focus-goal');
                         if(!goal||!document.querySelector('#compass-progress'))throw Error('Focus controls missing');
+                        const state=()=>JSON.parse(localStorage.getItem('yin-and-yang.v1'));
+                        const times=document.querySelector('.quick-timer-button'),options=document.querySelector('.quick-timer-dialog');
+                        times.click();const preset=options.querySelector('[data-minutes=""45""]');
+                        if(!options.open||!preset)throw Error('Quick times did not offer 45 minutes');
+                        preset.click();
+                        if(options.open||state().timer.total!==2700000)throw Error('Quick times did not set 45 minutes');
+                        const toggle=document.querySelector('#toggle-timer');toggle.click();const running=state().timer;
+                        times.click();const add=options.querySelector('[data-minutes=""5""]');
+                        if(!options.open||!add)throw Error('Running timer did not offer a five-minute extension');
+                        add.click();
+                        const extended=state().timer;
+                        if(extended.id!==running.id||extended.endAt!==running.endAt+300000)throw Error('Timer extension changed the session');
+                        document.querySelector('#reset-timer').click();
+                        if(state().timer.total!==2700000)throw Error('Reset retained the extension');
                         goal.click();const dialog=document.querySelector('.focus-goal-dialog');
                         if(!dialog.open)throw Error('Daily goal did not open');
+                        const days=dialog.querySelectorAll('[data-focus-day]');
+                        const skipped=state().history.filter(h=>h.day===days[6]?.dataset.focusDay&&h.mode==='focus'&&h.outcome==='skipped');
+                        if(days.length!==7||!skipped.some(h=>h.id===running.id)||!dialog.querySelector('.focus-week-detail').textContent.endsWith(skipped.length+' skipped'))throw Error('Focus week must include the skipped session');
+                        days[0].click();
+                        if(days[0].getAttribute('aria-pressed')!=='true')throw Error('Focus week day selection failed');
                         dialog.querySelector('input').value='90';dialog.querySelector('[value=save]').click();
                         if(dialog.open)throw Error('Daily goal did not save');
                         document.querySelector('.session-tools-toggle').click();
                         if(document.querySelector('.session-tools').hidden)throw Error('Session tools did not open');
                         document.querySelector('.session-tools-toggle').click();
                         document.querySelector('#automatic-backup-now').click();
-                        return JSON.parse(localStorage.getItem('yin-and-yang.v1')).settings.dailyFocusGoal===90?'passed':'failed';
-                    })()");
+                        return state().settings.dailyFocusGoal===90?'passed':'Daily goal was not persisted';
+                    }catch(error){return error.message;}})()");
                     if (checks != "\"passed\"") throw new InvalidOperationException("UI checks failed: " + checks);
                     await Task.Delay(600);
                     string backupCheck = await view.ExecuteScriptAsync(@"(function(){
@@ -371,6 +392,9 @@ internal sealed class Desktop : Form
                     ClientSize = new Size(560, 720);
                     await Task.Delay(400);
                     using (var screenshot = File.Create(Path.Combine(profile, "compact.png")))
+                        await view.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, screenshot);
+                    await view.ExecuteScriptAsync("document.querySelector('.daily-focus-goal').click()");
+                    using (var screenshot = File.Create(Path.Combine(profile, "focus-week.png")))
                         await view.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, screenshot);
                     File.WriteAllText(Path.Combine(profile, "display.txt"), "DPI: " + DeviceDpi + "; icon: " + Icon.Size);
                     if (Directory.GetFiles(Path.Combine(profile, "Backups"), "garden-*.json").Length < 1)

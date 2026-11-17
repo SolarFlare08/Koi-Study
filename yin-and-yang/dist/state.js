@@ -329,6 +329,10 @@ export function loadState(storage) {
     const maxTimer=taskPlan||t?.taskBreak===true?86400000:10800000;
     if (t && ['focus','break'].includes(t.mode) && ['idle','running','paused','overtime'].includes(t.status) && Number.isFinite(t.remaining) && t.remaining>=0 && t.remaining<=maxTimer && Number.isFinite(t.total) && t.total>0 && t.total<=maxTimer && (!['running','overtime'].includes(t.status) || (Number.isFinite(t.endAt) && typeof t.id==='string' && Number.isFinite(t.startedAt)))) {
       base.timer={...t};
+      const pacing=t.pacing;
+      if(!pacing||!Number.isFinite(pacing.left)||pacing.left<=0||pacing.left>t.total||
+          !Number.isFinite(pacing.progress)||pacing.progress<0||pacing.progress>=1)delete base.timer.pacing;
+      if(t.taskBreak!==true||!Number.isInteger(t.baseTotal)||t.baseTotal<1000||t.baseTotal>maxTimer)delete base.timer.baseTotal;
       if(taskPlan)base.timer.taskPlan=taskPlan;else delete base.timer.taskPlan;
       if(t.mode!=='focus'||!base.mistakes.some(item=>item.id===t.mistakeId))delete base.timer.mistakeId;
       base.timer.startHandoff=sessionHandoff(t.startHandoff);
@@ -353,6 +357,41 @@ export function loadState(storage) {
   } catch { return base; }
 }
 export function remaining(state, now=Date.now()) { return state.timer.status==='overtime'?0:state.timer.status==='running' ? Math.max(0,state.timer.endAt-now) : state.timer.remaining; }
+export function timerProgress(state,now=Date.now()){
+  const {pacing,total}=state.timer,left=remaining(state,now);
+  const progress=pacing?1-left/pacing.left*(1-pacing.progress):1-left/total;
+  return Math.max(0,Math.min(1,progress));
+}
+
+export function canExtendTimer(state,ms,now=Date.now()){
+  const t=state.timer,limit=t.taskPlan||t.taskBreak?86400000:10800000;
+  return Number.isInteger(ms)&&ms>0&&t.total+ms<=limit&&
+    ['running','paused'].includes(t.status)&&remaining(state,now)>0&&!t.block&&!t.sequence&&!t.mistakeId;
+}
+
+export function extendTimer(state,ms,now=Date.now()){
+  if(!canExtendTimer(state,ms,now))return false;
+  const t=state.timer,left=remaining(state,now)+ms,pacing={left,progress:timerProgress(state,now)};
+  state.timer={...t,total:t.total+ms,remaining:left,pacing,endAt:t.status==='running'?t.endAt+ms:null};
+  if(t.taskBreak)state.timer.baseTotal=t.baseTotal||t.total;
+  return true;
+}
+
+export function quickTimerLengths(mode){return mode==='break'?[2,5,10,15]:[15,25,45,60];}
+
+export function applyQuickTimerLength(state,minutes){
+  const t=state.timer;
+  if(t.status!=='idle'||t.block||t.sequence||t.mistakeId||!quickTimerLengths(t.mode).includes(minutes))return false;
+  if(t.taskPlan||t.taskBreak){
+    state.timer={...t,total:minutes*60000,remaining:minutes*60000};
+    if(t.taskBreak)state.timer.baseTotal=t.baseTotal||t.total;
+  }else{
+    state.settings={...state.settings,[t.mode]:minutes};
+    reset(state,t.mode);
+    if(t.goal)state.timer.goal=t.goal;
+  }
+  return true;
+}
 export function consumeTimerWarning(state,now=Date.now()) {
   const timer=state.timer;
   if (timer.status!=='running'||timer.warningSent) return null;

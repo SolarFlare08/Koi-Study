@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {freshState,startPause,reset,loadState,STORAGE_KEY,dayKey} from '../dist/state.js';
-import {focusCompass} from '../dist/focus-compass.js';
+import {applyQuickTimerLength,extendTimer,freshState,startPause,reset,loadState,remaining,settle,startTaskTiming,STORAGE_KEY,dayKey} from '../dist/state.js';
+import {focusCompass,focusWeek} from '../dist/focus-compass.js';
 import {createBackup,readBackup,saveRestorePoint,loadRestorePoints} from '../dist/backup.js';
 import {installAutomaticBackup,rotateAutomaticPoints} from '../dist/automatic-backup.js';
 
@@ -51,4 +51,52 @@ test('automatic snapshots rotate independently, remain restorable, and do not mu
   assert.equal(readBackup(JSON.stringify(points[2].snapshot)).state.intention,'Snapshot 2');
   const before=JSON.stringify(points);rotateAutomaticPoints(points,createBackup(state,storage,[]));
   assert.equal(JSON.stringify(points),before);
+});
+test('adding time keeps elapsed progress and the same session across reloads and pauses',()=>{
+  const state=freshState(),storage=memory(),start=Date.now(),minute=60000;
+  const time=start+10*minute;startPause(state,start);
+  const {id,endAt}=state.timer,before=focusCompass(state,time).progress;
+  assert.equal(extendTimer(state,5*minute,time),true);
+  assert.equal(state.timer.id,id);assert.equal(state.timer.endAt,endAt+5*minute);
+  assert.equal(focusCompass(state,time).progress,before);
+  storage.setItem(STORAGE_KEY,JSON.stringify(state));
+  const loaded=loadState(storage);
+  assert.equal(focusCompass(loaded,time).progress,before);
+  startPause(loaded,time+minute);
+  const progress=focusCompass(loaded,time+minute).progress;
+  assert.equal(extendTimer(loaded,minute,time+2*minute),true);
+  assert.equal(remaining(loaded,time+4*minute),20*minute);
+  assert.equal(loaded.timer.endAt,null);
+  assert.equal(focusCompass(loaded,time+4*minute).progress,progress);
+  startPause(loaded,time+4*minute);
+  assert.equal(extendTimer(loaded,minute,loaded.timer.endAt),false);
+  assert.equal(settle(loaded,loaded.timer.endAt+minute).focusMs,31*minute);
+  reset(loaded,'focus');assert.equal(loaded.timer.total,25*minute);
+});
+test('quick times set the default or change one task phase without discarding its plan',()=>{
+  const state=freshState();
+  assert.equal(applyQuickTimerLength(state,45),true);
+  reset(state);assert.equal(state.timer.total,45*60000);
+  startTaskTiming(state,'task',90);
+  assert.equal(applyQuickTimerLength(state,25),true);
+  assert.equal(state.timer.taskPlan.totalMs,90*60000);
+  const now=Date.now();startPause(state,now);
+  assert.equal(applyQuickTimerLength(state,15),false);
+  state.timer.block={taskId:'task',left:60000};
+  assert.equal(extendTimer(state,60000,now),false);
+});
+test('focus week spans seven local dates and distinguishes skipped sessions from goal progress',()=>{
+  const state=freshState(),now=new Date(2026,10,3,10);
+  state.settings.dailyFocusGoal=30;
+  state.history=[
+    {day:'2026-10-27',mode:'focus',outcome:'completed',focusMs:60*60000},
+    {day:'2026-10-28',mode:'focus',outcome:'completed',focusMs:15*60000},
+    {day:'2026-11-01',mode:'focus',outcome:'skipped',focusMs:30*60000},
+    {day:'2026-11-03',mode:'focus',outcome:'completed',focusMs:30*60000},
+    {day:'2026-11-03',mode:'break',outcome:'completed',focusMs:5*60000}
+  ];
+  const week=focusWeek(state,+now);
+  assert.equal(week.days[0].key,'2026-10-28');assert.equal(week.days.length,7);
+  assert.equal(week.days.find(day=>day.key==='2026-11-01').skipped,1);
+  assert.equal(week.total,45);assert.equal(week.met,1);
 });
