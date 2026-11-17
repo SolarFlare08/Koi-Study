@@ -216,7 +216,7 @@ export const helpTopics = [
       'Set its project, section, date, time, estimate, deadline, priority, labels, or reminder in the properties area.',
       'Set `Snooze until` to keep the task out of the focus queue until that date. Its schedule and deadline stay visible in Planner. Clear the date to bring it back early.',
       'Expand `Task templates` and choose `Save as template` to reuse a task’s subtasks, labels, and estimate. In a new task, select a saved template and choose `Use template`. Review the draft and save it as a task.',
-      'Save the task. Click its title to edit it again. Right-click a task for actions such as editing, prioritizing, focusing, and deleting.'],
+      'Save the task. Click its title to edit it again. Right-click a task to choose Finish task, edit it, prioritize it, focus on it, or delete it. You can reopen completed tasks from the same menu.'],
     tip:'Task reminders are shown while the app is open. A task’s estimate is also useful for scheduling and estimate-accuracy reports.',
     action:'planner', actionLabel:'Open Planner', related:['repeat','quick-add','completion','waiting-for']
   },
@@ -627,7 +627,7 @@ export const helpTopics = [
     summary:'Add books directly to your bookshelf and open their reviews and annotation history.',
     steps:['Open Reading and click Add book. Enter a title, optional author and page count, and choose Want to read or Reading.',
       'Hover over a spine or focus it with Tab to preview its cover. Select the spine to open its details. Every rated spine has a badge. A ringed planet marks 6/5, a crystal marks 5–5.9/5, and gold, silver, bronze, and poop mark the lower ratings.',
-      'Choose Shelf order and drag a spine onto another, or press Alt+Left or Alt+Right on a focused spine. Move left and Move right in book details work on touch screens.',
+      'Choose Shelf order to use multiple shelves. Drag a spine into any slot, or open Place on shelf in book details to choose a shelf and slot on touch screens. Dragging onto another book swaps their positions. Add shelf makes another row.',
       'Open a book and choose Archive book to move it to Archived. Restore to shelf brings it back. Delete book asks you to confirm before removing the book, its reading records, and its Garden lantern.',
       'Choose Find pages on Open Library in the book editor. Search by title and author for a typical page count or use ISBN for a specific edition. Select a result and save. You can enter pages manually.',
       'In an unfinished book, use Edit library entry to change its information or shelf, or Mark book finished to move it to Finished.',

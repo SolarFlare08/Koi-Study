@@ -419,6 +419,7 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
     state.readingNotes=previous;
     return false;
   },openCalendar:()=>calendarToggle.click(),linkedNotes:id=>linkedStickyNotes('book',id),
+  getShelfRows:()=>state.readingShelfRows,
   getLibrary:()=>state.libraryBooks,saveLibrary:(id,values)=>saveReadingChanges(saveLibraryBook(state,id,values)),
   manageBook:(id,action,target)=>saveReadingChanges(manageShelfBook(state,id,action,target)),
   getFinished:()=>state.finishedBooks,bookReward:id=>gardenReward(state.gardenGrowth,'book',id),
@@ -3451,7 +3452,7 @@ function openTaskMenu(id,anchor,x,y){
   if(anchor.dataset.block)actions.push(['edit-block','Edit block'],['remove-block','Remove block']);
   if(taskStatus(task)==='todo'&&!task.waitingFor&&!waitingOn(task).length&&!(task.snoozedUntil>dayKey()))actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
   if(!task.waitingFor&&canPlanDeadline(task))actions.push(['plan-deadline','Plan to deadline…']);
-  if(status!=='upcoming')actions.push(['complete',status==='done'?'Reopen task':'Mark done']);
+  if(status!=='upcoming'||!task.repeat||task.repeat==='none')actions.unshift(['complete',status==='done'?'Reopen task':'Finish task']);
   if(task.date&&task.time&&!anchor.dataset.block)actions.push(['unschedule','Remove scheduled time']);
   actions.push(['delete','Delete task']);
   taskMenu.innerHTML=actions.map(([key,label])=>`<button type="button" role="menuitem" data-task-action="${key}">${label}</button>`).join('');

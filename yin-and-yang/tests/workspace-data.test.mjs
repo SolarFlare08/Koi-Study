@@ -710,10 +710,14 @@ test('shelf arrangement and archive survive reload, and deletion clears derived 
   state.finishedBooks=[{id:'finished',title:'Blue',author:'',finishedOn:'2026-11-16',rating:6}];
   apply(manageShelfBook(state,first,'move',second));
   apply(manageShelfBook(state,first,'archive'));
+  apply(manageShelfBook(state,'','add-shelf'));
+  apply(manageShelfBook(state,second,'place',29));
   storage.setItem(STORAGE_KEY,JSON.stringify(state));
   const loaded=loadState(storage);
   assert.equal(loaded.libraryBooks.find(book=>book.id===first).archived,true);
   assert.equal(loaded.libraryBooks.find(book=>book.id===first).shelfOrder,0);
+  assert.equal(loaded.libraryBooks.find(book=>book.id===second).shelfOrder,29);
+  assert.equal(loaded.readingShelfRows,3);
   assert.equal(loaded.libraryBooks.find(book=>book.id===first).totalPages,280);
   apply(manageShelfBook(state,first,'restore'));
   assert.equal(state.libraryBooks.find(book=>book.id===first).archived,undefined);

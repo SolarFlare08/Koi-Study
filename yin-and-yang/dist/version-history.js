@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'3.15.0',date:'2026-11-16',title:'Flexible bookshelf placement',changes:[
+    'Add Finish task to the right-click menu. Completed tasks can be reopened from the same menu.',
+    'Add shelves and place books in individual slots, leaving gaps wherever you like. Shelf count and placement survive refreshes and backups.'
+  ]},
   {version:'3.14.1',date:'2026-11-16',title:'Sharper Reading badges',changes:[
     'Draw stars and book badges as SVGs, with a ringed planet for 6/5, a crystal for 5–5.9/5, medal badges for Gold, Silver, and Bronze, and a poop badge for 1–1.9/5.',
     'Give 6/5 stars a bright glow and Crystal books a softer shine. Keep spine text sharp as the cover slides out.'

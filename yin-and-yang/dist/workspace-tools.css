@@ -194,6 +194,28 @@
     #77634b calc(var(--shelf-row) - 6px),#3b352b calc(var(--shelf-row) - 5px),#272d2a var(--shelf-row));
   box-shadow: inset 0 8px 22px #131819b0; border: 1px solid #ac9c7b74; border-radius: 12px;
 }
+#reading-add-shelf {
+  margin: 0 0 8px; padding: 5px 9px; border: 1px solid var(--surface-line);
+  border-radius: 6px; color: var(--surface-ink); background: var(--surface-field); font-size: 12px;
+}
+#reading-add-shelf:hover { background: var(--surface-raised); }
+#reading-books.reading-spatial-shelf {
+  grid-template-columns: minmax(0,1fr); grid-auto-rows: auto; align-items: stretch; gap: 8px;
+  padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; overflow-x: auto;
+}
+.reading-shelf-row {
+  display: grid; position: relative; grid-template-columns: repeat(12,minmax(35px,1fr)); gap: 3px;
+  width: max(100%,570px); height: var(--shelf-row); padding: 12px 54px 10px;
+  border: 1px solid #ac9c7b74; border-radius: 10px;
+  background: linear-gradient(to bottom,#202d2e,#354945 calc(100% - 13px),#a08d69 calc(100% - 12px),
+    #77634b calc(100% - 6px),#342f29 calc(100% - 5px));
+}
+.reading-shelf-row::before {
+  content: attr(aria-label); position: absolute; inset-inline-start: 10px; top: 8px; color: #e3d3b9; font-size: 10px;
+}
+.reading-shelf-slot { display: flex; align-items: end; justify-content: center; min-width: 0; border-radius: 4px; }
+.reading-shelf-slot > .reading-spine-button { margin-bottom: 0; }
+.reading-reordering .reading-shelf-slot:hover { outline: 1px dashed #fff0cb; background: #fff0cb32; }
 #reading-books.reading-shelf-empty { display: flex; align-items: center; justify-content: center; padding: 14px; text-align: center; }
 #reading-books > p { color: #eeede1; }
 .reading-spine-button {
@@ -350,6 +372,7 @@
 .reading-author,.reading-resume time,.reading-timeline time { color: var(--surface-muted); }
 @media(max-width:620px) {
   #reading-books { --shelf-row: 156px; grid-template-columns: repeat(auto-fill,minmax(33px,1fr)); }
+  .reading-spatial-shelf .reading-spine-preview .reading-cover { min-height: 130px; }
   .reading-cover { min-height: 141px; padding-inline: 9px 6px; }
   .reading-cover > strong { font-size: 15px; }
   .reading-cover > small { font-size: 10px; }
