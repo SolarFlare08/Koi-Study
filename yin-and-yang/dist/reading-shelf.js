@@ -1,3 +1,4 @@
+import {bookendArt,bookendDesigns} from './reading-bookends.js';
 import {installReadingDiscussion} from './reading-discussion.js';
 import {collectionKinds,loadReadingCollections,readingDay,relinkReadingCollections,rereadRecord,reviewChapter,validReadingDay,bookRating,ratingTier,radiantRatingLabels} from './reading-progress.js';
 
@@ -210,8 +211,16 @@ export function mergeShelfBooks(state,sourceId,targetId){
 const booksPerShelf=12,maxShelfRows=100;
 export const loadShelfRows=value=>Number.isInteger(value)?Math.max(2,Math.min(maxShelfRows,value)):2;
 
-function shelfSlots(books){
-  const slots=new Map(),overflow=[];
+export function loadBookends(value){
+  const positions=new Map();
+  for(const item of Array.isArray(value)?value:[]){
+    if(!Number.isInteger(item?.position)||item.position<0||item.position>=booksPerShelf*maxShelfRows||!Object.hasOwn(bookendDesigns,item.kind))continue;
+    positions.set(item.position,{position:item.position,kind:item.kind,facing:item.facing==='right'?'right':'left'});
+  }
+  return [...positions.values()];
+}
+function shelfSlots(books,bookends=[]){
+  const slots=new Map(bookends.map(item=>[item.position,{bookend:item}])),overflow=[];
   for(const book of [...books].sort(shelfOrder)){
     const position=book.library?.shelfOrder;
     if(position>=0&&position<booksPerShelf*maxShelfRows&&!slots.has(position))slots.set(position,book);
@@ -230,10 +239,19 @@ const shelfOrder=(a,b)=>(a.library?.shelfOrder??Infinity)-(b.library?.shelfOrder
 
 export function manageShelfBook(state,id,action,targetId){
   const books=readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks);
-  const slots=shelfSlots(books);
+  const bookends=state.readingBookends||[];
+  const slots=shelfSlots(books,bookends);
   const rows=Math.max(loadShelfRows(state.readingShelfRows),...Array.from(slots.keys(),position=>Math.floor(position/booksPerShelf)+1));
   if(action==='add-shelf')return rows>=maxShelfRows?{error:'The shelf limit has been reached.'}:
     {changes:{readingShelfRows:rows+1}};
+  if(action==='save-bookend'){
+    const [item]=loadBookends([targetId]);
+    if(!item||item.position>=rows*booksPerShelf)return {error:'Choose a shelf slot.'};
+    const occupant=slots.get(item.position);
+    if(occupant&&!(item.position===id&&occupant.bookend))return {error:'That slot is occupied.'};
+    return {changes:{readingBookends:[...bookends.filter(entry=>entry.position!==id),item]}};
+  }
+  if(action==='remove-bookend')return {changes:{readingBookends:bookends.filter(entry=>entry.position!==id)}};
   const book=books.find(item=>item.id===id);
   if(!book)return {error:'This book is no longer on the shelf.'};
   const libraryBooks=[...state.libraryBooks];
@@ -252,10 +270,11 @@ export function manageShelfBook(state,id,action,targetId){
     const to=action==='place'?targetId:[...slots].find(([,item])=>item.id===targetId)?.[0];
     if(!Number.isInteger(to)||to<0||to>=rows*booksPerShelf||to===from)return {error:'Choose another position.'};
     const displaced=slots.get(to);
+    if(displaced?.bookend)return {error:'Move the bookend before using that slot.'};
     slots.delete(from);
     if(displaced)slots.set(from,displaced);
     slots.set(to,book);
-    for(const [position,item] of slots)update(item,{shelfOrder:position});
+    for(const [position,item] of slots)if(!item.bookend)update(item,{shelfOrder:position});
     return {bookId:id,changes:{libraryBooks}};
   }
   if(action!=='delete')return {error:'Unknown shelf action.'};
@@ -378,7 +397,7 @@ function pageLookupMarkup(){
   </div>`;
 }
 
-export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibrary,saveLibrary,manageBook,getShelfRows,openCalendar,linkedNotes=()=>'',getFinished,bookReward,finishBook,saveBook,mergeBooks,getCollections,saveCollections}){
+export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibrary,saveLibrary,manageBook,getShelfRows,getBookends,openCalendar,linkedNotes=()=>'',getFinished,bookReward,finishBook,saveBook,mergeBooks,getCollections,saveCollections}){
   root.innerHTML=`<div class="reading-wrap">
     <header class="reading-heading"><div><h2 id="reading-heading">My library</h2><p id="reading-count"></p></div>
       <div class="reading-actions"><button type="button" id="reading-collections-toggle" aria-expanded="false" aria-controls="reading-collections">Collections</button>
@@ -399,15 +418,18 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
         <label class="reading-sort"><span class="sr-only">Sort books</span><select id="reading-sort"><option value="shelf">Shelf order</option><option value="last">Recent activity</option><option value="title">Title</option><option value="finished">Finish date</option><option value="rating">Rating</option></select></label>
       </div>
       <button id="reading-add-shelf" type="button">+ Add shelf</button>
+      <button id="reading-add-bookend" type="button" aria-haspopup="dialog">+ Add bookend</button>
       <div id="reading-books"></div>
     </section></div>
     <dialog id="reading-history" aria-labelledby="reading-detail-title"><button type="button" class="reading-dialog-close" data-reading-close aria-label="Close book">×</button><div id="reading-detail"></div></dialog>
-    <dialog id="reading-library-editor" aria-labelledby="reading-library-title"></dialog>`;
+    <dialog id="reading-library-editor" aria-labelledby="reading-library-title"></dialog>
+    <dialog id="reading-bookend-editor" class="workspace-dialog" aria-labelledby="reading-bookend-title"></dialog>`;
   const search=root.querySelector('#reading-search');
   const list=root.querySelector('#reading-books');
   const details=root.querySelector('#reading-history'),history=details.querySelector('#reading-detail');
   const libraryEditor=root.querySelector('#reading-library-editor');
   const addBook=root.querySelector('#reading-add-book'),addShelf=root.querySelector('#reading-add-shelf');
+  const addBookend=root.querySelector('#reading-add-bookend'),bookendEditor=root.querySelector('#reading-bookend-editor');
   let selected='',review=false,editingNote='',editingBook=false,filter='all',editingLibraryId='',detailAnchor=null;
   let collectionId='',editingReread=null,visibleBooks=[],draggedBook='';
   const collections=root.querySelector('#reading-collections');
@@ -538,9 +560,9 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     });
     const current=all.find(book=>book.id===selected);
     const arranged=sort.value==='shelf'&&filter==='all'&&!query;
-    const slots=shelfSlots(all);
+    const slots=shelfSlots(all,getBookends());
     const rows=Math.max(getShelfRows(),...Array.from(slots.keys(),position=>Math.floor(position/booksPerShelf)+1));
-    addShelf.hidden=!arranged;
+    addShelf.hidden=addBookend.hidden=!arranged;
     list.classList.toggle('reading-spatial-shelf',arranged);
     list.classList.toggle('reading-shelf-empty',!arranged&&!books.length);
     visibleBooks=books;
@@ -551,7 +573,10 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     list.innerHTML=arranged?Array.from({length:rows},(_,row)=>`<div class="reading-shelf-row" role="group" aria-label="Shelf ${row+1}">
       ${Array.from({length:booksPerShelf},(_,index)=>{
         const position=row*booksPerShelf+index,book=slots.get(position);
-        return `<div class="reading-shelf-slot" data-book-position="${position}">${book&&!book.library?.archived?bookMarkup(book):''}</div>`;
+        return `<div class="reading-shelf-slot" data-book-position="${position}">${book?.bookend?
+          `<button type="button" class="reading-bookend" data-edit-bookend="${position}" aria-haspopup="dialog"
+            aria-label="Edit ${bookendDesigns[book.bookend.kind].name} bookend, shelf ${row+1}, slot ${index+1}">${bookendArt(book.bookend.kind,book.bookend.facing)}</button>`:
+          book&&!book.library?.archived?bookMarkup(book):''}</div>`;
       }).join('')}</div>`).join(''):books.map(bookMarkup).join('')||
       `<p>${query?'No books match your search.':filter!=='all'?'No books on this shelf yet.':'Add a book to start your library.'}</p>`;
     if(!details.open)return;
@@ -589,7 +614,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
         <form id="reading-place-book"><div class="finished-book-fields">
           <label>Shelf<select name="shelf">${Array.from({length:rows},(_,row)=>`<option value="${row}" ${Math.floor(currentSlot/booksPerShelf)===row?'selected':''}>Shelf ${row+1}</option>`).join('')}</select></label>
           <label>Slot<select name="slot">${Array.from({length:booksPerShelf},(_,slot)=>`<option value="${slot}" ${currentSlot%booksPerShelf===slot?'selected':''}>${slot+1}</option>`).join('')}</select></label>
-        </div><button type="submit">Place book</button></form></details>`}
+        </div><button type="submit">Place book</button><p data-place-error role="alert" hidden></p></form></details>`}
       <details class="reading-merge"><summary>Delete book</summary>
         <form id="reading-delete-form">
           <p>Delete this book’s reviews, reading notes, annotation history, and any earned Garden lantern. Linked sticky notes stay in Notes.</p>
@@ -675,6 +700,47 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     status.textContent={move:'Shelf order saved.',place:'Book placed.',archive:'Book archived.',restore:'Book restored.',delete:'Book deleted.'}[action];
     return true;
   }
+  function openBookendEditor(position){
+    const current=getBookends().find(item=>item.position===position);
+    const slots=shelfSlots(shelf(),getBookends());
+    const rows=Math.max(getShelfRows(),...Array.from(slots.keys(),index=>Math.floor(index/booksPerShelf)+1));
+    const available=Array.from({length:rows*booksPerShelf},(_,index)=>index).filter(index=>index===position||!slots.has(index));
+    bookendEditor.innerHTML=`<header><h3 id="reading-bookend-title">${current?'Edit bookend':'Add a bookend'}</h3>
+      <button type="button" data-close-bookend aria-label="Close bookend editor">×</button></header>
+      <form data-position="${current?.position??''}">
+        <fieldset class="reading-bookend-choices"><legend>Design</legend>${Object.entries(bookendDesigns).map(([kind,design])=>
+          `<label><input type="radio" name="kind" value="${kind}" ${kind===(current?.kind||'jade')?'checked':''}>${bookendArt(kind,'left')}<span>${design.name}</span></label>`
+        ).join('')}</fieldset>
+        <label>Position<select name="position" required>${available.map(index=>`<option value="${index}" ${index===position?'selected':''}>Shelf ${Math.floor(index/booksPerShelf)+1} · Slot ${index%booksPerShelf+1}</option>`).join('')}</select></label>
+        <label>Orientation<select name="facing"><option value="left">Original</option><option value="right" ${current?.facing==='right'?'selected':''}>Mirrored</option></select></label>
+        <p data-bookend-error role="alert" ${available.length?'hidden':''}>Add a shelf or clear a slot to make room.</p>
+        <footer>${current?'<button type="button" data-remove-bookend>Remove bookend</button>':''}
+          <button type="submit" class="planner-primary" ${available.length?'':'disabled'}>${current?'Save bookend':'Add bookend'}</button></footer>
+      </form>`;
+    bookendEditor.showModal();
+  }
+  addBookend.addEventListener('click',()=>openBookendEditor());
+  function saveBookend(action,form,bookend){
+    const original=form.dataset.position===''?undefined:Number(form.dataset.position);
+    const result=manageBook(original,action,bookend);
+    if(result.error){
+      const error=form.querySelector('[data-bookend-error]');error.hidden=false;error.textContent=result.error;return;
+    }
+    bookendEditor.close();render();
+    const anchor=bookend&&list.querySelector('[data-edit-bookend="'+bookend.position+'"]');
+    (anchor||addBookend).focus();
+    status.textContent=bookend?'Bookend saved.':'Bookend removed.';
+  }
+  bookendEditor.addEventListener('submit',event=>{
+    event.preventDefault();
+    const fields=Object.fromEntries(new FormData(event.target));
+    saveBookend('save-bookend',event.target,{...fields,position:Number(fields.position)});
+  });
+  bookendEditor.addEventListener('click',event=>{
+    if(event.target.closest('[data-close-bookend]'))bookendEditor.close();
+    const remove=event.target.closest('[data-remove-bookend]');
+    if(remove)saveBookend('remove-bookend',remove.form);
+  });
   addShelf.addEventListener('click',()=>{
     const result=manageBook('','add-shelf');
     if(result.error){status.textContent=result.error;return;}
@@ -691,7 +757,8 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     list.classList.add('reading-reordering');
   });
   list.addEventListener('dragover',event=>{
-    if(!draggedBook||!event.target.closest('[data-book-position]'))return;
+    const slot=event.target.closest('[data-book-position]');
+    if(!draggedBook||!slot||slot.querySelector('[data-edit-bookend]'))return;
     event.preventDefault();event.dataTransfer.dropEffect='move';
   });
   list.addEventListener('drop',event=>{
@@ -716,6 +783,8 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     if(changeShelf('move',target.id))bookButtonFor(selected)?.focus();
   });
   list.addEventListener('click',event=>{
+    const end=event.target.closest('[data-edit-bookend]');
+    if(end){openBookendEditor(Number(end.dataset.editBookend));return;}
     const book=event.target.closest('[data-reading-book]');
     if(!book)return;
     showDetail(book.dataset.readingBook,book);
@@ -725,6 +794,9 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
       event.preventDefault();
       const {shelf,slot}=event.target.elements;
       if(changeShelf('place',Number(shelf.value)*booksPerShelf+Number(slot.value)))focusDetailTitle();
+      else{
+        const error=event.target.querySelector('[data-place-error]');error.hidden=false;error.textContent=status.textContent;
+      }
       return;
     }
     if(event.target.id==='reading-delete-form'){

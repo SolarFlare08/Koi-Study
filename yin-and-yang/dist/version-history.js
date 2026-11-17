@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'3.16.0',date:'2026-11-16',title:'Bookshelf bookends',changes:[
+    'Add a jade arch, brass moon, stone peaks, or porcelain cat to an empty shelf slot. Move, mirror, or remove a bookend from its editor.',
+    'Bookends save with the bookshelf and are included in Reading backups.'
+  ]},
   {version:'3.15.2',date:'2026-11-16',title:'Page-based spine thickness',changes:[
     'Size book spines by page count. Books without a saved count use the width of a 350-page book, and neighboring spines still sit flush.'
   ]},

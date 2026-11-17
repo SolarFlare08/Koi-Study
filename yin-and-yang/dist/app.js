@@ -419,7 +419,7 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
     state.readingNotes=previous;
     return false;
   },openCalendar:()=>calendarToggle.click(),linkedNotes:id=>linkedStickyNotes('book',id),
-  getShelfRows:()=>state.readingShelfRows,
+  getShelfRows:()=>state.readingShelfRows,getBookends:()=>state.readingBookends,
   getLibrary:()=>state.libraryBooks,saveLibrary:(id,values)=>saveReadingChanges(saveLibraryBook(state,id,values)),
   manageBook:(id,action,target)=>saveReadingChanges(manageShelfBook(state,id,action,target)),
   getFinished:()=>state.finishedBooks,bookReward:id=>gardenReward(state.gardenGrowth,'book',id),

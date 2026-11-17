@@ -209,6 +209,7 @@ export function planBackupRestore(storage,current,incoming,sections){
     rituals(apply,'annotate','Annotation logs');stateList(apply,'readingNotes','Chapter notes');
     stateList(apply,'finishedBooks','Finished books and reviews');
     stateList(apply,'libraryBooks','Library books');
+    stateList(apply,'readingBookends','Bookends',item=>item.position);
     if(current.readingShelfRows!==incoming.state.readingShelfRows)details.push({label:'Bookshelves',added:0,replaced:1,unchanged:0,
       changes:[backupConflict('Shelf count',current.readingShelfRows,incoming.state.readingShelfRows)]});
     if(apply)state.readingShelfRows=incoming.state.readingShelfRows;
