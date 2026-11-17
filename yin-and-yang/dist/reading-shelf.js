@@ -16,7 +16,9 @@ export function loadLibraryBooks(value){
     if(!title)continue;
     const id=bookKey(title,author);
     books.set(id,{id,title,author,status:Object.hasOwn(libraryStatuses,item.status)?item.status:'want',
-      totalPages:pageCount(item.totalPages),addedOn:validReadingDay(item.addedOn)?item.addedOn:''});
+      totalPages:pageCount(item.totalPages),addedOn:validReadingDay(item.addedOn)?item.addedOn:'',
+      ...(item.archived===true?{archived:true}:{}),
+      ...(Number.isSafeInteger(item.shelfOrder)&&item.shelfOrder>=0?{shelfOrder:item.shelfOrder}:{})});
   }
   return [...books.values()];
 }
@@ -152,7 +154,7 @@ export function saveLibraryBook(state,id,values){
   if(updated.id!==id&&shelf.some(book=>book.id===updated.id))return {error:'A book with that title and author is already on your shelf.'};
   return {bookId:updated.id,changes:{
     ...(id?readingIdentityChanges(state,id,updated):{}),
-    libraryBooks:[...library.filter(item=>item!==previous),updated]
+    libraryBooks:previous?library.map(item=>item===previous?updated:item):[...library,updated]
   }};
 }
 
@@ -205,6 +207,49 @@ export function mergeShelfBooks(state,sourceId,targetId){
     readingCollections:relinkReadingCollections(state.readingCollections,sourceId,targetId)}};
 }
 
+const shelfOrder=(a,b)=>(a.library?.shelfOrder??Infinity)-(b.library?.shelfOrder??Infinity)||
+  a.title.localeCompare(b.title)||a.author.localeCompare(b.author);
+
+export function manageShelfBook(state,id,action,targetId){
+  const books=readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks);
+  const book=books.find(item=>item.id===id);
+  if(!book)return {error:'This book is no longer on the shelf.'};
+  const libraryBooks=[...state.libraryBooks];
+  const update=(item,changes)=>{
+    const [record]=loadLibraryBooks([{title:item.title,author:item.author,status:bookStatus(item)==='reading'?'reading':'want',
+      ...item.library,...changes}]);
+    const index=libraryBooks.findIndex(entry=>entry.id===item.id);
+    if(index<0)libraryBooks.push(record);else libraryBooks[index]=record;
+  };
+  if(action==='archive'||action==='restore'){
+    update(book,{archived:action==='archive'});
+    return {bookId:id,changes:{libraryBooks}};
+  }
+  if(action==='move'){
+    const ordered=books.sort(shelfOrder),from=ordered.indexOf(book);
+    const to=ordered.findIndex(item=>item.id===targetId&&Boolean(item.library?.archived)===Boolean(book.library?.archived));
+    if(to<0||from===to)return {error:'Choose another position.'};
+    ordered.splice(to,0,...ordered.splice(from,1));
+    ordered.forEach((item,index)=>update(item,{shelfOrder:index}));
+    return {bookId:id,changes:{libraryBooks}};
+  }
+  if(action!=='delete')return {error:'Unknown shelf action.'};
+  const matches=(title,author)=>bookKey(title,author)===id;
+  const finished=state.finishedBooks.filter(item=>matches(item.title,item.author));
+  const rewards=new Set([id,...finished.map(item=>item.id)]);
+  return {bookId:id,changes:{
+    libraryBooks:libraryBooks.filter(item=>item.id!==id),
+    finishedBooks:state.finishedBooks.filter(item=>!finished.includes(item)),
+    gardenGrowth:state.gardenGrowth.filter(item=>item.kind!=='book'||!rewards.has(item.sourceId)),
+    dailyRituals:Object.fromEntries(Object.entries(state.dailyRituals).map(([date,day])=>
+      matches(day.annotate?.title,day.annotate?.author)?[date,{...day,annotate:{done:day.annotate.done===true}}]:[date,day])),
+    readingNotes:state.readingNotes.filter(note=>!matches(note.bookTitle,note.bookAuthor)),
+    stickyNotes:state.stickyNotes.map(note=>note.related?.some(item=>item.kind==='book'&&item.id===id)?
+      {...note,related:note.related.filter(item=>item.kind!=='book'||item.id!==id)}:note),
+    readingCollections:state.readingCollections.map(group=>({...group,books:group.books.filter(key=>key!==id)}))
+  }};
+}
+
 export function countReadingChapters(rituals){
   return readingShelf(rituals).reduce((total,book)=>{
     const ranges=[],names=new Set();
@@ -251,12 +296,27 @@ function forecastMarkup(book){
     <p>${prediction}${samples&&remaining?` Based on ${samples} recent ${samples===1?'advance':'advances'} between page logs.`:''}</p></section>`;
 }
 
+const tierBadges={
+  dud:{label:'Poop',art:'<path fill="#a76539" stroke="#f8c895" stroke-width="1.3" d="M7.1 11.3c-1.3-2 .4-3.7 2.4-3.8C9 5.7 10.5 4.2 13.8 3c-.6 1.7-.2 3 1.5 4 1.6.9 2.1 2.5 1.4 4.1 3.1.1 4.4 2.5 3.2 4.4 1.1.4 2.1 1.6 2.1 3 0 1.6-1 2.4-2.8 2.4H4.8c-1.8 0-2.8-.8-2.8-2.4 0-1.4 1-2.6 2.1-3-1.1-1.9.3-4.3 3-4.2Z"/><circle fill="#fff0d1" cx="9" cy="14.8" r="1"/><circle fill="#fff0d1" cx="15" cy="14.8" r="1"/><path stroke="#fff0d1" stroke-width="1.2" stroke-linecap="round" d="M10 17.2q2 2 4 0" fill="none"/>'},
+  bronze:{label:'Bronze',art:'<circle cx="12" cy="12" r="9" fill="#9a5b3d" stroke="#f2bb87" stroke-width="1.5"/><circle cx="12" cy="12" r="6.2" fill="none" stroke="#edab75"/><path fill="#ffe0ab" d="m12 7.8 1.2 2.8 3 .2-2.3 2 .7 3L12 14.2l-2.6 1.6.7-3-2.3-2 3-.2Z"/>'},
+  silver:{label:'Silver',art:'<path fill="#a7c3d5" stroke="#f3fbff" stroke-width="1.5" d="M12 2.9 20 6v5.6c0 4.5-3.5 7.7-8 9.5-4.5-1.8-8-5-8-9.5V6Z"/><path fill="none" stroke="#31485a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m8 10 4 4 4-4"/>'},
+  gold:{label:'Gold',art:'<path fill="#d19027" stroke="#ffeb9e" stroke-width="1.4" stroke-linejoin="round" d="m9 14-3 7 4-1 2 2 1-6m2-2 3 7-4-1-2 2-1-6"/><circle cx="12" cy="9.5" r="6.5" fill="#ffcd55" stroke="#fff3b9" stroke-width="1.4"/><path stroke="#885413" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none" d="m8.5 9.3 2.4 2.4 4.7-4.5"/>'},
+  crystal:{label:'Crystal',art:'<path fill="#5be2d4" stroke="#e0fff5" stroke-width="1.45" stroke-linejoin="round" d="m6 4.5 12 0 4 5L12 21 2 9.5Z"/><path fill="#147d98" d="m2.5 9.5 9.5 10.8-3.6-10.8Zm13.1 0L12 20.3l9.5-10.8Z"/><path fill="none" stroke="#e3fff7" stroke-width="1.15" stroke-linejoin="round" d="M2.7 9.5h18.6m-14.8-5 2 5L12 21l3.5-11.5 2-5"/>'},
+  aurora:{label:'Aurora',art:'<circle cx="12.1" cy="11.9" r="6.2" fill="#d69bff" stroke="#fff2ff" stroke-width="1.3"/><path fill="none" stroke="#fff1a5" stroke-width="1.65" stroke-linecap="round" d="M6.6 10.4C2.7 13.1.9 15.6 2 17q2.2 2.7 11.7-2.8C20 10.4 23 6.7 21.7 5.5q-1.1-1-3.5 0"/><path fill="#fff9c9" d="M4 2.2 4.7 4 6.5 4.7 4.7 5.4 4 7.2 3.3 5.4 1.5 4.7 3.3 4Zm15.8 14.4.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z"/>'},
+  unrated:{label:'Unrated',art:'<path fill="none" stroke="#eee8ce" stroke-width="1.6" stroke-linejoin="round" d="M7 4h10v16l-5-4-5 4Z"/>'}
+};
+function tierBadge(tier){
+  return `<svg class="reading-tier-badge" data-tier="${tier}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${tierBadges[tier].art}</svg>`;
+}
 function stars(rating,{number=true}={}){
   if(!rating)return '';
-  return `<span class="reading-rating" role="img" aria-label="${rating} out of 5 stars"><span class="reading-stars" aria-hidden="true">
+  const tier=ratingTier(rating);
+  return `<span class="reading-rating" data-tier="${tier}" role="img" aria-label="${rating} out of 5 stars · ${tierBadges[tier].label}">${tierBadge(tier)}<span class="reading-stars" aria-hidden="true">
     ${Array.from({length:rating>5?6:5},(_,index)=>{
-      const fill=Math.max(0,Math.min(1,rating-index))*100,symbol=index===5?'✦':'★';
-      return `<span class="reading-star" style="--star-fill:${fill.toFixed(0)}%" data-symbol="${symbol}">${symbol}</span>`;
+      const fill=Math.max(0,Math.min(1,rating-index))*100;
+      const shape=index===5?'M12 0 15 8.5 24 12l-9 3.5L12 24l-3-8.5L0 12l9-3.5Z':'m12 1 3.4 7 7.6 1-5.5 5.5 1.3 7.6-6.8-3.6-6.8 3.6 1.3-7.6L1 9l7.6-1Z';
+      const svg=`<svg viewBox="0 0 24 24" focusable="false"><path fill="currentColor" d="${shape}"/></svg>`;
+      return `<span class="reading-star" style="--star-fill:${fill.toFixed(0)}%">${svg}${svg}</span>`;
     }).join('')}</span>${number?`<b aria-hidden="true">${rating}<small>/5</small></b>`:''}</span>`;
 }
 function ratingInput(label,rating){
@@ -280,7 +340,16 @@ function coverArt(book){
   </span>`;
 }
 
-export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibrary,saveLibrary,openCalendar,linkedNotes=()=>'',getFinished,bookReward,finishBook,saveBook,mergeBooks,getCollections,saveCollections}){
+function pageLookupMarkup(){
+  return `<div class="reading-page-lookup">
+    <label>ISBN (optional)<input name="lookupISBN" inputmode="text" maxlength="25" placeholder="For your edition’s page count"></label>
+    <button type="button" data-lookup-pages>Find pages on Open Library</button>
+    <p data-lookup-status role="status" hidden></p>
+    <div data-lookup-results></div>
+  </div>`;
+}
+
+export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibrary,saveLibrary,manageBook,openCalendar,linkedNotes=()=>'',getFinished,bookReward,finishBook,saveBook,mergeBooks,getCollections,saveCollections}){
   root.innerHTML=`<div class="reading-wrap">
     <header class="reading-heading"><div><h2 id="reading-heading">My library</h2><p id="reading-count"></p></div>
       <div class="reading-actions"><button type="button" id="reading-collections-toggle" aria-expanded="false" aria-controls="reading-collections">Collections</button>
@@ -295,9 +364,10 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
           <button type="button" data-reading-filter="reading" aria-pressed="false">Reading</button>
           <button type="button" data-reading-filter="want" aria-pressed="false">Want to read</button>
           <button type="button" data-reading-filter="finished" aria-pressed="false">Finished</button>
+          <button type="button" data-reading-filter="archived" aria-pressed="false">Archived</button>
         </div>
         <label class="sr-only" for="reading-search">Find a book</label><input type="search" id="reading-search" placeholder="Find a book">
-        <label class="reading-sort"><span class="sr-only">Sort books</span><select id="reading-sort"><option value="last">Recent activity</option><option value="title">Title</option><option value="finished">Finish date</option><option value="rating">Rating</option></select></label>
+        <label class="reading-sort"><span class="sr-only">Sort books</span><select id="reading-sort"><option value="shelf">Shelf order</option><option value="last">Recent activity</option><option value="title">Title</option><option value="finished">Finish date</option><option value="rating">Rating</option></select></label>
       </div>
       <div id="reading-books"></div>
     </section></div>
@@ -309,7 +379,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
   const libraryEditor=root.querySelector('#reading-library-editor');
   const addBook=root.querySelector('#reading-add-book');
   let selected='',review=false,editingNote='',editingBook=false,filter='all',editingLibraryId='',detailAnchor=null;
-  let collectionId='',editingReread=null;
+  let collectionId='',editingReread=null,visibleBooks=[],draggedBook='';
   const collections=root.querySelector('#reading-collections');
   const collectionToggle=root.querySelector('#reading-collections-toggle');
   const sort=root.querySelector('#reading-sort');
@@ -372,6 +442,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
           <label>Finish date<input type="date" name="finishedOn" required value="${record.finishedOn}"></label>
           <label>Total pages<input type="number" name="totalPages" min="1" max="100000" value="${record.totalPages??''}"></label>
         </div>
+        ${pageLookupMarkup()}
         ${ratingInput('Rating',record.rating)}
         <label>Final review<textarea name="review" maxlength="6000" rows="7" placeholder="What did you think of the book?">${escape(record.review)}</textarea></label>
         <label>Main takeaway<textarea name="takeaway" maxlength="500" rows="2" placeholder="What do you want to remember?">${escape(record.takeaway)}</textarea></label>
@@ -427,8 +498,9 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     if(!collections.hidden)collections.innerHTML=collectionMarkup(all);
     const finishedOn=book=>[book.finished?.finishedOn||'',...(book.finished?.rereads||[]).map(item=>item.finishedOn)].sort().at(-1);
     const last=book=>[book.entries[0]?.date||'',book.library?.addedOn||'',finishedOn(book)].sort().at(-1);
-    const books=all.filter(book=>(filter==='all'||bookStatus(book)===filter)&&normalized(`${book.title} ${book.author}`).includes(query));
+    const books=all.filter(book=>(filter==='archived'?book.library?.archived:!book.library?.archived&&(filter==='all'||bookStatus(book)===filter))&&normalized(`${book.title} ${book.author}`).includes(query));
     books.sort((a,b)=>{
+      if(sort.value==='shelf')return shelfOrder(a,b);
       if(sort.value==='title')return a.title.localeCompare(b.title)||a.author.localeCompare(b.author);
       if(sort.value==='rating'&&(a.finished?.rating||0)!==(b.finished?.rating||0))return (b.finished?.rating||0)-(a.finished?.rating||0);
       if(sort.value==='finished'&&finishedOn(a)!==finishedOn(b))return finishedOn(b).localeCompare(finishedOn(a));
@@ -436,7 +508,11 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     });
     const current=all.find(book=>book.id===selected);
     list.classList.toggle('reading-shelf-empty',!books.length);
-    list.innerHTML=books.map(book=>`<button type="button" data-reading-book="${escape(book.id)}" aria-haspopup="dialog">${coverArt(book)}</button>`).join('')||
+    visibleBooks=books;
+    list.innerHTML=books.map(book=>`<button type="button" class="reading-spine-button" ${bookAttributes(book)} data-reading-book="${escape(book.id)}"
+      draggable="${sort.value==='shelf'}" aria-label="${escape([book.title,book.author,book.finished?.rating?`${book.finished.rating}/5 · ${tierBadges[ratingTier(book.finished.rating)].label}`:null].filter(Boolean).join(' · '))}" aria-haspopup="dialog">
+      <span class="reading-spine"><span>${escape(book.title)}</span>${tierBadge(ratingTier(book.finished?.rating))}</span>
+      <span class="reading-spine-preview" aria-hidden="true">${coverArt(book)}</span></button>`).join('')||
       `<p>${query?'No books match your search.':filter!=='all'?'No books on this shelf yet.':'Add a book to start your library.'}</p>`;
     if(!details.open)return;
     if(review){
@@ -455,6 +531,9 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     const rating=current.finished?.rating;
     const tier=ratingTier(rating),tierLabel=radiantRatingLabels[tier];
     details.dataset.tier=tier;
+    const neighbors=all.filter(book=>Boolean(book.library?.archived)===Boolean(current.library?.archived)).sort(shelfOrder);
+    const index=neighbors.indexOf(current);
+    const moveButton=(step,label)=>neighbors[index+step]?`<button type="button" data-shelf-move="${escape(neighbors[index+step].id)}" data-shelf-step="${step}">${label}</button>`:'';
     history.innerHTML=`<header class="reading-detail-hero">
       ${coverArt(current)}
       <div><p class="reading-detail-state">${statusLabels[bookStatus(current)]}${tierLabel?' · '+tierLabel:''}</p>
@@ -462,6 +541,17 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
         ${stars(rating)}
         ${!current.finished&&current.library?.totalPages?`<p>${current.library.totalPages} pages</p>`:''}
       </div></header>
+      <div class="reading-note-actions reading-shelf-actions">
+        <button type="button" data-shelf-action="${current.library?.archived?'restore':'archive'}">${current.library?.archived?'Restore to shelf':'Archive book'}</button>
+        ${moveButton(-1,'Move left')}${moveButton(1,'Move right')}
+      </div>
+      <details class="reading-merge"><summary>Delete book</summary>
+        <form id="reading-delete-form">
+          <p>Delete this book’s reviews, reading notes, annotation history, and any earned Garden lantern. Linked sticky notes stay in Notes.</p>
+          <label class="reading-delete-confirm"><input type="checkbox" required> Permanently delete this book</label>
+          <button type="submit">Delete book</button><p data-shelf-error role="alert" hidden></p>
+        </form>
+      </details>
       ${memberships.length?`<p class="reading-author">${memberships.map(group=>`${escape(group.name)} · #${group.books.indexOf(current.id)+1}`).join(' / ')}</p>`:''}
       ${all.length>1?`<details class="reading-merge"><summary>Merge duplicate book</summary><form id="reading-merge-form">
         <p>Move this book’s annotation history and notes into the book you keep. If both are finished, the kept book supplies the rating and finish date. Review text is combined.</p>
@@ -528,12 +618,63 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     button.addEventListener('click',()=>{filter=button.dataset.readingFilter;render();});
   }
   root.querySelector('#reading-calendar').addEventListener('click',openCalendar);
+  const bookButtonFor=id=>[...list.querySelectorAll('[data-reading-book]')].find(button=>button.dataset.readingBook===id);
+  function changeShelf(action,target){
+    const result=manageBook(selected,action,target);
+    if(result.error){status.textContent=result.error;return false;}
+    if(action==='move')sort.value='shelf';
+    else details.close();
+    render();
+    status.textContent={move:'Shelf order saved.',archive:'Book archived.',restore:'Book restored.',delete:'Book deleted.'}[action];
+    return true;
+  }
+  list.addEventListener('dragstart',event=>{
+    const button=event.target.closest('[data-reading-book][draggable="true"]');
+    if(!button)return;
+    draggedBook=button.dataset.readingBook;
+    event.dataTransfer.setData('text/plain',draggedBook);
+    event.dataTransfer.effectAllowed='move';
+    list.classList.add('reading-reordering');
+  });
+  list.addEventListener('dragover',event=>{
+    if(!draggedBook||!event.target.closest('[data-reading-book]'))return;
+    event.preventDefault();event.dataTransfer.dropEffect='move';
+  });
+  list.addEventListener('drop',event=>{
+    const target=event.target.closest('[data-reading-book]')?.dataset.readingBook;
+    if(!draggedBook||!target)return;
+    event.preventDefault();
+    if(target!==draggedBook){
+      selected=draggedBook;
+      if(changeShelf('move',target))bookButtonFor(selected)?.focus({preventScroll:true});
+    }
+    draggedBook='';list.classList.remove('reading-reordering');
+  });
+  list.addEventListener('dragend',()=>{draggedBook='';list.classList.remove('reading-reordering');});
+  list.addEventListener('keydown',event=>{
+    const button=event.target.closest('[data-reading-book]');
+    if(!button||!event.altKey||sort.value!=='shelf'||!['ArrowLeft','ArrowRight'].includes(event.key))return;
+    event.preventDefault();
+    const index=visibleBooks.findIndex(book=>book.id===button.dataset.readingBook);
+    const target=visibleBooks[index+(event.key==='ArrowLeft'?-1:1)];
+    if(!target)return;
+    selected=button.dataset.readingBook;
+    if(changeShelf('move',target.id))bookButtonFor(selected)?.focus();
+  });
   list.addEventListener('click',event=>{
     const book=event.target.closest('[data-reading-book]');
     if(!book)return;
     showDetail(book.dataset.readingBook,book);
   });
   history.addEventListener('submit',event=>{
+    if(event.target.id==='reading-delete-form'){
+      event.preventDefault();
+      if(!changeShelf('delete')){
+        const error=event.target.querySelector('[data-shelf-error]');
+        error.textContent='Could not delete the book. Try again.';error.hidden=false;
+      }
+      return;
+    }
     if(event.target.id==='reading-reread-form'){
       event.preventDefault();
       const record=shelf().find(book=>book.id===selected)?.finished;
@@ -598,6 +739,14 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     if(button.dataset.bookStars){
       const form=button.closest('form');form.elements.rating.value=button.dataset.bookStars;refreshStars(form);return;
     }
+    if(button.dataset.shelfAction){changeShelf(button.dataset.shelfAction);return;}
+    if(button.dataset.shelfMove){
+      if(changeShelf('move',button.dataset.shelfMove)){
+        const next=history.querySelector('[data-shelf-step="'+button.dataset.shelfStep+'"]');
+        if(next)next.focus({preventScroll:true});else focusDetailTitle();
+      }
+      return;
+    }
     if('editLibrary' in button.dataset){openLibraryEditor(shelf().find(book=>book.id===selected));return;}
     if('readingDiscussion' in button.dataset){
       const book=shelf().find(item=>item.id===selected);
@@ -656,6 +805,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
         <label>Pages<input type="number" name="totalPages" min="1" max="100000" value="${book?.library?.totalPages??book?.entries.find(entry=>entry.totalPages)?.totalPages??''}"></label>
         <label>Shelf<select name="status">${Object.entries(libraryStatuses).map(([key,label])=>`<option value="${key}" ${bookStatus(book||{entries:[]})===key?'selected':''}>${label}</option>`).join('')}</select></label>
       </div>
+      ${pageLookupMarkup()}
       <p data-library-error role="alert" hidden></p>
       <button type="submit" class="reading-library-save">${book?'Save changes':'Add to library'}</button>
     </form>`;
@@ -677,6 +827,46 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     showDetail(result.bookId,bookButton||addBook);
     status.textContent=editingLibraryId?'Library entry saved.':'Book added to your library.';
   });
+  root.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-lookup-pages]');
+    if(!button)return;
+    const form=button.form,{title,author,totalPages,lookupISBN}=form.elements;
+    const message=form.querySelector('[data-lookup-status]'),results=form.querySelector('[data-lookup-results]');
+    const isbn=lookupISBN.value.replace(/[^0-9x]/gi,'').toUpperCase(),titleText=title.value.trim(),authorText=author.value.trim();
+    message.hidden=false;results.replaceChildren();
+    if(lookupISBN.value&&!/^(?:[0-9]{9}[0-9X]|[0-9]{13})$/.test(isbn)){
+      message.textContent='Enter a 10- or 13-character ISBN.';return;
+    }
+    if(!isbn&&!titleText){message.textContent='Enter a title or ISBN first.';return;}
+    button.disabled=true;message.textContent='Searching Open Library…';
+    try{
+      const params=new URLSearchParams({title:titleText,fields:'title,author_name,number_of_pages_median,first_publish_year',limit:6});
+      if(authorText)params.set('author',authorText);
+      const path=isbn?`/isbn/${isbn}.json`:`/search.json?${params}`;
+      const response=await fetch('https://openlibrary.org'+path,{signal:AbortSignal.timeout(10000)});
+      const data=response.ok?await response.json():null;
+      if(!response.ok&&response.status!==404)throw new Error('Catalog unavailable');
+      if(!form.isConnected||!form.closest('dialog')?.open)return;
+      const candidates=isbn?(data?[{title:data.title,pages:data.number_of_pages}]:[]):
+        (Array.isArray(data?.docs)?data.docs:[]).map(book=>({title:book.title,author:book.author_name?.[0],pages:book.number_of_pages_median,year:book.first_publish_year}));
+      const matches=candidates.filter(item=>pageCount(item.pages));
+      message.textContent=matches.length?(isbn?'Select the catalog edition.':'Select a match. Title search uses the median across editions.'):
+        'No page count found. Try the ISBN or enter pages manually.';
+      for(const match of matches){
+        const option=document.createElement('button');option.type='button';
+        option.textContent=[match.title,match.author,match.year,match.pages+' pages'].filter(Boolean).join(' · ');
+        option.onclick=()=>{
+          if(!title.value.trim()&&match.title)title.value=match.title.slice(0,250);
+          if(!author.value.trim()&&match.author)author.value=match.author.slice(0,200);
+          totalPages.value=String(match.pages);results.replaceChildren();
+          message.textContent=match.pages+' pages added. Save the book to keep the page count.';
+          totalPages.focus();
+        };
+        results.append(option);
+      }
+    }catch{message.textContent='Open Library is unavailable. You can still enter pages manually.';}
+    finally{button.disabled=false;}
+  });
   details.addEventListener('click',event=>{
     if(event.target===details||event.target.closest('[data-reading-close]'))details.close();
   });
@@ -687,5 +877,5 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     anchor.focus({preventScroll:true});
   });
   return {render,openBook(id){filter='all';search.value='';showDetail(id);},
-    close(){for(const dialog of root.querySelectorAll('dialog[open]'))dialog.close();}};
+    close(){filter='all';search.value='';for(const dialog of root.querySelectorAll('dialog[open]'))dialog.close();}};
 }

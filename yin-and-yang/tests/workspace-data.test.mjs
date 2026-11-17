@@ -9,7 +9,7 @@ import {applyBackupRestore,createBackup,loadRestorePoints,planBackupRestore,read
 import {CAPTURE_PREFIX,readCaptures} from '../dist/capture.js';
 import {CROCHET_KEY,loadCrochet,logCrochetTime} from '../dist/crochet.js';
 import {JOURNAL_KEY,loadJournal} from '../dist/journal.js';
-import {annotationContext,editFinishedBook,mergeShelfBooks,readingForecast,readingShelf,saveLibraryBook} from '../dist/reading-shelf.js';
+import {annotationContext,editFinishedBook,manageShelfBook,mergeShelfBooks,readingForecast,readingShelf,saveLibraryBook} from '../dist/reading-shelf.js';
 import {youtubeContent,youtubeLinks} from '../dist/youtube-embed.js';
 import {dayKey,STORAGE_KEY,freshState,loadState,taskPriority} from '../dist/state.js';
 import {matchCommands} from '../dist/command-palette.js';
@@ -698,4 +698,26 @@ test('custom calendar colors and independently scheduled rituals restore with Ca
   assert.deepEqual(scheduledRituals(restored.ritualSchedules,new Date(2026,10,16),'timed'),['crochet']);
   assert.deepEqual(scheduledRituals(restored.ritualSchedules,new Date(2026,10,16),'allDay'),[]);
   assert.deepEqual(scheduledRituals(restored.ritualSchedules,new Date(2026,10,22),'allDay'),['journal']);
+});
+
+test('shelf arrangement and archive survive reload, and deletion clears derived shelf entries',()=>{
+  const storage=memoryStorage(),state=freshState();
+  const apply=edit=>{assert.ok(edit.changes,edit.error);Object.assign(state,edit.changes);return edit.bookId;};
+  const first=apply(saveLibraryBook(state,'',{title:'Blue',totalPages:280}));
+  const second=apply(saveLibraryBook(state,'',{title:'Amber'}));
+  state.dailyRituals['2026-11-16']={annotate:{title:'Blue',author:'',chapters:'1',done:true}};
+  state.readingNotes=[{id:'note',bookTitle:'Blue',bookAuthor:'',chapter:'1',kind:'quote',text:'A sentence'}];
+  state.finishedBooks=[{id:'finished',title:'Blue',author:'',finishedOn:'2026-11-16',rating:6}];
+  apply(manageShelfBook(state,first,'move',second));
+  apply(manageShelfBook(state,first,'archive'));
+  storage.setItem(STORAGE_KEY,JSON.stringify(state));
+  const loaded=loadState(storage);
+  assert.equal(loaded.libraryBooks.find(book=>book.id===first).archived,true);
+  assert.equal(loaded.libraryBooks.find(book=>book.id===first).shelfOrder,0);
+  assert.equal(loaded.libraryBooks.find(book=>book.id===first).totalPages,280);
+  apply(manageShelfBook(state,first,'restore'));
+  assert.equal(state.libraryBooks.find(book=>book.id===first).archived,undefined);
+  apply(manageShelfBook(state,first,'delete'));
+  assert.deepEqual(state.dailyRituals['2026-11-16'].annotate,{done:true});
+  assert.ok(readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks).every(book=>book.id!==first));
 });

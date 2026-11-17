@@ -1,4 +1,14 @@
 export const releases = [
+  {version:'3.14.1',date:'2026-11-16',title:'Sharper Reading badges',changes:[
+    'Draw stars and book badges as SVGs, with a ringed planet for 6/5, a crystal for 5–5.9/5, medal badges for Gold, Silver, and Bronze, and a poop badge for 1–1.9/5.',
+    'Give 6/5 stars a bright glow and Crystal books a softer shine. Keep spine text sharp as the cover slides out.'
+  ]},
+  {version:'3.14.0',date:'2026-11-16',title:'A bookshelf you can arrange',changes:[
+    'Read the spines on your shelf, pull a cover out on hover or keyboard focus, and open a book for details.',
+    'Save custom shelf order, archive and restore books, or delete an entry and its reading history. Older annotation books work with the same controls.',
+    'Look up page counts through Open Library and distinguish Gold, Crystal, and Aurora books with new artwork and opening effects.',
+    'Reading backups include archive status and custom shelf order.'
+  ]},
   {version:'3.13.5',date:'2026-11-16',title:'More natural weather patterns',changes:[
     'Remove the repeating alignment of petals, leaves, rain, and snow. Space particles freely and vary their timing across all seasons.'
   ]},

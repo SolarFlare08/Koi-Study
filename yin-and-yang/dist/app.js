@@ -19,7 +19,7 @@ import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
 import {ratingTier,radiantRatingLabels} from './reading-progress.js';
-import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,mergeShelfBooks,readingShelf,saveLibraryBook} from './reading-shelf.js';
+import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingShelf,saveLibraryBook} from './reading-shelf.js';
 import {installBackup} from './backup.js';
 import {dailyRitualMarkup,loadRitualSchedules,ritualComplete,rituals,scheduledRituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
@@ -420,6 +420,7 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
     return false;
   },openCalendar:()=>calendarToggle.click(),linkedNotes:id=>linkedStickyNotes('book',id),
   getLibrary:()=>state.libraryBooks,saveLibrary:(id,values)=>saveReadingChanges(saveLibraryBook(state,id,values)),
+  manageBook:(id,action,target)=>saveReadingChanges(manageShelfBook(state,id,action,target)),
   getFinished:()=>state.finishedBooks,bookReward:id=>gardenReward(state.gardenGrowth,'book',id),
   getCollections:()=>state.readingCollections,saveCollections:collections=>{
     const previous=state.readingCollections;state.readingCollections=collections;
@@ -6111,6 +6112,7 @@ window.addEventListener('pageshow',()=>{checkCompletion();render();});
 window.addEventListener('storage',e=>{
   if(e.key===STORAGE_KEY){
     state=loadState(storage);savedSchedule=snapshotSchedule(state);syncSound();checkCompletion();refreshTasks();stickyBoard.render();renderCaptures();
+    if(workspace==='reading'&&!$('#reading-workspace dialog[open]'))reading.render();
     if(workspace==='reading')reading.render();
     if(workspace==='journal')journal.refresh();
     if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();

@@ -626,13 +626,16 @@ export const helpTopics = [
     id:'reading-shelf', group:'Reading & journal', title:'Build your Reading library',
     summary:'Add books directly to your bookshelf and open their reviews and annotation history.',
     steps:['Open Reading and click Add book. Enter a title, optional author and page count, and choose Want to read or Reading.',
-      'Filter the bookshelf by status, search, or sort by title, recent activity, finish date, or rating. Select a cover to open the book.',
+      'Hover over a spine or focus it with Tab to preview its cover. Select the spine to open its details. Every rated spine has a badge. A ringed planet marks 6/5, a crystal marks 5–5.9/5, and gold, silver, bronze, and poop mark the lower ratings.',
+      'Choose Shelf order and drag a spine onto another, or press Alt+Left or Alt+Right on a focused spine. Move left and Move right in book details work on touch screens.',
+      'Open a book and choose Archive book to move it to Archived. Restore to shelf brings it back. Delete book asks you to confirm before removing the book, its reading records, and its Garden lantern.',
+      'Choose Find pages on Open Library in the book editor. Search by title and author for a typical page count or use ISBN for a specific edition. Select a result and save. You can enter pages manually.',
       'In an unfinished book, use Edit library entry to change its information or shelf, or Mark book finished to move it to Finished.',
       'If a typo split a book, open the duplicate and choose `Merge duplicate book`. Pick the book you want to keep. Logs, chapter notes, and sticky links move there. If both are finished, their review text is combined and the kept book’s completion and lantern take priority.',
       'Read `Where you left off`, chapters annotated, and the dated history of your logs. Enter total pages and page numbers in your Annotate logs to get a pace forecast. When recent progress varies, Reading shows a range of sittings.',
       'Use `Add chapter note` on a book to save a question, quote, or insight. Choose `Schedule review` on a note to see it again in three days.',
       'Use Calendar and the daily Annotate item to add your next log or goal. Ctrl+K can also find a book and open its history directly.'],
-    tip:'Books are grouped by title and author. Keeping those consistent keeps your history together.',
+    tip:'Your library saves to this browser profile and site address. If books are missing after switching ports or browsers, reopen the original address and export a backup from there.',
     action:'reading', actionLabel:'Open Reading', related:['reading-collections','chapter-reviews','reading-discussion','finished-books','reading-goal','search']
   },
   {
@@ -664,7 +667,7 @@ export const helpTopics = [
     summary:'Give books fractional stars or reserve 6/5 for a favorite.',
     steps:['Open a finished book from Reading and choose Write final review or Edit final review.',
       'Enter a rating from 1 to 6. Type a decimal like 4.7, or use a quick rating button. The extra sparkle gives you 6/5. Save finished book to update the cover.',
-      'Cover borders change by rating. 1–1.9 is the dud tier, 2–2.9 is bronze, 3–3.9 is silver, 4–4.9 is gold, 5–5.9 is teal Crystal, and exactly 6/5 earns the violet-and-gold Aurora tier. The final rating sets the cover; rereads keep their own ratings.'],
+      'Cover borders change by rating. 1–1.9 has a poop badge, 2–2.9 is bronze, 3–3.9 is silver, 4–4.9 is gold, 5–5.9 is teal Crystal, and exactly 6/5 earns the violet-and-gold Aurora tier. The final rating sets the cover; rereads keep their own ratings.'],
     tip:'Crystal and Aurora covers shimmer when you open a book. Opening a rated book’s Garden lantern uses its tier across the full popup. Crystal and Aurora lanterns also shimmer, with motion disabled by Garden Still or reduced-motion settings. Reading respects the system’s reduced-motion setting.',
     action:'reading',actionLabel:'Open Reading',related:['reading-shelf','finished-books']
   },
