@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'3.15.1',date:'2026-11-16',title:'Slimmer book spines',changes:[
+    'Give book spines slimmer bindings and finer foil details. Adjacent books sit flush, and empty slots leave room for gaps.'
+  ]},
   {version:'3.15.0',date:'2026-11-16',title:'Flexible bookshelf placement',changes:[
     'Add Finish task to the right-click menu. Completed tasks can be reopened from the same menu.',
     'Add shelves and place books in individual slots, leaving gaps wherever you like. Shelf count and placement survive refreshes and backups.'

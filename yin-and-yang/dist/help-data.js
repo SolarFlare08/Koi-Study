@@ -627,7 +627,7 @@ export const helpTopics = [
     summary:'Add books directly to your bookshelf and open their reviews and annotation history.',
     steps:['Open Reading and click Add book. Enter a title, optional author and page count, and choose Want to read or Reading.',
       'Hover over a spine or focus it with Tab to preview its cover. Select the spine to open its details. Every rated spine has a badge. A ringed planet marks 6/5, a crystal marks 5–5.9/5, and gold, silver, bronze, and poop mark the lower ratings.',
-      'Choose Shelf order to use multiple shelves. Drag a spine into any slot, or open Place on shelf in book details to choose a shelf and slot on touch screens. Dragging onto another book swaps their positions. Add shelf makes another row.',
+      'Choose Shelf order to use multiple shelves. Books in adjacent slots sit flush. Leave an empty slot when you want a gap. Drag a spine into any slot, or open Place on shelf in book details to choose a shelf and slot on touch screens. Dragging onto another book swaps their positions. Add shelf makes another row.',
       'Open a book and choose Archive book to move it to Archived. Restore to shelf brings it back. Delete book asks you to confirm before removing the book, its reading records, and its Garden lantern.',
       'Choose Find pages on Open Library in the book editor. Search by title and author for a typical page count or use ISBN for a specific edition. Select a result and save. You can enter pages manually.',
       'In an unfinished book, use Edit library entry to change its information or shelf, or Mark book finished to move it to Finished.',
