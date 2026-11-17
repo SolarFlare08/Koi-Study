@@ -1,6 +1,15 @@
 // Keep feature instructions separate from the guide UI so they can be updated together with the app.
 export const helpTopics = [
   {
+    id:'windows-app', group:'Start here', title:'Use the Windows desktop app',
+    summary:'Open Yin and Yang in its own window and move your saved data from the browser.',
+    steps:['Extract the complete Windows x64 package and open Yin and Yang.exe. Windows uses the Microsoft Edge WebView2 Runtime to display the app.',
+      'To bring over tasks, books, notes, and settings, open Backup and restore in your original browser tab and download a backup. Open Backup and restore in the Windows app and select the file.',
+      'The Windows app starts the Quick Capture helper when it opens. Ctrl+Alt+N opens a note near the pointer. If that shortcut is already owned by the browser helper, quit the browser helper from its tray icon and reopen the desktop app.',
+      'To update, close the app, extract the newer Windows package to a new folder, and open its executable. The app reads the same saved data from your Windows profile.'],
+    related:['backup','versions','shortcuts']
+  },
+  {
     id:'versions', group:'Start here', title:'See version history',
     summary:'Browse the current release and past updates.',
     steps:['Open Help → `Version history`, or search for Version history with `Ctrl+K`.',

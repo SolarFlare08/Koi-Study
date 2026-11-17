@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'4.0.0',date:'2026-11-16',title:'Yin and Yang for Windows',changes:[
+    'Open Yin and Yang in its own Windows window with the bundled Garden and Quick Capture.',
+    'The desktop app keeps its data in a separate Windows profile. Use a backup to bring over browser data, and replace the desktop package to update the app.'
+  ]},
   {version:'3.16.0',date:'2026-11-16',title:'Bookshelf bookends',changes:[
     'Add a jade arch, brass moon, stone peaks, or porcelain cat to an empty shelf slot. Move, mirror, or remove a bookend from its editor.',
     'Bookends save with the bookshelf and are included in Reading backups.'

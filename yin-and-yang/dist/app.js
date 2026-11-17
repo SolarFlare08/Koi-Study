@@ -2046,7 +2046,7 @@ function finishCaptureFiling(message){
   confirmChange(message);
 }
 async function syncNativeCaptures(){
-  if(!captureApiAvailable||syncingCaptures||!['localhost','127.0.0.1'].includes(location.hostname))return;
+  if(!captureApiAvailable||syncingCaptures||!['localhost','127.0.0.1','yin-and-yang.local'].includes(location.hostname))return;
   syncingCaptures=true;
   try{
     const response=await fetch('./api/capture-inbox',{cache:'no-store'});

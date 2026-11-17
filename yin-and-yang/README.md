@@ -6,6 +6,16 @@ Run `npm run dev` and open http://localhost:5173. Run `npm test` for timer and p
 
 For system-wide capture on Windows, run `npm run capture-hotkey -- 5178` in a second terminal from this folder. Substitute the port printed by your dev server. If the server was running before the update, restart it first. The helper uses the Windows .NET Framework compiler and stays in the tray until you quit it. **Ctrl+Alt+N** opens a note near the pointer, **Ctrl+Enter** saves it, and **Esc** hides the window with the draft intact. Saved notes appear under **Captured thoughts** in the app. The browser capture shortcut also works while the helper is closed.
 
+## Windows desktop app
+
+Extract the Windows x64 package and double-click `Yin and Yang.exe` in the extracted folder. The desktop app uses the Microsoft Edge WebView2 Runtime and runs its bundled Garden in its own window. You can create a Windows shortcut to the executable for easier access.
+
+The desktop app saves to `%LOCALAPPDATA%\Yin and Yang`. To migrate your browser data, use **Backup and restore** in the original tab to download a backup, then restore it in the desktop app. Ctrl+Alt+N uses the bundled Quick Capture helper while the desktop app is open. If the browser helper is already running, quit it from its tray icon before opening the app.
+
+To update, close the app, extract the newer desktop package into a fresh folder, and run its executable. The new app uses the same profile. Updates are manual.
+
+For a source build, run `npm run desktop:build` from this folder on 64-bit Windows. The build uses the .NET Framework compiler and downloads the Microsoft WebView2 SDK from NuGet. The executable and ZIP are written under `.local/desktop`. For an offline source build, run `npm run desktop:build -- --sdk-bin "C:/path/to/WebView2 DLLs"` with matching .NET Framework versions of Microsoft.Web.WebView2.Core.dll, Microsoft.Web.WebView2.WinForms.dll, and the x64 WebView2Loader.dll.
+
 ## Changing the landscape
 
 `dist/scenery.js` owns the scenic SVG landscape, tool definitions, and smooth daylight progression. `dist/landscape.js` supplies the small blossom artwork. Replace its scenery freely. Keep the five object IDs (`pagoda`, `tasks`, `music`, `notes`, `progress`) to retain tool bindings. Set their positions and responsive sizes in `dist/style.css`. `dist/app.js` owns panels and interactions; `dist/state.js` owns timer and persistence logic. The study data does not depend on the landscape.
