@@ -356,6 +356,10 @@ const bookStatus=book=>book.finished?'finished':book.library?.status||(book.entr
 const statusLabels={...libraryStatuses,finished:'Finished'};
 function bookMonogram(title){return title.trim().split(/\s+/).slice(0,2).map(word=>Array.from(word)[0]).join('').toUpperCase();}
 const coverNumber=book=>Array.from(book.id).reduce((sum,char)=>(sum+char.codePointAt(0))%5,0);
+function spineWidth(book){
+  const pages=book.finished?.totalPages??book.library?.totalPages??book.entries.find(entry=>entry.totalPages)?.totalPages??350;
+  return Math.max(25,Math.min(56,Math.round(23+pages/35)));
+}
 const bookAttributes=book=>`data-tier="${ratingTier(book.finished?.rating)}" data-cover="${coverNumber(book)}"`;
 function coverArt(book){
   return `<span class="reading-cover" ${bookAttributes(book)}>
@@ -540,7 +544,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     list.classList.toggle('reading-spatial-shelf',arranged);
     list.classList.toggle('reading-shelf-empty',!arranged&&!books.length);
     visibleBooks=books;
-    const bookMarkup=book=>`<button type="button" class="reading-spine-button" ${bookAttributes(book)} data-reading-book="${escape(book.id)}"
+    const bookMarkup=book=>`<button type="button" class="reading-spine-button" ${bookAttributes(book)} style="--book-width:${spineWidth(book)}px" data-reading-book="${escape(book.id)}"
       draggable="${arranged}" aria-label="${escape([book.title,book.author,book.finished?.rating?`${book.finished.rating}/5 · ${tierBadges[ratingTier(book.finished.rating)].label}`:null].filter(Boolean).join(' · '))}" aria-haspopup="dialog">
       <span class="reading-spine"><span>${escape(book.title)}</span>${tierBadge(ratingTier(book.finished?.rating))}</span>
       <span class="reading-spine-preview" aria-hidden="true">${coverArt(book)}</span></button>`;

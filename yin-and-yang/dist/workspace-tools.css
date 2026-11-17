@@ -188,8 +188,8 @@
 #reading-search { width: min(210px,50vw); }
 #reading-books {
   --shelf-row: 184px;
-  --spine-width: 29px;
-  display: grid; grid-template-columns: repeat(auto-fill,var(--spine-width)); grid-auto-rows: var(--shelf-row);
+  --empty-slot-width: 33px;
+  display: flex; flex-wrap: wrap; align-content: start;
   align-items: end; gap: 0; min-height: var(--shelf-row); padding: 0 clamp(48px,5vw,79px) 13px;
   background: repeating-linear-gradient(to bottom,#202d2e 0px,#354945 calc(var(--shelf-row) - 13px),#a08d69 calc(var(--shelf-row) - 12px),
     #77634b calc(var(--shelf-row) - 6px),#3b352b calc(var(--shelf-row) - 5px),#272d2a var(--shelf-row));
@@ -201,11 +201,11 @@
 }
 #reading-add-shelf:hover { background: var(--surface-raised); }
 #reading-books.reading-spatial-shelf {
-  grid-template-columns: minmax(0,1fr); grid-auto-rows: auto; align-items: stretch; gap: 8px;
+  display: grid; grid-template-columns: minmax(0,1fr); grid-auto-rows: auto; align-items: stretch; gap: 8px;
   padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; overflow-x: auto;
 }
 .reading-shelf-row {
-  display: grid; position: relative; grid-template-columns: repeat(12,var(--spine-width));
+  display: grid; position: relative; grid-template-columns: repeat(12,max-content);
   width: max-content; height: var(--shelf-row); padding: 12px 56px 10px;
   border: 1px solid #ac9c7b74; border-radius: 10px;
   background: linear-gradient(to bottom,#202d2e,#354945 calc(100% - 13px),#a08d69 calc(100% - 12px),
@@ -215,13 +215,15 @@
   content: attr(aria-label); position: absolute; inset-inline-start: 10px; top: 8px; color: #e3d3b9; font-size: 10px;
 }
 .reading-shelf-slot { display: flex; align-items: end; justify-content: center; min-width: 0; border-radius: 4px; }
+.reading-shelf-slot:empty { width: var(--empty-slot-width); }
 .reading-shelf-slot > .reading-spine-button { margin-bottom: 0; }
+#reading-books > .reading-spine-button { display: flex; align-items: end; height: calc(var(--shelf-row) - 11px); }
 .reading-reordering .reading-shelf-slot:hover { outline: 1px dashed #fff0cb; background: #fff0cb32; }
 #reading-books.reading-shelf-empty { display: flex; align-items: center; justify-content: center; padding: 14px; text-align: center; }
 #reading-books > p { color: #eeede1; }
 .reading-spine-button {
   --spine-cloth: #2b514b;
-  position: relative; width: var(--spine-width); min-width: 0; display: block; padding: 0; margin: 0 0 11px;
+  position: relative; flex: none; width: var(--book-width); min-width: 0; display: block; padding: 0; margin: 0 0 11px;
   text-align: left; border-radius: 2px;
 }
 .reading-spine-button[draggable="true"] { cursor: grab; }

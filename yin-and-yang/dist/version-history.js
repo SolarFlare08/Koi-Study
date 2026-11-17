@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'3.15.2',date:'2026-11-16',title:'Page-based spine thickness',changes:[
+    'Size book spines by page count. Books without a saved count use the width of a 350-page book, and neighboring spines still sit flush.'
+  ]},
   {version:'3.15.1',date:'2026-11-16',title:'Slimmer book spines',changes:[
     'Give book spines slimmer bindings and finer foil details. Adjacent books sit flush, and empty slots leave room for gaps.'
   ]},
