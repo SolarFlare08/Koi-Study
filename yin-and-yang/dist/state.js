@@ -36,6 +36,7 @@ export function repeatSettings(repeat,every){
 const loadCalendarEvents=value=>Array.isArray(value)?value.filter(item=>typeof item?.id==='string'&&typeof item.title==='string'&&
   (isDay(item.day)&&isDay(item.endDay)&&item.endDay>item.day||Number.isFinite(item.start)&&Number.isFinite(item.end)&&item.end>=item.start))
   .map(item=>({...item,
+    ...(Object.hasOwn(item,'excludedDays')?{excludedDays:Array.isArray(item.excludedDays)?item.excludedDays.filter(isDay):[]}:{}),
     ...(item.manual&&Object.hasOwn(item,'color')?{color:calendarColor(item.color)}:{}),
     ...(item.manual&&Object.hasOwn(item,'repeat')?repeatSettings(item.repeat,item.repeatEvery):{}),
     ...(item.flexibility?{flexibility:blockFlexibility(item.flexibility)}:{})})):[];

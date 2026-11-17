@@ -117,6 +117,20 @@ export function estimateSummary({count,min,max}){
   return `${count} similar completed ${count===1?'task took':'tasks took'} ${range} of logged focus${count===1?'':' each'}.`;
 }
 
+export function taskSplitSuggestion(state,task){
+  if(!task?.estimate)return null;
+  const row=estimateAccuracy(state).find(item=>item.taskId===task.id&&item.consistent);
+  const lastDone=state.taskActivity.reduce((last,item)=>item.taskId===task.id?Math.max(last,item.at):last,0);
+  const recent=state.history.filter(h=>h.taskId===task.id&&h.mode==='focus'&&h.outcome==='completed'&&h.finishedAt>lastDone);
+  const minutes=Math.round(recent.reduce((sum,h)=>sum+h.focusMs,0)/60000);
+  if(!row&&(recent.length<3||minutes<=task.estimate))return null;
+  const typical=row?Math.ceil(row.actualMs/row.samples/60000):minutes;
+  const count=Math.max(2,Math.min(6,Math.ceil(typical/Math.min(50,task.estimate))));
+  return {count,minutes:Math.ceil(typical/count),reason:row?
+    `Over estimate on ${row.over} of ${row.samples} completions.`:
+    `${minutes} minutes across ${recent.length} sessions against a ${task.estimate}-minute estimate.`};
+}
+
 function toCsv(rows){
   const cell=value=>{
     const text=String(value??'');

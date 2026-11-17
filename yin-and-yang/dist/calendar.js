@@ -163,7 +163,7 @@ export function calendarEventOccurrences(events,date,marginMinutes=0){
     const rule={date:dayKey(start),repeat:event.repeat,repeatEvery:event.repeatEvery};
     const occurrences=[];
     for(let candidate=new Date(Math.max(+shiftDay(new Date(first),-span),+shiftDay(start,0)));+candidate<last;candidate=shiftDay(candidate,1)){
-      if(!taskOccursOn(rule,candidate))continue;
+      if(!taskOccursOn(rule,candidate)||event.excludedDays?.includes(dayKey(candidate)))continue;
       const endDay=shiftDay(candidate,span);
       const from=event.day?+candidate:+onDay(candidate,start);
       const to=event.day?+endDay:Math.max(+onDay(endDay,end),from+60000);

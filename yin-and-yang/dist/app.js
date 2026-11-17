@@ -14,7 +14,7 @@ import {installPlanner} from './planner.js';
 import {gardenPalettes,lightingOptions,seasonOptions,sceneryMotionOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenLooks,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
 import {createGardenStudio} from './garden-studio.js';
 import {gardenViewport,gardenActivityLayout,loadGardenActivityLayouts} from './garden-layout.js';
-import {comparisonPostcardPng,postcardPng} from './garden-postcard.js';
+import {comparisonPostcardPng,postcardPng,weeklyPostcardPng} from './garden-postcard.js';
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
@@ -22,8 +22,10 @@ import {ratingTier,radiantRatingLabels} from './reading-progress.js';
 import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingShelf,saveLibraryBook} from './reading-shelf.js';
 import {installBackup} from './backup.js';
 import {installAutomaticBackup} from './automatic-backup.js';
-import {installFocusCompass} from './focus-compass.js';
-import {timerProgress} from './state.js';
+import {installFocusCompass,focusWeek} from './focus-compass.js';
+import {timerProgress,extendTimer} from './state.js';
+import {installMiniTimer} from './mini-timer.js';
+import {installBatchMove} from './calendar-batch.js';
 import {dailyRitualMarkup,loadRitualSchedules,ritualComplete,rituals,scheduledRituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed,spotifyPath} from './spotify-embed.js';
@@ -37,7 +39,7 @@ import {nextTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
 import {taskTemplate,projectResource} from './project-planning.js';
 import {validTemplateDay,loadDayTemplates,captureCalendarDay,previewCalendarDay,copyCalendarDay} from './calendar-day-templates.js';
-import {estimateSummary,suggestTaskEstimate} from './planner-report.js';
+import {estimateSummary,suggestTaskEstimate,taskSplitSuggestion} from './planner-report.js';
 import {loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime} from './calendar.js';
 import {blockFlexibility,waitingForRecord} from './task-readiness.js';
@@ -438,6 +440,9 @@ const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>stat
 const compass=installFocusCompass({getState:()=>state,save:()=>{const ok=persist();if(ok)syncSound();return ok;},notify:toast,
   beforeTimerChange:checkCompletion,afterTimerChange:()=>{render();wake();if(activePanel==='pagoda')refreshPanel();$('#toggle-timer').focus({preventScroll:true});}});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
+installMiniTimer({launch:$('#open-mini-timer'),getState:()=>state,taskTitle:()=>focusedTask()?.text,
+  toggle:()=>timerButton.click(),extend:()=>action(()=>extendTimer(state,300000)),
+  capture:text=>{saveCapture(storage,text,currentCaptureContext());renderCaptures();},notify:toast});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
 const openVersionHistory=installVersionHistory($('#version-history'));
 $('#open-help').onclick=()=>helpGuide.open();
@@ -1503,8 +1508,11 @@ async function downloadGardenPostcard(form){
   const day=snapshotThrough||dayKey();
   button.disabled=true;status.hidden=false;status.textContent='Preparing postcard…';
   try{
-    const blob=await postcardPng($('#landscape .world'),caption);
-    savePostcard(blob,`garden-postcard-${day}.png`);
+    const weekly=form.elements.weekly.checked;
+    const week=focusWeek(state,+new Date(day+'T12:00:00'));
+    const range=[week.days[0],week.days.at(-1)].map(d=>d.date.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})).join(' – ');
+    const blob=weekly?await weeklyPostcardPng($('#landscape .world'),{range,total:week.total,sessions:week.days.reduce((n,d)=>n+d.completed,0)},caption):await postcardPng($('#landscape .world'),caption);
+    savePostcard(blob,`garden-${weekly?'week':'postcard'}-${day}.png`);
     status.textContent='Postcard downloaded.';
   }catch{status.textContent='Could not export the postcard. Try again.';}
   finally{button.disabled=false;}
@@ -2162,6 +2170,7 @@ function taskEditor(){
   const projectName=projects.find(project=>project.id===values.projectId)?.name||'Inbox';
   const projectOptions=projects.map(project=>`<option value="${escape(project.id)}" ${project.id===values.projectId?'selected':''}>${escape(project.name)}</option>`).join('');
   const subtasks=task?.subtasks||[];
+  const split=taskSplitSuggestion(state,task);
   const retryCount=task?state.mistakes.filter(item=>item.taskId===task.id&&needsRetry(item)).length:0;
   const reminder=task?.reminderAt?`${dayKey(new Date(task.reminderAt))}T${new Date(task.reminderAt).toTimeString().slice(0,5)}`:'';
   const day=taskEditorOccurrence();
@@ -2195,6 +2204,7 @@ function taskEditor(){
             <h3 id="task-subtask-heading">Subtasks ${subtasks.length?`<small>${subtasks.filter(sub=>sub.done).length}/${subtasks.length}</small>`:''}</h3>
             ${subtasks.map(sub=>`<div class="task-editor-subtask"><input type="checkbox" name="done:${escape(sub.id)}" aria-label="Complete ${escape(sub.text)}" ${sub.done?'checked':''}><input name="sub:${escape(sub.id)}" aria-label="Edit subtask ${escape(sub.text)}" maxlength="160" value="${escape(sub.text)}"></div>`).join('')}
             <label class="sr-only" for="task-subtasks">Add subtasks, one per line</label>
+            ${split?`<aside class="split-hint"><strong>Try smaller sessions</strong><p>${split.reason} Try ${split.count} parts of about ${split.minutes} minutes.</p><button type="button" class="text-button" data-draft-parts="${split.count}" data-part-minutes="${split.minutes}">Draft subtasks</button></aside>`:''}
             <textarea id="task-subtasks" name="subtasks" rows="2" maxlength="2000" placeholder="+ Add subtasks, one per line"></textarea>
           </section>
           <section class="task-detail-section" aria-labelledby="task-comment-heading">
@@ -2722,9 +2732,11 @@ function panelContent(id){
   }
   if(id==='garden-comparison')return gardenComparisonMarkup();
   if(id==='garden-postcard')return `${header('GARDEN','Export postcard')}
-    <p>Download the current Garden as a 1600 × 900 PNG.</p>
+    <p>Save the current landscape as a PNG.</p>
     <form id="garden-postcard-form"><label for="postcard-caption">Caption (optional)</label>
       <input id="postcard-caption" name="caption" maxlength="90" placeholder="November · Fall semester">
+      <label><input type="checkbox" name="weekly" id="postcard-weekly"> Include the last seven days of focus</label>
+      <label id="postcard-highlight-label" hidden>Weekly highlight<select id="postcard-highlight"><option value="">Write your own caption</option></select></label>
       <div class="panel-actions"><button type="button" class="text-button" id="postcard-month">Use month</button>
       <button type="submit" class="panel-primary">Download PNG</button></div>
       <p id="postcard-status" role="status" hidden></p></form>`;
@@ -3119,6 +3131,13 @@ function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=bloc
 function renderCalendar(){
   planner.render();
 }
+installBatchMove({button:$('#calendar-batch'),getState:()=>state,visibleTasks:()=>planner.calendarTasks(),visibleEvents:shownCalendarEvents,startDay:leadingPlannerDay,notify:toast,
+  save:changes=>{
+    const previous={tasks:state.tasks,calendarEvents:state.calendarEvents};
+    Object.assign(state,changes);
+    if(!persist()){Object.assign(state,previous);return false;}
+    refreshTasks();return true;
+  }});
 
 function currentCalendarMinute(){
   const now=new Date();
@@ -3235,6 +3254,7 @@ function updateActualCalendar(now){
 }
 function setCalendarActivity(actual){
   actualCalendar=actual;
+  $('#calendar-batch').hidden=actual;
   for(const button of $('#calendar-activity-mode').children){
     button.setAttribute('aria-pressed',String((button.dataset.calendarActivity==='actual')===actual));
   }
@@ -4792,6 +4812,7 @@ function saveCalendarEntry(form){
     if(flexibility)event.flexibility=flexibility;
     if(color)event.color=color;
     event.calendarId=state.calendars.some(item=>item.id===fields.calendarId)?fields.calendarId:personalCalendarId;
+    if(existingEvent?.excludedDays&&event.repeat)event.excludedDays=existingEvent.excludedDays;
     state.calendarEvents=existingEvent?previousEvents.map(item=>item===existingEvent?event:item):[...previousEvents,event];
     if(existingTask)state.tasks=previousTasks.filter(item=>item!==existingTask);
   }
@@ -5261,6 +5282,13 @@ root.addEventListener('click',e=>{
   const template=e.target.closest('[data-template-action]');
   if(template){editTaskTemplate(template);return;}
   const estimate=e.target.closest('[data-use-estimate]');
+  const parts=e.target.closest('[data-draft-parts]');
+  if(parts){
+    const field=$('#task-subtasks');
+    const draft=Array.from({length:Number(parts.dataset.draftParts)},(_,i)=>`Part ${i+1} · ${parts.dataset.partMinutes} min`).join('\n');
+    field.value=[field.value.trimEnd(),draft].filter(Boolean).join('\n');
+    field.focus();parts.disabled=true;return;
+  }
   if(estimate){
     const field=estimate.form.elements.estimate||estimate.form.elements.minutes;
     field.value=estimate.dataset.useEstimate;updateScheduleEditor(estimate.form);field.focus();return;
@@ -5515,6 +5543,23 @@ root.addEventListener('pointerup',event=>endFocusQueueDrag(event,true));
 root.addEventListener('pointercancel',event=>endFocusQueueDrag(event,false));
 root.addEventListener('lostpointercapture',event=>endFocusQueueDrag(event,false));
 root.addEventListener('change',event=>{
+  if(event.target.id==='postcard-weekly'){
+    $('#postcard-highlight-label').hidden=!event.target.checked;
+    if(event.target.checked){
+      const end=snapshotThrough||dayKey(),start=dayKey(shiftDay(new Date(end+'T12:00:00'),-6));
+      const select=$('#postcard-highlight');select.length=1;
+      const highlights=state.gardenGrowth.filter(item=>item.day>=start&&item.day<=end)
+        .map(item=>[landmarkTypes[item.kind].event,item.title]);
+      for(const entry of loadJournal(storage).filter(e=>!e.draft&&e.date>=start&&e.date<=end)){
+        for(const line of entry.body.split(/\r?\n/).map(s=>s.trim()).filter(Boolean))highlights.push([entry.title||entry.date,line]);
+      }
+      for(const [title,caption] of highlights){const text=caption.slice(0,90);select.add(new Option(title+' · '+text,text));}
+    }
+    return;
+  }
+  if(event.target.id==='postcard-highlight'){
+    $('#postcard-caption').value=event.target.value;$('#postcard-caption').focus();return;
+  }
   if(event.target.id==='day-template-source'){dayTemplateSource=event.target.value;return;}
   if(event.target.id==='day-template-target'||event.target.id==='day-template-picker'){
     const form=event.target.form;

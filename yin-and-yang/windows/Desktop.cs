@@ -255,20 +255,21 @@ internal sealed class Desktop : Form
     {
         args.Handled = true;
         if (!args.IsUserInitiated) return;
-        if (!String.Equals(args.Uri, Home + "capture.html", StringComparison.OrdinalIgnoreCase))
+        bool mini = String.Equals(args.Uri, Home + "mini-timer.html", StringComparison.OrdinalIgnoreCase);
+        if (!mini && !String.Equals(args.Uri, Home + "capture.html", StringComparison.OrdinalIgnoreCase))
         {
             OpenExternal(args.Uri);
             return;
         }
 
         var deferred = args.GetDeferral();
-        var popup = new Form { Text = "Yin and Yang · Quick capture", Owner = this, ShowInTaskbar = false,
-            Size = new Size(400, 330), StartPosition = FormStartPosition.CenterParent };
+        var popup = new Form { Text = mini ? "Garden mini timer" : "Yin and Yang · Quick capture", ShowInTaskbar = mini,
+            TopMost = mini, Size = mini ? new Size(390, 380) : new Size(400, 330), StartPosition = FormStartPosition.CenterParent };
         var browser = new WebView2 { Dock = DockStyle.Fill };
         popup.Controls.Add(browser);
         try
         {
-            popup.Show(this);
+            if (mini) popup.Show(); else popup.Show(this);
             await browser.EnsureCoreWebView2Async(view.CoreWebView2.Environment);
             Configure(browser.CoreWebView2, false);
             browser.CoreWebView2.WindowCloseRequested += delegate { popup.Close(); };

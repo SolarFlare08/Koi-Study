@@ -19,6 +19,15 @@
 .sky .session-tools .resume-task:hover { background:color-mix(in srgb,currentColor 10%,transparent); }
 .daily-focus-goal { order:10; font-size:10px; letter-spacing:.04em; padding:8px 2px; margin-top:7px; color:var(--scene-ink); border-bottom:2px solid transparent; border-image:linear-gradient(to right,currentColor var(--goal-progress),transparent var(--goal-progress)) 1; }
 .focus-goal-dialog { max-width:450px; }
+.batch-move { width:min(470px,94vw); }
+.batch-move label { display:grid; gap:4px; margin:8px 0; }
+.batch-move fieldset { border:1px solid var(--surface-line); border-radius:8px; margin:12px 0; }
+#batch-list { max-height:24vh; overflow:auto; }
+#batch-list label { display:flex; align-items:center; gap:8px; }
+.batch-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.batch-move input:not([type=checkbox]) { min-width:0; padding:7px; border:1px solid var(--surface-line); border-radius:6px; background:var(--surface-field); color:inherit; }
+#batch-preview { margin:8px 0 16px; max-height:20vh; overflow:auto; }
+.split-hint { padding:10px; border-inline-start:2px solid var(--surface-accent); background:var(--surface-field); }
 .focus-goal-dialog header { display:flex; align-items:start; justify-content:space-between; }
 .focus-goal-dialog header small { font-size:10px; letter-spacing:.16em; }
 .focus-goal-dialog h2 { margin-top:6px; }

@@ -18,6 +18,7 @@ export function loadLibraryBooks(value){
     const id=bookKey(title,author);
     books.set(id,{id,title,author,status:Object.hasOwn(libraryStatuses,item.status)?item.status:'want',
       totalPages:pageCount(item.totalPages),addedOn:validReadingDay(item.addedOn)?item.addedOn:'',
+      ...(cleanText(item.lender,120)?{lender:cleanText(item.lender,120),returnBy:validReadingDay(item.returnBy)?item.returnBy:''}:{}),
       ...(item.archived===true?{archived:true}:{}),
       ...(Number.isSafeInteger(item.shelfOrder)&&item.shelfOrder>=0?{shelfOrder:item.shelfOrder}:{})});
   }
@@ -261,6 +262,15 @@ export function manageShelfBook(state,id,action,targetId){
     const index=libraryBooks.findIndex(entry=>entry.id===item.id);
     if(index<0)libraryBooks.push(record);else libraryBooks[index]=record;
   };
+  if(action==='return'){
+    update(book,{lender:'',returnBy:''});
+    return {bookId:id,changes:{libraryBooks}};
+  }
+  if(action==='loan'){
+    if(!cleanText(targetId?.lender,120))return {error:'Enter who lent you the book.'};
+    update(book,{lender:targetId.lender,returnBy:targetId.returnBy});
+    return {bookId:id,changes:{libraryBooks}};
+  }
   if(action==='archive'||action==='restore'){
     update(book,{archived:action==='archive'});
     return {bookId:id,changes:{libraryBooks}};
@@ -413,6 +423,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
           <button type="button" data-reading-filter="want" aria-pressed="false">Want to read</button>
           <button type="button" data-reading-filter="finished" aria-pressed="false">Finished</button>
           <button type="button" data-reading-filter="archived" aria-pressed="false">Archived</button>
+          <button type="button" data-reading-filter="borrowed" aria-pressed="false">Borrowed</button>
         </div>
         <label class="sr-only" for="reading-search">Find a book</label><input type="search" id="reading-search" placeholder="Find a book">
         <label class="reading-sort"><span class="sr-only">Sort books</span><select id="reading-sort"><option value="shelf">Shelf order</option><option value="last">Recent activity</option><option value="title">Title</option><option value="finished">Finish date</option><option value="rating">Rating</option></select></label>
@@ -550,7 +561,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     if(!collections.hidden)collections.innerHTML=collectionMarkup(all);
     const finishedOn=book=>[book.finished?.finishedOn||'',...(book.finished?.rereads||[]).map(item=>item.finishedOn)].sort().at(-1);
     const last=book=>[book.entries[0]?.date||'',book.library?.addedOn||'',finishedOn(book)].sort().at(-1);
-    const books=all.filter(book=>(filter==='archived'?book.library?.archived:!book.library?.archived&&(filter==='all'||bookStatus(book)===filter))&&normalized(`${book.title} ${book.author}`).includes(query));
+    const books=all.filter(book=>(filter==='borrowed'?book.library?.lender:filter==='archived'?book.library?.archived:!book.library?.archived&&(filter==='all'||bookStatus(book)===filter))&&normalized(`${book.title} ${book.author}`).includes(query));
     books.sort((a,b)=>{
       if(sort.value==='shelf')return shelfOrder(a,b);
       if(sort.value==='title')return a.title.localeCompare(b.title)||a.author.localeCompare(b.author);
@@ -606,10 +617,12 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
         ${stars(rating)}
         ${!current.finished&&current.library?.totalPages?`<p>${current.library.totalPages} pages</p>`:''}
       </div></header>
+      ${current.library?.lender?`<div class="reading-resume"><strong>Borrowed from ${escape(current.library.lender)}</strong><span>${current.library.returnBy?(current.library.returnBy<readingDay()?'Overdue since ':'Due ')+formatDay(current.library.returnBy):'No return date'}</span><button type="button" data-shelf-action="return">Mark returned</button></div>`:''}
       <div class="reading-note-actions reading-shelf-actions">
         <button type="button" data-shelf-action="${current.library?.archived?'restore':'archive'}">${current.library?.archived?'Restore to shelf':'Archive book'}</button>
         ${moveButton(-1,'Move left')}${moveButton(1,'Move right')}
       </div>
+      ${current.finished?`<details class="reading-merge"><summary>Loan details</summary><form id="reading-loan"><label>Borrowed from<input name="lender" maxlength="120" required value="${escape(current.library?.lender)}"></label><label>Return by<input name="returnBy" type="date" value="${escape(current.library?.returnBy)}"></label><button>Save loan</button></form></details>`:''}
       ${current.library?.archived?'':`<details class="reading-merge"><summary>Place on shelf</summary>
         <form id="reading-place-book"><div class="finished-book-fields">
           <label>Shelf<select name="shelf">${Array.from({length:rows},(_,row)=>`<option value="${row}" ${Math.floor(currentSlot/booksPerShelf)===row?'selected':''}>Shelf ${row+1}</option>`).join('')}</select></label>
@@ -697,7 +710,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
       if(action==='place'){filter='all';search.value='';}
     }else details.close();
     render();
-    status.textContent={move:'Shelf order saved.',place:'Book placed.',archive:'Book archived.',restore:'Book restored.',delete:'Book deleted.'}[action];
+    status.textContent={return:'Book marked returned.',move:'Shelf order saved.',place:'Book placed.',archive:'Book archived.',restore:'Book restored.',delete:'Book deleted.'}[action];
     return true;
   }
   function openBookendEditor(position){
@@ -790,6 +803,12 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     showDetail(book.dataset.readingBook,book);
   });
   history.addEventListener('submit',event=>{
+    if(event.target.id==='reading-loan'){
+      event.preventDefault();
+      const result=manageBook(selected,'loan',Object.fromEntries(new FormData(event.target)));
+      if(result.error)status.textContent=result.error;else render();
+      return;
+    }
     if(event.target.id==='reading-place-book'){
       event.preventDefault();
       const {shelf,slot}=event.target.elements;
@@ -938,6 +957,8 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
         <label>Shelf<select name="status">${Object.entries(libraryStatuses).map(([key,label])=>`<option value="${key}" ${bookStatus(book||{entries:[]})===key?'selected':''}>${label}</option>`).join('')}</select></label>
       </div>
       ${pageLookupMarkup()}
+      <label>Borrowed from<input name="lender" maxlength="120" placeholder="Person or library" value="${escape(book?.library?.lender)}"></label>
+      <label>Return by<input name="returnBy" type="date" value="${escape(book?.library?.returnBy)}"></label>
       <p data-library-error role="alert" hidden></p>
       <button type="submit" class="reading-library-save">${book?'Save changes':'Add to library'}</button>
     </form>`;
@@ -952,6 +973,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     event.preventDefault();
     const fields=Object.fromEntries(new FormData(event.target));
     fields.totalPages=Number(fields.totalPages);
+    if(fields.returnBy&&!fields.lender.trim()){const error=libraryEditor.querySelector('[data-library-error]');error.hidden=false;error.textContent='Enter who lent you the book.';return;}
     const result=saveLibrary(editingLibraryId,fields);
     if(result.error){const error=libraryEditor.querySelector('[data-library-error]');error.hidden=false;error.textContent=result.error;return;}
     filter='all';search.value='';libraryEditor.close();render();

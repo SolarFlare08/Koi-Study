@@ -55,6 +55,18 @@ export async function postcardPng(scene,caption){
   await drawScene(scene,caption,canvas.getContext('2d'),0,0);
   return encodePostcard(canvas);
 }
+export async function weeklyPostcardPng(scene,week,caption){
+  const canvas=document.createElement('canvas');canvas.width=1600;canvas.height=1060;
+  const ctx=canvas.getContext('2d');
+  await drawScene(scene,'',ctx,0,0,1600,900);
+  ctx.fillStyle='#203c40';ctx.fillRect(0,900,1600,160);
+  ctx.fillStyle='#bed5ca';ctx.font='26px sans-serif';
+  ctx.fillText(week.range,48,948);ctx.textAlign='right';
+  ctx.fillText(week.total+' min focused · '+week.sessions+' completed sessions',1552,948);
+  ctx.textAlign='left';ctx.fillStyle='#fff0d8';ctx.font='38px Georgia';
+  ctx.fillText(caption.trim()||'A week in the Garden',48,1016,1504);
+  return encodePostcard(canvas);
+}
 
 export async function comparisonPostcardPng(before,after,labels,caption=''){
   const canvas=document.createElement('canvas');

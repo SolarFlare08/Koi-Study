@@ -1,4 +1,10 @@
 export const releases = [
+  {version:'5.2.0',date:'2026-11-17',title:'Garden companions',changes:[
+    'Open a mini timer over your work for session controls and quick capture.',
+    'Move multiple calendar blocks together with an overlap preview. Draft smaller subtasks when logged focus repeatedly exceeds an estimate.',
+    'Track lenders, return dates, and outstanding loans on the Borrowed shelf.',
+    'Export weekly Garden postcards with focus totals and a personal highlight.'
+  ]},
   {version:'5.1.0',date:'2026-11-17',title:'A little more time',changes:[
     'Set Focus and Rest lengths from Quick times beside the countdown. For task-timed sessions, change just the current phase.',
     'Add 1, 5, or 10 minutes to a running or paused session without restarting it or moving the sun backward.',
