@@ -275,11 +275,11 @@ function previewMarkup(rows,selected){
       '<p>No records in this backup section.</p>'}</section>`).join('');
 }
 
-export function installBackup({dialog,storage,getState,getCaptures,notify}){
+export function installBackup({dialog,storage,getState,getCaptures,notify,automaticBackup}){
   dialog.innerHTML=`<form id="backup-form">
     <header><h2 id="backup-title">Backup and restore</h2><button type="button" data-backup-close aria-label="Close backup and restore">×</button></header>
     <p>Download your tasks, calendar, journal, notes, reading history, crochet projects, and settings in one file.</p>
-    <button type="button" id="download-backup">Download backup</button>
+    <section class="automatic-backup-card"><h3>Automatic protection</h3><p>Every five minutes while open, changed data gets a snapshot. Keep the last three automatic snapshots separately from your five manual restore points.</p><p id="automatic-backup-status" role="status"></p><button type="button" id="automatic-backup-now">Back up now</button> <button type="button" id="automatic-backup-folder" hidden>Open backup folder</button></section><button type="button" id="download-backup">Download backup</button>
     <section class="backup-restore" aria-labelledby="restore-points-heading"><h3 id="restore-points-heading">Local restore points</h3>
       <p>Keep up to five snapshots in this browser. Saving another drops the oldest.</p>
       <button type="button" id="save-restore-point" class="workspace-primary">Save restore point</button>
@@ -292,6 +292,16 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
         <div id="backup-preview-sections"></div></fieldset>
       <button type="submit" id="apply-backup" hidden disabled>Restore selected sections</button>
     </div></form>`;
+  const autoStatus=dialog.querySelector('#automatic-backup-status');
+  function updateAutomaticStatus(){
+    const value=automaticBackup?.status();
+    autoStatus.textContent=value?[value.local,value.disk].join(' · '):'Automatic backups are unavailable.';
+    renderPoints();
+  }
+  window.addEventListener('garden-backup-status',updateAutomaticStatus);
+  dialog.querySelector('#automatic-backup-now').onclick=()=>automaticBackup?.run();
+  const folder=dialog.querySelector('#automatic-backup-folder');folder.hidden=!automaticBackup?.desktop;
+  folder.onclick=()=>automaticBackup.openFolder();
   const file=dialog.querySelector('#backup-file');
   const status=dialog.querySelector('#backup-status');
   const apply=dialog.querySelector('#apply-backup');
@@ -312,9 +322,9 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
     report('');
   }
   function renderPoints(){
-    pointList.innerHTML=loadRestorePoints(storage).map(point=>{
+    pointList.innerHTML=[...(automaticBackup?.points()||[]).map(p=>({...p,automatic:true})),...loadRestorePoints(storage)].map(point=>{
       const date=new Date(point.snapshot.exportedAt).toLocaleString([],{dateStyle:'medium',timeStyle:'medium'});
-      return `<li><button type="button" data-restore-point="${escape(point.id)}">Preview ${escape(date)}</button></li>`;
+      return `<li><button type="button" data-restore-point="${escape(point.id)}">${point.automatic?'Automatic · ':'Manual · '}${escape(date)}</button></li>`;
     }).join('')||'<li>No restore points saved yet.</li>';
   }
   function stage(parsed,label){
@@ -335,7 +345,7 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
     const button=event.target.closest('[data-restore-point]');
     if(!button)return;
     clear();
-    const point=loadRestorePoints(storage).find(item=>item.id===button.dataset.restorePoint);
+    const point=[...(automaticBackup?.points()||[]),...loadRestorePoints(storage)].find(item=>item.id===button.dataset.restorePoint);
     if(!point){report('That restore point is no longer available.');renderPoints();return;}
     try{stage(readBackup(JSON.stringify(point.snapshot)),'Restore point');preview.querySelector('input')?.focus();}
     catch(error){report(error.message);}
@@ -384,5 +394,5 @@ export function installBackup({dialog,storage,getState,getCaptures,notify}){
     location.reload();
   });
   dialog.addEventListener('close',clear);
-  return {open(){clear();renderPoints();dialog.showModal();}};
+  return {open(){clear();updateAutomaticStatus();dialog.showModal();}};
 }

@@ -1,12 +1,29 @@
 // Keep feature instructions separate from the guide UI so they can be updated together with the app.
 export const helpTopics = [
+  {id:'focus-compass',group:'Focus & rest',title:'Progress ring, chimes, and daily goal',
+    summary:'See where your session is headed without opening a panel.',
+    steps:['The small ring below the countdown fills as the session progresses. While running, its label shows the expected finish time. Pausing freezes progress; resetting clears it.',
+      'Click the bell beside the ring to toggle timer chimes. Chimes start off on new profiles; music mode can still silence them. Use Timer settings to adjust volumes individually.',
+      'Click the minutes-today label beneath the timer to choose your daily focus goal. Only completed focus sessions count, including recorded overtime; skipped sessions do not.',
+      'Open Session tools for outcomes, subtasks, overtime, task suggestions, and review actions. Click it again to fold the tools away.'],
+    related:['timer','backup','windows-app']},
+  {id:'automatic-backups',group:'Start here',title:'Automatic backups and recovery',
+    summary:'Protect your Garden automatically and see whether the backup succeeded.',
+    steps:['Open Tools → Timer settings → Backup and restore. Automatic protection shows local and desktop backup status; Back up now creates a snapshot immediately.',
+      'While the app is open, changed data is captured every five minutes, with an initial backup after ten seconds. The last three automatic snapshots are separate from five manual restore points. Preview any snapshot and choose the sections to restore.',
+      'The Windows app also saves JSON files in %LOCALAPPDATA%\\Yin and Yang\\Backups. It keeps 30 recent snapshots plus the first snapshot from each of the last 14 backed-up days. A normal window close makes another disk backup.',
+      'Choose Open backup folder in the Windows app, then restore a JSON file through the normal backup preview. Tasks, calendars, saved journal drafts, notes, books, Stitchbook photos, and settings use the existing portable backup format.',
+      'Automatic backups stay on this computer. Copy a downloaded backup to another device or drive for protection against drive failure. Browser storage limits can prevent local snapshots; the status tells you when a backup fails.'],
+    action:'backup',actionLabel:'Open backups',related:['backup','windows-app']},
   {
     id:'windows-app', group:'Start here', title:'Use the Windows desktop app',
     summary:'Open Yin and Yang in its own window and move your saved data from the browser.',
     steps:['Extract the complete Windows x64 package and open Yin and Yang.exe. Windows uses the Microsoft Edge WebView2 Runtime to display the app.',
       'To bring over tasks, books, notes, and settings, open Backup and restore in your original browser tab and download a backup. Open Backup and restore in the Windows app and select the file.',
       'The Windows app starts the Quick Capture helper when it opens. Ctrl+Alt+N opens a note near the pointer. If that shortcut is already owned by the browser helper, quit the browser helper from its tray icon and reopen the desktop app.',
-      'To update, close the app, extract the newer Windows package to a new folder, and open its executable. The app reads the same saved data from your Windows profile.'],
+      'Drag the slim top strip to move the window or double-click to maximize. The buttons on the right minimize, maximize, or close it. Fullscreen hides the strip. The Garden icon appears on the taskbar.',
+      'Windows 5.0 enables per-monitor DPI support to avoid bitmap scaling on high-resolution displays. Existing app data stays in the same profile.',
+      'Updates are manual, not automatic. Changes to the website or source files do not change an already-built desktop package. Close the app, extract the newer full Windows package to a new folder, and open its executable. It reads the same saved data from your Windows profile.'],
     related:['backup','versions','shortcuts']
   },
   {
@@ -46,7 +63,7 @@ export const helpTopics = [
       'Use the Focus and Rest buttons to choose a phase. Each keeps its own saved duration.',
       'Use the main button to start, pause, or continue. Reset returns to the saved duration; Skip moves to the other phase.'],
     tip:'A reset or skip marks an unfinished session as skipped. Completed focus sessions and skipped sessions stay distinct in your progress. The running countdown survives refreshes and inactive tabs.',
-    action:'focus', actionLabel:'Open timer', related:['routines','notifications','block-focus'],
+    action:'focus', actionLabel:'Open timer', related:['focus-compass','routines','notifications','block-focus'],
     keywords:'pomodoro countdown colon seconds minutes inactive background tab time'
   },
   {
@@ -62,7 +79,7 @@ export const helpTopics = [
     id:'focus-subtasks',group:'Focus & rest',title:'Check off subtasks during focus',
     summary:'Use the current task’s checklist beside the timer.',
     steps:['Add subtasks in the task editor and select the task in Garden.',
-      'Choose `Subtasks` beside the timer and check items off as you go. Planner shows the same checkmarks.',
+      'Open `Session tools` → `Subtasks` below the timer and check items off as you go. Planner shows the same checkmarks.',
       'The first unchecked item appears in Pick up here and Warm up with your other handoff details.'],
     action:'focus',actionLabel:'Open Garden',related:['resume','session-warmup','tasks']
   },
@@ -109,7 +126,7 @@ export const helpTopics = [
   {
     id:'focus-outcome', group:'Focus & rest', title:'Set and review a focus outcome',
     summary:'Write what you want to finish, then record how far you got.',
-    steps:['Choose `Warm up` beneath a ready timer and write a concrete goal, such as “Solve problems 1–4.” During a session, use `Set outcome` to add or edit it.',
+    steps:['Open `Session tools` → `Warm up` beneath a ready timer and write a concrete goal, such as “Solve problems 1–4.” During a session, use `Set outcome` to add or edit it.',
       'Choose `Save and begin` to start a ready timer with the outcome.',
       'After the session, choose `Review outcome`, mark it Reached or Partial, and leave a next step. The next step appears on the task if the session was linked to one.'],
     tip:'Choose Later if you want to review it another time. Garden keeps completed outcomes available to review.',
@@ -127,14 +144,14 @@ export const helpTopics = [
     id:'break-ideas', group:'Focus & rest', title:'Save break ideas that fit the timer',
     summary:'Keep a personal list of 2-, 5-, and 10-minute ways to take a break.',
     steps:['In Garden, open `Tools` → `Timer settings` → `Manage break ideas`. Name the activity, choose 2, 5, or 10 minutes, and select `Add idea`.',
-      'During Rest, select `Break idea` beneath the timer. Garden suggests an activity at the longest saved length that fits the time left.',
+      'During Rest, open `Session tools` → `Break idea` beneath the timer. Garden suggests an activity at the longest saved length that fits the time left.',
       'Choose `Another idea` when more than one activity fits at that length. Use `Remove` to take an idea off your list.'],
     action:'focus', actionLabel:'Open Garden', related:['timer','backup']
   },
   {
     id:'resume', group:'Focus & rest', title:'Pick up where you left off',
     summary:'Save the exact problem, page, or file where you stopped and pick up there next time.',
-    steps:['Choose the task in Garden, then click `Leave a handoff` or `Edit handoff` beside the timer.',
+    steps:['Choose the task in Garden, then open `Session tools` and click `Leave a handoff` or `Edit handoff`.',
       'Enter where you stopped, the next step, and an optional web link to your resource. A local filename or path can go in Where you stopped.',
       'Choose `Save handoff` or press `Ctrl+Enter`. During focus, `Save and end focus` records the elapsed work, leaves the task open, and prepares a break.',
       'When the task is selected again in focus, its handoff appears in the Pick up here panel beside the timer. You can also edit it in the task editor.'],
@@ -609,7 +626,7 @@ export const helpTopics = [
     steps:['In the Notes tab, use a note’s link control to choose tasks, books, projects, or journal entries and save the links. Open the original sticky note from a linked book, project, or journal entry.',
       'To create a task from a note, select text or place the cursor on a line, then choose `Create task from note text`.',
       'Review the new task in its editor and save it. The original note is linked automatically.',
-      'Select the linked task in Garden and use its linked-notes control to open the notes beside the timer.'],
+      'Select the linked task in Garden and open `Session tools` → `Task notes` to open the notes beside the timer.'],
     action:'notes', actionLabel:'Open sticky notes', related:['sticky-notes','focus-queue','resume']
   },
   {
@@ -865,12 +882,12 @@ export const helpTopics = [
     id:'backup', group:'Your data', title:'Saving locally, backups, and restoring',
     summary:'Keep your work when closing a tab and move it to another device.',
     steps:['Saved work stays in this browser on this device when you close the tab. Reopen the app at the same address, browser, and profile to access it.',
-      'Open Garden → Settings → `Backup and restore`, then choose `Download backup` to export one file with tasks, calendar, journal, notes, reading history, crochet projects/time, and settings.',
+      'Open Garden → Tools → Timer settings → `Backup and restore`, then choose `Download backup` to export one file with tasks, calendar, journal, notes, reading history, crochet projects/time, and settings.',
       'On another device or after a reset, open Backup and restore and choose the `.json` file.',
       'Review the add and replace counts. Open `Show records`, then expand a `Replace` row to compare the current and incoming values for each changed field. Check the sections you want and choose `Restore selected sections`. Reading logs match by date.',
-      'Choose `Save restore point` to keep a dated snapshot in this browser. The five newest points stay available. Choose `Preview` on a point and restore the sections you want through the same preview.'],
+      'Choose `Save restore point` to keep a dated snapshot in this browser. The five newest points stay available. Choose the dated snapshot and restore the sections you want through the same preview.'],
     tip:'There is no account sync. Clearing site data, using a different browser/profile/address or port, or ending a private session can make saved work unavailable. Keep a downloaded backup of work you want to preserve.',
-    action:'backup', actionLabel:'Open Backup and restore', related:['journal','csv-import','calendar-import'], keywords:'save persist export import restore computer delete tab offline storage localstorage data lost'
+    action:'backup', actionLabel:'Open Backup and restore', related:['automatic-backups','windows-app','journal','calendar-import'], keywords:'save persist export import restore computer delete tab offline storage localstorage data lost'
   }
 ];
 

@@ -21,6 +21,8 @@ import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratc
 import {ratingTier,radiantRatingLabels} from './reading-progress.js';
 import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingShelf,saveLibraryBook} from './reading-shelf.js';
 import {installBackup} from './backup.js';
+import {installAutomaticBackup} from './automatic-backup.js';
+import {installFocusCompass} from './focus-compass.js';
 import {dailyRitualMarkup,loadRitualSchedules,ritualComplete,rituals,scheduledRituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed,spotifyPath} from './spotify-embed.js';
@@ -430,7 +432,9 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
   },
   finishBook:finishReadingBook,saveBook:(id,values)=>saveReadingChanges(editFinishedBook(state,id,values)),
   mergeBooks:(source,target)=>saveReadingChanges(mergeShelfBooks(state,source,target))});
-const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast});
+const automaticBackup=installAutomaticBackup({storage,getState:()=>state,getCaptures:availableCaptures});
+const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast,automaticBackup});
+const compass=installFocusCompass({getState:()=>state,save:()=>{const ok=persist();if(ok)syncSound();return ok;},notify:toast});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
 const openVersionHistory=installVersionHistory($('#version-history'));
@@ -882,6 +886,7 @@ function render(){
   finishTaskButton.hidden=!task||t.mode!=='focus'||Boolean(t.mistakeId);
   currentTaskButton.disabled=Boolean(t.mistakeId);
   renderSessionExtras(t);
+  compass.render(clock.getTime());
   const list=$('#focus-subtasks'),subtasks=task?.subtasks||[];
   list.hidden=!subtasks.length||Boolean(t.mistakeId);
   const checklist=`Subtasks · ${subtasks.filter(item=>item.done).length}/${subtasks.length}`;

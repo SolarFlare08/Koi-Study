@@ -14,6 +14,16 @@ The desktop app saves to `%LOCALAPPDATA%\Yin and Yang`. To migrate your browser 
 
 To update, close the app, extract the newer desktop package into a fresh folder, and run its executable. The new app uses the same profile. Updates are manual.
 
+### Version 5.0
+
+The Windows app has a slim draggable window strip, custom controls, and a mountain-and-sun taskbar icon. Double-click the strip to maximize or restore; drag an edge to resize. Fullscreen hides the strip. Per-monitor DPI support follows Microsoft's [.NET Framework high-DPI configuration](https://learn.microsoft.com/en-us/dotnet/desktop/winforms/high-dpi-support-in-windows-forms), so Windows renders the window at the monitor's resolution instead of scaling a low-resolution bitmap. Keep `Yin and Yang.exe.config` beside the executable.
+
+In Garden, the progress ring shows session progress and the label shows the estimated end time. The bell toggles focus and break chimes without overriding master mute or music mode. **Session tools** opens a compact drawer for handoffs, notes, outcomes, and other session actions. Click the daily minutes beneath it to set your focus goal. The default target is 120 minutes; completed focus time counts and skipped sessions remain separate.
+
+**Automatic backups:** ten seconds after opening, then every five minutes while open, changed data gets a portable snapshot. Three automatic restore points are kept separately from five manual restore points. The Windows app also writes to `%LOCALAPPDATA%\Yin and Yang\Backups`, keeping 30 recent files and the first backup from each of the last 14 backed-up days. A normal window close writes a disk backup before exiting. In **Backup and restore**, check status, choose **Back up now**, or **Open backup folder**. Disk backups can be selected through the existing restore preview. These are local copies, not cloud sync; keep an external copy to protect against disk failure. Storage quota failures appear in the backup status. Unsaved text that has not yet entered app storage is not included.
+
+4.x saved data and portable backups remain compatible. Source edits and website updates do **not** update an existing executable's bundled files; build and extract the new desktop package to get them.
+
 For a source build, run `npm run desktop:build` from this folder on 64-bit Windows. The build uses the .NET Framework compiler and downloads the Microsoft WebView2 SDK from NuGet. The executable and ZIP are written under `.local/desktop`. For an offline source build, run `npm run desktop:build -- --sdk-bin "C:/path/to/WebView2 DLLs"` with matching .NET Framework versions of Microsoft.Web.WebView2.Core.dll, Microsoft.Web.WebView2.WinForms.dll, and the x64 WebView2Loader.dll.
 
 ## Changing the landscape

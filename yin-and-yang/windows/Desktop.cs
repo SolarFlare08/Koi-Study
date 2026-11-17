@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -21,20 +23,90 @@ internal sealed class Desktop : Form
     private readonly WebView2 view = new WebView2();
     private FormWindowState priorWindowState;
     private Process captureHelper;
+    private readonly Panel chrome = new Panel();
+    private bool closingSaved;
+    private string lastBackupData;
+    private readonly JavaScriptSerializer serializer = new JavaScriptSerializer { MaxJsonLength = 64 * 1024 * 1024 };
+
+    [DllImport("user32.dll")] private static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wparam, IntPtr lparam);
+
+    protected override void WndProc(ref Message message)
+    {
+        base.WndProc(ref message);
+        if (message.Msg != 0x84 || WindowState != FormWindowState.Normal) return;
+        var position = PointToClient(new Point(unchecked((short)(long)message.LParam), unchecked((short)((long)message.LParam >> 16))));
+        int edge = Math.Max(5, (int)(6 * DeviceDpi / 96.0));
+        bool left = position.X < edge, right = position.X >= ClientSize.Width - edge;
+        bool top = position.Y < edge, bottom = position.Y >= ClientSize.Height - edge;
+        if (top) message.Result = (IntPtr)(left ? 13 : right ? 14 : 12);
+        else if (bottom) message.Result = (IntPtr)(left ? 16 : right ? 17 : 15);
+        else if (left || right) message.Result = (IntPtr)(left ? 10 : 11);
+    }
+
+    private void BuildChrome()
+    {
+        chrome.Dock = DockStyle.Top;
+        chrome.Height = 30;
+        chrome.BackColor = BackColor;
+        chrome.AccessibleName = "Window controls. Drag to move; double-click to maximize.";
+        chrome.MouseDown += delegate(object sender, MouseEventArgs e) {
+            if (e.Button != MouseButtons.Left) return;
+            ReleaseCapture(); SendMessage(Handle, 0xA1, (IntPtr)2, IntPtr.Zero);
+        };
+        chrome.DoubleClick += delegate { ToggleMaximize(); };
+        foreach (string action in new[] { "Close", "Maximize or restore", "Minimize" })
+        {
+            var button = new Button { Dock = DockStyle.Right, Width = 42, FlatStyle = FlatStyle.Flat,
+                ForeColor = Color.FromArgb(218, 231, 226), BackColor = BackColor, AccessibleName = action,
+                TabStop = true, Text = "", Tag = action };
+            button.FlatAppearance.BorderSize = 0;
+            button.FlatAppearance.MouseOverBackColor = action == "Close" ? Color.FromArgb(130, 63, 60) : Color.FromArgb(47, 68, 77);
+            button.Paint += delegate(object sender, PaintEventArgs e) {
+                var b = (Button)sender; float x = b.Width / 2f, y = b.Height / 2f;
+                using (var pen = new Pen(b.ForeColor, Math.Max(1, DeviceDpi / 96f))) {
+                    if ((string)b.Tag == "Close") { e.Graphics.DrawLine(pen,x-4,y-4,x+4,y+4);e.Graphics.DrawLine(pen,x+4,y-4,x-4,y+4); }
+                    else if ((string)b.Tag == "Minimize") e.Graphics.DrawLine(pen,x-5,y+3,x+5,y+3);
+                    else e.Graphics.DrawRectangle(pen,x-4,y-4,8,8);
+                }
+            };
+            button.Click += delegate(object sender, EventArgs e) {
+                string command = (string)((Button)sender).Tag;
+                if (command == "Close") Close();
+                else if (command == "Minimize") WindowState = FormWindowState.Minimized;
+                else ToggleMaximize();
+            };
+            chrome.Controls.Add(button); button.BringToFront();
+        }
+        Controls.Add(chrome);
+        chrome.BringToFront();
+    }
+
+    private void ToggleMaximize()
+    {
+        MaximizedBounds = Screen.FromHandle(Handle).WorkingArea;
+        WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
+    }
 
     private Desktop(string profilePath, bool verifyOnly)
     {
         profile = profilePath;
         verify = verifyOnly;
         Text = "Yin and Yang";
+        AutoScaleDimensions = new SizeF(96, 96);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        FormBorderStyle = FormBorderStyle.None;
+        Padding = new Padding(5);
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(1240, 780);
-        MinimumSize = new Size(520, 420);
+        MinimumSize = new Size(540, 620);
         BackColor = Color.FromArgb(24, 42, 54);
         if (verify) { ShowInTaskbar = false; Opacity = 0; }
         view.Dock = DockStyle.Fill;
         Controls.Add(view);
+        BuildChrome();
+        FormClosing += SaveBeforeClose;
         Shown += async delegate { await StartGarden(); };
         FormClosed += delegate
         {
@@ -65,7 +137,7 @@ internal sealed class Desktop : Form
         web.SetVirtualHostNameToFolderMapping("yin-and-yang.local", Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "dist"),
             CoreWebView2HostResourceAccessKind.DenyCors);
         web.Settings.AreHostObjectsAllowed = false;
-        web.Settings.IsWebMessageEnabled = false;
+        web.Settings.IsWebMessageEnabled = mainWindow;
         web.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs args)
         {
             if (args.Uri.StartsWith(Home, StringComparison.OrdinalIgnoreCase) || args.Uri == "about:blank") return;
@@ -74,6 +146,7 @@ internal sealed class Desktop : Form
         };
         web.NewWindowRequested += OpenNewWindow;
         if (!mainWindow) return;
+        web.WebMessageReceived += ReceiveMessage;
         web.AddWebResourceRequestedFilter(CaptureEndpoint, CoreWebView2WebResourceContext.All);
         web.WebResourceRequested += ServeCaptureInbox;
         web.ContainsFullScreenElementChanged += delegate
@@ -81,15 +154,92 @@ internal sealed class Desktop : Form
             if (web.ContainsFullScreenElement)
             {
                 priorWindowState = WindowState;
-                FormBorderStyle = FormBorderStyle.None;
+                chrome.Visible = false;
+                Padding = Padding.Empty;
+                MaximizedBounds = Screen.FromHandle(Handle).Bounds;
                 WindowState = FormWindowState.Maximized;
             }
             else
             {
-                FormBorderStyle = FormBorderStyle.Sizable;
+                chrome.Visible = true;
+                Padding = new Padding(5);
+                MaximizedBounds = Screen.FromHandle(Handle).WorkingArea;
                 WindowState = priorWindowState;
             }
         };
+    }
+
+    private bool IsGarden(string uri)
+    {
+        return String.Equals(uri, Home + "index.html", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ReceiveMessage(object sender, CoreWebView2WebMessageReceivedEventArgs args)
+    {
+        // Only the bundled main document can request these two fixed operations.
+        if (!IsGarden(args.Source)) return;
+        try {
+            var message = serializer.Deserialize<Dictionary<string, object>>(args.WebMessageAsJson);
+            object kind;
+            if (message == null || !message.TryGetValue("type", out kind)) return;
+            if ((string)kind == "open-backups") {
+                string directory = Path.Combine(profile, "Backups"); Directory.CreateDirectory(directory);
+                Process.Start(new ProcessStartInfo("explorer.exe", '"' + directory + '"') { UseShellExecute = true });
+            }
+            else if ((string)kind == "backup") {
+                object snapshot;
+                if (!message.TryGetValue("snapshot", out snapshot)) return;
+                WriteBackup(serializer.Serialize(snapshot));
+                webBackupResult(null);
+            }
+        } catch (Exception error) { webBackupResult(error.Message); }
+    }
+
+    private void webBackupResult(string error)
+    {
+        view.CoreWebView2.PostWebMessageAsJson(serializer.Serialize(new {
+            type = "backup-result", error = error, at = DateTime.UtcNow.ToString("o")
+        }));
+    }
+
+    private void WriteBackup(string text)
+    {
+        if (text == null || text.Length > 64 * 1024 * 1024) throw new InvalidOperationException("Backup is too large.");
+        var snapshot = serializer.Deserialize<Dictionary<string, object>>(text);
+        if (snapshot == null || !snapshot.ContainsKey("format") || (string)snapshot["format"] != "yin-and-yang-backup" ||
+            !snapshot.ContainsKey("data")) throw new InvalidOperationException("Invalid Garden backup.");
+        string data = serializer.Serialize(snapshot["data"]);
+        if (data == lastBackupData) return;
+        string directory = Path.Combine(profile, "Backups");
+        Directory.CreateDirectory(directory);
+        string file = Path.Combine(directory, "garden-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + "-" + Guid.NewGuid().ToString("N") + ".json");
+        string temporary = file + ".tmp";
+        // Move a complete file into place before rotating older snapshots.
+        File.WriteAllText(temporary, text, new UTF8Encoding(false));
+        File.Move(temporary, file);
+        string daily = Path.Combine(directory, "daily-" + DateTime.Now.ToString("yyyyMMdd") + ".json");
+        if (!File.Exists(daily)) File.Copy(file, daily);
+        foreach (var older in Directory.GetFiles(directory, "garden-*.json").OrderByDescending(p => p).Skip(30)) File.Delete(older);
+        foreach (var older in Directory.GetFiles(directory, "daily-*.json").OrderByDescending(p => p).Skip(14)) File.Delete(older);
+        lastBackupData = data;
+    }
+
+    private async void SaveBeforeClose(object sender, FormClosingEventArgs args)
+    {
+        if (verify || closingSaved || view.CoreWebView2 == null || !IsGarden(view.CoreWebView2.Source)) return;
+        args.Cancel = true;
+        Enabled = false;
+        try {
+            var request = view.ExecuteScriptAsync("window.gardenDesktopSnapshot ? window.gardenDesktopSnapshot() : null");
+            if (await Task.WhenAny(request, Task.Delay(8000)) != request) throw new IOException("The backup did not respond in time.");
+            var value = serializer.Deserialize<string>(await request);
+            if (value != null) WriteBackup(value);
+        } catch (Exception error) {
+            Enabled = true;
+            if (MessageBox.Show(this, "The closing backup could not be saved. Your usual saved data is still in the app profile.\n\n" + error.Message + "\n\nClose anyway?",
+                "Backup needs attention", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        }
+        closingSaved = true; Close();
     }
 
     private static void OpenExternal(string value)
@@ -183,6 +333,48 @@ internal sealed class Desktop : Form
                 string result = await view.ExecuteScriptAsync("(function(){if (!document.querySelector('#edit-duration')?.onclick) return ''; const k='desktop-verification';const old=localStorage.getItem(k);localStorage.setItem(k,'saved');return old ? 'persisted' : 'ready';})()");
                 if (result == "\"ready\"" || result == "\"persisted\"")
                 {
+                    string snapshot = serializer.Deserialize<string>(await view.ExecuteScriptAsync("window.gardenDesktopSnapshot()"));
+                    WriteBackup(snapshot);
+                    var checks = await view.ExecuteScriptAsync(@"(function(){
+                        const goal=document.querySelector('.daily-focus-goal');
+                        if(!goal||!document.querySelector('#compass-progress'))throw Error('Focus controls missing');
+                        goal.click();const dialog=document.querySelector('.focus-goal-dialog');
+                        if(!dialog.open)throw Error('Daily goal did not open');
+                        dialog.querySelector('input').value='90';dialog.querySelector('[value=save]').click();
+                        if(dialog.open)throw Error('Daily goal did not save');
+                        document.querySelector('.session-tools-toggle').click();
+                        if(document.querySelector('.session-tools').hidden)throw Error('Session tools did not open');
+                        document.querySelector('.session-tools-toggle').click();
+                        document.querySelector('#automatic-backup-now').click();
+                        return JSON.parse(localStorage.getItem('yin-and-yang.v1')).settings.dailyFocusGoal===90?'passed':'failed';
+                    })()");
+                    if (checks != "\"passed\"") throw new InvalidOperationException("UI checks failed: " + checks);
+                    await Task.Delay(600);
+                    string backupCheck = await view.ExecuteScriptAsync(@"(function(){
+                        const point=document.querySelector('[data-restore-point]');
+                        if(!point) return 'No automatic restore point';
+                        const dialog=document.querySelector('#backup-dialog');dialog.showModal();point.click();
+                        const ok=!document.querySelector('#backup-preview').hidden&&document.querySelector('#backup-preview-sections input');
+                        dialog.close();return ok?'passed':'Restore preview failed';
+                    })()");
+                    if (backupCheck != "\"passed\"") throw new InvalidOperationException("Backup check: " + backupCheck);
+                    using (var screenshot = File.Create(Path.Combine(profile, "garden.png")))
+                        await view.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, screenshot);
+                    using (var strip = new Bitmap(chrome.Width, chrome.Height)) {
+                        chrome.DrawToBitmap(strip, chrome.ClientRectangle);
+                        strip.Save(Path.Combine(profile, "window-controls.png"));
+                    }
+                    await view.ExecuteScriptAsync("document.querySelector('#toast').classList.remove('visible');document.querySelector('.session-tools-toggle').click()");
+                    using (var screenshot = File.Create(Path.Combine(profile, "session-tools.png")))
+                        await view.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, screenshot);
+                    await view.ExecuteScriptAsync("document.querySelector('.session-tools-toggle').click()");
+                    ClientSize = new Size(560, 720);
+                    await Task.Delay(400);
+                    using (var screenshot = File.Create(Path.Combine(profile, "compact.png")))
+                        await view.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, screenshot);
+                    File.WriteAllText(Path.Combine(profile, "display.txt"), "DPI: " + DeviceDpi + "; icon: " + Icon.Size);
+                    if (Directory.GetFiles(Path.Combine(profile, "Backups"), "garden-*.json").Length < 1)
+                        throw new InvalidOperationException("No desktop backup created.");
                     File.WriteAllText(Path.Combine(profile, "verify.txt"), result.Trim('"'));
                     Close();
                     return;

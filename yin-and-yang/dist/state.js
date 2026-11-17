@@ -294,6 +294,7 @@ export function loadState(storage) {
     base.gardenGrowth=loadGardenGrowth(raw.gardenGrowth);
     base.finishedBooks=loadFinishedBooks(raw.finishedBooks,base.gardenGrowth,base.dailyRituals,base.readingNotes);
     base.settings.taskBoardCollapsed=raw.settings?.taskBoardCollapsed===true;
+    if(Number.isInteger(raw.settings?.dailyFocusGoal)&&raw.settings.dailyFocusGoal>=5&&raw.settings.dailyFocusGoal<=720)base.settings.dailyFocusGoal=raw.settings.dailyFocusGoal;
     for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
     if (Array.isArray(raw.tasks)) base.tasks=raw.tasks.filter(t=>t && typeof t.id==='string' && typeof t.text==='string' && typeof t.done==='boolean').map(loadTask);
     base.taskTemplates=Array.isArray(raw.taskTemplates)?raw.taskTemplates.map(taskTemplate).filter(Boolean):[];

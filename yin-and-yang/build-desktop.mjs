@@ -66,8 +66,13 @@ async function build(){
   const options=['/nologo','/target:winexe','/platform:x64','/reference:System.Windows.Forms.dll',
     '/reference:System.Drawing.dll','/reference:System.Web.Extensions.dll'];
   const exe=join(release,'Yin and Yang.exe');
-  run(compiler,[...options,'/reference:'+core,'/reference:'+forms,'/out:'+exe,join(sources,'Desktop.cs'),assembly]);
-  run(compiler,[...options,'/out:'+join(release,'QuickNote.exe'),join(sources,'QuickNote.cs')]);
+  const iconMaker=join(output,'IconMaker.exe'), appIcon=join(output,'garden.ico');
+  run(compiler,['/nologo','/target:exe','/reference:System.Drawing.dll','/out:'+iconMaker,join(sources,'IconMaker.cs')]);
+  run(iconMaker,[appIcon]);
+  cpSync(join(sources,'Desktop.config'),exe+'.config');
+  run(compiler,[...options,'/win32icon:'+appIcon,'/win32manifest:'+join(sources,'Desktop.manifest'),'/reference:'+core,'/reference:'+forms,'/out:'+exe,join(sources,'Desktop.cs'),assembly]);
+  cpSync(join(sources,'Desktop.config'),join(release,'QuickNote.exe.config'));
+  run(compiler,[...options,'/win32icon:'+appIcon,'/win32manifest:'+join(sources,'Desktop.manifest'),'/out:'+join(release,'QuickNote.exe'),join(sources,'QuickNote.cs')]);
   cpSync(join(repository,'dist'),join(release,'dist'),{recursive:true});
 
   const zip=join(output,`Yin-and-Yang-${version}-Windows-x64.zip`);

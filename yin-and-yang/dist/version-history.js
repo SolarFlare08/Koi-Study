@@ -1,4 +1,11 @@
 export const releases = [
+  {version:'5.0.0',date:'2026-11-17',title:'A calmer Garden, a stronger desktop',changes:[
+    'Follow a live focus progress ring and finish-time estimate. Set a daily focus goal and toggle timer chimes beside the countdown. Session tools fold away until you need them.',
+    'Meet a redrawn penguin with soft vector details, a quiet blink, and a greeting on hover. Reduced motion keeps the companion still.',
+    'Use a streamlined desktop window with custom minimize, maximize, and close controls, a Garden taskbar icon, and per-monitor DPI support for sharper rendering.',
+    'Automatic backups retain three local snapshots. Windows also keeps 30 recent disk backups and 14 daily snapshots, and saves on normal exit. Open the backup folder or preview a local snapshot from Backup and restore.',
+    'Existing 4.x data and backups remain compatible. Desktop updates remain manual: install the new full package to use the new code with your existing profile.'
+  ]},
   {version:'4.0.0',date:'2026-11-16',title:'Yin and Yang for Windows',changes:[
     'Open Yin and Yang in its own Windows window with the bundled Garden and Quick Capture.',
     'The desktop app keeps its data in a separate Windows profile. Use a backup to bring over browser data, and replace the desktop package to update the app.'

@@ -1,0 +1,44 @@
+/* 5.0: calm, readable controls with crisp vector details. */
+.sky { text-shadow:none; }
+#countdown,#typed-duration { font-family:Manrope,'Segoe UI Variable','Segoe UI',sans-serif; }
+.local-clock { font-family:Manrope,'Segoe UI Variable','Segoe UI',sans-serif; }
+.focus-compass { order:0; display:flex; align-items:center; justify-content:center; gap:8px; margin:8px 0 5px; min-height:30px; color:var(--scene-ink); font-size:11px; letter-spacing:.025em; }
+.focus-compass>svg { width:25px; height:25px; fill:none; stroke:currentColor; stroke-width:1.6; transform:rotate(-90deg); }
+.compass-track { opacity:.18; }
+#compass-progress { stroke-dasharray:100; stroke-linecap:round; transition:stroke-dashoffset .5s linear; }
+#compass-bell { display:grid; place-items:center; width:29px; height:29px; border:1px solid color-mix(in srgb,currentColor 24%,transparent); border-radius:50%; margin-left:4px; }
+#compass-bell svg { width:15px; height:15px; }
+#compass-bell[aria-pressed=true] .bell-slash { display:none; }
+.sky .mode-tabs { gap:3px; border:1px solid color-mix(in srgb,var(--scene-ink) 19%,transparent); border-radius:20px; padding:3px; }
+.sky .mode-tabs button { padding:5px 16px; border:0; border-radius:16px; }
+.sky .mode-tabs button[aria-pressed=true] { background:color-mix(in srgb,var(--scene-ink) 12%,transparent); }
+.sky .start-button { min-height:40px; min-width:142px; box-shadow:none; }
+.sky .session-tools-toggle { order:8; font-size:11px; padding:7px 14px; margin-top:6px; border-radius:16px; background:var(--scene-paper); color:var(--scene-ink); border:1px solid color-mix(in srgb,var(--scene-ink) 22%,transparent); }
+.sky .session-tools { order:9; position:absolute; bottom:63px; width:min(350px,calc(100vw - 36px)); max-height:230px; overflow:auto; padding:12px; margin-top:7px; border:1px solid color-mix(in srgb,var(--scene-ink) 25%,transparent); border-radius:12px; background:var(--scene-paper); color:var(--scene-ink); box-shadow:0 8px 24px #10273340; z-index:5; }
+.sky .session-tools .resume-task { border:0; background:transparent; color:inherit; padding:7px 9px; border-radius:7px; }
+.sky .session-tools .resume-task:hover { background:color-mix(in srgb,currentColor 10%,transparent); }
+.daily-focus-goal { order:10; font-size:10px; letter-spacing:.04em; padding:8px 2px; margin-top:7px; color:var(--scene-ink); border-bottom:2px solid transparent; border-image:linear-gradient(to right,currentColor var(--goal-progress),transparent var(--goal-progress)) 1; }
+.focus-goal-dialog { max-width:450px; }
+.focus-goal-dialog header { display:flex; align-items:start; justify-content:space-between; }
+.focus-goal-dialog header small { font-size:10px; letter-spacing:.16em; }
+.focus-goal-dialog h2 { margin-top:10px; }
+.focus-goal-dialog p { line-height:1.7; }
+.focus-goal-dialog label { display:grid; gap:8px; }
+.focus-goal-dialog input { padding:12px; border:1px solid var(--surface-line,#879c9c); border-radius:8px; }
+.goal-presets { display:flex; gap:8px; margin:12px 0 24px; }
+.goal-presets button { padding:8px 12px; border:1px solid var(--surface-line,#879c9c); border-radius:20px; }
+.automatic-backup-card { padding:16px; border:1px solid var(--surface-line,#879c9c); border-radius:12px; margin:18px 0; }
+.automatic-backup-card p { line-height:1.6; }
+.automatic-backup-card button { padding:9px 12px; border:1px solid var(--surface-line,#879c9c); border-radius:8px; }
+#automatic-backup-status { font-size:12px; }
+#penguin-next { width:62px; }
+#penguin-next svg { width:100%; height:auto; filter:none; }
+#penguin-thought { padding:11px 14px; border-radius:14px 14px 14px 4px; line-height:1.5; box-shadow:0 4px 18px #152f3912; }
+.penguin-eyes { transform-box:fill-box; transform-origin:center; animation:penguin-blink 9s infinite; }
+#app[data-motion="still"] .penguin-eyes,#app[data-motion="still"] #penguin-next:hover .penguin-body { animation:none; }
+#penguin-next:hover .penguin-body { transform-origin:40px 78px; animation:penguin-greet .65s ease-in-out; }
+@keyframes penguin-blink { 0%,94%,98%,100%{transform:scaleY(1)} 96%{transform:scaleY(.12)} }
+@keyframes penguin-greet { 0%,100%{transform:rotate(0)} 35%{transform:rotate(-5deg)} 70%{transform:rotate(4deg)} }
+@media(max-height:800px) { .sky{--timer-size:clamp(62px,8vw,96px)} .sky .session-tools{max-height:190px}.focus-compass{margin:3px 0}.daily-focus-goal{padding:4px 0;margin-top:3px} }
+@media(max-width:600px) { #penguin-next{width:48px}.sky .session-tools{max-width:300px} }
+@media(prefers-reduced-motion:reduce) { #compass-progress{transition:none}.penguin-eyes,#penguin-next:hover .penguin-body{animation:none} }

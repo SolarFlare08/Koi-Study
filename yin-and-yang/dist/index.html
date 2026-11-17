@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="./workspace-tools.css">
   <link rel="stylesheet" href="./help.css">
   <link rel="stylesheet" href="./garden-navigation.css">
+  <link rel="stylesheet" href="./release-five.css">
 </head>
 <body>
   <main id="app" data-workspace="focus" aria-label="Yin and Yang study garden">
@@ -83,14 +84,18 @@
     </aside>
     <aside id="penguin" class="secondary" aria-label="Penguin companion">
       <button id="penguin-next" type="button" aria-label="Ask the penguin for another thought" aria-describedby="penguin-thought" title="Another thought">
-        <svg viewBox="0 0 56 59" aria-hidden="true">
-          <ellipse cx="28" cy="55" rx="21" ry="2.7" fill="#182f3d" opacity=".25"/>
-          <path d="M13 30c-5 3-9 9-8 15 1 4 7 1 11-5m27-10c5 3 9 9 8 15-1 4-7 1-11-5" fill="#4a636b"/>
-          <path d="M20 50c-4 0-7 3-6 5 1 2 9 1 13-2m9-3c4 0 7 3 6 5-1 2-9 1-13-2" fill="#c69367"/>
-          <path d="M28 4c10 0 16 8 16 19 0 8 4 13 4 20 0 8-9 12-20 12s-20-4-20-12c0-7 4-12 4-20C12 12 18 4 28 4Z" fill="#2e454f" stroke="#6f888b" stroke-width="1"/>
-          <path d="M28 20c-5-7-12-3-12 4 0 4 3 6 1 10-2 4-4 8-2 12 2 5 8 6 13 6s11-1 13-6c2-4 0-8-2-12-2-4 1-6 1-10 0-7-7-11-12-4Z" fill="#f5edda"/>
-          <circle cx="23" cy="25" r="1.4" fill="#263c46"/><circle cx="33" cy="25" r="1.4" fill="#263c46"/>
-          <path d="M24.5 29q3.5-2.6 7 0L28 33Z" fill="#c69367"/>
+        <svg viewBox="0 0 80 88" aria-hidden="true" class="penguin-illustration">
+          <defs><linearGradient id="penguin-coat" x2=".8" y2="1"><stop stop-color="#496371"/><stop offset="1" stop-color="#233d4a"/></linearGradient><linearGradient id="penguin-belly" x2="0" y2="1"><stop stop-color="#fffdf1"/><stop offset="1" stop-color="#e1e7df"/></linearGradient></defs>
+          <ellipse cx="40" cy="83" rx="25" ry="3" fill="#112d3b" opacity=".18"/>
+          <path d="M22 76q-12 4-6 7h17l2-6m23-1q12 4 6 7H47l-2-6" fill="#ce9d6d"/>
+          <g class="penguin-body"><path d="M19 38Q7 44 8 64q1 6 13-8m39-18q13 7 12 24-2 7-14-7" fill="#344f5c"/>
+          <path d="M40 6c-17 0-24 14-24 32 0 12-6 20-4 30 2 11 14 14 28 14s26-3 28-14c2-10-4-18-4-30C64 20 57 6 40 6Z" fill="url(#penguin-coat)"/>
+          <path d="M40 29c-10-14-24-3-19 10 3 7 3 11 0 19-6 16 6 20 19 20s25-4 19-20c-3-8-3-12 0-19 5-13-9-24-19-10Z" fill="url(#penguin-belly)"/>
+          <g class="penguin-eyes"><circle cx="30" cy="36" r="2.5" fill="#233c48"/><circle cx="50" cy="36" r="2.5" fill="#233c48"/><circle cx="30.7" cy="35.2" r=".8" fill="white"/><circle cx="50.7" cy="35.2" r=".8" fill="white"/></g>
+          <ellipse cx="25" cy="43" rx="4" ry="2" fill="#d9aaa1" opacity=".5"/><ellipse cx="55" cy="43" rx="4" ry="2" fill="#d9aaa1" opacity=".5"/>
+          <path d="M35 43q5-4 10 0l-5 5Z" fill="#d4a271"/>
+          <path d="M22 55q18 7 36 0" fill="none" stroke="#8ab6a3" stroke-width="5" stroke-linecap="round"/><path d="m52 57-3 12 7 2 1-16" fill="#8ab6a3"/>
+          <path d="M31 13q9-5 16-1" fill="none" stroke="#7894a0" stroke-width="2" stroke-linecap="round" opacity=".5"/></g>
         </svg>
       </button>
       <p id="penguin-thought">Small steps still carry you forward.</p>
