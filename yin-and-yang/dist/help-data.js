@@ -9,7 +9,7 @@ export const helpTopics = [
     related:['timer','backup','windows-app']},
   {id:'automatic-backups',group:'Start here',title:'Automatic backups and recovery',
     summary:'Protect your Garden automatically and see whether the backup succeeded.',
-    steps:['Open Tools → Timer settings → Backup and restore. Automatic protection shows local and desktop backup status; Back up now creates a snapshot immediately.',
+    steps:['Open Tools → Timer settings → Backup and restore. In a browser tab, Automatic protection shows local backup status. In the Windows app, it also shows disk backup status. Choose Back up now to create a snapshot immediately.',
       'While the app is open, changed data is captured every five minutes, with an initial backup after ten seconds. The last three automatic snapshots are separate from five manual restore points. Preview any snapshot and choose the sections to restore.',
       'The Windows app also saves JSON files in %LOCALAPPDATA%\\Yin and Yang\\Backups. It keeps 30 recent snapshots plus the first snapshot from each of the last 14 backed-up days. A normal window close makes another disk backup.',
       'Choose Open backup folder in the Windows app, then restore a JSON file through the normal backup preview. Tasks, calendars, saved journal drafts, notes, books, Stitchbook photos, and settings use the existing portable backup format.',

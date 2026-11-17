@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.0.1',date:'2026-11-17',title:'Browser startup fix',changes:[
+    'Restore the clock, timer, and workspace controls in browser tabs by keeping Windows backup messaging inside the desktop app.',
+    'Keep Session tools closed until opened and continue saving automatic browser restore points.'
+  ]},
   {version:'5.0.0',date:'2026-11-17',title:'A calmer Garden, a stronger desktop',changes:[
     'Follow a live focus progress ring and finish-time estimate. Set a daily focus goal and toggle timer chimes beside the countdown. Session tools fold away until you need them.',
     'Meet a redrawn penguin with soft vector details, a quiet blink, and a greeting on hover. Reduced motion keeps the companion still.',

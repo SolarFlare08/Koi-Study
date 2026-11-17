@@ -32,7 +32,7 @@ async function writePoint(snapshot){
   });}finally{db.close();}
 }
 export function installAutomaticBackup({storage,getState,getCaptures}){
-  const desktop=location.hostname==='yin-and-yang.local'&&window.chrome?.webview;
+  const desktop=location.hostname==='yin-and-yang.local' ? window.chrome?.webview : undefined;
   let lastAttempt=0,lastData='',busy=false,writing=false,points=[];
   let status={local:'Waiting for first automatic backup',disk:desktop?'Waiting for disk backup':'Disk backups are available in the Windows app'};
   function publish(){window.dispatchEvent(new CustomEvent('garden-backup-status',{detail:{...status}}));}
