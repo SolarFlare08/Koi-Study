@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.8',date:'2026-11-19',title:'Stars behind the mountains',changes:[
+    'Draw stars and constellation lines behind the landscape. Hidden stars no longer leave clickable spots on mountain faces.'
+  ]},
   {version:'5.14.7',date:'2026-11-19',title:'Clearer Garden controls',changes:[
     'Move Tasks beside the sidebar and give Today’s focus clear totals, session history, and shortcuts.',
     'Open Garden Studio directly on Terrain, see the current style, and hide the tool panel for a larger canvas.',

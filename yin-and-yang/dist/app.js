@@ -1,5 +1,5 @@
 import {STORAGE_KEY,freshState,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskColorAttributes,repeatSettings,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit,loadSoundtracks,startTaskTiming,resetTaskTiming,taskFinishBreak,overtimeElapsed,finishOvertime} from './state.js';
-import {renderLandscape,blossomMarkup,animateLandscape,createShootingStars,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
+import {renderLandscape,blossomMarkup,animateLandscape,createShootingStars,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign,constellationLitPoints,mountainRidges,mountainCovers} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {gardenStarProgress,starConstellations} from './garden-growth.js';
 import {gardenConstellationSketch} from './scenery.js';
@@ -213,10 +213,11 @@ function renderGardenGrowth(){
     const center=y-({project:93,book:5,milestone:10,test:0}[item.kind]*scale);
     const course=courseAnchors.get(index);
     const label=escape(course?`Constellation · ${course.name}`:`${type.name} · ${item.title}`);
-    return `<button type="button" data-garden-landmark="${index}" ${course?`data-sky-course="${escape(course.id)}"`:''} data-x="${x}" data-y="${center}"
+    return `<button type="button" data-garden-landmark="${index}" ${item.kind==='test'?'data-sky-star':''} ${course?`data-sky-course="${escape(course.id)}"`:''} data-x="${x}" data-y="${center}"
       aria-label="${label}" title="${label}" aria-haspopup="dialog" aria-expanded="false"></button>`;
   }).join('')+unlocked.map(item=>
     `<button type="button" data-sky-constellation="${item.id}" data-member-stars="${item.starIndices.join(' ')}" data-x="${item.x}" data-y="${item.y}"
+      data-sky-points="${constellationLitPoints(item).map(([x,y])=>`${item.x+x},${item.y+y}`).join(' ')}"
       aria-label="${item.name} constellation" title="${item.name}" aria-haspopup="dialog" aria-expanded="false"></button>`).join('');
   positionGardenLandmarks();
   renderedGardenGrowth=state.gardenGrowth;
@@ -226,10 +227,19 @@ function renderGardenGrowth(){
 function positionGardenLandmarks(){
   const {clientWidth:width,clientHeight:height}=app;
   const viewport=gardenViewport(sceneGardenDesign().camera,width,height);
+  const ridges=mountainRidges($('#landscape .world'));
+  const screenPoint=(x,y)=>[viewport.x+x*viewport.scale,viewport.y+y*viewport.scale];
+  const inView=(x,y)=>x>=14&&x<=width-14&&y>=14&&y<=height-14;
+  const skyVisible=(x,y)=>inView(...screenPoint(x,y))&&!mountainCovers(ridges,x,y);
   for(const button of $('#garden-landmarks').children){
-    const x=viewport.x+Number(button.dataset.x)*viewport.scale;
-    const y=viewport.y+Number(button.dataset.y)*viewport.scale;
-    button.hidden=x<14||x>width-14||y<14||y>height-14;
+    let position=[Number(button.dataset.x),Number(button.dataset.y)];
+    if(button.dataset.skyPoints){
+      const visiblePoint=button.dataset.skyPoints.split(' ').map(point=>point.split(',').map(Number)).find(point=>skyVisible(...point));
+      if(!visiblePoint){button.hidden=true;continue;}
+      if(!skyVisible(...position))position=visiblePoint;
+    }
+    const [x,y]=screenPoint(...position);
+    button.hidden=button.hasAttribute('data-sky-star')?!skyVisible(...position):!inView(x,y);
     button.style.left=`${x}px`;button.style.top=`${y}px`;
   }
 }

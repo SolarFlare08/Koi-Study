@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {gardenStarProgress,starConstellations} from '../dist/garden-growth.js';
-import {createShootingStars,gardenGrowthMarkup,gardenLandmarkPositions,starLight} from '../dist/scenery.js';
+import {defaultGardenDesign} from '../dist/garden-layout.js';
+import {createShootingStars,gardenGrowthMarkup,gardenLandmarkPositions,renderLandscape,starLight} from '../dist/scenery.js';
 
 test('earned constellations unlock at dated star milestones and keep fixed sky positions',()=>{
   const history=Array.from({length:21},(_,i)=>({kind:'test',sourceId:String(i),title:'Test',day:'2026-11-'+String(i+1).padStart(2,'0')})).reverse();
@@ -27,6 +28,18 @@ test('star brightness follows apparent magnitude and earned stars have separate 
   const x=points.map(point=>point[0]);
   assert.ok(Math.max(...x)-Math.min(...x)>1000);
   assert.ok(starConstellations.every(item=>item.magnitudes.length===item.points.length));
+});
+
+test('the sky stars and earned constellations paint before the landscape in every mountain style',()=>{
+  for(const mountains of ['classic','summit','karst','valley','twins','rounded','highlands']){
+    const svg=renderLandscape({...defaultGardenDesign,mountains});
+    const ridge=svg.indexOf('data-garden-piece="mountains"');
+    assert.ok(ridge>0);
+    for(const id of ['stars','garden-growth-stars','garden-meteor']){
+      const stars=svg.indexOf(`id="${id}"`);
+      assert.ok(stars>=0&&stars<ridge);
+    }
+  }
 });
 
 test('every lit constellation point replaces exactly one earned star in live and historical art',()=>{

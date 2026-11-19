@@ -151,11 +151,13 @@ const orionStars=[
   ['Alnilam',938,178,1.69,'#f5dfab'],['Alnitak',927,183,1.82,'#f7e0a5'],
   ['Saiph',916,250,2.07,'#f0d9a4'],['Rigel',983,235,.18,'#ffe9b7']
 ];
+export function constellationLitPoints(item){
+  return item.points.map(([x,y],index)=>[x,y,item.magnitudes[index]])
+    .sort((a,b)=>a[2]-b[2]).slice(0,item.starIndices?.length??item.points.length);
+}
 function constellationShape(item){
   const lines=item.lines.map(line=>`<polyline points="${line.map(index=>item.points[index].join(',')).join(' ')}"/>`).join('');
-  const pointOrder=item.magnitudes.map((magnitude,index)=>({magnitude,index})).sort((a,b)=>a.magnitude-b.magnitude);
-  const stars=pointOrder.slice(0,item.starIndices?.length??item.points.length).map(({index,magnitude})=>
-    starPoint(...item.points[index],magnitude)).join('');
+  const stars=constellationLitPoints(item).map(([x,y,magnitude])=>starPoint(x,y,magnitude)).join('');
   return `<g fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round" opacity=".5">${lines}</g>
     <g fill="currentColor">${stars}</g>`;
 }
@@ -322,6 +324,13 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <path fill="url(#air)" d="M0 0h1600v900H0z"/>
 <path id="season-sky-wash" fill="url(#season-sky)" d="M0 0h1600v568H0z"/>
 <g id="sun-halo"><circle r="135" fill="url(#halo)"/></g><circle id="travelling-sun" r="34" fill="#fff0cd"/>
+<g id="stars" fill="#f5d99c" opacity="0">
+  <circle cx="321" cy="116" r="1.2"/><circle cx="1013" cy="87" r="1"/><circle cx="1280" cy="167" r="1.3"/><circle cx="460" cy="237" r=".9"/><circle cx="1107" cy="247" r="1"/><circle cx="620" cy="66" r="1"/><circle cx="1423" cy="88" r=".8"/>
+  <g class="orion"><title>Orion</title><path d="M901 126L932 101L974 133L949 173L938 178L927 183L901 126M927 183L916 250L983 235L949 173" stroke="#b6c8d9" stroke-width=".85" opacity=".38" fill="none"/>
+    ${orionStars.map(([name,x,y,magnitude,color])=>`<g data-star-name="${name}"><title>${name}</title>${starPoint(x,y,magnitude,color)}</g>`).join('')}
+  </g>
+</g>
+<g id="garden-growth-stars"/>
 <g fill="url(#cloud-light)">
   <g class="cloud-drift"><path d="M45 211C119 204 143 190 186 188C213 186 224 172 259 172C292 172 297 189 339 190C375 191 407 200 452 199C410 209 366 204 322 207C282 210 263 215 223 211C167 205 102 220 45 211Z"/><path d="M101 225C156 221 206 225 252 219C276 216 301 217 329 221C279 225 244 232 193 229Z" opacity=".65"/></g>
   <g class="cloud-drift cloud-east"><path d="M1033 146C1090 143 1114 130 1153 133C1184 135 1205 111 1241 114C1270 116 1278 131 1308 134C1350 139 1378 134 1428 140C1386 149 1356 147 1325 150C1272 155 1242 146 1199 149C1136 153 1086 151 1033 146Z"/><path d="M1194 165C1239 165 1264 157 1308 159C1340 160 1366 162 1400 156C1367 171 1321 167 1286 168Q1239 172 1194 165Z" opacity=".56"/></g>
@@ -388,14 +397,7 @@ ${pieceMarkup("props",design)}
   </g>
 ${pieceMarkup("boatLights",design)}
 </g>
-<g id="stars" fill="#f5d99c" opacity="0">
-  <circle cx="321" cy="116" r="1.2"/><circle cx="1013" cy="87" r="1"/><circle cx="1280" cy="167" r="1.3"/><circle cx="460" cy="237" r=".9"/><circle cx="1107" cy="247" r="1"/><circle cx="620" cy="66" r="1"/><circle cx="1423" cy="88" r=".8"/>
-  <g class="orion"><title>Orion</title><path d="M901 126L932 101L974 133L949 173L938 178L927 183L901 126M927 183L916 250L983 235L949 173" stroke="#b6c8d9" stroke-width=".85" opacity=".38" fill="none"/>
-    ${orionStars.map(([name,x,y,magnitude,color])=>`<g data-star-name="${name}"><title>${name}</title>${starPoint(x,y,magnitude,color)}</g>`).join('')}
-  </g>
-</g>
 <g id="garden-moon" opacity="0"><circle r="64" fill="url(#moon-halo)"/><path d="M8-20A22 22 0 1 0 20 12A23 23 0 0 1 8-20Z" fill="#e4eef8"/></g>
-<g id="garden-growth-stars"/>
 ${weatherMarkup()}
 </svg>`;}
 export function applySceneryAppearance(container,{season,palette},weather){
@@ -470,6 +472,13 @@ export function animateLandscape(_now,progress,reduced,lighting='session',motion
 return paintDay(sceneProgress(progress,lighting,reduced,motion),lighting);
 }
 
+export function mountainRidges(scene){
+  return [...scene.querySelectorAll('[data-garden-piece="mountains"] :is(path[fill="url(#far)"],path[fill="url(#middle)"],path[fill="url(#near)"])')];
+}
+export function mountainCovers(ridges,x,y){
+  return ridges.some(ridge=>ridge.isPointInFill({x,y}));
+}
+
 export function createShootingStars(scene,random=Math.random){
   const artwork=scene.querySelector('#garden-meteor');
   const trail=scene.querySelector('.meteor-tail');
@@ -487,14 +496,13 @@ export function createShootingStars(scene,random=Math.random){
     const w=width/zoom,h=height/zoom;
     const left=frame.x+(frame.width-w)/2,top=frame.y+(frame.height-h)/2;
     // Use the visible ridge art to find launch points, including when Studio changes the mountains.
-    const ridges=[...scene.querySelectorAll('[data-garden-piece="mountains"] :is(path[fill="url(#far)"],path[fill="url(#middle)"],path[fill="url(#near)"])')];
+    const ridges=mountainRidges(scene);
     const skylineAt=x=>{
       let sky=0,ground=540;
-      const point={x,y:0};
       for(let i=0;i<9;i++){
-        point.y=(sky+ground)/2;
-        if(ridges.some(ridge=>ridge.isPointInFill(point)))ground=point.y;
-        else sky=point.y;
+        const y=(sky+ground)/2;
+        if(mountainCovers(ridges,x,y))ground=y;
+        else sky=y;
       }
       return sky;
     };
