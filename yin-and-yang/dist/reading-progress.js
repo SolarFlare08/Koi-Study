@@ -49,9 +49,47 @@ export function ratingTier(rating){
 
 export const radiantRatingLabels={crystal:'Crystal',aurora:'Aurora'};
 
+export function pageBookmark(value){
+  const page=n=>Number.isInteger(n)&&n>0&&n<=100000;
+  const active=value?.active;
+  const last=value?.last;
+  const bookmark={};
+  if(page(active?.page)&&Number.isSafeInteger(active.startedAt)&&active.startedAt>=0){
+    bookmark.active={page:active.page,startedAt:active.startedAt};
+  }
+  if(page(last?.from)&&page(last.to)&&last.to>=last.from&&Number.isSafeInteger(last.duration)&&last.duration>=0){
+    bookmark.last={from:last.from,to:last.to,duration:last.duration};
+  }
+  return bookmark;
+}
+
+export function updatePageBookmark(value,action,page,maximum,now=Date.now()){
+  const bookmark=pageBookmark(value);
+  if(action==='cancel'){
+    delete bookmark.active;
+    return bookmark;
+  }
+  if(!Number.isInteger(page)||page<1||page>(maximum||100000))return null;
+  if(action==='start'&&!bookmark.active)return {...bookmark,active:{page,startedAt:now}};
+  if(action==='finish'&&bookmark.active&&page>=bookmark.active.page){
+    return {last:{from:bookmark.active.page,to:page,duration:Math.max(0,now-bookmark.active.startedAt)}};
+  }
+  return null;
+}
+
+export function readingPassages(value){
+  return (typeof value==='string'?value.split(/\r?\n/):[]).flatMap(line=>{
+    const separator=line.indexOf('|');
+    if(separator<=0)return [];
+    const chapter=line.slice(0,separator).trim().slice(0,120),text=line.slice(separator+1).trim().slice(0,1000);
+    return chapter&&text?[{chapter,text}]:[];
+  });
+}
+
 export function rereadRecord(item){
   if(typeof item?.id!=='string'||!item.id||!validReadingDay(item.finishedOn))return null;
   return {id:item.id,finishedOn:item.finishedOn,
     rating:bookRating(item.rating),
-    review:typeof item.review==='string'?item.review.trim().slice(0,6000):''};
+    review:typeof item.review==='string'?item.review.trim().slice(0,6000):'',
+    ...(typeof item.passages==='string'&&item.passages.trim()?{passages:item.passages.trim().slice(0,6000)}:{})};
 }

@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.6.0',date:'2026-11-18',title:'Reading sittings and reread comparisons',changes:[
+    'Save the start and end pages of a reading sitting and reopen the book at your resume page.',
+    'Compare first-read and reread ratings, reviews, and chapter-tagged reactions. The spoiler cutoff filters both columns.'
+  ]},
   {version:'5.5.0',date:'2026-11-18',title:'Return to a viewpoint or a question',changes:[
     'Save a postcard’s framing, landscape, season, and fixed lighting. Export the same view with landmarks through a date you choose.',
     'Schedule a question from a journal passage and answer it as a dated margin note when it comes due.'
