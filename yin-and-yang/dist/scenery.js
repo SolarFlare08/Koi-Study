@@ -313,7 +313,7 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <linearGradient id="meteor-tail" gradientUnits="userSpaceOnUse" x1="-128" y1="0" x2="0" y2="0">
   <stop stop-color="#acd7ee" stop-opacity="0"/><stop offset=".64" stop-color="#bcdef6" stop-opacity=".54"/><stop offset="1" stop-color="#ffe6a5"/>
 </linearGradient>
-<radialGradient id="meteor-glow"><stop stop-color="#ffdc76" stop-opacity=".78"/><stop offset=".36" stop-color="#ffdd84" stop-opacity=".46"/><stop offset="1" stop-color="#ffe8af" stop-opacity="0"/></radialGradient>
+<radialGradient id="meteor-glow"><stop stop-color="#ffed9f" stop-opacity=".97"/><stop offset=".35" stop-color="#ffcf60" stop-opacity=".62"/><stop offset="1" stop-color="#ffe8af" stop-opacity="0"/></radialGradient>
 <linearGradient id="bank" x2=".4" y2="1"><stop stop-color="var(--bank-upper,#547d6b)"/><stop offset="1" stop-color="var(--bank-lower,#294f4d)"/></linearGradient>
 <linearGradient id="shore" x2="0" y2="1"><stop stop-color="var(--shore-upper,#8eac91)"/><stop offset="1" stop-color="var(--shore-lower,#527e70)"/></linearGradient>
 <linearGradient id="rock-face" x2=".55" y2="1"><stop stop-color="#9cae99"/><stop offset="1" stop-color="#597b73"/></linearGradient>
@@ -335,9 +335,11 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
   <path d="M492 195q4-4 8 0 4-5 8-3M520 180q3-4 7-1 3-4 7-2M538 201q3-4 7-1 3-4 7-2"/>
 </g>
 <g id="garden-meteor" opacity="0" data-live-scenery>
-  <path d="M-128 0Q-40-1 0-5L0 5Q-40 1-128 0Z" fill="url(#meteor-tail)" opacity=".26"/>
-  <path d="M-128 0Q-40-.85 0-2.2L0 2.2Q-40 .85-128 0Z" fill="url(#meteor-tail)"/>
-  <circle r="15" fill="url(#meteor-glow)"/><circle r="3.8" fill="#ffe08a"/><circle r="2.3" fill="#fff5bd"/>
+  <g class="meteor-tail">
+    <path d="M-128 0Q-40-1 0-5L0 5Q-40 1-128 0Z" fill="url(#meteor-tail)" opacity=".26"/>
+    <path d="M-128 0Q-40-.85 0-2.2L0 2.2Q-40 .85-128 0Z" fill="url(#meteor-tail)"/>
+  </g>
+  <circle r="20" fill="url(#meteor-glow)"/><circle r="4.7" fill="#ffe289"/><circle r="2.9" fill="#fff9cf"/>
 </g>
 ${pieceMarkup("mountains",design)}
 <path fill="url(#water)" d="M0 548q297-24 524-6t463-1 613 6v353H0Z"/>
@@ -470,7 +472,7 @@ return paintDay(sceneProgress(progress,lighting,reduced,motion),lighting);
 
 export function createShootingStars(scene,random=Math.random){
   const artwork=scene.querySelector('#garden-meteor');
-  const duration=1700;
+  const trail=scene.querySelector('.meteor-tail');
   let next=0,flight=null,visible=false;
 
   function clear(){
@@ -484,11 +486,33 @@ export function createShootingStars(scene,random=Math.random){
     const zoom=Math.max(width/frame.width,height/frame.height);
     const w=width/zoom,h=height/zoom;
     const left=frame.x+(frame.width-w)/2,top=frame.y+(frame.height-h)/2;
-    const direction=random()<.5?1:-1;
-    const dx=Math.min(310,w*.44)*direction,dy=Math.min(Math.abs(dx)*(.20+random()*.21),h*.12);
-    const x=left+w*(.37+random()*.19)-dx/2;
-    const y=top+h*(.12+random()*.09);
-    flight={start:now,x,y,dx,dy,angle:Math.atan2(dy,dx)*180/Math.PI,preview};
+    // Use the visible ridge art to find launch points, including when Studio changes the mountains.
+    const ridges=[...scene.querySelectorAll('[data-garden-piece="mountains"] :is(path[fill="url(#far)"],path[fill="url(#middle)"],path[fill="url(#near)"])')];
+    const skylineAt=x=>{
+      let sky=0,ground=540;
+      const point={x,y:0};
+      for(let i=0;i<9;i++){
+        point.y=(sky+ground)/2;
+        if(ridges.some(ridge=>ridge.isPointInFill(point)))ground=point.y;
+        else sky=point.y;
+      }
+      return sky;
+    };
+    const lanes=[.19,.31,.43,.55,.67,.79].map(fraction=>{
+      const x=left+w*(fraction+(random()-.5)*.08);
+      return {x,sky:skylineAt(x)};
+    });
+    const open=lanes.filter(lane=>lane.sky>top+Math.min(140,h*.25));
+    const {x,sky}=open.length?open[Math.floor(random()*open.length)]:lanes.reduce((best,lane)=>lane.sky>best.sky?lane:best);
+    const y=Math.max(top+28,Math.min(top+h*(.06+random()*.13),sky-52));
+    const destinations=[left+w*(.17+random()*.18),left+w*(.57+random()*.16)];
+    const choices=destinations.filter(end=>Math.abs(end-x)>=w*.12);
+    const endX=choices.length?choices[Math.floor(random()*choices.length)]:
+      destinations.reduce((farther,end)=>Math.abs(end-x)>Math.abs(farther-x)?end:farther);
+    const dx=endX-x,dy=655-y;
+    const duration=1750+random()*1050;
+    trail.setAttribute('transform',`scale(${.6+random()*.8} ${.72+random()*.60})`);
+    flight={start:now,x,y,dx,dy,duration,angle:Math.atan2(dy,dx)*180/Math.PI,preview};
     next=now+180000+random()*180000;
   }
 
@@ -500,7 +524,7 @@ export function createShootingStars(scene,random=Math.random){
       if(!next)next=now+45000+random()*45000;
       if(!flight&&now>=next)launch(now);
       if(!flight)return;
-      const elapsed=(now-flight.start)/duration;
+      const elapsed=(now-flight.start)/flight.duration;
       if(elapsed<0)return;
       if(elapsed>=1){
         artwork.setAttribute('opacity',0);visible=false;flight=null;
@@ -508,7 +532,7 @@ export function createShootingStars(scene,random=Math.random){
       }
       const {x,y,dx,dy,angle}=flight;
       artwork.setAttribute('transform',`translate(${x+dx*elapsed} ${y+dy*elapsed}) rotate(${angle})`);
-      artwork.setAttribute('opacity',Math.min(1,elapsed/.10,(1-elapsed)/.36));
+      artwork.setAttribute('opacity',Math.min(1,elapsed/.08));
       visible=true;
     }
   };

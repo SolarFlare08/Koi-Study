@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.3',date:'2026-11-19',title:'Shooting stars beyond the ridge',changes:[
+    'Vary shooting-star paths, speeds, and tail shapes. A brighter golden tip disappears behind the mountains before the rest of the trail follows.'
+  ]},
   {version:'5.14.2',date:'2026-11-19',title:'Warmer starlight',changes:[
     'Give the Garden sky a soft golden tint, with a brighter yellow leading point and glow on shooting stars.'
   ]},

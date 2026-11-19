@@ -47,8 +47,10 @@ test('every lit constellation point replaces exactly one earned star in live and
 
 test('shooting stars wait for dark skies, while an on-demand preview can play in daylight',()=>{
   const attributes=new Map([['opacity',0]]);
+  const trail=new Map();
   const scene={
-    querySelector:()=>({setAttribute:(name,value)=>attributes.set(name,value)}),
+    querySelector:selector=>({setAttribute:(name,value)=>(selector==='.meteor-tail'?trail:attributes).set(name,value)}),
+    querySelectorAll:()=>[{isPointInFill:({y})=>y>=420}],
     getBoundingClientRect:()=>({width:1600,height:900}),
     viewBox:{baseVal:{x:0,y:0,width:1600,height:900}}
   };
@@ -64,7 +66,11 @@ test('shooting stars wait for dark skies, while an on-demand preview can play in
   assert.ok(attributes.get('opacity')>0);
   stars.frame(114700,night);
   assert.notEqual(attributes.get('transform'),position);
-  stars.frame(115700,night);
+  stars.frame(115800,night);
+  assert.equal(attributes.get('opacity'),1);
+  assert.ok(Number(attributes.get('transform').split(/[ ()]+/)[2])>420);
+  assert.match(trail.get('transform'),/^scale\(/);
+  stars.frame(115960,night);
   assert.equal(attributes.get('opacity'),0);
   stars.frame(116000,night);
   assert.equal(attributes.get('opacity'),0);
