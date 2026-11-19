@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.13.2',date:'2026-11-19',title:'Twinkling diamond stars',changes:[
+    'Restore the diamond shape and soft glow of standalone earned stars. Keep their scattered positions and give each star a different size and twinkle.'
+  ]},
   {version:'5.13.1',date:'2026-11-19',title:'A more natural Garden sky',changes:[
     'Spread constellations and earned stars across the sky. Vary star size and brightness, using apparent magnitudes for Orion and a mix of bright and faint points for Garden patterns.'
   ]},

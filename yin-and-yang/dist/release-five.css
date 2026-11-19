@@ -29,6 +29,15 @@
 .admin-test-actions small { color:var(--surface-muted); }
 .garden-unlocked-constellation { color:var(--scene-ink,#f5ebce); opacity:.8; }
 .garden-earned-star { color:var(--scene-ink,#fff1cb); opacity:.9; }
+#landscape .garden-star-twinkle { animation:garden-star-twinkle var(--star-period) ease-in-out var(--star-phase) infinite; }
+@keyframes garden-star-twinkle {
+  0%,100% { opacity:.68; }
+  24%,66% { opacity:.84; }
+  33%,74% { opacity:1; }
+  42%,83% { opacity:.73; }
+}
+#app[data-motion="still"] #landscape .garden-star-twinkle { animation:none; }
+@media(prefers-reduced-motion:reduce) { #landscape .garden-star-twinkle { animation:none; } }
 #garden-landmarks [data-sky-constellation] { width:54px; height:40px; border-radius:45%; }
 .star-constellation-guide { margin-block:14px; padding-block:12px; border-block:1px solid var(--surface-line); }
 .star-constellation-guide h3 { margin:0 0 5px; font-size:15px; }

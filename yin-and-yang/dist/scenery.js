@@ -130,6 +130,21 @@ function starPoint(x,y,magnitude,color='currentColor'){
   return `${halo?`<circle cx="${x}" cy="${y}" r="${(radius*2.5).toFixed(2)}" fill="url(#halo)" opacity="${halo.toFixed(2)}"/>`:''}
     <circle class="sky-star-point" cx="${x}" cy="${y}" r="${radius.toFixed(2)}" fill="${color}" opacity="${opacity.toFixed(2)}"/>`;
 }
+function earnedStarSparkle(id){
+  let hash=2166136261;
+  for(const char of id)hash=Math.imul(hash^char.codePointAt(0),16777619);
+  hash=Math.imul(hash^(hash>>>16),0x7feb352d);
+  hash=Math.imul(hash^(hash>>>15),0x846ca68b);
+  hash^=hash>>>16;
+  const size=.58+(hash&255)/255*.47;
+  const period=3.5+((hash>>>8)&255)/255*4.5;
+  const phase=-period*((hash>>>16)&255)/255;
+  return `<g transform="scale(${size.toFixed(3)})"><g class="garden-star-twinkle"
+    style="--star-period:${period.toFixed(2)}s;--star-phase:${phase.toFixed(2)}s">
+    <circle r="14" fill="url(#halo)" opacity=".54"/>
+    <path d="M0-8Q1-1 7 0Q1 1 0 8Q-1 1-7 0Q-1-1 0-8Z" fill="#fff1cb" stroke="#a7785d" stroke-width=".65"/>
+  </g></g>`;
+}
 const orionStars=[
   ['Betelgeuse',901,126,.45,'#ffc2a1'],['Meissa',932,101,3.66,'#e7ecf7'],
   ['Bellatrix',974,133,1.64,'#e0eaff'],['Mintaka',949,173,2.41,'#dae8fa'],
@@ -154,6 +169,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
   }
   let hasIsland=false;
   const layout=gardenLandmarkPositions(history,courses,design.placements);
+  const courseStars=new Set(courses.flatMap(course=>course.stars.map(({index})=>index)));
   let nextStar=0;
   const starMagnitudes=[1.05,2.7,1.85,3.1,1.4,2.45,3.45,2.2,2.9,1.6,3.7];
   for(const course of courses){
@@ -183,7 +199,8 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
         <path d="M-5 5H5m-3 3h6" stroke="#ffd498" stroke-linecap="round" opacity=".43"/>
       </g>`);
     }else if(item.kind==='test'){
-      stars.push(`<g class="garden-earned-star" transform="${transform}">${starPoint(0,0,magnitude)}</g>`);
+      const artwork=courseStars.has(index)?starPoint(0,0,magnitude):earnedStarSparkle(item.sourceId);
+      stars.push(`<g class="garden-earned-star" transform="${transform}">${artwork}</g>`);
     }else if(item.kind==='milestone'){
       if(!placed&&item.zone==='island')hasIsland=true;
       if(placed)cairns.push(landmarkGround(x,y,scale*.78));
