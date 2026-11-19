@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.2',date:'2026-11-19',title:'Warmer starlight',changes:[
+    'Give the Garden sky a soft golden tint, with a brighter yellow leading point and glow on shooting stars.'
+  ]},
   {version:'5.14.1',date:'2026-11-19',title:'Brighter trails and earned star points',changes:[
     'Shooting stars have a brighter head, a longer tail, and more time in view.',
     'Each lit point in an unlocked Garden constellation now uses one earned star from the sky. Existing milestones and exam records are preserved.',

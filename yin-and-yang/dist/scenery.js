@@ -125,7 +125,7 @@ export function starLight(magnitude){
   return {radius:Math.min(3.3,.85+2.2*flux**.36),opacity:Math.min(1,.25+.75*flux**.36),
     halo:magnitude<1.85?Math.min(.34,.32*flux**.55):0};
 }
-function starPoint(x,y,magnitude,color='currentColor'){
+function starPoint(x,y,magnitude,color='var(--garden-star-gold,#efd58e)'){
   const {radius,opacity,halo}=starLight(magnitude);
   return `${halo?`<circle cx="${x}" cy="${y}" r="${(radius*2.5).toFixed(2)}" fill="url(#halo)" opacity="${halo.toFixed(2)}"/>`:''}
     <circle class="sky-star-point" cx="${x}" cy="${y}" r="${radius.toFixed(2)}" fill="${color}" opacity="${opacity.toFixed(2)}"/>`;
@@ -142,14 +142,14 @@ function earnedStarSparkle(id){
   return `<g transform="scale(${size.toFixed(3)})"><g class="garden-star-twinkle"
     style="--star-period:${period.toFixed(2)}s;--star-phase:${phase.toFixed(2)}s">
     <circle r="14" fill="url(#halo)" opacity=".54"/>
-    <path d="M0-8Q1-1 7 0Q1 1 0 8Q-1 1-7 0Q-1-1 0-8Z" fill="#fff1cb" stroke="#a7785d" stroke-width=".65"/>
+    <path d="M0-8Q1-1 7 0Q1 1 0 8Q-1 1-7 0Q-1-1 0-8Z" fill="#ffe4a0" stroke="#a7785d" stroke-width=".65"/>
   </g></g>`;
 }
 const orionStars=[
-  ['Betelgeuse',901,126,.45,'#ffc2a1'],['Meissa',932,101,3.66,'#e7ecf7'],
-  ['Bellatrix',974,133,1.64,'#e0eaff'],['Mintaka',949,173,2.41,'#dae8fa'],
-  ['Alnilam',938,178,1.69,'#dfebff'],['Alnitak',927,183,1.82,'#e4efff'],
-  ['Saiph',916,250,2.07,'#dae8ff'],['Rigel',983,235,.18,'#e2f0ff']
+  ['Betelgeuse',901,126,.45,'#ffc38c'],['Meissa',932,101,3.66,'#ebd4a1'],
+  ['Bellatrix',974,133,1.64,'#f5dda5'],['Mintaka',949,173,2.41,'#efd69d'],
+  ['Alnilam',938,178,1.69,'#f5dfab'],['Alnitak',927,183,1.82,'#f7e0a5'],
+  ['Saiph',916,250,2.07,'#f0d9a4'],['Rigel',983,235,.18,'#ffe9b7']
 ];
 function constellationShape(item){
   const lines=item.lines.map(line=>`<polyline points="${line.map(index=>item.points[index].join(',')).join(' ')}"/>`).join('');
@@ -311,9 +311,9 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <radialGradient id="lamp-halo"><stop stop-color="#ffbe75" stop-opacity=".52"/><stop offset=".36" stop-color="#e6a66d" stop-opacity=".24"/><stop offset="1" stop-color="#e6a66d" stop-opacity="0"/></radialGradient>
 <radialGradient id="moon-halo"><stop stop-color="#e5effd" stop-opacity=".22"/><stop offset="1" stop-color="#bbd8fc" stop-opacity="0"/></radialGradient>
 <linearGradient id="meteor-tail" gradientUnits="userSpaceOnUse" x1="-128" y1="0" x2="0" y2="0">
-  <stop stop-color="#acd7ee" stop-opacity="0"/><stop offset=".64" stop-color="#bcdef6" stop-opacity=".54"/><stop offset="1" stop-color="#fff5da"/>
+  <stop stop-color="#acd7ee" stop-opacity="0"/><stop offset=".64" stop-color="#bcdef6" stop-opacity=".54"/><stop offset="1" stop-color="#ffe6a5"/>
 </linearGradient>
-<radialGradient id="meteor-glow"><stop stop-color="#ebf6ff" stop-opacity=".62"/><stop offset="1" stop-color="#c3e1ff" stop-opacity="0"/></radialGradient>
+<radialGradient id="meteor-glow"><stop stop-color="#ffdc76" stop-opacity=".78"/><stop offset=".36" stop-color="#ffdd84" stop-opacity=".46"/><stop offset="1" stop-color="#ffe8af" stop-opacity="0"/></radialGradient>
 <linearGradient id="bank" x2=".4" y2="1"><stop stop-color="var(--bank-upper,#547d6b)"/><stop offset="1" stop-color="var(--bank-lower,#294f4d)"/></linearGradient>
 <linearGradient id="shore" x2="0" y2="1"><stop stop-color="var(--shore-upper,#8eac91)"/><stop offset="1" stop-color="var(--shore-lower,#527e70)"/></linearGradient>
 <linearGradient id="rock-face" x2=".55" y2="1"><stop stop-color="#9cae99"/><stop offset="1" stop-color="#597b73"/></linearGradient>
@@ -337,7 +337,7 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <g id="garden-meteor" opacity="0" data-live-scenery>
   <path d="M-128 0Q-40-1 0-5L0 5Q-40 1-128 0Z" fill="url(#meteor-tail)" opacity=".26"/>
   <path d="M-128 0Q-40-.85 0-2.2L0 2.2Q-40 .85-128 0Z" fill="url(#meteor-tail)"/>
-  <circle r="13" fill="url(#meteor-glow)"/><circle r="3.1" fill="#fff7e2"/>
+  <circle r="15" fill="url(#meteor-glow)"/><circle r="3.8" fill="#ffe08a"/><circle r="2.3" fill="#fff5bd"/>
 </g>
 ${pieceMarkup("mountains",design)}
 <path fill="url(#water)" d="M0 548q297-24 524-6t463-1 613 6v353H0Z"/>
@@ -386,7 +386,7 @@ ${pieceMarkup("props",design)}
   </g>
 ${pieceMarkup("boatLights",design)}
 </g>
-<g id="stars" fill="#f5e8ce" opacity="0">
+<g id="stars" fill="#f5d99c" opacity="0">
   <circle cx="321" cy="116" r="1.2"/><circle cx="1013" cy="87" r="1"/><circle cx="1280" cy="167" r="1.3"/><circle cx="460" cy="237" r=".9"/><circle cx="1107" cy="247" r="1"/><circle cx="620" cy="66" r="1"/><circle cx="1423" cy="88" r=".8"/>
   <g class="orion"><title>Orion</title><path d="M901 126L932 101L974 133L949 173L938 178L927 183L901 126M927 183L916 250L983 235L949 173" stroke="#b6c8d9" stroke-width=".85" opacity=".38" fill="none"/>
     ${orionStars.map(([name,x,y,magnitude,color])=>`<g data-star-name="${name}"><title>${name}</title>${starPoint(x,y,magnitude,color)}</g>`).join('')}
@@ -438,6 +438,7 @@ function paintLight(nodes,p,lighting,width,height){
   nodes.app.style.setProperty('--scene-muted',blend('#55726c','#c9cdd1',light.night));
   nodes.app.style.setProperty('--scene-paper',blend('#e7eadc','#26394a',light.night));
   nodes.app.style.setProperty('--scene-twilight',Math.min(1,Math.max(.22,(light.night-.16)*1.4)));
+  nodes.app.style.setProperty('--garden-star-gold',blend('#9e7937','#f9dfa2',light.night));
   return light.night>=.65;
 }
 
