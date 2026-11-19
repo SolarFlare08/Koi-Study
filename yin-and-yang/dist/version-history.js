@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.13.0',date:'2026-11-19',title:'Admin sandbox',changes:[
+    'Open a separate test workspace from Garden Tools. Load sample data, test constellation unlocks and short focus sessions, or experiment on a local copy of your workspace.'
+  ]},
   {version:'5.12.0',date:'2026-11-19',title:'Earned constellations',changes:[
     'Unlock five Garden constellations automatically at 3, 6, 10, 15, and 21 earned stars. See your next milestone in the Field Guide.'
   ]},

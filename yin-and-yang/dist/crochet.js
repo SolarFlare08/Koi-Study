@@ -137,7 +137,7 @@ const yarnIllustration=`<svg viewBox="0 0 230 125" fill="none" aria-hidden="true
   <path d="M37 54v12m-6-6h12m167-9v9m-5-4h10" stroke="#b98769" stroke-width="1.25" stroke-linecap="round"/>
 </svg>`;
 
-export function installCrochet({root,storage,notify}){
+export function installCrochet({root,storage,storageEvent=key=>key,notify}){
   let data=loadCrochet(storage),view='projects',statusFilter='all',editor=null,anchor=null;
   const $=selector=>root.querySelector(selector);
   root.innerHTML=`<div class="crochet-wrap">
@@ -507,7 +507,7 @@ export function installCrochet({root,storage,notify}){
     }
   });
   dialog.addEventListener('close',()=>{(anchor?.isConnected?anchor:add).focus({preventScroll:true});editor=null;});
-  window.addEventListener('storage',event=>{if (event.key===CROCHET_KEY||event.key===null) { data=loadCrochet(storage);render(); }});
+  window.addEventListener('storage',event=>{const key=storageEvent(event.key);if(key===CROCHET_KEY||key===null){data=loadCrochet(storage);render();}});
   render();
   return {
     focusProject(id){

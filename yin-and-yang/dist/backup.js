@@ -277,7 +277,7 @@ function previewMarkup(rows,selected){
       '<p>No records in this backup section.</p>'}</section>`).join('');
 }
 
-export function installBackup({dialog,storage,getState,getCaptures,notify,automaticBackup}){
+export function installBackup({dialog,storage,getState,getCaptures,notify,automaticBackup,sandbox=false}){
   dialog.innerHTML=`<form id="backup-form">
     <header><h2 id="backup-title">Backup and restore</h2><button type="button" data-backup-close aria-label="Close backup and restore">×</button></header>
     <p>Download your tasks, calendar, journal, notes, reading history, crochet projects, and settings in one file.</p>
@@ -295,6 +295,7 @@ export function installBackup({dialog,storage,getState,getCaptures,notify,automa
       <button type="submit" id="apply-backup" hidden disabled>Restore selected sections</button>
     </div></form>`;
   const autoStatus=dialog.querySelector('#automatic-backup-status');
+  if(sandbox)dialog.querySelector('.automatic-backup-card').hidden=true;
   function updateAutomaticStatus(){
     const value=automaticBackup?.status();
     autoStatus.textContent=value?[value.local,value.disk].join(' · '):'Automatic backups are unavailable.';
@@ -371,7 +372,7 @@ export function installBackup({dialog,storage,getState,getCaptures,notify,automa
     const url=URL.createObjectURL(file);
     const link=document.createElement('a');
     link.href=url;
-    link.download=`yin-and-yang-backup-${backup.exportedAt.slice(0,10)}.json`;
+    link.download=`yin-and-yang-${sandbox?'sandbox-':''}backup-${backup.exportedAt.slice(0,10)}.json`;
     dialog.append(link);
     link.click();
     link.remove();

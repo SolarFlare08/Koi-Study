@@ -20,7 +20,7 @@ export function loadJournal(storage){
         ...(item.tags===undefined?{}:{tags:journalLabels(item.tags)}),...(item.themes===undefined?{}:{themes:journalLabels(item.themes)})})):[];
   }catch{return [];}
 }
-export function installJournal({root,storage,projects,notify,onChange,getTemplates=()=>[],saveTemplates=()=>false,linkedNotes=()=>'',getReflections,saveReflection}){
+export function installJournal({root,storage,storageEvent=key=>key,projects,notify,onChange,getTemplates=()=>[],saveTemplates=()=>false,linkedNotes=()=>'',getReflections,saveReflection}){
   let entries=loadJournal(storage),query='',view='entries',week=journalWeek(dayKey()),editingReflection=false;
   const filters={mood:'',tags:'',themes:''}, facetTitles={mood:'Mood',tags:'Tag',themes:'Theme'};
   root.innerHTML=`<div class="journal-wrap"><header class="journal-hero"><div><span class="journal-kicker">THE QUIET COAST</span><h2 id="journal-heading">Journal</h2><p>Daily reflections, study notes, and crochet progress.</p></div><button id="journal-add" type="button"><span aria-hidden="true">+</span> New entry</button></header>
@@ -386,7 +386,7 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
     if(returnFocus)returnFocus();
     else (anchor?.isConnected?anchor:add).focus({preventScroll:true});
   });
-  window.addEventListener('storage',event=>{if(event.key===JOURNAL_KEY||event.key===null){entries=loadJournal(storage);render();onChange();}});
+  window.addEventListener('storage',event=>{const key=storageEvent(event.key);if(key===JOURNAL_KEY||key===null){entries=loadJournal(storage);render();onChange();}});
   window.addEventListener('focus',()=>{if(!root.hidden)render();});
   new MutationObserver(()=>{if(!root.hidden)render();}).observe(root,{attributes:true,attributeFilter:['hidden']});
   render();

@@ -1,4 +1,4 @@
-import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskColorAttributes,repeatSettings,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit,loadSoundtracks,startTaskTiming,resetTaskTiming,taskFinishBreak,overtimeElapsed,finishOvertime} from './state.js';
+import {STORAGE_KEY,freshState,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskColorAttributes,repeatSettings,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit,loadSoundtracks,startTaskTiming,resetTaskTiming,taskFinishBreak,overtimeElapsed,finishOvertime} from './state.js';
 import {renderLandscape,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {gardenStarProgress,starConstellations} from './garden-growth.js';
@@ -23,7 +23,8 @@ import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
 import {ratingTier,radiantRatingLabels} from './reading-progress.js';
 import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingShelf,saveLibraryBook} from './reading-shelf.js';
-import {installBackup} from './backup.js';
+import {installBackup,restoreBackup} from './backup.js';
+import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
 import {installFocusCompass,focusWeek} from './focus-compass.js';
 import {timerProgress,extendTimer} from './state.js';
@@ -77,10 +78,15 @@ const icons={
 const icon=name=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||''}</svg>`;
 function applyIcons(root=document){root.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML=icon(el.dataset.icon));}
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let storage;
-try{storage=localStorage;}catch{storage={getItem:()=>null,setItem:()=>{throw new Error('Storage unavailable');}};}
+let liveStorage;
+try{liveStorage=localStorage;}catch{liveStorage={getItem:()=>null,setItem:()=>{throw new Error('Storage unavailable');}};}
+const adminSandbox=isAdminSandbox(),storage=adminSandbox?adminSandboxStorage(liveStorage):liveStorage;
 let state=loadState(storage),activePanel=null,lastAnchor=null,idleTimeout,toastTimeout,lastBlossoms=-1;
 const app=$('#app');
+$('#admin-sandbox-banner').hidden=!adminSandbox;
+app.classList.toggle('admin-sandbox',adminSandbox);
+$('[data-open-admin]').onclick=event=>openPanel('admin-sandbox',event.currentTarget);
+$('[data-exit-admin]').onclick=()=>location.assign(adminSandboxUrl(false));
 const focusModeButton=$('#focus-mode');
 const timerButton=$('#toggle-timer');
 const currentTaskButton=$('#current-task');
@@ -140,7 +146,7 @@ function persist(){
   state.scheduleMoves=recordScheduleMoves(previous,savedSchedule,schedule);
   try{
     storage.setItem(STORAGE_KEY,JSON.stringify(state));savedSchedule=schedule;
-    $('#saved-status').innerHTML='<span class="tiny-dot"></span>Saved on this device';return true;
+    $('#saved-status').innerHTML='<span class="tiny-dot"></span>'+(adminSandbox?'Saved in sandbox':'Saved on this device');return true;
   }catch{
     state.scheduleMoves=previous;
     if(replay)state.timer.replay=replay;
@@ -430,8 +436,8 @@ $('#garden-landmarks').addEventListener('click',event=>{
 });
 $('#garden-snapshot-close').onclick=()=>setGardenSnapshot('');
 $('#garden-snapshot [data-open-postcard]').onclick=event=>openGardenPostcard(undefined,event.currentTarget);
-const crochet=installCrochet({root:$('#crochet-workspace'),storage,notify:message=>{toast(message);announce(message);}});
-const journal=installJournal({root:$('#journal-workspace'),storage,projects:()=>loadCrochet(storage).projects,notify:confirmChange,
+const crochet=installCrochet({root:$('#crochet-workspace'),storage,storageEvent:key=>workspaceStorageEvent(key,adminSandbox),notify:message=>{toast(message);announce(message);}});
+const journal=installJournal({root:$('#journal-workspace'),storage,storageEvent:key=>workspaceStorageEvent(key,adminSandbox),projects:()=>loadCrochet(storage).projects,notify:confirmChange,
   getTemplates:()=>state.journalTemplates,saveTemplates:templates=>{
     const previous=state.journalTemplates;state.journalTemplates=templates;
     if(persist())return true;
@@ -472,8 +478,8 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
   },
   finishBook:finishReadingBook,saveBook:(id,values)=>saveReadingChanges(editFinishedBook(state,id,values)),
   mergeBooks:(source,target)=>saveReadingChanges(mergeShelfBooks(state,source,target))});
-const automaticBackup=installAutomaticBackup({storage,getState:()=>state,getCaptures:availableCaptures});
-const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast,automaticBackup});
+const automaticBackup=adminSandbox?null:installAutomaticBackup({storage,getState:()=>state,getCaptures:availableCaptures});
+const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast,automaticBackup,sandbox:adminSandbox});
 const compass=installFocusCompass({getState:()=>state,save:()=>{const ok=persist();if(ok)syncSound();return ok;},notify:toast,
   beforeTimerChange:checkCompletion,afterTimerChange:()=>{render();wake();if(activePanel==='pagoda')refreshPanel();$('#toggle-timer').focus({preventScroll:true});}});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
@@ -651,6 +657,7 @@ function commandEntries(){
   }));
   return [
     action('Help','Browse searchable instructions and keyboard shortcuts','guide how to tutorial features',()=>helpGuide.open()),
+    action('Admin sandbox','Open an isolated test workspace','admin sandbox test demo sample data',()=>runHelpAction('admin-sandbox')),
     action('Version history','See what changed in each release','versions updates changelog release notes',()=>runHelpAction('versions')),
     action('Garden Studio','Edit the scene, move landmarks, and save a Garden layout','camera scenery layout personalize postcard',()=>runHelpAction('garden-studio')),
     action('Garden Field Guide','Browse landmarks, historical views, and course constellations','garden history semester stars trees lanterns cairns',()=>runHelpAction('garden-history')),
@@ -689,6 +696,10 @@ function commandEntries(){
 }
 
 function runHelpAction(action){
+  if(action==='admin-sandbox'){
+    if(!adminSandbox)visitWorkspace('focus');
+    openPanel('admin-sandbox',adminSandbox?$('[data-open-admin]'):$('#garden-tools'));return;
+  }
   if(action==='garden-studio'){openGardenStudio();return;}
   if(action==='garden-postcard'){openGardenPostcard();return;}
   if(action==='evening-lights'){openEveningLights();return;}
@@ -1024,7 +1035,7 @@ function render(){
   const progress=todayProgress(state);
   if(progress.completed!==lastBlossoms){$('#blossoms').innerHTML=blossomMarkup(progress.completed);lastBlossoms=progress.completed;}
   renderGardenGrowth();
-  document.title=t.status==='idle'?'Yin and Yang — A quiet place to focus':`${overtime?'+':''}${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} · ${t.mode==='focus'?'Focus':'Rest'} — Yin and Yang`;
+  document.title=(adminSandbox?'[Sandbox] ':'')+(t.status==='idle'?'Yin and Yang — A quiet place to focus':`${overtime?'+':''}${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} · ${t.mode==='focus'?'Focus':'Rest'} — Yin and Yang`);
 }
 function checkCompletion(){
   const now=Date.now(),wasOvertime=state.timer.status==='overtime',wasBlock=Boolean(state.timer.block),wasRoutine=Boolean(state.timer.sequence);
@@ -1065,7 +1076,7 @@ function checkCompletion(){
   if(focused&&workspace==='planner'&&!activePanel)planner.render();
   wake();
 }
-const notificationsSupported=()=>globalThis.isSecureContext&&typeof Notification!=='undefined';
+const notificationsSupported=()=>!adminSandbox&&globalThis.isSecureContext&&typeof Notification!=='undefined';
 function notificationStatus(){
   if(!notificationsSupported())return 'Browser notifications are unavailable here. In-app warnings are active.';
   if(Notification.permission==='denied')return 'Allow notifications in this site’s browser settings to enable them.';
@@ -2224,7 +2235,7 @@ function finishCaptureFiling(message){
   confirmChange(message);
 }
 async function syncNativeCaptures(){
-  if(!captureApiAvailable||syncingCaptures||!['localhost','127.0.0.1','yin-and-yang.local'].includes(location.hostname))return;
+  if(adminSandbox||!captureApiAvailable||syncingCaptures||!['localhost','127.0.0.1','yin-and-yang.local'].includes(location.hostname))return;
   syncingCaptures=true;
   try{
     const response=await fetch('./api/capture-inbox',{cache:'no-store'});
@@ -2815,7 +2826,72 @@ function resourceAction(button){
   }))$('#resource-title')?.focus({preventScroll:true});
 }
 
+function adminSandboxMarkup(){
+  if(!adminSandbox)return `${header('TEST WORKSPACE','Admin sandbox')}
+    <p>Use a separate copy of Yin and Yang to try changes. Your regular workspace stays saved on this device.</p>
+    <div class="panel-actions"><button type="button" class="panel-primary" data-admin-action="enter">Enter sandbox</button></div>`;
+  const count=gardenStarProgress(state.gardenGrowth).count;
+  return `${header('ADMIN SANDBOX','Test controls')}
+    <p>Changes in Garden, Calendar, Planner, and the other tabs are saved to this sandbox.</p>
+    <div class="admin-test-actions">
+      <button type="button" data-admin-action="seed"><strong>Load sample data</strong><small>Add practice tasks, a class, a sticky note, and two test stars.</small></button>
+      <button type="button" data-admin-action="star"><strong>Add a test star</strong><small>${count} earned in this sandbox. Test the next constellation unlock.</small></button>
+      <button type="button" data-admin-action="timer"><strong>Start a 10-second focus</strong><small>Test the countdown, finish behavior, and replay.</small></button>
+      <button type="button" data-admin-action="copy"><strong>Copy my saved workspace</strong><small>Replace the sandbox with a local copy of your regular work.</small></button>
+      <button type="button" data-admin-action="backup"><strong>Sandbox backup and restore</strong><small>Export or try importing data into this sandbox.</small></button>
+      <button type="button" data-admin-action="reset"><strong>Reset test workspace</strong><small>Clear the current sandbox data and start empty.</small></button>
+    </div>`;
+}
+
+function seedAdminSandbox(){
+  const now=Date.now(),today=dayKey(new Date(now)),projectId='sandbox-course';
+  const previous={projects:state.projects,tasks:state.tasks,calendarEvents:state.calendarEvents,stickyNotes:state.stickyNotes,gardenGrowth:state.gardenGrowth};
+  const add=(items,...examples)=>[...items,...examples.filter(example=>!items.some(item=>item.id===example.id))];
+  const task=(id,text,estimate)=>({id,text,estimate,projectId,done:false,repeat:'none',date:today,time:'',subtasks:[],blocks:[],labels:[],comments:[],prerequisiteIds:[]});
+  state.projects=add(state.projects,{id:projectId,name:'Sandbox course',color:'#568579',sections:[],milestones:[],exams:[],decisions:[]});
+  state.tasks=add(state.tasks,task('sandbox-practice','Practice three problems',25),task('sandbox-reading','Review lecture notes',10));
+  state.calendarEvents=add(state.calendarEvents,{id:'sandbox-class',manual:true,title:'Sample class',start:now+36*60000,end:now+86*60000});
+  state.stickyNotes=add(state.stickyNotes,{...stickyBoard.newNote('Try linking this note to a task.','Sandbox note'),id:'sandbox-note'});
+  for(let i=1;i<=2;i++)state.gardenGrowth=earnGardenDetail(state.gardenGrowth,'test','sandbox-star-'+i,'Sample test '+i,today,{courseId:projectId,courseName:'Sandbox course'});
+  if(!persist()){Object.assign(state,previous);return;}
+  refreshTasks();stickyBoard.render();refreshPanel();confirmChange('Sample data loaded in the sandbox.');
+}
+
+function replaceAdminSandbox(copy){
+  const label=copy?'Replace the sandbox with a copy of your saved workspace?':'Clear the current sandbox workspace?';
+  if(!window.confirm(label))return;
+  const source=copy?liveStorage:{getItem:()=>null};
+  try{
+    const next=copy?loadState(source):freshState();
+    reset(next,'focus');next.notifications=false;
+    restoreBackup(storage,{state:next,journal:loadJournal(source),crochet:loadCrochet(source),
+      captures:new Map(readCaptures(source).map(({key,...note})=>[key,note]))});
+    location.reload();
+  }catch(error){toast(error.message||'Could not replace the sandbox.');}
+}
+
+function runAdminSandbox(action){
+  if(action==='enter'){location.assign(adminSandboxUrl(true));return;}
+  if(!adminSandbox)return;
+  if(action==='seed'){seedAdminSandbox();return;}
+  if(action==='star'){
+    if(recordGardenGrowth('test',crypto.randomUUID(),'Sandbox test '+(gardenStarProgress(state.gardenGrowth).count+1)))refreshPanel();
+    return;
+  }
+  if(action==='copy'||action==='reset'){replaceAdminSandbox(action==='copy');return;}
+  if(action==='backup'){closePanel(false);backup.open();return;}
+  if(action==='timer'){
+    checkCompletion();
+    if(state.timer.id){toast('Finish or reset the current sandbox timer first.');return;}
+    const before=state.timer;reset(state,'focus');state.timer.total=state.timer.remaining=10000;
+    startPause(state,Date.now(),focusedTask()?.id??null);
+    if(!persist()){state.timer=before;return;}
+    closePanel(false);visitWorkspace('focus');render();timerButton.focus({preventScroll:true});
+  }
+}
+
 function panelContent(id){
+  if(id==='admin-sandbox')return adminSandboxMarkup();
   if(id==='star-constellation')return starConstellationMarkup();
   if(id==='fit-before-class')return `${header('GARDEN','What fits before class?')}
     <label class="field-label" for="class-buffer">Minutes to get ready</label>
@@ -2882,6 +2958,7 @@ function panelContent(id){
       ['notes','note','Quick notes','Capture a distraction or open the note inbox'],
       ['music','music','Music & video','Spotify, YouTube, and app sounds'],
       ['garden-history','sprout','Garden Field Guide','Landmarks, saved layouts, and postcards'],
+      ['admin-sandbox','focus','Admin sandbox','Try changes and sample data in a separate workspace'],
       ['help','help','Help','How-to guides and shortcuts']
     ];
     return header('GARDEN','Tools')+`<div class="garden-tools-list">${tools.map(([id,symbol,label,description])=>
@@ -5372,6 +5449,8 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const adminAction=e.target.closest('[data-admin-action]');
+  if(adminAction){runAdminSandbox(adminAction.dataset.adminAction);return;}
   const constellation=e.target.closest('[data-guide-constellation]');
   if(constellation){openUnlockedConstellation(constellation.dataset.guideConstellation,constellation,gardenThrough||snapshotThrough);return;}
   const classFit=e.target.closest('[data-class-fit-task]');
@@ -5692,6 +5771,7 @@ root.addEventListener('click',e=>{
   }
   if(btn.id==='quick-capture')openPanel('capture',gardenToolAnchor('notes'));
   if(btn.id==='capture-window'){
+    if(adminSandbox){toast('Use in-app capture to keep this note in the sandbox.');return;}
     const left=Math.round(capturePointer?.screenX??window.screenX);
     const top=Math.round(capturePointer?.screenY??window.screenY);
     const windowRef=window.open('./capture.html','yin-yang-capture',`popup,width=380,height=285,left=${left},top=${top}`);
@@ -6497,14 +6577,16 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkComp
 window.addEventListener('focus',syncNativeCaptures);
 window.addEventListener('pageshow',()=>{checkCompletion();render();});
 window.addEventListener('storage',e=>{
-  if(e.key===STORAGE_KEY){
+  const key=workspaceStorageEvent(e.key,adminSandbox);
+  if(key===undefined)return;
+  if(key===STORAGE_KEY){
     state=loadState(storage);savedSchedule=snapshotSchedule(state);syncSound();checkCompletion();refreshTasks();stickyBoard.render();renderCaptures();
     if(workspace==='reading'&&!$('#reading-workspace dialog[open]'))reading.render();
     if(workspace==='reading')reading.render();
     if(workspace==='journal')journal.refresh();
     if(activePanel&&!visiblePanel()?.contains(document.activeElement))refreshPanel();
   }
-  if(e.key===null||e.key?.startsWith(CAPTURE_PREFIX))renderCaptures();
+  if(key===null||key?.startsWith(CAPTURE_PREFIX))renderCaptures();
 });
 renderCaptures();
 syncNativeCaptures();
