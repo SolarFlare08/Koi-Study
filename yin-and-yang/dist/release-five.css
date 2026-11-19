@@ -27,7 +27,8 @@
 .admin-test-actions button { display:grid; gap:4px; padding:8px 10px; text-align:left; border:1px solid var(--surface-line); border-radius:8px; background:var(--surface-field); }
 .admin-test-actions button:hover { background:var(--surface-raised); }
 .admin-test-actions small { color:var(--surface-muted); }
-.garden-unlocked-constellation { color:var(--scene-ink,#f5ebce); opacity:.7; }
+.garden-unlocked-constellation { color:var(--scene-ink,#f5ebce); opacity:.8; }
+.garden-earned-star { color:var(--scene-ink,#fff1cb); opacity:.9; }
 #garden-landmarks [data-sky-constellation] { width:54px; height:40px; border-radius:45%; }
 .star-constellation-guide { margin-block:14px; padding-block:12px; border-block:1px solid var(--surface-line); }
 .star-constellation-guide h3 { margin:0 0 5px; font-size:15px; }

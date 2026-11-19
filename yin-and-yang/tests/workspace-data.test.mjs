@@ -268,7 +268,7 @@ test('test stars and milestone cairns retain their details and stable positions 
   assert.equal(restored.gardenGrowth[0].result,'94%');
   assert.equal(restored.gardenGrowth[0].detail,'Retake practice set 3');
   const art=gardenGrowthMarkup(restored.gardenGrowth);
-  assert.match(art.stars,/translate\(922 215\)/);
+  assert.ok(art.stars.includes(`translate(${before[0].position.slice(0,2).join(' ')})`));
   assert.match(art.cairns,/translate\(792 681\)/);
 });
 

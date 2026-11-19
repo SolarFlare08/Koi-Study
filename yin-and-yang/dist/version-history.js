@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.13.1',date:'2026-11-19',title:'A more natural Garden sky',changes:[
+    'Spread constellations and earned stars across the sky. Vary star size and brightness, using apparent magnitudes for Orion and a mix of bright and faint points for Garden patterns.'
+  ]},
   {version:'5.13.0',date:'2026-11-19',title:'Admin sandbox',changes:[
     'Open a separate test workspace from Garden Tools. Load sample data, test constellation unlocks and short focus sessions, or experiment on a local copy of your workspace.'
   ]},

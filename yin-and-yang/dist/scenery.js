@@ -4,7 +4,7 @@ import {gardenFrame,gardenLandmarkKey,defaultGardenDesign} from './garden-layout
 import {gardenPieces} from './garden-pieces.js';
 import {styledBoat} from './garden-ornaments.js';
 import {renderGardenProps} from './garden-props.js';
-import {gardenStarProgress} from './garden-growth.js';
+import {gardenStarProgress,starConstellations} from './garden-growth.js';
 import {gardenWeather,sceneProgress,sceneryWeatherLayers} from './garden-appearance.js';
 import {alternateBoats,alternateBoatLights,mountainSnowCut,seasonalTree,shoreDetails,snowbank,weatherMarkup} from './seasonal-scenery.js';
 const boatOrigin='783 751';
@@ -45,7 +45,7 @@ const lanternSlots = [
 ];
 const landmarkSlots = {
   project:groveSlots,book:lanternSlots,
-  test:[[922,215,1],[674,191,.9],[949,153,.8],[704,105,.85],[893,100,.75],[625,240,.74],[1000,249,.84]],
+  test:[[179,114,1],[689,79,.92],[1041,248,.95],[484,67,.92],[1208,72,.88],[665,201,.94],[1446,174,.88]],
   milestone:[[792,681,.9],[689,689,.8],[1149,638,.88],[1295,626,1],[1353,837,1],[706,681,.76]]
 };
 const placementSlots={
@@ -73,18 +73,33 @@ function growthPosition(slots,index){
 
 export function gardenLandmarkPositions(history,courses=[],placements={}){
   const positions=new Map();
+  const courseCenters=[[478,228],[1048,107],[700,147],[1250,286],[241,61],[1442,62],[824,74],[1061,275],[425,120],[1310,187]];
   courses.forEach((course,index)=>{
-    const column=index%5, row=Math.floor(index/5)%3, layer=Math.floor(index/15);
-    const center=[470,650,790,1080,1250][column];
+    const [x,y]=courseCenters[index%courseCenters.length],layer=Math.floor(index/courseCenters.length);
     [...course.stars].sort((a,b)=>a.index-b.index).forEach(({index:star},i)=>{
-      const orbit=Math.floor(i/7), angle=i*2.4+column, radius=i?15+(i%7)*4+orbit*5:0;
-      positions.set(star,[center+Math.cos(angle)*radius+layer*11,85+row*81+Math.sin(angle)*radius*.65+layer*9,.86]);
+      const angle=i*2.4+index, radius=i?Math.min(52,16+Math.sqrt(i)*7):0;
+      positions.set(star,[x+Math.cos(angle)*radius+layer*9,y+Math.sin(angle)*radius*.68+layer*8,.86]);
     });
   });
+  const skyPoints=[...positions.values()];
+  let candidate=0;
   const counts=new Map();
   const occupied=new Set();
   return history.map((item,originalIndex)=>{
     if(positions.has(originalIndex))return {item,index:originalIndex,position:positions.get(originalIndex)};
+    if(item.kind==='test'){
+      let position;
+      for(let attempts=0;attempts<180;attempts++){
+        const index=candidate++;
+        position=landmarkSlots.test[index]||[166+(index*.61803398875%1)*1280,55+(index*.41421356237%1)*239,.82];
+        const [x,y]=position;
+        const overlaps=starConstellations.some(item=>Math.abs(x-item.x)<65&&Math.abs(y-item.y)<49)||
+          (x>883&&x<1001&&y>83&&y<267)||skyPoints.some(([sx,sy])=>Math.hypot(x-sx,y-sy)<22);
+        if(!overlaps)break;
+      }
+      skyPoints.push(position);
+      return {item,index:originalIndex,position};
+    }
     const key=`${item.kind}:${item.zone||''}`;
     let index=counts.get(key)||0,position,spot;
     const slots=placementSlots[item.zone]?.[item.kind]||landmarkSlots[item.kind];
@@ -105,10 +120,26 @@ function landmarkGround(x,y,scale){
     <path d="M-25 3Q-2-5 23 1" fill="none" stroke="var(--shore-upper,#9cb28d)" stroke-width="1.7" opacity=".72"/>
   </g>`;
 }
+export function starLight(magnitude){
+  const flux=10**(-.4*(magnitude-.18));
+  return {radius:Math.min(3.3,.85+2.2*flux**.36),opacity:Math.min(1,.25+.75*flux**.36),
+    halo:magnitude<1.85?Math.min(.34,.32*flux**.55):0};
+}
+function starPoint(x,y,magnitude,color='currentColor'){
+  const {radius,opacity,halo}=starLight(magnitude);
+  return `${halo?`<circle cx="${x}" cy="${y}" r="${(radius*2.5).toFixed(2)}" fill="url(#halo)" opacity="${halo.toFixed(2)}"/>`:''}
+    <circle class="sky-star-point" cx="${x}" cy="${y}" r="${radius.toFixed(2)}" fill="${color}" opacity="${opacity.toFixed(2)}"/>`;
+}
+const orionStars=[
+  ['Betelgeuse',901,126,.45,'#ffc2a1'],['Meissa',932,101,3.66,'#e7ecf7'],
+  ['Bellatrix',974,133,1.64,'#e0eaff'],['Mintaka',949,173,2.41,'#dae8fa'],
+  ['Alnilam',938,178,1.69,'#dfebff'],['Alnitak',927,183,1.82,'#e4efff'],
+  ['Saiph',916,250,2.07,'#dae8ff'],['Rigel',983,235,.18,'#e2f0ff']
+];
 function constellationShape(item){
   const lines=item.lines.map(line=>`<polyline points="${line.map(index=>item.points[index].join(',')).join(' ')}"/>`).join('');
-  const stars=item.points.map(([x,y],index)=>`<circle cx="${x}" cy="${y}" r="${index===0||index===item.points.length-1?2.8:2}"/>`).join('');
-  return `<g fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" opacity=".72">${lines}</g>
+  const stars=item.points.map(([x,y],index)=>starPoint(x,y,item.magnitudes[index])).join('');
+  return `<g fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round" opacity=".5">${lines}</g>
     <g fill="currentColor">${stars}</g>`;
 }
 export function gardenConstellationSketch(item){
@@ -123,11 +154,14 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
   }
   let hasIsland=false;
   const layout=gardenLandmarkPositions(history,courses,design.placements);
+  let nextStar=0;
+  const starMagnitudes=[1.05,2.7,1.85,3.1,1.4,2.45,3.45,2.2,2.9,1.6,3.7];
   for(const course of courses){
     const points=course.stars.filter(({item,index})=>(!through||item.day<=through)&&(!visible||visible.has(index))).map(({index})=>layout[index].position.slice(0,2).join(','));
     if(points.length>1)stars.push(`<polyline points="${points.join(' ')}" fill="none" stroke="#9ec6d8" stroke-width="1.4" opacity=".75"/>`);
   }
   for(const {item,index,position} of layout){
+    const magnitude=item.kind==='test'?starMagnitudes[nextStar++%starMagnitudes.length]:null;
     if(visible&&!visible.has(index))continue;
     if(through&&item.day>through)continue;
     const [x,y,scale]=position;
@@ -149,8 +183,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
         <path d="M-5 5H5m-3 3h6" stroke="#ffd498" stroke-linecap="round" opacity=".43"/>
       </g>`);
     }else if(item.kind==='test'){
-      stars.push(`<g transform="${transform}"><circle r="17" fill="url(#halo)" opacity=".6"/>
-        <path d="M0-8Q1-1 7 0Q1 1 0 8Q-1 1-7 0Q-1-1 0-8Z" fill="#fff1cb" stroke="#a7785d" stroke-width=".65"/></g>`);
+      stars.push(`<g class="garden-earned-star" transform="${transform}">${starPoint(0,0,magnitude)}</g>`);
     }else if(item.kind==='milestone'){
       if(!placed&&item.zone==='island')hasIsland=true;
       if(placed)cairns.push(landmarkGround(x,y,scale*.78));
@@ -325,8 +358,8 @@ ${pieceMarkup("boatLights",design)}
 </g>
 <g id="stars" fill="#f5e8ce" opacity="0">
   <circle cx="321" cy="116" r="1.2"/><circle cx="1013" cy="87" r="1"/><circle cx="1280" cy="167" r="1.3"/><circle cx="460" cy="237" r=".9"/><circle cx="1107" cy="247" r="1"/><circle cx="620" cy="66" r="1"/><circle cx="1423" cy="88" r=".8"/>
-  <g class="orion"><title>Orion</title><path d="M901 126L932 101L974 133L949 173L938 178L927 183L901 126M927 183L916 250L983 235L949 173" stroke="#b6c8d9" stroke-width=".85" opacity=".52" fill="none"/>
-    <circle cx="901" cy="126" r="2.9" fill="#ffc2a1"/><circle cx="932" cy="101" r="1.5"/><circle cx="974" cy="133" r="2.1"/><circle cx="949" cy="173" r="2"/><circle cx="938" cy="178" r="2.2"/><circle cx="927" cy="183" r="2"/><circle cx="916" cy="250" r="1.8"/><circle cx="983" cy="235" r="2.7" fill="#dceaff"/>
+  <g class="orion"><title>Orion</title><path d="M901 126L932 101L974 133L949 173L938 178L927 183L901 126M927 183L916 250L983 235L949 173" stroke="#b6c8d9" stroke-width=".85" opacity=".38" fill="none"/>
+    ${orionStars.map(([name,x,y,magnitude,color])=>`<g data-star-name="${name}"><title>${name}</title>${starPoint(x,y,magnitude,color)}</g>`).join('')}
   </g>
 </g>
 <g id="garden-moon" opacity="0"><circle r="64" fill="url(#moon-halo)"/><path d="M8-20A22 22 0 1 0 20 12A23 23 0 0 1 8-20Z" fill="#e4eef8"/></g>
