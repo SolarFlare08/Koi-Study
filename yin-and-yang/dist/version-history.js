@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.4.0',date:'2026-11-18',title:'Undo a calendar brush stroke',changes:[
+    'Undo all calendar copies from one brush placement together, then use Redo to bring them back.'
+  ]},
   {version:'5.3.0',date:'2026-11-17',title:'Study questions and semester memories',changes:[
     'Paint several timed calendar copies, then place them together.',
     'Capture blockers beside the timer and print course question sheets with mistakes, page references, and meeting answers.',

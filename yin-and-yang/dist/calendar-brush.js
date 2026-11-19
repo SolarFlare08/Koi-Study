@@ -20,7 +20,32 @@ export function paintedCopies(state,source,slots,minutes){
   return {calendarEvents:[...state.calendarEvents,...placements.map(p=>({...details,manual:true,id:'manual:'+crypto.randomUUID(),start:p.start,end:p.start+minutes*60000}))]};
 }
 
-export function installBrush({button,grid,scroller,sources,canPaint,getState,commit,minuteAt,notify,initialDay}){
+export function brushStroke(state, source, slots, minutes){
+  const changes=paintedCopies(state,source,slots,minutes);
+  if(!changes)return null;
+  const taskId=source.type==='task'?source.id:null;
+  const before=taskId?state.tasks.find(task=>task.id===taskId).blocks||[]:state.calendarEvents;
+  const after=taskId?changes.tasks.find(task=>task.id===taskId).blocks:changes.calendarEvents;
+  const existing=new Set(before.map(item=>item.id));
+  const copies=after.filter(item=>!existing.has(item.id));
+  const ids=new Set(copies.map(item=>item.id));
+  let removed=copies;
+
+  function update(latest, redo){
+    const task=taskId&&latest.tasks.find(item=>item.id===taskId);
+    if(taskId&&!task)return null;
+    const items=task?task.blocks||[]:latest.calendarEvents;
+    if(redo&&items.some(item=>ids.has(item.id)))return null;
+    const present=items.filter(item=>ids.has(item.id));
+    if(!redo&&!present.length)return null;
+    const next=redo?[...items,...removed]:items.filter(item=>!ids.has(item.id));
+    const update=task?{tasks:latest.tasks.map(item=>item===task?{...task,blocks:next}:item)}:{calendarEvents:next};
+    return {changes:update, applied(){if(!redo)removed=present;}};
+  }
+  return {changes,count:copies.length,update};
+}
+
+export function installBrush({button,grid,scroller,sources,canPaint,getState,placeStroke,minuteAt,notify,initialDay}){
   const panel=document.createElement('div');panel.className='brush-bar';panel.hidden=true;
   button.closest('#calendar-toolbar').after(panel);
   panel.innerHTML=`<label>Paint copies of<select></select></label><label>Minutes<input type="number" min="1" max="1440"></label>
@@ -70,9 +95,9 @@ export function installBrush({button,grid,scroller,sources,canPaint,getState,com
     if(e.target.closest('[data-undo]')){slots.delete([...slots.keys()].at(-1));draw();}
     if(e.target.closest('[data-place]')&&date.value&&time.value){const [h,m]=time.value.split(':').map(Number);place(date.value,h*60+m);}
     if(e.target.closest('[data-save]')){
-      const changes=paintedCopies(getState(),choices[select.value],[...slots.values()],length.valueAsNumber);
-      if(!changes){notify('Check the source, length, and placement times.');return;}
-      if(commit(changes)){const n=slots.size;close();notify(n+' calendar copies placed.');button.focus();}
+      const stroke=brushStroke(getState(),choices[select.value],[...slots.values()],length.valueAsNumber);
+      if(!stroke){notify('Check the source, length, and placement times.');return;}
+      if(placeStroke(stroke)){close();button.focus();}
     }
   };
   new MutationObserver(()=>{if(!panel.hidden)draw();}).observe(grid,{childList:true});

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {freshState,loadState,STORAGE_KEY} from '../dist/state.js';
-import {paintedCopies} from '../dist/calendar-brush.js';
+import {brushStroke,paintedCopies} from '../dist/calendar-brush.js';
 import {withinCutoff} from '../dist/reading-shelf.js';
 import {meetingItems} from '../dist/office-hours.js';
 import {semesterFrames} from '../dist/semester-replay.js';
@@ -20,6 +20,28 @@ test('spoiler cutoff hides later chapters, crossing ranges and unrecognized labe
   for(const label of ['Ch. 2','Chapters 2–4','4: Discovery'])assert.equal(withinCutoff(label,4),true);
   for(const label of ['Chapter 10','Chapters 2–6','Epilogue'])assert.equal(withinCutoff(label,4),false);
   assert.equal(withinCutoff('Epilogue',null),true);
+});
+test('brush undo and redo use the identities of exactly the placed copies',()=>{
+  for(const type of ['task','event']){
+    const state=freshState(),original={id:'original',date:'2026-11-18',time:'08:00',minutes:30};
+    state.tasks=[{id:'source',done:false,blocks:[original]}];
+    state.calendarEvents=[{id:'source',manual:true,title:'Class',start:0,end:1800000}];
+    const read=()=>type==='task'?state.tasks[0].blocks:state.calendarEvents;
+    const stroke=brushStroke(state,{type,id:'source'},Array.from({length:8},(_,i)=>({date:'2026-11-18',minute:540+i*30})),30);
+    assert.equal(stroke.count,8);
+    Object.assign(state,stroke.changes);
+    const unrelated={...read()[0],id:'unrelated'};
+    read().push(unrelated);
+    read()[1].extra='edited after placement';
+    const placed=read().slice(1,9);
+    const undo=stroke.update(state,false);
+    Object.assign(state,undo.changes);undo.applied();
+    assert.deepEqual(read().map(item=>item.id),[type==='task'?'original':'source','unrelated']);
+    const redo=stroke.update(state,true);
+    Object.assign(state,redo.changes);redo.applied();
+    assert.deepEqual(read().slice(2),placed);
+    assert.equal(stroke.update(state,true),null);
+  }
 });
 test('a course sheet keeps meeting answers separate from mistake retry progress through reload',()=>{
   let state=freshState();state.projects=[{id:'course',name:'Math'}];

@@ -122,7 +122,8 @@ function updateMediaPlayback(playback){mediaPlayback=playback;syncSound();}
 const spotifyEmbed=createSpotifyEmbed(updateMediaPlayback);
 const youtubeEmbed=createYouTubeEmbed(updateMediaPlayback,setMediaStatus);
 const undoToast=$('#undo-toast'),undoButton=$('#undo-action');
-let pendingUndo,undoTimeout,undoReturn;
+const dismissBrushButton=$('#dismiss-brush-action');
+let pendingUndo,undoTimeout,undoReturn,pendingBrush;
 function persist(){
   const previous=state.scheduleMoves, schedule=snapshotSchedule(state);
   const replay=state.timer.replay;
@@ -245,15 +246,17 @@ function syncSound(unlock=false){
     mediaPlayback==='unknown'?'App sounds paused while player status is unconfirmed.':mediaPlayback==='playing'?'App sounds paused while the player is active.':'Set any slider to zero to turn that sound off.';
 }
 function dismissUndo(){
-  pendingUndo=null;clearTimeout(undoTimeout);undoToast.hidden=true;
+  pendingUndo=null;pendingBrush=null;clearTimeout(undoTimeout);undoToast.hidden=true;
 }
 function queueUndoExpiry(){
   clearTimeout(undoTimeout);
-  if(pendingUndo&&!undoToast.matches(':hover, :focus-within'))undoTimeout=setTimeout(dismissUndo,12000);
+  if(pendingUndo&&!pendingBrush&&!undoToast.matches(':hover, :focus-within'))undoTimeout=setTimeout(dismissUndo,12000);
 }
 function confirmChange(message,undo){
   if(!undo){toast(message);announce(message);return;}
   undoReturn=document.activeElement;
+  pendingBrush=null;undoButton.textContent='Undo';
+  dismissBrushButton.hidden=true;
   pendingUndo=undo;
   undoToast.hidden=false;
   $('#undo-message').textContent=message;
@@ -264,7 +267,19 @@ undoToast.addEventListener('pointerenter',()=>clearTimeout(undoTimeout));
 undoToast.addEventListener('pointerleave',queueUndoExpiry);
 undoToast.addEventListener('focusin',()=>clearTimeout(undoTimeout));
 undoToast.addEventListener('focusout',()=>setTimeout(queueUndoExpiry,0));
+dismissBrushButton.onclick=()=>{
+  dismissUndo();
+  (inSchedule()?$('#planner-heading'):currentTaskButton).focus({preventScroll:true});
+};
 undoButton.onclick=()=>{
+  if(pendingBrush){
+    const {stroke,redo}=pendingBrush,step=stroke.update(state,redo);
+    if(!step){dismissUndo();toast('The painted copies changed and this action is no longer available.');return;}
+    if(!commitCalendarCopies(step.changes))return;
+    step.applied();
+    showBrushAction(stroke,!redo,redo?'Painted copies restored.':'Painted copies removed.');
+    return;
+  }
   const undo=pendingUndo;
   if(!undo)return;
   dismissUndo();
@@ -3147,7 +3162,22 @@ function commitCalendarCopies(changes){
     if(!persist()){Object.assign(state,previous);return false;}
     refreshTasks();return true;
 }
-const closeBrush=installBrush({button:$('#calendar-brush'),grid:calendarGrid,scroller:calendarScroll,getState:()=>state,commit:commitCalendarCopies,
+function showBrushAction(stroke,redo,message){
+  clearTimeout(undoTimeout);
+  pendingUndo=null;
+  pendingBrush={stroke,redo};
+  undoButton.textContent=redo?'Redo':'Undo';
+  dismissBrushButton.hidden=false;
+  $('#undo-message').textContent=message;
+  undoToast.hidden=false;
+  announce(message+(redo?' Redo available.':' Undo available.'));
+}
+function placeStroke(stroke){
+  if(!commitCalendarCopies(stroke.changes))return false;
+  showBrushAction(stroke,false,`${stroke.count} calendar ${stroke.count===1?'copy':'copies'} placed.`);
+  return true;
+}
+const closeBrush=installBrush({button:$('#calendar-brush'),grid:calendarGrid,scroller:calendarScroll,getState:()=>state,placeStroke,
   canPaint:()=>workspace==='calendar'&&!actualCalendar&&planner.calendarVisible(),initialDay:()=>dayKey(leadingPlannerDay()),minuteAt:calendarPointerMinute,notify:toast,
   sources:()=>[...planner.calendarTasks().filter(t=>!t.done).map(t=>({id:t.id,type:'task',title:t.text,minutes:t.estimate||60})),
     ...shownCalendarEvents().filter(e=>!e.day).map(e=>({id:e.id,type:'event',title:e.title,minutes:Math.min(1440,Math.max(1,Math.round((e.end-e.start)/60000)))}))]});
