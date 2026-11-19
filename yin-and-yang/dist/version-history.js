@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.5',date:'2026-11-19',title:'A brighter shooting-star tip',changes:[
+    'Brighten the solid center of the shooting star and keep its yellow rim, glow, and trail.'
+  ]},
   {version:'5.14.4',date:'2026-11-19',title:'Golden trails and easier browsing',changes:[
     'Shooting stars sweep farther across the sky with a vivid yellow tip before passing behind the ridge.',
     'Version history now has a release browser with search, version filters, and a separate reading pane.',
