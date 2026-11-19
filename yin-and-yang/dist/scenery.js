@@ -311,9 +311,9 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <radialGradient id="lamp-halo"><stop stop-color="#ffbe75" stop-opacity=".52"/><stop offset=".36" stop-color="#e6a66d" stop-opacity=".24"/><stop offset="1" stop-color="#e6a66d" stop-opacity="0"/></radialGradient>
 <radialGradient id="moon-halo"><stop stop-color="#e5effd" stop-opacity=".22"/><stop offset="1" stop-color="#bbd8fc" stop-opacity="0"/></radialGradient>
 <linearGradient id="meteor-tail" gradientUnits="userSpaceOnUse" x1="-128" y1="0" x2="0" y2="0">
-  <stop stop-color="#acd7ee" stop-opacity="0"/><stop offset=".64" stop-color="#bcdef6" stop-opacity=".54"/><stop offset="1" stop-color="#ffe6a5"/>
+  <stop stop-color="#acd7ee" stop-opacity="0"/><stop offset=".58" stop-color="#bcdef6" stop-opacity=".54"/><stop offset=".93" stop-color="#ffe547"/><stop offset="1" stop-color="#fff772"/>
 </linearGradient>
-<radialGradient id="meteor-glow"><stop stop-color="#ffed9f" stop-opacity=".97"/><stop offset=".35" stop-color="#ffcf60" stop-opacity=".62"/><stop offset="1" stop-color="#ffe8af" stop-opacity="0"/></radialGradient>
+<radialGradient id="meteor-glow"><stop stop-color="#fff78e"/><stop offset=".35" stop-color="#ffe52d" stop-opacity=".83"/><stop offset="1" stop-color="#ffd737" stop-opacity="0"/></radialGradient>
 <linearGradient id="bank" x2=".4" y2="1"><stop stop-color="var(--bank-upper,#547d6b)"/><stop offset="1" stop-color="var(--bank-lower,#294f4d)"/></linearGradient>
 <linearGradient id="shore" x2="0" y2="1"><stop stop-color="var(--shore-upper,#8eac91)"/><stop offset="1" stop-color="var(--shore-lower,#527e70)"/></linearGradient>
 <linearGradient id="rock-face" x2=".55" y2="1"><stop stop-color="#9cae99"/><stop offset="1" stop-color="#597b73"/></linearGradient>
@@ -339,7 +339,7 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
     <path d="M-128 0Q-40-1 0-5L0 5Q-40 1-128 0Z" fill="url(#meteor-tail)" opacity=".26"/>
     <path d="M-128 0Q-40-.85 0-2.2L0 2.2Q-40 .85-128 0Z" fill="url(#meteor-tail)"/>
   </g>
-  <circle r="20" fill="url(#meteor-glow)"/><circle r="4.7" fill="#ffe289"/><circle r="2.9" fill="#fff9cf"/>
+  <circle r="21" fill="url(#meteor-glow)"/><circle r="4.9" fill="#ffec32"/><circle r="3" fill="#fffca3"/>
 </g>
 ${pieceMarkup("mountains",design)}
 <path fill="url(#water)" d="M0 548q297-24 524-6t463-1 613 6v353H0Z"/>
@@ -505,8 +505,8 @@ export function createShootingStars(scene,random=Math.random){
     const open=lanes.filter(lane=>lane.sky>top+Math.min(140,h*.25));
     const {x,sky}=open.length?open[Math.floor(random()*open.length)]:lanes.reduce((best,lane)=>lane.sky>best.sky?lane:best);
     const y=Math.max(top+28,Math.min(top+h*(.06+random()*.13),sky-52));
-    const destinations=[left+w*(.17+random()*.18),left+w*(.57+random()*.16)];
-    const choices=destinations.filter(end=>Math.abs(end-x)>=w*.12);
+    const destinations=[left+w*(.12+random()*.12),left+w*(.74+random()*.12)];
+    const choices=destinations.filter(end=>Math.abs(end-x)>=Math.min(520,w*.38));
     const endX=choices.length?choices[Math.floor(random()*choices.length)]:
       destinations.reduce((farther,end)=>Math.abs(end-x)>Math.abs(farther-x)?end:farther);
     const dx=endX-x,dy=655-y;

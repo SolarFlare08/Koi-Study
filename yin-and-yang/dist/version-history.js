@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.14.4',date:'2026-11-19',title:'Golden trails and easier browsing',changes:[
+    'Shooting stars sweep farther across the sky with a vivid yellow tip before passing behind the ridge.',
+    'Version history now has a release browser with search, version filters, and a separate reading pane.',
+    'Admin Sandbox has clearer test controls and can add exactly enough test stars to unlock the next constellation.'
+  ]},
   {version:'5.14.3',date:'2026-11-19',title:'Shooting stars beyond the ridge',changes:[
     'Vary shooting-star paths, speeds, and tail shapes. A brighter golden tip disappears behind the mountains before the rest of the trail follows.'
   ]},
@@ -315,11 +320,62 @@ export const releases = [
 export const appVersion=releases[0].version;
 
 export function installVersionHistory(dialog){
+  const [latest]=releases;
+  const series=[...new Set(releases.map(release=>release.version.split('.')[0]))];
+  const formatDate=new Intl.DateTimeFormat(undefined,{dateStyle:'long',timeZone:'UTC'});
+  const date=value=>value?`<time datetime="${value}">${formatDate.format(new Date(value))}</time>`:'';
   const items=changes=>`<ul>${changes.map(change=>`<li>${change}</li>`).join('')}</ul>`;
-  dialog.innerHTML=`<header><h2 id="version-title">Version history</h2><button type="button" aria-label="Close version history">×</button></header>
-    ${releases.map((release,index)=>`<details class="version-release" ${index===0?'open':''}><summary>v${release.version} · ${release.title}</summary>
-      ${release.date?`<time datetime="${release.date}">${release.date}</time>`:''}${release.changes.length?items(release.changes):''}
-      ${(release.history||[]).map(day=>`<section><time datetime="${day.date}">${day.date}</time>${items(day.changes)}</section>`).join('')}</details>`).join('')}`;
-  dialog.querySelector('button').onclick=()=>dialog.close();
+  dialog.innerHTML=`<header class="version-header"><div><h2 id="version-title">Version history</h2><p>Yin and Yang · v${latest.version}</p></div><button type="button" aria-label="Close version history">×</button></header>
+    <div class="version-filters">
+      <label><span class="sr-only">Search releases</span><input type="search" placeholder="Search releases" autofocus></label>
+      <label><span class="sr-only">Version series</span><select><option value="">All versions</option>${series.map(major=>`<option value="${major}">Version ${major}.x</option>`).join('')}</select></label>
+    </div>
+    <div class="version-layout">
+      <div class="version-index"><p class="version-count" role="status"></p><nav aria-label="Releases"></nav></div>
+      <article class="version-notes" aria-label="Release notes" tabindex="0"></article>
+    </div>`;
+  const search=dialog.querySelector('input'),filter=dialog.querySelector('select'),list=dialog.querySelector('nav');
+  const notes=dialog.querySelector('.version-notes'),count=dialog.querySelector('.version-count');
+  let selected;
+
+  function show(release){
+    selected=release;
+    for(const button of list.querySelectorAll('button')){
+      if(button.dataset.release===release?.version)button.setAttribute('aria-current','true');
+      else button.removeAttribute('aria-current');
+    }
+    notes.innerHTML=release?`<div class="version-hero"><div><span class="version-chip">${release===latest?'Latest · ':''}v${release.version}</span>${date(release.date)}</div>
+      <h3>${release.title}</h3></div>
+      ${release.changes.length?`<section><h4>What changed</h4>${items(release.changes)}</section>`:''}
+      ${(release.history||[]).map(day=>`<section><h4>${date(day.date)}</h4>${items(day.changes)}</section>`).join('')}`:
+      '<div class="version-empty"><h3>No matching releases</h3><p>Try another search or version series.</p><button type="button">Clear filters</button></div>';
+    notes.scrollTop=0;
+  }
+  function update(){
+    const terms=search.value.trim().toLowerCase().split(/\s+/);
+    const matches=releases.filter(release=>{
+      if(filter.value&&!release.version.startsWith(filter.value+'.'))return false;
+      const content=[`v${release.version}`,release.title,release.date,...release.changes,
+        ...(release.history||[]).flatMap(day=>[day.date,...day.changes])].join(' ').toLowerCase();
+      return terms.every(term=>content.includes(term));
+    });
+    count.textContent=`${matches.length} ${matches.length===1?'release':'releases'}`;
+    list.innerHTML=matches.map(release=>`<button type="button" data-release="${release.version}">
+      <span class="version-number">v${release.version}</span><span>${release.title}</span></button>`).join('');
+    list.scrollTop=0;
+    show(matches.includes(selected)?selected:matches[0]);
+  }
+  dialog.querySelector('.version-header button').onclick=()=>dialog.close();
+  list.onclick=event=>{
+    const button=event.target.closest('[data-release]');
+    if(button)show(releases.find(release=>release.version===button.dataset.release));
+  };
+  notes.onclick=event=>{
+    if(!event.target.closest('.version-empty button'))return;
+    search.value='';filter.value='';update();search.focus();
+  };
+  search.addEventListener('input',update);
+  filter.addEventListener('change',update);
+  update();
   return ()=>{if(!dialog.open)dialog.showModal();};
 }

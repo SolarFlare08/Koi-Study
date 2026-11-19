@@ -2835,24 +2835,35 @@ function adminSandboxMarkup(){
   if(!adminSandbox)return `${header('TEST WORKSPACE','Admin sandbox')}
     <p>Try features with separate local data. You can start with sample data or copy your regular workspace after entering.</p>
     <div class="panel-actions"><button type="button" class="panel-primary" data-admin-action="enter">Enter sandbox</button></div>`;
-  const {count,free,next}=gardenStarProgress(state.gardenGrowth);
+  const {count,free,next,unlocked}=gardenStarProgress(state.gardenGrowth);
+  const milestone=unlocked.at(-1)?.threshold??0;
+  const toUnlock=next?next.threshold-count:0;
   const tile=(action,symbol,title,description)=>`<button type="button" id="sandbox-${action}" data-admin-action="${action}">
     <span class="sandbox-tile-icon" aria-hidden="true">${icon(symbol)}</span><span><strong>${title}</strong><small>${description}</small></span></button>`;
   return `${header('ISOLATED WORKSPACE','Admin sandbox')}
-    <section class="sandbox-tests"><h3>Garden & timer</h3>
-      <p class="sandbox-sky-stats" aria-live="polite"><strong>${count} earned · ${free} unassigned</strong><span>${next?`${next.threshold-count} to unlock ${next.name}`:'All constellations unlocked'}</span></p>
-      <div class="sandbox-test-grid">
-        ${tile('meteor','spark','Simulate a shooting star','Preview it in Garden')}
-        ${tile('star','sprout','Add a test star','Add one to this sandbox')}
+    <section class="sandbox-sky"><h3>Garden sky</h3>
+      <dl class="sandbox-sky-stats"><div><dt>Earned</dt><dd>${count}</dd></div><div><dt>Unassigned</dt><dd>${free}</dd></div>
+      <div><dt>Constellations</dt><dd>${unlocked.length}<span> / ${starConstellations.length}</span></dd></div></dl>
+      ${next?`<div class="sandbox-progress"><label for="sandbox-unlock-progress"><strong>${next.name}</strong><span>${toUnlock} to unlock</span></label>
+        <progress id="sandbox-unlock-progress" value="${count-milestone}" max="${next.threshold-milestone}"></progress></div>`:
+        '<p class="sandbox-all-unlocked">All constellations unlocked</p>'}
+      <div class="sandbox-star-actions">
+        <button id="sandbox-star" type="button" data-admin-action="star">Add one star</button>
+        ${next?`<button id="sandbox-next-unlock" type="button" data-admin-action="next-unlock">Add ${toUnlock} to unlock</button>`:''}
+      </div>
+      ${tile('meteor','spark','Simulate a shooting star','Watch a new path in Garden')}
+    </section>
+    <section class="sandbox-tests"><h3>Test workflows</h3><div class="sandbox-test-grid">
         ${tile('timer','focus','Start a 10-second focus','Check the timer and replay')}
         ${tile('seed','list','Load sample data','Tasks, a class, a note, and two stars')}
       </div>
     </section>
-    <section class="sandbox-data"><h3>Sandbox data</h3>
+    <details class="sandbox-data"><summary>Sandbox data</summary>
       ${tile('copy','note','Copy my saved workspace','Replace the sandbox with your regular data')}
       ${tile('backup','external','Backup and restore','Export or import sandbox files')}
-    </section>
-    <div class="sandbox-footer"><button type="button" data-admin-action="reset">Reset sandbox</button><button type="button" class="panel-primary" data-admin-action="exit">Exit sandbox</button></div>`;
+      <button type="button" data-admin-action="reset">Reset sandbox</button>
+    </details>
+    <div class="sandbox-footer"><span>Changes stay in this sandbox.</span><button type="button" class="panel-primary" data-admin-action="exit">Exit sandbox</button></div>`;
 }
 
 function seedAdminSandbox(){
@@ -2891,8 +2902,16 @@ function runAdminSandbox(action){
     closePanel();visitWorkspace('focus');shootingStars.preview(performance.now());return;
   }
   if(action==='seed'){seedAdminSandbox();return;}
-  if(action==='star'){
-    if(recordGardenGrowth('test',crypto.randomUUID(),'Sandbox test '+(gardenStarProgress(state.gardenGrowth).count+1)))refreshPanel();
+  if(action==='star'||action==='next-unlock'){
+    const previous=state.gardenGrowth,{count,next}=gardenStarProgress(previous);
+    if(action==='next-unlock'&&!next)return;
+    const amount=action==='star'?1:next.threshold-count,today=dayKey();
+    for(let i=1;i<=amount;i++)state.gardenGrowth=earnGardenDetail(state.gardenGrowth,'test',crypto.randomUUID(),`Sandbox test ${count+i}`,today);
+    if(!persist()){state.gardenGrowth=previous;return;}
+    renderGardenGrowth();
+    const unlocked=constellationUnlockMessage(previous);
+    confirmChange(unlocked?`Constellation unlocked · ${unlocked}`:'Test star added.');
+    refreshPanel();
     return;
   }
   if(action==='copy'||action==='reset'){replaceAdminSandbox(action==='copy');return;}
@@ -3253,7 +3272,9 @@ function refreshPanel(){
   const p=visiblePanel();
   if(!p)return;
   const focusId=p.contains(document.activeElement)?document.activeElement.id:null;
+  const sandboxDataOpen=p.querySelector('.sandbox-data')?.open;
   p.innerHTML=panelContent(activePanel);
+  if(sandboxDataOpen)p.querySelector('.sandbox-data').open=true;
   if(activePanel==='routine-editor')updatePhaseButtons();
   const scheduleForm=p.querySelector('#task-editor-form,#block-editor-form');
   if(scheduleForm)updateScheduleEditor(scheduleForm);
@@ -3262,7 +3283,7 @@ function refreshPanel(){
   if(activePanel==='appearance')renderSeasonPreview();
   if(activePanel==='garden-comparison')renderGardenComparison(comparisonDates);
   positionPanel(p,lastAnchor);
-  if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
+  if(focusId)(document.getElementById(focusId)||(focusId==='sandbox-next-unlock'?$('#sandbox-star'):null))?.focus({preventScroll:true});
   else if(activePanel==='focus-task')p.querySelector('button')?.focus({preventScroll:true});
 }
 function refreshTasks(){renderTasks();renderAgenda();if(inSchedule())renderCalendar();render();}
