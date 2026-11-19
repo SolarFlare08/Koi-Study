@@ -36,11 +36,105 @@ export function loadStickyNotes(value,scratch=''){
     taskId:typeof note.taskId==='string'?note.taskId:'',
     taskIds:Array.isArray(note.taskIds)?[...new Set(note.taskIds.filter(id=>typeof id==='string'&&id))]:[],
     related:noteRelatedItems(note),
+    ...(typeof note.stackId==='string'&&note.stackId&&typeof note.stackName==='string'&&note.stackName.trim()?
+      {stackId:note.stackId,stackName:note.stackName.trim().slice(0,80)}:{}),
     x:clamp(note.x||0,0,bounds.maxOffset),y:clamp(note.y||0,0,bounds.maxOffset),
     width:clamp(note.width||252,bounds.minWidth,bounds.maxWidth),
     height:clamp(note.height||216,bounds.minHeight,bounds.maxHeight),
     color:colors.includes(note.color)?note.color:colors[0]
   }));
+}
+
+export function noteStacks(notes){
+  const groups=new Map();
+  for(const note of notes){
+    if(!note.stackId)continue;
+    if(!groups.has(note.stackId))groups.set(note.stackId,{id:note.stackId,name:note.stackName,notes:[]});
+    groups.get(note.stackId).notes.push(note);
+  }
+  return [...groups.values()];
+}
+
+export function stackNotes(notes,from,to,name){
+  const source=notes.find(n=>n.id===from),target=notes.find(n=>n.id===to);
+  if(!source||!target||from===to||source.stackId&&source.stackId===target.stackId||!name.trim())return null;
+  const id=target.stackId||source.stackId||crypto.randomUUID();
+  const involved=note=>note===source||note===target||Boolean(note.stackId&&(note.stackId===source.stackId||note.stackId===target.stackId));
+  const members=[target,...notes.filter(note=>note!==target&&involved(note))]
+    .map(note=>({...note,stackId:id,stackName:name.trim().slice(0,80)}));
+  return [...notes.filter(note=>!involved(note)),...members];
+}
+
+export function spreadNotes(notes,stackId,columns){
+  const group=noteStacks(notes).find(stack=>stack.id===stackId);
+  if(!group)return notes;
+  const [anchor]=group.notes;
+  const occupied=notes.filter(n=>n.stackId!==stackId);
+  const spread=new Map();
+  const width=Math.max(...group.notes.map(n=>n.width))+16,height=Math.max(...group.notes.map(n=>n.height))+16;
+  const stride=Math.max(1,Math.min(columns,Math.floor(bounds.maxOffset/width)+1));
+  const rows=Math.floor(bounds.maxOffset/height)+1;
+  const left=Math.min(anchor.x,bounds.maxOffset-(stride-1)*width);
+  const firstRow=Math.floor(anchor.y/height);
+  for(const note of group.notes){
+    const {stackId:oldId,stackName,...placed}=note;
+    if(note!==anchor){
+      for(let i=0;i<rows*stride;i++){
+        const x=left+i%stride*width,y=(firstRow+Math.floor(i/stride))%rows*height;
+        if(!occupied.some(n=>x<n.x+n.width+8&&x+placed.width+8>n.x&&y<n.y+n.height+8&&y+placed.height+8>n.y)){
+          placed.x=x;placed.y=y;break;
+        }
+      }
+    }
+    occupied.push(placed);spread.set(note.id,placed);
+  }
+  return notes.map(note=>spread.get(note.id)||note);
+}
+
+function stackPager(container,{getNotes,saveNotes,onEdit,onSpread}){
+  let selected='',index=0,key='';
+  function render(){
+    const groups=noteStacks(getNotes());
+    const group=groups.find(item=>item.id===selected)||groups[0],notes=group?.notes||[];
+    if(group?.id!==selected){selected=group?.id||'';index=0;}
+    index=Math.max(0,Math.min(index,notes.length-1));
+    const note=notes[index];
+    const nextKey=JSON.stringify([groups.map(g=>[g.id,g.name]),selected,index,note?.id,notes.length]);
+    if(key!==nextKey){
+      key=nextKey;
+      container.innerHTML=note?`<label>Stack<select data-stack-select>${groups.map(g=>`<option value="${escape(g.id)}" ${g.id===selected?'selected':''}>${escape(g.name)}</option>`).join('')}</select></label>
+        <div class="sticky-stack-nav"><button type="button" data-stack-step="-1" ${index===0?'disabled':''}>Previous</button>
+        <span>${index+1} of ${notes.length}</span><button type="button" data-stack-step="1" ${index===notes.length-1?'disabled':''}>Next</button></div>
+        <label>Title<input data-stack-field="title" maxlength="100" value="${escape(note.title)}"></label>
+        <label>Note<textarea data-stack-field="body" rows="6">\n${escape(note.body)}</textarea></label>
+        ${onSpread?'<button type="button" data-spread>Spread out on board</button>':''}`:'<p>No note stacks yet.</p>';
+    }else if(note){
+      for(const field of container.querySelectorAll('[data-stack-field]')){
+        const value=note[field.dataset.stackField];
+        if(field!==document.activeElement&&field.value!==value)field.value=value;
+      }
+    }
+  }
+  container.addEventListener('change',event=>{
+    if(!event.target.matches('[data-stack-select]'))return;
+    selected=event.target.value;index=0;render();container.querySelector('select')?.focus();
+  });
+  container.addEventListener('click',event=>{
+    const button=event.target.closest('[data-stack-step]');
+    if(button){
+      const step=Number(button.dataset.stackStep);index+=step;render();
+      (container.querySelector(`[data-stack-step="${step}"]:not(:disabled)`)||container.querySelector('[data-stack-field=body]'))?.focus();
+    }
+    if(event.target.closest('[data-spread]'))onSpread?.(selected);
+  });
+  container.addEventListener('input',event=>{
+    const field=event.target.dataset.stackField;
+    if(!field)return;
+    const note=noteStacks(getNotes()).find(g=>g.id===selected)?.notes[index];
+    if(!note)return;
+    if(saveNotes(getNotes().map(n=>n===note?{...n,[field]:event.target.value}:n)))onEdit?.();
+  });
+  return {render,open(id,indexToShow=0){selected=id;index=indexToShow;render();}};
 }
 
 const icons={
@@ -50,6 +144,7 @@ const icons={
   delete:'<path d="m5 5 8 8m0-8-8 8"/>',
   link:'<path d="m7 11 4-4M8 5l1.5-1.5a3 3 0 0 1 4.2 4.2L12 9.3M10 13l-1.5 1.5a3 3 0 0 1-4.2-4.2L6 8.7"/>',
   task:'<rect x="3" y="3" width="12" height="12" rx="2"/><path d="M6 9h6M9 6v6"/>',
+  stack:'<path d="m2 6 7-4 7 4-7 4-7-4Zm0 4 7 4 7-4M2 13l7 4 7-4"/>',
   resize:'<path d="m5 13 8-8m-4 8 4-4"/>'
 };
 const control=(action,label)=>`<button type="button" data-note-action="${action}" title="${label}" aria-label="${label}" ${action==='move'||action==='resize'?'aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"':''}><svg viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">${icons[action]}</svg></button>`;
@@ -74,12 +169,62 @@ export function installStickyNotes({root,getNotes,getTasks,getRelated=()=>[],sav
   const linkChoices=root.querySelector('#sticky-link-tasks');
   let linkingId='';
   let gesture=null;
+  const stackDialog=document.createElement('dialog'),stackEditor=document.createElement('dialog');
+  stackDialog.className=stackEditor.className='workspace-dialog sticky-stack-dialog';
+  stackDialog.setAttribute('aria-label','Read note stacks');
+  stackEditor.setAttribute('aria-label','Stack notes');
+  stackDialog.innerHTML='<header><h2>Note stacks</h2><button type="button" aria-label="Close">×</button></header><div class="sticky-stack-pages"></div>';
+  stackDialog.querySelector('header button').onclick=()=>stackDialog.close();
+  root.append(stackDialog,stackEditor);
+  const pager=stackPager(stackDialog.querySelector('.sticky-stack-pages'),{getNotes,saveNotes,onEdit:render,onSpread:id=>{
+    const group=noteStacks(getNotes()).find(group=>group.id===id);
+    if(!group)return;
+    const width=Math.max(...group.notes.map(n=>n.width))+16;
+    if(saveNotes(spreadNotes(getNotes(),id,Math.max(1,Math.floor(viewport.clientWidth/width))))){
+      stackDialog.close();render();add.focus();notify('Stack spread out on the board.');
+    }
+  }});
+  function chooseStack(sourceId,targetId){
+    const notes=getNotes(),source=notes.find(n=>n.id===sourceId);
+    if(!source)return;
+    const candidates=visibleNotes().filter(n=>n.id!==sourceId&&(!source.stackId||n.stackId!==source.stackId));
+    if(!candidates.length){notify('Add another note to build a stack.');return;}
+    stackEditor.innerHTML=`<header><h2>Stack notes</h2><button type="button" aria-label="Cancel">×</button></header><form>
+      <label>Stack with<select name="target">${candidates.map(n=>`<option value="${escape(n.id)}">${escape(n.stackName||n.title||'Untitled note')}</option>`).join('')}</select></label>
+      <label>Stack name<input name="name" maxlength="80" required></label><button class="workspace-primary">Save stack</button></form>`;
+    const form=stackEditor.querySelector('form');
+    if(targetId)form.elements.target.value=targetId;
+    const suggest=()=>{
+      const target=candidates.find(n=>n.id===form.elements.target.value);
+      form.elements.name.value=target?.stackName||source.stackName||target?.title||'';
+    };
+    suggest();form.elements.target.onchange=suggest;
+    stackEditor.querySelector('header button').onclick=()=>stackEditor.close();
+    form.onsubmit=event=>{
+      event.preventDefault();
+      const next=stackNotes(getNotes(),sourceId,form.elements.target.value,form.elements.name.value);
+      if(!next||!saveNotes(next))return;
+      stackEditor.close();render();
+      cardFor(form.elements.target.value)?.querySelector('[data-note-action=open-stack]')?.focus();
+      notify('Note stack saved.');
+    };
+    stackEditor.showModal();form.elements.name.focus();form.elements.name.select();
+  }
+
+  function visibleNotes(){
+    const seen=new Set();
+    return getNotes().filter(note=>{
+      if(!note.stackId)return true;
+      if(seen.has(note.stackId))return false;
+      seen.add(note.stackId);return true;
+    });
+  }
 
   function cardFor(id){
     return board.querySelector(`[data-sticky-id="${CSS.escape(id)}"]`);
   }
   function sizeBoard(){
-    const notes=getNotes();
+    const notes=visibleNotes();
     const width=notes.reduce((extent,note)=>Math.max(extent,note.x+note.width+20),0);
     const height=notes.reduce((extent,note)=>Math.max(extent,note.y+note.height+20),0);
     board.style.setProperty('--board-width',`${width}px`);
@@ -90,22 +235,25 @@ export function installStickyNotes({root,getNotes,getTasks,getRelated=()=>[],sav
     const taskNames=new Map(getTasks().map(task=>[task.id,task.text]));
     const targets=getNotes().some(note=>note.related?.length)?getRelated():[];
     const targetNames=new Map(targets.map(item=>[JSON.stringify([item.kind,item.id]),item.title]));
-    board.innerHTML=getNotes().map((note,layer)=>{
+    const groups=new Map(noteStacks(getNotes()).map(group=>[group.id,group]));
+    board.innerHTML=visibleNotes().map((note,layer)=>{
+      const group=groups.get(note.stackId);
       const links=[...noteTaskIds(note).map(id=>taskNames.get(id)||'Task unavailable'),
         ...noteRelatedItems(note).map(item=>targetNames.get(JSON.stringify([item.kind,item.id]))||'Linked item unavailable')].join(', ');
-      return `<article class="sticky-note" data-sticky-id="${escape(note.id)}" data-color="${note.color}"
+      return `<article class="sticky-note${group?' sticky-stack':''}" data-sticky-id="${escape(note.id)}" data-color="${note.color}"
         aria-label="${escape(note.title||'Untitled note')}" style="left:${note.x}px;top:${note.y}px;width:${note.width}px;height:${note.height}px;z-index:${layer+1}">
-      <header>${control('move','Move note (arrow keys)')}<input type="text" aria-label="Note title" data-note-field="title" maxlength="100" placeholder="Untitled note" value="${escape(note.title)}">${control('delete','Delete note')}</header>
+      <header>${control('move','Move note (arrow keys)')}${group?`<button type="button" data-note-action="open-stack">${escape(group.name)} · ${group.notes.length}</button>`:
+        `<input type="text" aria-label="Note title" data-note-field="title" maxlength="100" placeholder="Untitled note" value="${escape(note.title)}">${control('delete','Delete note')}`}</header>
       <textarea aria-label="Note text" data-note-field="body" placeholder="Write something here…" spellcheck="true">
 ${escape(note.body)}</textarea>
-      <footer><div class="sticky-layer">${control('back','Send note to back')}${control('front','Bring note to front')}${control('link','Link note to task, book, project, or journal entry')}${control('task','Create task from note text')}</div>
+      <footer><div class="sticky-layer">${group?'':control('back','Send note to back')+control('front','Bring note to front')}${control('stack','Stack with another note')}${control('link','Link note to task, book, project, or journal entry')}${control('task','Create task from note text')}</div>
       ${links?`<span class="sticky-task-badge" title="${escape(links)}">${escape(links)}</span>`:''}${control('resize','Resize note (arrow keys)')}</footer>
     </article>`;
     }).join('')||'<div class="sticky-empty"><span aria-hidden="true">✧</span><p>Room for a thought</p><small>Add a note to start your board.</small></div>';
     sizeBoard();
   }
   function newNote(body='',title=''){
-    const notes=getNotes();
+    const notes=visibleNotes();
     const available=viewport.clientWidth||root.parentElement.clientWidth-48;
     const width=Math.min(252,Math.max(bounds.minWidth,available-36));
     const height=216;
@@ -148,6 +296,12 @@ ${escape(note.body)}</textarea>
   board.addEventListener('click',event=>{
     const button=event.target.closest('[data-note-action]');
     const action=button?.dataset.noteAction;
+    if(action==='stack'){chooseStack(button.closest('.sticky-note').dataset.stickyId);return;}
+    if(action==='open-stack'){
+      const note=getNotes().find(n=>n.id===button.closest('.sticky-note').dataset.stickyId);
+      if(note){pager.open(note.stackId);stackDialog.showModal();}
+      return;
+    }
     if(action==='task'){
       const card=button.closest('.sticky-note');
       const field=card.querySelector('textarea');
@@ -225,12 +379,23 @@ ${escape(note.body)}</textarea>
     const {note,action,x,y,card}=gesture;
     gesture.rect=adjusted(note,action,event.clientX+viewport.scrollLeft-x,event.clientY+viewport.scrollTop-y);
     setRect(card,gesture.rect);
+    if(action==='move'){
+      gesture.over?.classList.remove('sticky-stack-target');
+      gesture.over=null;
+      if(Math.hypot(gesture.rect.x-note.x,gesture.rect.y-note.y)>12){
+        gesture.over=document.elementsFromPoint(event.clientX,event.clientY).map(el=>el.closest('[data-sticky-id]'))
+          .find(target=>target&&target!==card&&board.contains(target));
+        gesture.over?.classList.add('sticky-stack-target');
+      }
+    }
   });
   function stopGesture(event,save){
     if(gesture?.pointerId!==event.pointerId)return;
-    const {card,note,rect}=gesture;
+    const {card,note,rect,over}=gesture;
     gesture=null;
     card.classList.remove('sticky-adjusting');
+    over?.classList.remove('sticky-stack-target');
+    if(save&&over){setRect(card,note);chooseStack(note.id,over.dataset.stickyId);return;}
     if(save&&rect!==note&&update(note.id,rect))sizeBoard();
     else setRect(card,note);
   }
@@ -251,6 +416,11 @@ ${escape(note.body)}</textarea>
   });
   render();
   return {newNote,render,focusNote(id){
+    const note=getNotes().find(n=>n.id===id);
+    if(note?.stackId){
+      const group=noteStacks(getNotes()).find(g=>g.id===note.stackId);
+      pager.open(group.id,group.notes.findIndex(n=>n.id===id));stackDialog.showModal();return;
+    }
     const card=cardFor(id);
     if(!card)return;
     card.classList.add('sticky-search-focus');
@@ -260,18 +430,27 @@ ${escape(note.body)}</textarea>
   }};
 }
 
-export function installFocusNotes({button,panel,getNotes,saveNotes,onEdit}){
+export function installFocusNotes({button,stackButton,panel,getNotes,saveNotes,onEdit}){
   const list=panel.querySelector('.focus-notes-list');
+  const stackPages=panel.querySelector('.sticky-stack-pages');
+  const pager=stackPager(stackPages,{getNotes,saveNotes,onEdit});
   let taskId='',shown=false,rowsKey='';
+  let mode='task';
   function sync(task,visible){
     const nextId=visible?task?.id||'':'';
-    if(nextId!==taskId){taskId=nextId;shown=false;}
+    if(nextId!==taskId){taskId=nextId;if(mode==='task')shown=false;}
     const notes=taskId?getNotes().filter(note=>noteTaskIds(note).includes(taskId)):[];
+    const hasStacks=visible&&getNotes().some(note=>note.stackId);
     button.hidden=!notes.length;
-    if(!notes.length)shown=false;
-    button.setAttribute('aria-expanded',String(shown));
+    stackButton.hidden=!hasStacks;
+    if(!visible||!(mode==='task'?notes.length:hasStacks))shown=false;
+    button.setAttribute('aria-expanded',String(shown&&mode==='task'));
+    stackButton.setAttribute('aria-expanded',String(shown&&mode==='stack'));
     panel.hidden=!shown;
     if(!shown)return;
+    panel.querySelector('h2').textContent=mode==='task'?'Task notes':'Note stacks';
+    list.hidden=mode!=='task';stackPages.hidden=mode!=='stack';
+    if(mode==='stack'){pager.render();return;}
     const nextKey=JSON.stringify(notes.map(note=>[note.id,note.title]));
     if(nextKey!==rowsKey){
       rowsKey=nextKey;
@@ -288,13 +467,17 @@ ${escape(note.body)}</textarea></label>`).join('');
   }
   let current;
   function update(task,visible){current={task,visible};sync(task,visible);}
-  function toggle(){
-    shown=!shown;
+  function toggle(next=mode){
+    shown=!(shown&&mode===next);
+    mode=next;
     sync(current?.task,current?.visible);
-    (shown?list.querySelector('textarea'):button)?.focus({preventScroll:true});
+    const opener=mode==='task'?button:stackButton;
+    (shown?(mode==='task'?list.querySelector('textarea'):stackPages.querySelector('select')):
+      opener.getClientRects().length?opener:document.querySelector('.session-tools-toggle'))?.focus({preventScroll:true});
   }
-  button.addEventListener('click',toggle);
-  panel.querySelector('[data-focus-notes-close]').addEventListener('click',toggle);
+  button.addEventListener('click',()=>toggle('task'));
+  stackButton.addEventListener('click',()=>toggle('stack'));
+  panel.querySelector('[data-focus-notes-close]').addEventListener('click',()=>toggle());
   panel.addEventListener('keydown',event=>{
     if(event.key==='Escape'){event.preventDefault();event.stopPropagation();toggle();}
   });

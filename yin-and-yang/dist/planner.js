@@ -11,6 +11,7 @@ import {milestoneProgress,projectDecision,projectMilestone,remainingProjectWork}
 import {exportCalendar} from './calendar-export.js';
 import {cleanCaptureContext} from './capture.js';
 import {projectHealth} from './scheduling.js';
+import {waitingDecisionDue} from './task-readiness.js';
 
 const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',review:'Weekly review',workload:'Workload',health:'Project health',bundles:'Task bundles',waiting:'Waiting for',filters:'Filters & Labels',reporting:'Reporting'};
 const workViewPresets={
@@ -472,13 +473,16 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   function waitingMarkup(){
     const today=dayKey();
     const tasks=activeTasks().filter(task=>task.waitingFor&&!task.done).sort((a,b)=>
-      (a.waitingFor.followUp||'9999').localeCompare(b.waitingFor.followUp||'9999')||a.text.localeCompare(b.text));
+      Number(waitingDecisionDue(b.waitingFor,today))-Number(waitingDecisionDue(a.waitingFor,today))||
+      (a.waitingFor.decisionOn||a.waitingFor.followUp||'9999').localeCompare(b.waitingFor.decisionOn||b.waitingFor.followUp||'9999')||a.text.localeCompare(b.text));
     return `<div class="project-health">${tasks.map(task=>{
-      const {subject,followUp}=task.waitingFor;
+      const {subject,followUp,decisionOn,fallback}=task.waitingFor;
       const due=followUp&&followUp<=today;
       return `<section><header><button type="button" data-report-task="${escape(task.id)}">${escape(task.text)}</button>
         <button type="button" class="planner-primary" data-waiting-ready="${escape(task.id)}">Mark ready</button></header>
-        <p>Waiting for ${escape(subject)}</p>${followUp?`<p>${due?'Follow-up due':'Follow up'} · ${plainDate(followUp)}</p>`:''}</section>`;
+        <p>Waiting for ${escape(subject)}</p>${followUp?`<p>${due?'Follow-up due':'Follow up'} · ${plainDate(followUp)}</p>`:''}
+        ${decisionOn?`<div class="waiting-decision"><strong>${waitingDecisionDue(task.waitingFor,today)?'Decision due':'Decide on'} · ${plainDate(decisionOn)}</strong>
+        <p>${escape(fallback)}</p>${waitingDecisionDue(task.waitingFor,today)?`<button type="button" class="planner-primary" data-use-fallback="${escape(task.id)}">Use fallback</button>`:''}</div>`:''}</section>`;
     }).join('')||'<p>Nothing is waiting. Add a Waiting for detail in any task editor.</p>'}</div>`;
   }
   function renderContent() {
@@ -1066,6 +1070,16 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     }
     if (!button) return;
     const data=button.dataset;
+    if(data.useFallback){
+      const task=state().tasks.find(item=>item.id===data.useFallback);
+      if(!task||!waitingDecisionDue(task.waitingFor,dayKey()))return;
+      const previous={waitingFor:task.waitingFor,resumeNote:task.resumeNote};
+      const capture=captureTaskChange(task,['waitingFor','resumeNote']);
+      Object.assign(task,{waitingFor:null,resumeNote:previous.waitingFor.fallback});
+      if(!commit()){Object.assign(task,previous);render();return;}
+      $('#planner-heading').focus({preventScroll:true});
+      notify('Fallback saved as the next step. Task marked ready.',capture());return;
+    }
     if(data.waitingReady){
       const task=state().tasks.find(item=>item.id===data.waitingReady);
       if(!task?.waitingFor)return;
@@ -1290,13 +1304,19 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     reminderMinute=minute;
     const tasks=activeTasks(),today=dayKey(now);
     const followUps=tasks.filter(task=>!task.done&&task.waitingFor?.followUp&&task.waitingFor.followUp<=today&&!task.waitingFor.notified);
+    const decisions=tasks.filter(task=>!task.done&&waitingDecisionDue(task.waitingFor,today)&&!task.waitingFor.decisionNotified);
     const reminders=tasks.filter(task=>!task.waitingFor&&task.reminderAt&&!task.reminderShown&&task.reminderAt<=now.getTime()&&taskStatus(task,now)!=='done');
-    if (!reminders.length&&!followUps.length) return false;
+    if (!reminders.length&&!followUps.length&&!decisions.length) return false;
     reminders.forEach(task=>{task.reminderShown=true;});
     followUps.forEach(task=>{task.waitingFor.notified=true;});
+    decisions.forEach(task=>{task.waitingFor.decisionNotified=true;});
     const messages=[];
     if(reminders.length)messages.push(reminders.length===1?`Reminder: ${reminders[0].text}`:`${reminders.length} task reminders are due.`);
     if(followUps.length)messages.push(followUps.length===1?`Follow up with ${followUps[0].waitingFor.subject} · ${followUps[0].text}`:`${followUps.length} waiting tasks are due for follow-up.`);
+    if(decisions.length){
+      messages.push(decisions.length===1?`Decision due for ${decisions[0].text}. Review the fallback in Planner → Waiting for.`:`${decisions.length} decisions are due in Planner → Waiting for.`);
+      if(view==='waiting'&&!root.hidden)renderContent();
+    }
     notify(messages.join(' · '));
     return true;
   }

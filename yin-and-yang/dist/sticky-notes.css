@@ -60,6 +60,15 @@
 .sticky-adjusting { user-select: none; box-shadow: 0 12px 28px #0c1f2a68; }
 .sticky-adjusting [data-note-action="move"] { cursor: grabbing; }
 .sticky-note :focus-visible { outline: 2px solid var(--note-ink); outline-offset: -2px; }
+.sticky-stack { box-shadow: 4px 4px 0 -1px var(--note-paper), 4px 4px 0 var(--note-edge), 8px 8px 0 -1px var(--note-paper), 8px 8px 0 var(--note-edge), 0 9px 19px #0c1f2a44; }
+.sticky-note [data-note-action="open-stack"] { flex:1; display:block; width:auto; min-width:0; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 6px; color:var(--note-ink); font-weight:650; }
+.sticky-stack-target { outline:3px solid var(--surface-accent); outline-offset:3px; }
+.sticky-stack-dialog { width:min(450px,94vw); }
+.sticky-stack-pages,.sticky-stack-pages label,.sticky-stack-dialog form label { display:grid; gap:6px; }
+.sticky-stack-pages { margin-top:10px; gap:10px; }
+.sticky-stack-pages :is(input,textarea,select),.sticky-stack-dialog form :is(input,select) { width:100%; min-width:0; border:1px solid var(--surface-line); padding:7px; border-radius:7px; background:var(--surface-field); color:var(--surface-ink); font:inherit; }
+.sticky-stack-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.sticky-stack-pages button { border:1px solid var(--surface-line); border-radius:7px; padding:6px 10px; }
 
 @media(max-width:480px) {
   .sticky-heading { align-items: center; }

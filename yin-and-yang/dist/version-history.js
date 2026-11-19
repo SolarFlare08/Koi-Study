@@ -1,4 +1,11 @@
 export const releases = [
+  {version:'5.8.0',date:'2026-11-18',title:'Independent retries and waiting decisions',changes:[
+    'Retry an office-hours question in Garden. Record the result before revealing the meeting answer.',
+    'Give a waiting task a decision date and fallback. Review the due decision in Planner and choose whether to proceed.'
+  ]},
+  {version:'5.7.0',date:'2026-11-18',title:'Sticky note stacks',changes:[
+    'Drag related sticky notes into named stacks, page through them beside the focus timer, and spread them back out on the board.'
+  ]},
   {version:'5.6.0',date:'2026-11-18',title:'Reading sittings and reread comparisons',changes:[
     'Save the start and end pages of a reading sitting and reopen the book at your resume page.',
     'Compare first-read and reread ratings, reviews, and chapter-tagged reactions. The spoiler cutoff filters both columns.'
