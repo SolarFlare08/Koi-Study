@@ -66,6 +66,7 @@
       <button id="focus-linked-notes" class="resume-task" type="button" aria-controls="focus-notes-panel" aria-expanded="false" hidden>Task notes</button>
       <p id="routine-phase" class="routine-phase-caption" aria-live="polite" hidden></p>
       <div class="session-tools" hidden>
+        <button id="focus-note-stacks" class="resume-task" type="button" aria-controls="focus-notes-panel" aria-expanded="false" hidden>Note stacks</button>
         <button id="focus-stuck" class="resume-task" type="button">I’m stuck</button>
         <button id="open-mini-timer" class="resume-task" type="button">Mini timer ↗</button>
         <button id="focus-subtasks" class="resume-task" type="button" aria-haspopup="dialog" hidden>Subtasks</button>
@@ -82,8 +83,9 @@
     <aside id="focus-retry" class="focus-retry-card" aria-label="Mistake retry" hidden></aside>
     <aside id="focus-handoff" aria-labelledby="focus-handoff-title" hidden></aside>
     <aside id="focus-notes-panel" aria-labelledby="focus-notes-title" hidden>
-      <header><h2 id="focus-notes-title">Task notes</h2><button type="button" data-focus-notes-close aria-label="Close task notes">×</button></header>
+      <header><h2 id="focus-notes-title">Task notes</h2><button type="button" data-focus-notes-close aria-label="Close notes">×</button></header>
       <div class="focus-notes-list"></div>
+      <div class="sticky-stack-pages" hidden></div>
     </aside>
     <aside id="penguin" class="secondary" aria-label="Penguin companion">
       <button id="penguin-next" type="button" aria-label="Ask the penguin for another thought" aria-describedby="penguin-thought" title="Another thought">

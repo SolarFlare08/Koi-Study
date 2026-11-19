@@ -432,7 +432,7 @@ const stickyBoard=installStickyNotes({root:$('#notes-workspace'),getNotes:()=>st
   createTask:(noteId,text,anchor)=>openTaskEditor(null,anchor,{noteId,text:text.split(/\r?\n/)[0].trim().slice(0,160),description:text.slice(0,2000)}),
   notify:confirmChange});
 const focusNotes=installFocusNotes({
-  button:$('#focus-linked-notes'),panel:$('#focus-notes-panel'),getNotes:()=>state.stickyNotes,
+  button:$('#focus-linked-notes'),stackButton:$('#focus-note-stacks'),panel:$('#focus-notes-panel'),getNotes:()=>state.stickyNotes,
   saveNotes:saveStickyNotes,onEdit:()=>stickyBoard.render()
 });
 const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>state.dailyRituals,getNotes:()=>state.readingNotes,
@@ -467,6 +467,7 @@ const openPostcardViewpoints=installPostcardViewpoints({
   download:savePostcard,dayKey
 });
 $('#stuck-now').onclick=$('#focus-stuck').onclick=installOfficeHours({getState:()=>state,focusedTask,notify:toast,switchTask:()=>currentTaskButton.click(),
+  startRetry:startOfficeRetry,
   save:questions=>{const previous=state.studyQuestions;state.studyQuestions=questions;if(persist())return true;state.studyQuestions=previous;return false;}});
 installMiniTimer({launch:$('#open-mini-timer'),getState:()=>state,taskTitle:()=>focusedTask()?.text,
   toggle:()=>timerButton.click(),extend:()=>action(()=>extendTimer(state,300000)),
@@ -1834,6 +1835,24 @@ function pendingMistakeRetry(){
     session.mistakeId&&typeof session.mistakeResult!=='boolean'&&
     state.mistakes.some(item=>item.id===session.mistakeId&&!item.retries.some(retry=>retry.sessionId===session.id)));
 }
+let officeRetryId='',officeRetryResult=null;
+function startOfficeRetry(id){
+  officeRetryId=id;officeRetryResult=null;
+  visitWorkspace('focus');
+  openPanel('office-retry',currentTaskButton);
+}
+function officeRetryMarkup(){
+  const question=state.studyQuestions.find(item=>item.id===officeRetryId);
+  if(!question)return header('OFFICE HOURS','Question unavailable');
+  return `${header('OFFICE HOURS','Try it myself')}
+    <p class="session-context-text">${escape(question.question)}</p>
+    ${question.ref?`<p class="panel-subtle">${escape(question.ref)}</p>`:''}
+    ${officeRetryResult===null?`<form id="office-retry-form"><div class="panel-actions">
+      <button type="submit" value="stuck" class="text-button">Still stuck</button>
+      <button type="submit" value="solved" class="panel-primary">Solved independently</button></div></form>`:
+      `<p role="status">${officeRetryResult?'Saved as solved independently.':'Saved as still stuck.'}</p>
+      <details class="session-context"><summary>Reveal office-hours answer</summary><p class="session-context-text">${escape(question.answer)}</p></details>`}`;
+}
 function startMistakeFocus(id){
   checkCompletion();
   if(state.timer.id||state.timer.block||state.timer.sequence)return 'Finish or reset the current timer before starting a retry.';
@@ -2276,7 +2295,11 @@ function taskEditor(){
             <input id="task-waiting-for" name="waitingFor" maxlength="200" value="${escape(values.waitingFor?.subject)}" placeholder="Person, reply, or material">
             <label class="field-label" for="task-follow-up">Follow up on</label>
             <input id="task-follow-up" name="followUp" type="date" value="${escape(values.waitingFor?.followUp)}">
-            <p>Clear Waiting for to return the task to Garden when it is ready.</p></div>
+            <label class="field-label" for="task-decision-date">Decide on</label>
+            <input id="task-decision-date" name="decisionOn" type="date" value="${escape(values.waitingFor?.decisionOn)}">
+            <label class="field-label" for="task-fallback">Fallback if still waiting</label>
+            <textarea id="task-fallback" name="fallback" rows="2" maxlength="500" placeholder="Use dataset B">${escape(values.waitingFor?.fallback)}</textarea>
+            <p>Planner will surface your fallback on the decision date.</p></div>
           <div class="task-detail-property"><label class="field-label" for="task-snooze">Snooze until</label>
             <input id="task-snooze" name="snoozedUntil" type="date" value="${escape(values.snoozedUntil)}">
             <p>Leave blank to keep this task in the focus queue when it’s ready.</p></div>
@@ -2676,6 +2699,7 @@ function resourceAction(button){
 }
 
 function panelContent(id){
+  if(id==='office-retry')return officeRetryMarkup();
   if(id==='calendar-day-templates')return dayTemplatesMarkup();
   if(id==='project-resources')return projectResourcesMarkup();
   if(id==='evening-lights')return eveningLightsMarkup();
@@ -5746,6 +5770,16 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='office-retry-form'){
+    const question=state.studyQuestions.find(item=>item.id===officeRetryId);
+    if(!question||officeRetryResult!==null||!['stuck','solved'].includes(e.submitter?.value))return;
+    const previous=state.studyQuestions,solved=e.submitter.value==='solved';
+    state.studyQuestions=previous.map(item=>item===question?
+      {...item,retries:[...(item.retries||[]),{at:Date.now(),solved}].slice(-50)}:item);
+    if(!persist()){state.studyQuestions=previous;return;}
+    officeRetryResult=solved;refreshPanel();
+    visiblePanel()?.querySelector('summary')?.focus({preventScroll:true});return;
+  }
   if(e.target.id==='save-day-template'){saveDayTemplate(e.target);return;}
   if(e.target.id==='apply-day-template'){applyDayTemplate(e.target);return;}
   if(e.target.id==='project-resource-form'){submitProjectResource(e.target);return;}
@@ -6003,9 +6037,17 @@ root.addEventListener('submit',e=>{
     if(editingTaskId&&!existing){toast('This task was removed in another tab.');return;}
     const flexibility=readFlexibility(e.target,fields);
     if(flexibility===undefined)return;
-    const waitingFor=waitingForRecord({subject:fields.get('waitingFor'),followUp:fields.get('followUp')});
+    const subject=fields.get('waitingFor').trim(),decisionOn=fields.get('decisionOn'),fallback=fields.get('fallback').trim();
+    const waitingFor=waitingForRecord({subject,followUp:fields.get('followUp'),decisionOn,fallback});
+    if(subject&&(decisionOn||fallback)&&!waitingFor?.decisionOn){
+      toast('Enter both a decision date and a fallback to save a waiting decision.');
+      (decisionOn?e.target.elements.fallback:e.target.elements.decisionOn).focus();return;
+    }
     if(waitingFor&&waitingFor.subject===existing?.waitingFor?.subject&&waitingFor.followUp===existing.waitingFor.followUp)
       waitingFor.notified=existing.waitingFor.notified;
+    if(waitingFor?.decisionOn&&waitingFor.subject===existing?.waitingFor?.subject&&
+        waitingFor.decisionOn===existing.waitingFor.decisionOn&&waitingFor.fallback===existing.waitingFor.fallback)
+      waitingFor.decisionNotified=existing.waitingFor.decisionNotified;
     const timer=state.timer;
     const timerTaskId=timer.block?.taskId||timer.replay?.at(-1)?.taskId||timer.taskSnapshot?.id;
     if(waitingFor&&existing&&timer.id&&timerTaskId===existing.id){

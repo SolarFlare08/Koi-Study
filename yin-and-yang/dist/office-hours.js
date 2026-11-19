@@ -1,10 +1,14 @@
 import {needsRetry} from './mistake-notebook.js';
 
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const retryHistory=value=>(Array.isArray(value)?value:[]).filter(attempt=>
+  Number.isFinite(attempt?.at)&&Math.abs(attempt.at)<=8.64e15&&typeof attempt.solved==='boolean')
+  .slice(-50).map(({at,solved})=>({at,solved}));
 export function loadQuestions(raw){
   return (Array.isArray(raw)?raw:[]).filter(q=>q&&typeof q.id==='string'&&typeof q.question==='string').map(q=>({
     id:q.id,question:q.question.slice(0,2000),projectId:String(q.projectId||''),taskId:String(q.taskId||''),taskTitle:String(q.taskTitle||''),
-    ref:String(q.ref||'').slice(0,300),answer:String(q.answer||'').slice(0,3000),answered:q.answered===true,mistakeId:String(q.mistakeId||'')
+    ref:String(q.ref||'').slice(0,300),answer:String(q.answer||'').slice(0,3000),answered:q.answered===true,mistakeId:String(q.mistakeId||''),
+    ...(q.retries?{retries:retryHistory(q.retries)}:{})
   }));
 }
 export function meetingItems(state,projectId){
@@ -16,7 +20,7 @@ export function meetingItems(state,projectId){
   return [...questions,...mistakes.map(m=>({id:'mistake:'+m.id,mistakeId:m.id,taskId:m.taskId,projectId,
     question:m.mistake,ref:m.source,taskTitle:state.tasks.find(t=>t.id===m.taskId)?.text||'Exam mistake',answered:false,answer:''}))];
 }
-export function installOfficeHours({getState,save,focusedTask,switchTask,notify}){
+export function installOfficeHours({getState,save,focusedTask,switchTask,startRetry,notify}){
   const dialog=document.createElement('dialog');dialog.className='workspace-dialog study-companion';dialog.setAttribute('aria-labelledby','office-title');
   document.body.append(dialog);
   const header=title=>`<header><h2 id="office-title">${title}</h2><button type="button" data-close aria-label="Close">×</button></header>`;
@@ -49,13 +53,24 @@ export function installOfficeHours({getState,save,focusedTask,switchTask,notify}
     const list=dialog.querySelector('section');
     items.filter(q=>includeAnswered||!q.answered).forEach(q=>{
       const form=document.createElement('form');
-      form.innerHTML=`<strong>${esc(q.question)}</strong><small>${esc([q.taskTitle,q.ref].filter(Boolean).join(' · '))}</small><label>Meeting answer<textarea maxlength="3000">${esc(q.answer)}</textarea></label><button>${q.answered?'Reopen question':'Check off as answered'}</button>`;
+      const last=q.retries?.at(-1);
+      form.innerHTML=`<strong>${esc(q.question)}</strong><small>${esc([q.taskTitle,q.ref].filter(Boolean).join(' · '))}</small><label>Meeting answer<textarea maxlength="3000">${esc(q.answer)}</textarea></label>
+        ${last?`<small>Last retry · ${new Date(last.at).toLocaleDateString()} · ${last.solved?'Solved independently':'Still stuck'}</small>`:''}
+        <div class="companion-actions"><button>${q.answered?'Reopen question':'Check off as answered'}</button>
+        <button type="button" data-office-retry ${q.answer.trim()?'':'hidden'}>Try it myself</button></div>`;
       const response=form.querySelector('textarea');
+      const retry=form.querySelector('[data-office-retry]');
       const saveAnswer=answered=>{
-        const latest=getState().studyQuestions.filter(x=>x.id!==q.id);
-        return save([...latest,{...q,answer:response.value.trim(),answered}]);
+        const all=getState().studyQuestions;
+        const latest=all.find(item=>item.id===q.id)||q;
+        return save([...all.filter(item=>item.id!==q.id),{...latest,answer:response.value.trim(),answered}]);
       };
-      response.onchange=()=>saveAnswer(q.answered);
+      response.onchange=()=>{if(saveAnswer(q.answered))retry.hidden=!response.value.trim();};
+      retry.onclick=()=>{
+        const current=getState().studyQuestions.find(item=>item.id===q.id);
+        if(!current?.answer.trim())return;
+        dialog.close();startRetry(q.id);
+      };
       form.onsubmit=e=>{e.preventDefault();if(saveAnswer(!q.answered))sheet(course);};
       list.append(form);
     });
