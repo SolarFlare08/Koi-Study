@@ -1,5 +1,5 @@
 import {STORAGE_KEY,freshState,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskColorAttributes,repeatSettings,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit,loadSoundtracks,startTaskTiming,resetTaskTiming,taskFinishBreak,overtimeElapsed,finishOvertime} from './state.js';
-import {renderLandscape,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
+import {renderLandscape,blossomMarkup,animateLandscape,createShootingStars,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {gardenStarProgress,starConstellations} from './garden-growth.js';
 import {gardenConstellationSketch} from './scenery.js';
@@ -83,10 +83,9 @@ try{liveStorage=localStorage;}catch{liveStorage={getItem:()=>null,setItem:()=>{t
 const adminSandbox=isAdminSandbox(),storage=adminSandbox?adminSandboxStorage(liveStorage):liveStorage;
 let state=loadState(storage),activePanel=null,lastAnchor=null,idleTimeout,toastTimeout,lastBlossoms=-1;
 const app=$('#app');
-$('#admin-sandbox-banner').hidden=!adminSandbox;
+$('[data-open-admin]').hidden=!adminSandbox;
 app.classList.toggle('admin-sandbox',adminSandbox);
 $('[data-open-admin]').onclick=event=>openPanel('admin-sandbox',event.currentTarget);
-$('[data-exit-admin]').onclick=()=>location.assign(adminSandboxUrl(false));
 const focusModeButton=$('#focus-mode');
 const timerButton=$('#toggle-timer');
 const currentTaskButton=$('#current-task');
@@ -422,6 +421,7 @@ function nextPenguinThought(){
 }
 $('#penguin-next').onclick=()=>announce(nextPenguinThought());
 $('#landscape').innerHTML=renderLandscape();
+const shootingStars=createShootingStars($('#landscape .world'));
 new ResizeObserver(()=>{
   positionGardenLandmarks();
   positionEveningCamera();
@@ -697,8 +697,7 @@ function commandEntries(){
 
 function runHelpAction(action){
   if(action==='admin-sandbox'){
-    if(!adminSandbox)visitWorkspace('focus');
-    openPanel('admin-sandbox',adminSandbox?$('[data-open-admin]'):$('#garden-tools'));return;
+    openPanel('admin-sandbox',adminSandbox?$('[data-open-admin]'):$('#open-help'));return;
   }
   if(action==='garden-studio'){openGardenStudio();return;}
   if(action==='garden-postcard'){openGardenPostcard();return;}
@@ -2836,11 +2835,13 @@ function adminSandboxMarkup(){
     <div class="admin-test-actions">
       <button type="button" data-admin-action="seed"><strong>Load sample data</strong><small>Add practice tasks, a class, a sticky note, and two test stars.</small></button>
       <button type="button" data-admin-action="star"><strong>Add a test star</strong><small>${count} earned in this sandbox. Test the next constellation unlock.</small></button>
+      <button type="button" data-admin-action="meteor"><strong>Simulate a shooting star</strong><small>Preview a quick streak across the Garden sky.</small></button>
       <button type="button" data-admin-action="timer"><strong>Start a 10-second focus</strong><small>Test the countdown, finish behavior, and replay.</small></button>
       <button type="button" data-admin-action="copy"><strong>Copy my saved workspace</strong><small>Replace the sandbox with a local copy of your regular work.</small></button>
       <button type="button" data-admin-action="backup"><strong>Sandbox backup and restore</strong><small>Export or try importing data into this sandbox.</small></button>
       <button type="button" data-admin-action="reset"><strong>Reset test workspace</strong><small>Clear the current sandbox data and start empty.</small></button>
-    </div>`;
+    </div>
+    <div class="panel-actions"><button type="button" class="text-button" data-admin-action="exit">Exit sandbox</button></div>`;
 }
 
 function seedAdminSandbox(){
@@ -2873,6 +2874,11 @@ function replaceAdminSandbox(copy){
 function runAdminSandbox(action){
   if(action==='enter'){location.assign(adminSandboxUrl(true));return;}
   if(!adminSandbox)return;
+  if(action==='exit'){location.assign(adminSandboxUrl(false));return;}
+  if(action==='meteor'){
+    if(!sceneryMotionEnabled()){toast('Choose Gentle or Lively scenery and turn off reduced motion to preview a shooting star.');return;}
+    closePanel();visitWorkspace('focus');shootingStars.preview(performance.now());return;
+  }
   if(action==='seed'){seedAdminSandbox();return;}
   if(action==='star'){
     if(recordGardenGrowth('test',crypto.randomUUID(),'Sandbox test '+(gardenStarProgress(state.gardenGrowth).count+1)))refreshPanel();
@@ -2958,7 +2964,6 @@ function panelContent(id){
       ['notes','note','Quick notes','Capture a distraction or open the note inbox'],
       ['music','music','Music & video','Spotify, YouTube, and app sounds'],
       ['garden-history','sprout','Garden Field Guide','Landmarks, saved layouts, and postcards'],
-      ['admin-sandbox','focus','Admin sandbox','Try changes and sample data in a separate workspace'],
       ['help','help','Help','How-to guides and shortcuts']
     ];
     return header('GARDEN','Tools')+`<div class="garden-tools-list">${tools.map(([id,symbol,label,description])=>
@@ -6573,7 +6578,7 @@ document.addEventListener('keydown',e=>{
   }
 });
 window.addEventListener('resize',()=>{const p=visiblePanel();if(p)positionPanel(p,lastAnchor);});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkCompletion();render();wake();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)shootingStars.clear();else{checkCompletion();render();wake();}});
 window.addEventListener('focus',syncNativeCaptures);
 window.addEventListener('pageshow',()=>{checkCompletion();render();});
 window.addEventListener('storage',e=>{
@@ -6645,5 +6650,13 @@ durationForm.onsubmit=e=>{
 
 
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
-function environmentFrame(now){const t=state.timer;animateLandscape(now,t.mode==='break'?1:timerProgress(state),motionPreference.matches,activePanel==='evening-lights'&&(!activityGardenLayout()||effectiveAppearance.lighting==='session')?'night':effectiveAppearance.lighting,effectiveAppearance.motion);requestAnimationFrame(environmentFrame);}
+function sceneryMotionEnabled(){return !motionPreference.matches&&effectiveAppearance.motion!=='still';}
+function environmentFrame(now){
+  const progress=state.timer.mode==='break'?1:timerProgress(state);
+  const evening=activePanel==='evening-lights'&&(!activityGardenLayout()||effectiveAppearance.lighting==='session');
+  const darkSky=animateLandscape(now,progress,motionPreference.matches,evening?'night':effectiveAppearance.lighting,effectiveAppearance.motion);
+  const gardenVisible=workspace==='focus'&&!document.hidden&&!activePanel&&!$('#help-guide').open;
+  shootingStars.frame(now,{allowed:gardenVisible&&sceneryMotionEnabled(),dark:darkSky&&!snapshotThrough});
+  requestAnimationFrame(environmentFrame);
+}
 requestAnimationFrame(environmentFrame);

@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.14.0',date:'2026-11-19',title:'Shooting stars',changes:[
+    'Catch an occasional shooting star in the dark Garden sky. Its path and timing vary, and it respects Still scenery and reduced motion.',
+    'Open Admin sandbox from Help. Inside the sandbox, use the shortcut beside Help to simulate a shooting star or exit.'
+  ]},
   {version:'5.13.2',date:'2026-11-19',title:'Twinkling diamond stars',changes:[
     'Restore the diamond shape and soft glow of standalone earned stars. Keep their scattered positions and give each star a different size and twinkle.'
   ]},

@@ -1,11 +1,14 @@
+.help-dock { position: absolute; z-index: 8; right: 17px; bottom: 76px; display: flex; align-items: center; gap: 6px; }
 .help-launch {
-  position: absolute; z-index: 8; right: 17px; bottom: 76px; display: inline-flex;
+  display: inline-flex;
   align-items: center; justify-content: center; gap: 6px; padding: 7px 10px;
   border: 1px solid var(--surface-line); border-radius: 20px; background: var(--surface-paper);
   color: var(--surface-muted); font: 12px 'DM Sans',system-ui,sans-serif; box-shadow: 0 3px 12px #0b172422;
 }
 .help-launch svg { width: 17px; height: 17px; }
 .help-launch:hover { color: var(--surface-ink); background: var(--surface-raised); }
+.sandbox-launch { border-color: #a77851; background: #553b31; color: #fff0d2; }
+.sandbox-launch:hover { background: #704c37; color: #fff0d2; }
 #help-guide {
   width: min(960px,calc(100vw - 28px)); height: min(760px,calc(100dvh - 44px));
   max-width: none; max-height: calc(100dvh - 28px); padding: 0; overflow: hidden;
@@ -80,6 +83,8 @@
 .help-key-list>div { display: grid; grid-template-columns: minmax(100px,1fr) 2fr; gap: 18px; padding: 12px 0; border-bottom: 1px solid var(--surface-line); font-size: 12px; }
 .help-key-list dd { margin: 0; color: var(--surface-muted); }
 .help-footer { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--surface-line); padding: 10px 24px; color: var(--surface-muted); font-size: 10px; }
+.help-footer button { border-radius: 4px; color: var(--surface-accent); padding: 0 4px; }
+.help-footer button:hover { text-decoration: underline; }
 .help-mobile-nav { display: none; }
 @media(max-width:640px) {
   #help-guide { width: calc(100vw - 16px); height: calc(100dvh - 22px); border-radius: 13px; }
@@ -99,8 +104,9 @@
   #help-page-title { font-size: 28px; }
   .help-footer { padding: 9px 15px; font-size: 9px; }
   .help-footer>span:last-child { flex: none; }
-  .help-launch { bottom: 73px; right: 10px; padding: 7px 8px; }
-  .help-launch>span:last-child { display: none; }
+  .help-dock { bottom: 73px; right: 10px; }
+  .help-launch { padding: 7px 8px; }
+  #open-help>span:last-child { display: none; }
 }
 @media(prefers-reduced-motion:no-preference) {
   #help-guide[open] { animation: help-enter .18s ease-out; }

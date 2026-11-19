@@ -15,6 +15,7 @@ export function postcardSvg(scene,caption=''){
       node.style.setProperty(key,value.replace(/url\(["']?[^)"']*#([^)"']+)["']?\)/g,'url(#$1)'));
     }
   });
+  copy.querySelectorAll('[data-live-scenery]').forEach(node=>node.remove());
   copy.removeAttribute('class');
   copy.setAttribute('width',postcardSize.width);
   copy.setAttribute('height',postcardSize.height);

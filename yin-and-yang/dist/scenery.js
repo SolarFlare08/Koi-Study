@@ -306,6 +306,9 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <radialGradient id="halo"><stop stop-color="#ffe9bd" stop-opacity=".65"/><stop offset="1" stop-color="#ffe9bd" stop-opacity="0"/></radialGradient>
 <radialGradient id="lamp-halo"><stop stop-color="#ffbe75" stop-opacity=".52"/><stop offset=".36" stop-color="#e6a66d" stop-opacity=".24"/><stop offset="1" stop-color="#e6a66d" stop-opacity="0"/></radialGradient>
 <radialGradient id="moon-halo"><stop stop-color="#e5effd" stop-opacity=".22"/><stop offset="1" stop-color="#bbd8fc" stop-opacity="0"/></radialGradient>
+<linearGradient id="meteor-tail" gradientUnits="userSpaceOnUse" x1="-95" y1="0" x2="0" y2="0">
+  <stop stop-color="#b0d4ed" stop-opacity="0"/><stop offset=".7" stop-color="#bedced" stop-opacity=".46"/><stop offset="1" stop-color="#fff5da"/>
+</linearGradient>
 <linearGradient id="bank" x2=".4" y2="1"><stop stop-color="var(--bank-upper,#547d6b)"/><stop offset="1" stop-color="var(--bank-lower,#294f4d)"/></linearGradient>
 <linearGradient id="shore" x2="0" y2="1"><stop stop-color="var(--shore-upper,#8eac91)"/><stop offset="1" stop-color="var(--shore-lower,#527e70)"/></linearGradient>
 <linearGradient id="rock-face" x2=".55" y2="1"><stop stop-color="#9cae99"/><stop offset="1" stop-color="#597b73"/></linearGradient>
@@ -325,6 +328,10 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 </g>
 <g class="sky-flock" fill="none" stroke="#5f8586" stroke-width="1.5" stroke-linecap="round" opacity="0">
   <path d="M492 195q4-4 8 0 4-5 8-3M520 180q3-4 7-1 3-4 7-2M538 201q3-4 7-1 3-4 7-2"/>
+</g>
+<g id="garden-meteor" opacity="0" data-live-scenery>
+  <path d="M-95 0Q-31-.55 0-1.35L0 1.35Q-31 .55-95 0Z" fill="url(#meteor-tail)"/>
+  <circle r="2.15" fill="#fff7e2"/><circle r="4.2" fill="#ddedff" opacity=".18"/>
 </g>
 ${pieceMarkup("mountains",design)}
 <path fill="url(#water)" d="M0 548q297-24 524-6t463-1 613 6v353H0Z"/>
@@ -400,10 +407,11 @@ function lightNodes(scope,app){
 let nodes,lastFrame,previewId=0;
 function paintDay(p,lighting){
   const width=innerWidth,height=innerHeight;
-  if(lastFrame?.p===p&&lastFrame.lighting===lighting&&lastFrame.width===width&&lastFrame.height===height)return;
-  lastFrame={p,lighting,width,height};
+  if(lastFrame?.p===p&&lastFrame.lighting===lighting&&lastFrame.width===width&&lastFrame.height===height)return lastFrame.darkSky;
   nodes??=lightNodes(document,document.querySelector('#app'));
-  paintLight(nodes,p,lighting,width,height);
+  const darkSky=paintLight(nodes,p,lighting,width,height);
+  lastFrame={p,lighting,width,height,darkSky};
+  return darkSky;
 }
 function paintLight(nodes,p,lighting,width,height){
   const light=daylight(p),k=light.p,{x,y}=sunPosition(k,width,height);
@@ -424,6 +432,7 @@ function paintLight(nodes,p,lighting,width,height){
   nodes.app.style.setProperty('--scene-muted',blend('#55726c','#c9cdd1',light.night));
   nodes.app.style.setProperty('--scene-paper',blend('#e7eadc','#26394a',light.night));
   nodes.app.style.setProperty('--scene-twilight',Math.min(1,Math.max(.22,(light.night-.16)*1.4)));
+  return light.night>=.65;
 }
 
 export function mountGardenPreview(container,appearance,{history=[],courses=[],through='',visible,design=defaultGardenDesign}={}){
@@ -449,6 +458,52 @@ export function mountGardenPreview(container,appearance,{history=[],courses=[],t
 export function animateLandscape(_now,progress,reduced,lighting='session',motion='gentle'){
 // Progress already comes from an end timestamp at animation-frame precision.
 // Drawing it directly also makes resets and mode changes instant.
-paintDay(sceneProgress(progress,lighting,reduced,motion),lighting);
+return paintDay(sceneProgress(progress,lighting,reduced,motion),lighting);
+}
+
+export function createShootingStars(scene,random=Math.random){
+  const artwork=scene.querySelector('#garden-meteor');
+  const duration=1150;
+  let next=0,flight=null,visible=false;
+
+  function clear(){
+    next=0;flight=null;
+    if(visible){artwork.setAttribute('opacity',0);visible=false;}
+  }
+
+  function launch(now,preview=false){
+    const {width,height}=scene.getBoundingClientRect();
+    const frame=scene.viewBox.baseVal;
+    const zoom=Math.max(width/frame.width,height/frame.height);
+    const w=width/zoom,h=height/zoom;
+    const left=frame.x+(frame.width-w)/2,top=frame.y+(frame.height-h)/2;
+    const direction=random()<.5?1:-1;
+    const dx=Math.min(235,w*.34)*direction,dy=Math.min(Math.abs(dx)*(.20+random()*.21),h*.1);
+    const x=left+w*(.37+random()*.19)-dx/2;
+    const y=top+h*(.12+random()*.09);
+    flight={start:now,x,y,dx,dy,angle:Math.atan2(dy,dx)*180/Math.PI,preview};
+    next=now+180000+random()*180000;
+  }
+
+  return {
+    clear,
+    preview(now){clear();launch(now+140,true);},
+    frame(now,{allowed,dark}){
+      if(!allowed||(!dark&&!flight?.preview)){clear();return;}
+      if(!next)next=now+45000+random()*45000;
+      if(!flight&&now>=next)launch(now);
+      if(!flight)return;
+      const elapsed=(now-flight.start)/duration;
+      if(elapsed<0)return;
+      if(elapsed>=1){
+        artwork.setAttribute('opacity',0);visible=false;flight=null;
+        return;
+      }
+      const {x,y,dx,dy,angle}=flight;
+      artwork.setAttribute('transform',`translate(${x+dx*elapsed} ${y+dy*elapsed}) rotate(${angle})`);
+      artwork.setAttribute('opacity',Math.min(1,elapsed/.16,(1-elapsed)/.48)*.92);
+      visible=true;
+    }
+  };
 }
 

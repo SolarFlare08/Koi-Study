@@ -10,7 +10,7 @@ export function installHelp({dialog,onAction,canNavigate=()=>true}){
   dialog.innerHTML=`<header class="help-header"><div><span class="help-eyebrow">YIN AND YANG · FIELD GUIDE</span><h2 id="help-title">Help guide</h2></div><button type="button" class="help-close" aria-label="Close Help">×</button></header>
     <div class="help-toolbar"><label class="help-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5"/></svg><span class="sr-only">Search the help guide</span><input id="help-search" type="search" placeholder="Search topics, e.g. “reading goal”…" autocomplete="off" aria-describedby="help-search-hint" autofocus></label><span class="sr-only" id="help-search-hint">Press Enter to open the first matching topic.</span><button type="button" data-help-topic="shortcuts" class="help-shortcuts">Shortcuts</button><button type="button" data-help-action="versions" class="help-shortcuts">Version history</button></div>
     <div class="help-layout"><nav id="help-topics" aria-label="Help topics"></nav><div class="help-reading"><div class="help-mobile-nav"><label for="help-topic-select">Browse topics</label><select id="help-topic-select"></select></div><div class="help-crumbs"><button type="button" id="help-back" aria-label="Previous help page">← Back</button><button type="button" data-help-home>All topics</button><span id="help-current-group"></span></div><article id="help-article" aria-labelledby="help-page-title"></article></div></div>
-    <footer class="help-footer"><span id="help-count" role="status"></span><span><kbd>F1</kbd> Help <span aria-hidden="true">·</span> <kbd>Esc</kbd> Close</span></footer>`;
+    <footer class="help-footer"><span id="help-count" role="status"></span><button type="button" data-help-action="admin-sandbox">Admin sandbox</button><span><kbd>F1</kbd> Help <span aria-hidden="true">·</span> <kbd>Esc</kbd> Close</span></footer>`;
   const search=dialog.querySelector('#help-search'),nav=dialog.querySelector('#help-topics'),article=dialog.querySelector('#help-article');
   const select=dialog.querySelector('#help-topic-select'),back=dialog.querySelector('#help-back'),groupLabel=dialog.querySelector('#help-current-group');
   const count=dialog.querySelector('#help-count'),scroller=dialog.querySelector('.help-reading');
@@ -33,6 +33,7 @@ export function installHelp({dialog,onAction,canNavigate=()=>true}){
   }
   function renderPage(){
     const matches=renderNav(),query=search.value.trim(),topic=find(page);
+    dialog.querySelector('.help-footer button').disabled=!canNavigate();
     back.disabled=!history.length;
     groupLabel.textContent=query?'Search':topic?.group||'Welcome';
     if(query){
