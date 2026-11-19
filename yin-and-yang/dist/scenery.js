@@ -339,7 +339,7 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
     <path d="M-128 0Q-40-1 0-5L0 5Q-40 1-128 0Z" fill="url(#meteor-tail)" opacity=".26"/>
     <path d="M-128 0Q-40-.85 0-2.2L0 2.2Q-40 .85-128 0Z" fill="url(#meteor-tail)"/>
   </g>
-  <circle r="21" fill="url(#meteor-glow)"/><circle r="4.9" fill="#e7ca65"/><circle r="4.15" fill="#dedbb7"/>
+  <circle r="21" fill="url(#meteor-glow)"/><circle r="4.9" fill="#e7ca65"/><circle r="4.15" fill="#f7f2d4"/>
 </g>
 ${pieceMarkup("mountains",design)}
 <path fill="url(#water)" d="M0 548q297-24 524-6t463-1 613 6v353H0Z"/>

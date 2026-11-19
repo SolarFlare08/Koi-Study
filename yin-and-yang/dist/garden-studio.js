@@ -12,7 +12,7 @@ const buildingTarget='building',propPrefix='prop:';
 const pieceLabels={mountains:'Mountains',shoreline:'Shoreline',path:'Path',pavilion:'Building',
   foundation:'Building base',boat:'Boat',lantern:'Lantern'};
 const tools={
-  select:['Select','M5 3l13 10-7 1-3 6L5 3z'],
+  select:['Move','M5 3l13 10-7 1-3 6L5 3z'],
   props:['Props','M12 3v18M3 12h18M5 5h14v14H5z'],
   scene:['Terrain','M2 19l7-11 4 6 3-4 6 9H2zM7 11l2 2 2-2'],
   light:['Light','M12 3v2m0 14v2m9-9h-2M5 12H3m15.4-6.4L17 7m-10 10-1.4 1.4m12.8 0L17 17M7 7 5.6 5.6M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z'],
@@ -43,14 +43,14 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   let undo=[],redo=[],savedDraft='';
   function open(){
     draft={id:'',name:'',through:'',design:loadGardenDesign(getDesign()),appearance:getAppearance()};
-    selected='';drag=null;stamp='';undo=[];redo=[];zoom=1;tool='select';terrainCategory='mountains';
+    selected='';drag=null;stamp='';undo=[];redo=[];zoom=1;tool='scene';terrainCategory='mountains';
     savedDraft=fingerprint(draft);
   }
   function markup(){
     return `<form id="garden-studio-form" novalidate>
       <header class="studio-top">
         <div class="studio-title"><h2 id="panel-title">Garden Studio</h2><span data-studio-draft-state></span></div>
-        <label class="studio-name"><span class="studio-sr">Layout name</span><input name="layoutName" maxlength="70" required placeholder="Name this layout"></label>
+        <label class="studio-name">Layout name<input name="layoutName" maxlength="70" required placeholder="Name this layout"></label>
         <div class="studio-top-actions">
           <div class="studio-history">
             <button type="button" data-studio="undo" title="Undo (Ctrl+Z)" aria-label="Undo">${toolIcon('M9 6l-5 5 5 5M4 11h10a4 4 0 0 1 0 8')}</button>
@@ -71,9 +71,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
             <div class="studio-ghost" aria-hidden="true" hidden></div>
           </div>
         </div>
-        <aside class="studio-settings" aria-label="Tool controls">
+        <aside class="studio-settings" id="studio-settings" aria-label="Tool controls">
           <section id="studio-tool-select" data-tool-panel="select">
-            <h3>Selection</h3>
+            <h3>Move an object</h3>
             <label>Object<select name="landmark"></select></label>
             <p class="studio-selection-empty" data-studio-no-selection>Select an object on the canvas or from the list.</p>
             <div class="studio-placement" hidden>
@@ -99,6 +99,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
             <h3>Terrain</h3>
             <div class="studio-terrain-categories" role="group" aria-label="Terrain categories">${Object.entries(pieceLabels).map(([key,label])=>
               `<button type="button" data-studio-category="${key}" aria-controls="studio-style-${key}" aria-pressed="false">${label}</button>`).join('')}</div>
+            <p class="studio-current-style" data-studio-current-style></p>
             ${Object.entries(pieceLabels).map(([key,label])=>`<div id="studio-style-${key}" class="studio-style-palette" data-studio-style-group="${key}" role="group" aria-label="${label} styles" hidden>
               ${Object.entries(gardenPieceOptions[key]).map(([style,name])=>styleTile(key,style,name)).join('')}
             </div>`).join('')}
@@ -139,6 +140,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         <p id="studio-canvas-tip" data-studio-placement-tip></p>
         <p role="status" data-studio-status></p>
         <div class="studio-view">
+          <button type="button" class="studio-inspector-toggle" aria-controls="studio-settings" aria-expanded="true" data-studio="toggle-settings">Hide panel</button>
           ${select('camera','View',Object.fromEntries(Object.entries(gardenCameras).map(([key,item])=>[key,item.name])))}
           <div class="studio-zoom" role="group" aria-label="Canvas zoom">
             <button type="button" data-studio="zoom-out" aria-label="Zoom out">−</button>
@@ -185,10 +187,21 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   }
   function setTool(key){
     tool=key;
+    setSettingsVisible(true);
     for(const button of form.querySelectorAll('[data-studio-tool]'))button.setAttribute('aria-pressed',String(button.dataset.studioTool===key));
     for(const pane of form.querySelectorAll('[data-tool-panel]'))pane.hidden=pane.dataset.toolPanel!==key;
     form.querySelector('.studio-ghost').hidden=true;
     syncStamp();updatePin();
+  }
+  function setSettingsVisible(visible){
+    const settings=form.querySelector('#studio-settings'),button=form.querySelector('[data-studio="toggle-settings"]');
+    settings.hidden=!visible;
+    form.classList.toggle('studio-canvas-only',!visible);
+    button.textContent=visible?'Hide panel':'Show panel';
+    button.setAttribute('aria-expanded',String(visible));
+  }
+  function updateCurrentStyle(){
+    form.querySelector('[data-studio-current-style]').textContent=`${pieceLabels[terrainCategory]} · ${gardenPieceOptions[terrainCategory][draft.design[terrainCategory]]}`;
   }
   function showTerrainCategory(key){
     terrainCategory=key;
@@ -196,6 +209,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       button.setAttribute('aria-pressed',String(button.dataset.studioCategory===key));
     }
     for(const group of form.querySelectorAll('[data-studio-style-group]'))group.hidden=group.dataset.studioStyleGroup!==key;
+    updateCurrentStyle();
   }
   function syncStamp(){
     const active=tool==='props'&&stamp&&draft.design.props.length<gardenPropLimit;
@@ -347,6 +361,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     for(const button of form.querySelectorAll('[data-studio-style]')){
       button.setAttribute('aria-pressed',String(draft.design[button.dataset.studioPiece]===button.dataset.studioStyle));
     }
+    updateCurrentStyle();
     syncStamp();updateHistoryControls();updatePin();
   }
   function placeProp(position){
@@ -521,6 +536,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       const button=event.target.closest('[data-studio]');
       if(!button)return;
       switch(button.dataset.studio){
+        case 'toggle-settings':setSettingsVisible(form.querySelector('#studio-settings').hidden);break;
         case 'undo':useHistory(true);break;
         case 'redo':useHistory(false);break;
         case 'zoom-in':setZoom(zoom+.25);break;

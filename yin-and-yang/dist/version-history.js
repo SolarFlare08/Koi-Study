@@ -1,4 +1,10 @@
 export const releases = [
+  {version:'5.14.7',date:'2026-11-19',title:'Clearer Garden controls',changes:[
+    'Move Tasks beside the sidebar and give Today’s focus clear totals, session history, and shortcuts.',
+    'Open Garden Studio directly on Terrain, see the current style, and hide the tool panel for a larger canvas.',
+    'Jump back to the latest release or filter to the current version series in Version History.',
+    'Brighten the shooting star’s solid center while keeping the softer halo.'
+  ]},
   {version:'5.14.6',date:'2026-11-19',title:'Softer shooting stars',changes:[
     'Dim the shooting star’s solid center and soften the yellow halo around it.'
   ]},
@@ -327,6 +333,7 @@ export const appVersion=releases[0].version;
 
 export function installVersionHistory(dialog){
   const [latest]=releases;
+  const currentSeries=latest.version.split('.').slice(0,2).join('.');
   const series=[...new Set(releases.map(release=>release.version.split('.')[0]))];
   const formatDate=new Intl.DateTimeFormat(undefined,{dateStyle:'long',timeZone:'UTC'});
   const date=value=>value?`<time datetime="${value}">${formatDate.format(new Date(value))}</time>`:'';
@@ -334,10 +341,10 @@ export function installVersionHistory(dialog){
   dialog.innerHTML=`<header class="version-header"><div><h2 id="version-title">Version history</h2><p>Yin and Yang · v${latest.version}</p></div><button type="button" aria-label="Close version history">×</button></header>
     <div class="version-filters">
       <label><span class="sr-only">Search releases</span><input type="search" placeholder="Search releases" autofocus></label>
-      <label><span class="sr-only">Version series</span><select><option value="">All versions</option>${series.map(major=>`<option value="${major}">Version ${major}.x</option>`).join('')}</select></label>
+      <label><span class="sr-only">Version series</span><select><option value="">All versions</option><option value="${currentSeries}">Version ${currentSeries}.x</option>${series.map(major=>`<option value="${major}">Version ${major}.x</option>`).join('')}</select></label>
     </div>
     <div class="version-layout">
-      <div class="version-index"><p class="version-count" role="status"></p><nav aria-label="Releases"></nav></div>
+      <div class="version-index"><div class="version-index-top"><p class="version-count" role="status"></p><button type="button" class="version-latest">Latest release</button></div><nav aria-label="Releases"></nav></div>
       <article class="version-notes" aria-label="Release notes" tabindex="0"></article>
     </div>`;
   const search=dialog.querySelector('input'),filter=dialog.querySelector('select'),list=dialog.querySelector('nav');
@@ -372,6 +379,9 @@ export function installVersionHistory(dialog){
     show(matches.includes(selected)?selected:matches[0]);
   }
   dialog.querySelector('.version-header button').onclick=()=>dialog.close();
+  dialog.querySelector('.version-latest').onclick=()=>{
+    selected=latest;search.value='';filter.value='';update();list.querySelector('[aria-current]')?.focus();
+  };
   list.onclick=event=>{
     const button=event.target.closest('[data-release]');
     if(button)show(releases.find(release=>release.version===button.dataset.release));

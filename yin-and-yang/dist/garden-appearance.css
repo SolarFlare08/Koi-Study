@@ -291,6 +291,7 @@
 .studio-history button:hover:enabled,.studio-tools button:hover,.studio-zoom button:hover:enabled,.studio-object-actions button:hover:enabled,.studio-save-button:hover,.studio-top .close-panel:hover { background: var(--surface-raised); }
 #garden-studio-form button:disabled { opacity: .4; cursor: default; }
 .studio-workspace { grid-area: work; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0,1fr) minmax(246px,280px); }
+.studio-canvas-only .studio-workspace { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
 .studio-board {
   display: flex; container-type: size; overflow: auto; padding: 16px; min-width: 0; min-height: 0;
   background-color: var(--studio-desk);
@@ -330,14 +331,16 @@
 .studio-object-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .studio-object-actions button { color: var(--studio-ink); border: 1px solid var(--studio-line); border-radius: 6px; padding: 6px 8px; font-size: 11px; }
 .studio-object-actions [data-studio="remove-prop"] { color: #f2bba8; }
-.studio-prop-palette,.studio-style-palette { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 5px; }
-.studio-prop-palette button,.studio-style-palette button { min-width: 0; display: grid; grid-template-rows: auto 1fr; gap: 4px; border: 1px solid var(--studio-line); border-radius: 6px; padding: 4px; background: var(--studio-bg); }
+.studio-prop-palette,.studio-style-palette { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+.studio-prop-palette button,.studio-style-palette button { min-width: 0; display: grid; grid-template-rows: auto 1fr; gap: 5px; border: 1px solid var(--studio-line); border-radius: 8px; padding: 5px; background: var(--studio-bg); }
+.studio-settings :is(.studio-style-palette,.studio-prop-palette) button[aria-pressed="true"] { border-color:var(--studio-accent); box-shadow:inset 0 0 0 1px var(--studio-accent); }
+.studio-settings .studio-current-style { color:var(--studio-accent); font-weight:650; }
 .studio-prop-palette button:hover,.studio-style-palette button:hover { background: var(--surface-raised); }
 .studio-prop-palette span,.studio-style-palette span { align-content: center; min-height: 23px; font-size: 10px; line-height: 1.1; }
 .studio-prop-palette svg,.studio-style-palette svg { width: 100%; display: block; background: #abc3bd; border-radius: 4px; }
 .studio-prop-palette svg { height: 56px; background: #708d89; }
 .studio-style-palette svg { height: 58px; background: #8ea9a2; }
-.studio-style-palette[data-studio-style-group="mountains"] svg { height: 42px; background: #abc3bd; }
+.studio-style-palette[data-studio-style-group="mountains"] svg { height: 56px; background: #abc3bd; }
 .studio-style-palette svg * { animation: none !important; }
 .studio-style-palette [fill="url(#shore)"] { fill: #a7baa0; }
 .studio-style-palette [fill="url(#bank)"] { fill: #537f74; }
@@ -354,6 +357,8 @@
 .studio-status p { margin: 0; font-size: 11px; line-height: 1.25; }
 .studio-status [data-studio-status]:not(:empty) { color: var(--studio-accent); }
 .studio-view { display: flex; gap: 10px; align-items: end; margin-left: auto; }
+.studio-inspector-toggle { flex:none; min-height:34px; padding:4px 8px; border:1px solid var(--studio-line); border-radius:7px; color:var(--studio-ink); white-space:nowrap; font-size:11px; }
+.studio-inspector-toggle:hover { background:var(--surface-raised); }
 #garden-studio-form .studio-view label { grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 7px; }
 .studio-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media(max-width:760px) {
@@ -368,9 +373,9 @@
   .studio-board { padding: 9px; }
   .studio-settings { padding: 8px; border-left: 0; border-top: 1px solid var(--studio-line); }
   .studio-style-palette,.studio-prop-palette { grid-template-columns: repeat(auto-fit,minmax(79px,1fr)); }
-  .studio-status { min-height: 43px; padding: 4px 7px; gap: 5px; }
+  .studio-status { min-height: 43px; padding: 5px 8px; gap: 4px; flex-wrap:wrap; }
   .studio-status [data-studio-status]:not(:empty) + .studio-view { margin-left: auto; }
-  .studio-status p { font-size: 10px; }
+  .studio-status p { font-size: 10px; min-width:0; }
   .studio-view { gap: 4px; }
   .studio-view label { display: block !important; font-size: 0 !important; }
   .studio-view select { max-width: 118px; font-size: 10px !important; }

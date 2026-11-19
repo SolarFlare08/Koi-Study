@@ -583,6 +583,7 @@ function showWorkspace(next){
   focusNotes.update(next==='focus'?focusedTask():null,next==='focus');
   $('#objects').hidden=next!=='focus';
   $('#garden-tools').hidden=next!=='focus';
+  taskToggle.hidden=next!=='focus';
   $('#penguin').hidden=next!=='focus';
   workspaceNav.querySelectorAll('button[data-workspace]').forEach(button=>{
     button.setAttribute('aria-pressed',String(button.dataset.workspace===next));
@@ -3120,7 +3121,19 @@ function panelContent(id){
     <p class="note-caption"><kbd>Ctrl+Alt+N</kbd> for quick capture</p>
     <div id="notes-captures">${captureCards()}</div>`;
   if(id==='progress'){
-    const p=todayProgress(state);return `${header('TODAY','Small things grow.')}<p>${new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}</p><div class="progress-numbers"><div><strong>${p.completed}</strong><span>completed sessions</span></div><div><strong>${p.minutes}</strong><span>focus minutes</span></div></div><p class="panel-subtle">Each completed focus session adds a blossom.<br>Skipped sessions are recorded separately.</p><div class="panel-rule"></div>${p.items.length?`<ul class="history-list">${[...p.items].reverse().map(h=>`<li><span>${escape(h.intention||'A moment of focus')}<br><time>${new Date(h.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(h.focusMs/60000)} min</time>${focusReviewDetails(h)}</span><span class="outcome ${h.outcome==='skipped'?'skipped':''}">${h.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('')}</ul>`:'<div class="empty-state">No need to hurry.<br>The first blossom will come.</div>'}<p class="panel-subtle">${p.skipped} skipped today · A new day is a fresh garden.</p><div class="panel-actions"><button type="button" class="text-button" id="open-day-recap">End-of-day recap</button><button type="button" class="text-button" data-evening-lights>Evening lights</button><button type="button" class="text-button" id="open-garden-history">Open Garden Field Guide</button></div>`;
+    const p=todayProgress(state);
+    const date=new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'});
+    const sessions=[...p.items].reverse().map(session=>`<li>
+      <span>${escape(session.intention||'Focus session')}<br><time>${new Date(session.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(session.focusMs/60000)} min</time>${focusReviewDetails(session)}</span>
+      <span class="outcome ${session.outcome==='skipped'?'skipped':''}">${session.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('');
+    return `${header(date,'Today’s focus')}
+      <dl class="focus-today-totals"><div><dt>Focus minutes</dt><dd>${p.minutes}</dd></div><div><dt>Completed</dt><dd>${p.completed}</dd></div><div><dt>Skipped</dt><dd>${p.skipped}</dd></div></dl>
+      <section class="focus-today-sessions"><h3>Session history</h3>${sessions?`<ul class="history-list">${sessions}</ul>`:'<p>No focus sessions recorded today.</p>'}</section>
+      <div class="focus-today-links">
+        <button type="button" id="open-day-recap">${icon('calendar')}<span><strong>End-of-day recap</strong><small>Review today and see what’s planned for tomorrow</small></span></button>
+        <button type="button" id="open-garden-history">${icon('sprout')}<span><strong>Garden Field Guide</strong><small>Explore landmarks and constellations</small></span></button>
+        <button type="button" class="text-button" data-evening-lights>Evening lights</button>
+      </div>`;
   }
   if(id==='garden-history')return gardenHistoryMarkup();
   if(id==='garden-course')return gardenCourseMarkup();
@@ -3229,6 +3242,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   if(id==='music'&&panel){panel.classList.remove('music-hidden','music-mini');panel.querySelector('.music-mini-bar').hidden=true;panel.setAttribute('aria-hidden','false');panel.setAttribute('aria-modal','true');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.removeAttribute('aria-label');panel.inert=false;}
   else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','calendar-list-editor','ritual-schedules','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs','calendar-day-templates','project-resources'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':['focus-subtasks','project-context'].includes(id)?'panel focus-checklist-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
   if(id==='admin-sandbox')panel.classList.add('admin-sandbox-panel');
+  if(id==='progress')panel.classList.add('focus-today-panel');
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
   if(id==='appearance')renderSeasonPreview();
