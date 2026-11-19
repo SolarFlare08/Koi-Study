@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.14.1',date:'2026-11-19',title:'Brighter trails and earned star points',changes:[
+    'Shooting stars have a brighter head, a longer tail, and more time in view.',
+    'Each lit point in an unlocked Garden constellation now uses one earned star from the sky. Existing milestones and exam records are preserved.',
+    'The Admin sandbox groups tests and data controls and shows star counts and the next unlock.'
+  ]},
   {version:'5.14.0',date:'2026-11-19',title:'Shooting stars',changes:[
     'Catch an occasional shooting star in the dark Garden sky. Its path and timing vary, and it respects Still scenery and reduced motion.',
     'Open Admin sandbox from Help. Inside the sandbox, use the shortcut beside Help to simulate a shooting star or exit.'

@@ -153,7 +153,9 @@ const orionStars=[
 ];
 function constellationShape(item){
   const lines=item.lines.map(line=>`<polyline points="${line.map(index=>item.points[index].join(',')).join(' ')}"/>`).join('');
-  const stars=item.points.map(([x,y],index)=>starPoint(x,y,item.magnitudes[index])).join('');
+  const pointOrder=item.magnitudes.map((magnitude,index)=>({magnitude,index})).sort((a,b)=>a.magnitude-b.magnitude);
+  const stars=pointOrder.slice(0,item.starIndices?.length??item.points.length).map(({index,magnitude})=>
+    starPoint(...item.points[index],magnitude)).join('');
   return `<g fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round" opacity=".5">${lines}</g>
     <g fill="currentColor">${stars}</g>`;
 }
@@ -164,7 +166,8 @@ export function gardenConstellationSketch(item){
 export function gardenGrowthMarkup(history,{courses=[],through='',visible,design=defaultGardenDesign}={}){
   const trees=[],lanterns=[],lights=[];
   const stars=[],cairns=[];
-  for(const item of gardenStarProgress(history,{through,visible}).unlocked){
+  const {assigned,unlocked}=gardenStarProgress(history,{through,visible});
+  for(const item of unlocked){
     stars.push(`<g class="garden-unlocked-constellation" data-constellation-art="${item.id}" transform="translate(${item.x} ${item.y})"><title>${item.name}</title>${constellationShape(item)}</g>`);
   }
   let hasIsland=false;
@@ -173,13 +176,14 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
   let nextStar=0;
   const starMagnitudes=[1.05,2.7,1.85,3.1,1.4,2.45,3.45,2.2,2.9,1.6,3.7];
   for(const course of courses){
-    const points=course.stars.filter(({item,index})=>(!through||item.day<=through)&&(!visible||visible.has(index))).map(({index})=>layout[index].position.slice(0,2).join(','));
+    const points=course.stars.filter(({item,index})=>!assigned.has(index)&&(!through||item.day<=through)&&(!visible||visible.has(index))).map(({index})=>layout[index].position.slice(0,2).join(','));
     if(points.length>1)stars.push(`<polyline points="${points.join(' ')}" fill="none" stroke="#9ec6d8" stroke-width="1.4" opacity=".75"/>`);
   }
   for(const {item,index,position} of layout){
     const magnitude=item.kind==='test'?starMagnitudes[nextStar++%starMagnitudes.length]:null;
     if(visible&&!visible.has(index))continue;
     if(through&&item.day>through)continue;
+    if(assigned.has(index))continue;
     const [x,y,scale]=position;
     const placed=Object.hasOwn(design.placements,gardenLandmarkKey(item));
     const transform=`translate(${x} ${y}) scale(${scale})`;
@@ -306,9 +310,10 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <radialGradient id="halo"><stop stop-color="#ffe9bd" stop-opacity=".65"/><stop offset="1" stop-color="#ffe9bd" stop-opacity="0"/></radialGradient>
 <radialGradient id="lamp-halo"><stop stop-color="#ffbe75" stop-opacity=".52"/><stop offset=".36" stop-color="#e6a66d" stop-opacity=".24"/><stop offset="1" stop-color="#e6a66d" stop-opacity="0"/></radialGradient>
 <radialGradient id="moon-halo"><stop stop-color="#e5effd" stop-opacity=".22"/><stop offset="1" stop-color="#bbd8fc" stop-opacity="0"/></radialGradient>
-<linearGradient id="meteor-tail" gradientUnits="userSpaceOnUse" x1="-95" y1="0" x2="0" y2="0">
-  <stop stop-color="#b0d4ed" stop-opacity="0"/><stop offset=".7" stop-color="#bedced" stop-opacity=".46"/><stop offset="1" stop-color="#fff5da"/>
+<linearGradient id="meteor-tail" gradientUnits="userSpaceOnUse" x1="-128" y1="0" x2="0" y2="0">
+  <stop stop-color="#acd7ee" stop-opacity="0"/><stop offset=".64" stop-color="#bcdef6" stop-opacity=".54"/><stop offset="1" stop-color="#fff5da"/>
 </linearGradient>
+<radialGradient id="meteor-glow"><stop stop-color="#ebf6ff" stop-opacity=".62"/><stop offset="1" stop-color="#c3e1ff" stop-opacity="0"/></radialGradient>
 <linearGradient id="bank" x2=".4" y2="1"><stop stop-color="var(--bank-upper,#547d6b)"/><stop offset="1" stop-color="var(--bank-lower,#294f4d)"/></linearGradient>
 <linearGradient id="shore" x2="0" y2="1"><stop stop-color="var(--shore-upper,#8eac91)"/><stop offset="1" stop-color="var(--shore-lower,#527e70)"/></linearGradient>
 <linearGradient id="rock-face" x2=".55" y2="1"><stop stop-color="#9cae99"/><stop offset="1" stop-color="#597b73"/></linearGradient>
@@ -330,8 +335,9 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
   <path d="M492 195q4-4 8 0 4-5 8-3M520 180q3-4 7-1 3-4 7-2M538 201q3-4 7-1 3-4 7-2"/>
 </g>
 <g id="garden-meteor" opacity="0" data-live-scenery>
-  <path d="M-95 0Q-31-.55 0-1.35L0 1.35Q-31 .55-95 0Z" fill="url(#meteor-tail)"/>
-  <circle r="2.15" fill="#fff7e2"/><circle r="4.2" fill="#ddedff" opacity=".18"/>
+  <path d="M-128 0Q-40-1 0-5L0 5Q-40 1-128 0Z" fill="url(#meteor-tail)" opacity=".26"/>
+  <path d="M-128 0Q-40-.85 0-2.2L0 2.2Q-40 .85-128 0Z" fill="url(#meteor-tail)"/>
+  <circle r="13" fill="url(#meteor-glow)"/><circle r="3.1" fill="#fff7e2"/>
 </g>
 ${pieceMarkup("mountains",design)}
 <path fill="url(#water)" d="M0 548q297-24 524-6t463-1 613 6v353H0Z"/>
@@ -463,7 +469,7 @@ return paintDay(sceneProgress(progress,lighting,reduced,motion),lighting);
 
 export function createShootingStars(scene,random=Math.random){
   const artwork=scene.querySelector('#garden-meteor');
-  const duration=1150;
+  const duration=1700;
   let next=0,flight=null,visible=false;
 
   function clear(){
@@ -478,7 +484,7 @@ export function createShootingStars(scene,random=Math.random){
     const w=width/zoom,h=height/zoom;
     const left=frame.x+(frame.width-w)/2,top=frame.y+(frame.height-h)/2;
     const direction=random()<.5?1:-1;
-    const dx=Math.min(235,w*.34)*direction,dy=Math.min(Math.abs(dx)*(.20+random()*.21),h*.1);
+    const dx=Math.min(310,w*.44)*direction,dy=Math.min(Math.abs(dx)*(.20+random()*.21),h*.12);
     const x=left+w*(.37+random()*.19)-dx/2;
     const y=top+h*(.12+random()*.09);
     flight={start:now,x,y,dx,dy,angle:Math.atan2(dy,dx)*180/Math.PI,preview};
@@ -501,7 +507,7 @@ export function createShootingStars(scene,random=Math.random){
       }
       const {x,y,dx,dy,angle}=flight;
       artwork.setAttribute('transform',`translate(${x+dx*elapsed} ${y+dy*elapsed}) rotate(${angle})`);
-      artwork.setAttribute('opacity',Math.min(1,elapsed/.16,(1-elapsed)/.48)*.92);
+      artwork.setAttribute('opacity',Math.min(1,elapsed/.10,(1-elapsed)/.36));
       visible=true;
     }
   };

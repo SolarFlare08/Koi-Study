@@ -199,22 +199,24 @@ function renderGardenGrowth(){
   const design=sceneGardenDesign();
   if(renderedGardenGrowth===state.gardenGrowth&&renderedGardenProjects===state.projects&&renderedGardenDesign===design)return;
   const courses=gardenCourses(state.gardenGrowth,state.projects);
+  const {assigned,unlocked}=gardenStarProgress(state.gardenGrowth,{through:snapshotThrough});
   const art=gardenGrowthMarkup(state.gardenGrowth,{courses,through:snapshotThrough,design});
   for(const [part,markup] of Object.entries(art))$(`#garden-growth-${part}`).innerHTML=markup;
   const courseAnchors=new Map(courses.flatMap(course=>{
-    const star=course.stars.find(({item})=>!snapshotThrough||item.day<=snapshotThrough);
+    const star=course.stars.find(({item,index})=>!assigned.has(index)&&(!snapshotThrough||item.day<=snapshotThrough));
     return star?[[star.index,course]]:[];
   }));
   $('#garden-landmarks').innerHTML=gardenLandmarkPositions(state.gardenGrowth,courses,design.placements).map(({item,index,position})=>{
     if(snapshotThrough&&item.day>snapshotThrough)return '';
+    if(assigned.has(index))return '';
     const type=landmarkTypes[item.kind], [x,y,scale]=position;
     const center=y-({project:93,book:5,milestone:10,test:0}[item.kind]*scale);
     const course=courseAnchors.get(index);
     const label=escape(course?`Constellation · ${course.name}`:`${type.name} · ${item.title}`);
     return `<button type="button" data-garden-landmark="${index}" ${course?`data-sky-course="${escape(course.id)}"`:''} data-x="${x}" data-y="${center}"
       aria-label="${label}" title="${label}" aria-haspopup="dialog" aria-expanded="false"></button>`;
-  }).join('')+gardenStarProgress(state.gardenGrowth,{through:snapshotThrough}).unlocked.map(item=>
-    `<button type="button" data-sky-constellation="${item.id}" data-x="${item.x}" data-y="${item.y}"
+  }).join('')+unlocked.map(item=>
+    `<button type="button" data-sky-constellation="${item.id}" data-member-stars="${item.starIndices.join(' ')}" data-x="${item.x}" data-y="${item.y}"
       aria-label="${item.name} constellation" title="${item.name}" aria-haspopup="dialog" aria-expanded="false"></button>`).join('');
   positionGardenLandmarks();
   renderedGardenGrowth=state.gardenGrowth;
@@ -1258,7 +1260,7 @@ document.addEventListener('pointermove',event=>{
 },{passive:true});
 function header(eyebrow,title){return `<div class="panel-header"><div><span class="eyebrow">${eyebrow}</span><h2 id="panel-title">${title}</h2></div><button class="icon-button close-panel" aria-label="Close panel">${icon('close')}</button></div>`;}
 function landmarkAnchor(index){
-  return $(`[data-garden-landmark="${index}"]:not([hidden])`)||$('[data-panel="progress"]');
+  return $(`[data-garden-landmark="${index}"]:not([hidden]),[data-member-stars~="${index}"]:not([hidden])`)||$('[data-panel="progress"]');
 }
 function openGardenLandmark(index){
   const item=state.gardenGrowth[index];
@@ -1469,13 +1471,13 @@ function gardenHistoryMarkup(){
 
 let selectedConstellation='',constellationThrough='';
 function starConstellationGuide(through){
-  const {count,next,unlocked}=gardenStarProgress(state.gardenGrowth,{through});
-  const unlockedIds=new Set(unlocked.map(item=>item.id));
+  const {count,free,next,unlocked}=gardenStarProgress(state.gardenGrowth,{through});
+  const unlockedById=new Map(unlocked.map(item=>[item.id,item]));
   const progress=next?`${next.threshold-count} more ${next.threshold-count===1?'star':'stars'} to unlock ${next.name}.`:'All five constellations unlocked.';
   return `<section class="star-constellation-guide"><h3>Star constellations</h3>
-    <p>${count} earned ${count===1?'star':'stars'} · ${progress}</p>
-    <ul>${starConstellations.map(item=>`<li>${unlockedIds.has(item.id)?
-      `<button type="button" data-guide-constellation="${item.id}" aria-haspopup="dialog"><strong>${item.name}</strong><small>Unlocked · ${item.threshold} stars</small></button>`:
+    <p>${count} earned · ${free} outside Garden constellations. ${progress}</p>
+    <ul>${starConstellations.map(item=>`<li>${unlockedById.has(item.id)?
+      `<button type="button" data-guide-constellation="${item.id}" aria-haspopup="dialog"><strong>${item.name}</strong><small>${unlockedById.get(item.id).starIndices.length} of ${item.points.length} points lit</small></button>`:
       `<span><strong>${item.name}</strong><small>${item.threshold} stars to unlock</small></span>`}</li>`).join('')}</ul></section>`;
 }
 function openUnlockedConstellation(id,anchor,through=''){
@@ -1486,7 +1488,11 @@ function starConstellationMarkup(){
   const item=gardenStarProgress(state.gardenGrowth,{through:constellationThrough}).unlocked.find(entry=>entry.id===selectedConstellation);
   if(!item)return header('STAR CONSTELLATIONS','Constellation unavailable');
   return `${header('STAR CONSTELLATIONS',item.name)}<div class="star-constellation-sketch">${gardenConstellationSketch(item)}</div>
-    <p>${item.description}</p><p>Unlocked with ${item.threshold} stars · ${landmarkDate(item.day)}</p>
+    <p>${item.description}</p><p>${item.starIndices.length} of ${item.points.length} points lit · Unlocked ${landmarkDate(item.day)}</p>
+    <details><summary>Tests in this constellation</summary><ul class="garden-growth-history">${item.starIndices.map(index=>{
+      const star=state.gardenGrowth[index];
+      return `<li><button type="button" data-history-landmark="${index}" aria-haspopup="dialog"><strong>${escape(star.title)}</strong><time datetime="${star.day}">${landmarkDate(star.day)}</time></button></li>`;
+    }).join('')}</ul></details>
     <button class="text-button" type="button" data-garden-history-open>Garden Field Guide</button>`;
 }
 function openGardenPostcard(caption=viewedGardenLayout()?.name||'',anchor=$('[data-panel="progress"]')){
@@ -2827,21 +2833,26 @@ function resourceAction(button){
 
 function adminSandboxMarkup(){
   if(!adminSandbox)return `${header('TEST WORKSPACE','Admin sandbox')}
-    <p>Use a separate copy of Yin and Yang to try changes. Your regular workspace stays saved on this device.</p>
+    <p>Try features with separate local data. You can start with sample data or copy your regular workspace after entering.</p>
     <div class="panel-actions"><button type="button" class="panel-primary" data-admin-action="enter">Enter sandbox</button></div>`;
-  const count=gardenStarProgress(state.gardenGrowth).count;
-  return `${header('ADMIN SANDBOX','Test controls')}
-    <p>Changes in Garden, Calendar, Planner, and the other tabs are saved to this sandbox.</p>
-    <div class="admin-test-actions">
-      <button type="button" data-admin-action="seed"><strong>Load sample data</strong><small>Add practice tasks, a class, a sticky note, and two test stars.</small></button>
-      <button type="button" data-admin-action="star"><strong>Add a test star</strong><small>${count} earned in this sandbox. Test the next constellation unlock.</small></button>
-      <button type="button" data-admin-action="meteor"><strong>Simulate a shooting star</strong><small>Preview a quick streak across the Garden sky.</small></button>
-      <button type="button" data-admin-action="timer"><strong>Start a 10-second focus</strong><small>Test the countdown, finish behavior, and replay.</small></button>
-      <button type="button" data-admin-action="copy"><strong>Copy my saved workspace</strong><small>Replace the sandbox with a local copy of your regular work.</small></button>
-      <button type="button" data-admin-action="backup"><strong>Sandbox backup and restore</strong><small>Export or try importing data into this sandbox.</small></button>
-      <button type="button" data-admin-action="reset"><strong>Reset test workspace</strong><small>Clear the current sandbox data and start empty.</small></button>
-    </div>
-    <div class="panel-actions"><button type="button" class="text-button" data-admin-action="exit">Exit sandbox</button></div>`;
+  const {count,free,next}=gardenStarProgress(state.gardenGrowth);
+  const tile=(action,symbol,title,description)=>`<button type="button" id="sandbox-${action}" data-admin-action="${action}">
+    <span class="sandbox-tile-icon" aria-hidden="true">${icon(symbol)}</span><span><strong>${title}</strong><small>${description}</small></span></button>`;
+  return `${header('ISOLATED WORKSPACE','Admin sandbox')}
+    <section class="sandbox-tests"><h3>Garden & timer</h3>
+      <p class="sandbox-sky-stats" aria-live="polite"><strong>${count} earned · ${free} unassigned</strong><span>${next?`${next.threshold-count} to unlock ${next.name}`:'All constellations unlocked'}</span></p>
+      <div class="sandbox-test-grid">
+        ${tile('meteor','spark','Simulate a shooting star','Preview it in Garden')}
+        ${tile('star','sprout','Add a test star','Add one to this sandbox')}
+        ${tile('timer','focus','Start a 10-second focus','Check the timer and replay')}
+        ${tile('seed','list','Load sample data','Tasks, a class, a note, and two stars')}
+      </div>
+    </section>
+    <section class="sandbox-data"><h3>Sandbox data</h3>
+      ${tile('copy','note','Copy my saved workspace','Replace the sandbox with your regular data')}
+      ${tile('backup','external','Backup and restore','Export or import sandbox files')}
+    </section>
+    <div class="sandbox-footer"><button type="button" data-admin-action="reset">Reset sandbox</button><button type="button" class="panel-primary" data-admin-action="exit">Exit sandbox</button></div>`;
 }
 
 function seedAdminSandbox(){
@@ -3198,6 +3209,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   let panel=root.querySelector('#music-panel');
   if(id==='music'&&panel){panel.classList.remove('music-hidden','music-mini');panel.querySelector('.music-mini-bar').hidden=true;panel.setAttribute('aria-hidden','false');panel.setAttribute('aria-modal','true');panel.querySelector('h2').id='panel-title';panel.setAttribute('aria-labelledby','panel-title');panel.removeAttribute('aria-label');panel.inert=false;}
   else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','calendar-list-editor','ritual-schedules','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs','calendar-day-templates','project-resources'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':['focus-subtasks','project-context'].includes(id)?'panel focus-checklist-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
+  if(id==='admin-sandbox')panel.classList.add('admin-sandbox-panel');
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
   if(id==='appearance')renderSeasonPreview();

@@ -29,6 +29,22 @@ test('star brightness follows apparent magnitude and earned stars have separate 
   assert.ok(starConstellations.every(item=>item.magnitudes.length===item.points.length));
 });
 
+test('every lit constellation point replaces exactly one earned star in live and historical art',()=>{
+  const history=Array.from({length:40},(_,i)=>({kind:'test',sourceId:String(i),title:'Exam '+i,day:new Date(Date.UTC(2026,9,1+i)).toISOString().slice(0,10)}));
+  for(const count of [2,3,5,6,20,21,24,37,38,40]){
+    const through=history[count-1].day;
+    const progress=gardenStarProgress(history,{through});
+    const art=gardenGrowthMarkup(history,{through}).stars;
+    assert.equal((art.match(/class="garden-earned-star"/g)||[]).length,progress.free);
+    assert.equal((art.match(/class="sky-star-point"/g)||[]).length,progress.assigned.size);
+    assert.equal(progress.free+progress.assigned.size,count);
+    assert.equal(progress.assigned.size,progress.unlocked.reduce((sum,item)=>sum+item.starIndices.length,0));
+  }
+  assert.equal(gardenStarProgress(history).free,2);
+  const courses=[{stars:history.slice(0,3).map((item,index)=>({item,index}))}];
+  assert.doesNotMatch(gardenGrowthMarkup(history,{through:history[2].day,courses}).stars,/stroke="#9ec6d8"/);
+});
+
 test('shooting stars wait for dark skies, while an on-demand preview can play in daylight',()=>{
   const attributes=new Map([['opacity',0]]);
   const scene={
@@ -48,7 +64,7 @@ test('shooting stars wait for dark skies, while an on-demand preview can play in
   assert.ok(attributes.get('opacity')>0);
   stars.frame(114700,night);
   assert.notEqual(attributes.get('transform'),position);
-  stars.frame(115150,night);
+  stars.frame(115700,night);
   assert.equal(attributes.get('opacity'),0);
   stars.frame(116000,night);
   assert.equal(attributes.get('opacity'),0);

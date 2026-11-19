@@ -33,8 +33,21 @@ export function gardenStarProgress(history,{through='',visible}={}){
   const stars=history.map((item,index)=>({item,index})).filter(({item,index})=>
     item.kind==='test'&&(!through||item.day<=through)&&(!visible||visible.has(index)))
     .sort((a,b)=>a.item.day.localeCompare(b.item.day)||a.index-b.index);
-  return {count:stars.length,next:starConstellations.find(item=>item.threshold>stars.length),
-    unlocked:starConstellations.filter(item=>item.threshold<=stars.length).map(item=>({...item,day:stars[item.threshold-1].item.day}))};
+  // Keep the original unlock dates. Once all outlines are unlocked, new stars fill their remaining points.
+  let start=0,extraStart=starConstellations.at(-1).threshold;
+  const assigned=new Set();
+  const unlocked=starConstellations.filter(item=>item.threshold<=stars.length).map(item=>{
+    const members=stars.slice(start,item.threshold);
+    start=item.threshold;
+    const extraCount=item.points.length-members.length;
+    members.push(...stars.slice(extraStart,extraStart+extraCount));
+    extraStart+=extraCount;
+    const starIndices=members.map(({index})=>index);
+    starIndices.forEach(index=>assigned.add(index));
+    return {...item,day:stars[item.threshold-1].item.day,starIndices};
+  });
+  return {count:stars.length,free:stars.length-assigned.size,assigned,unlocked,
+    next:starConstellations.find(item=>item.threshold>stars.length)};
 }
 
 export function landmarkPlacement(kind,zone,group){
