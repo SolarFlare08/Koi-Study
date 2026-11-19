@@ -7,3 +7,4 @@ nav button:first-child{background:#c9e5d7;color:#17312c}form{margin-top:15px;bor
 #mini-reference{margin-top:10px;padding:8px;border:1px solid #66827e;border-radius:7px;max-height:33vh;overflow:auto;background:#142e35;font-size:12px}
 #mini-reference [data-reference-text]{white-space:pre-wrap;overflow-wrap:anywhere}
 #mini-reference img{max-width:100%;max-height:92px;object-fit:contain}
+#mini-pause-note{margin-top:9px;font-size:12px}#mini-pause-note summary{cursor:pointer}#mini-pause-note form{margin:5px 0;padding-top:5px}

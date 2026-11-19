@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.11.0',date:'2026-11-18',title:'Focus before class and pause notes',changes:[
+    'See what fits before your next Calendar event, leave time to get ready, and start a suggested task in one click.',
+    'Add a reason when you pause in Garden or the mini timer. Read it at that pause in Calendar replay.'
+  ]},
   {version:'5.10.0',date:'2026-11-18',title:'References and calendar resizing',changes:[
     'Pin a formula, worked example, or diagram to a task and see it in Garden and the mini timer.',
     'Drag the edges of planned calendar blocks to resize them. Preview new times and overlaps before releasing.'

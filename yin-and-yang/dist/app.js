@@ -4,6 +4,7 @@ import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, weekDays, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {calendarCatalog,calendarColors,calendarColor,calendarColorName,customCalendarColor,eventColorAttributes,calendarTheme,calendarSlotMinute,eventCalendarColor,eventCalendarId,loadCalendars,personalCalendarId,visibleCalendarEvents} from './calendar-layers.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
+import {currentFocusPause,editFocusPause} from './focus-replay.js';
 import {handoffLink,sessionHandoff,nextFocusSubtask} from './session-handoff.js';
 import {installExamPlans} from './exam-plans.js';
 import {installMistakeNotebook,needsRetry} from './mistake-notebook.js';
@@ -48,6 +49,7 @@ import {validTemplateDay,loadDayTemplates,captureCalendarDay,previewCalendarDay,
 import {estimateSummary,suggestTaskEstimate,taskSplitSuggestion} from './planner-report.js';
 import {loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime} from './calendar.js';
+import {calendarFocusWindow,focusWindowTasks} from './calendar.js';
 import {eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
 import {parseRubric,rubricPoints,rubricSummary} from './rubric.js';
 import {blockFlexibility,waitingForRecord} from './task-readiness.js';
@@ -481,6 +483,7 @@ const renderReference=installReferenceEditor({button:$('#pin-focus-reference'),c
     render();return true;
   }});
 installMiniTimer({launch:$('#open-mini-timer'),getState:()=>state,taskTitle:()=>focusedTask()?.text,reference:()=>focusedTask()?.reference,
+  savePauseNote,
   toggle:()=>timerButton.click(),extend:()=>action(()=>extendTimer(state,300000)),
   capture:text=>{saveCapture(storage,text,currentCaptureContext());renderCaptures();},notify:toast});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
@@ -927,6 +930,11 @@ function render(){
   if(renderedBundle!==bundleText){bundleButton.textContent=bundleText;renderedBundle=bundleText;}
   focusNotes.update(task,workspace==='focus');
   renderReference(task,workspace==='focus');
+  const pause=currentFocusPause(t);
+  $('#focus-pause-note').hidden=workspace!=='focus'||!pause;
+  const pauseLabel=pause?.event.note?'Edit pause note':'Add pause note';
+  if($('#focus-pause-note').textContent!==pauseLabel)$('#focus-pause-note').textContent=pauseLabel;
+  if(activePanel==='fit-before-class')updateClassFitResults();
   const bundleWaiting=bundle?.next&&!bundle.run.paused&&!bundle.next.ready;
   const taskName=task?.text||(t.mistakeId?'Mistake retry':'')||(bundleWaiting?'Bundle waiting':'Choose a task');
   if(currentTaskName.textContent!==taskName)currentTaskName.textContent=taskName;
@@ -1131,6 +1139,20 @@ $('#break-ideas').onclick=()=>{
 };
 $('#review-focus').onclick=()=>openPanel('focus-review',$('#review-focus'));
 $('#fit-task').onclick=()=>openPanel('fit-task',$('#fit-task'));
+$('#fit-before-class').onclick=()=>openPanel('fit-before-class',$('#fit-before-class'));
+let editingPause;
+$('#focus-pause-note').onclick=()=>{
+  editingPause=currentFocusPause(state.timer);
+  if(editingPause)openPanel('focus-pause-note',$('#focus-pause-note'));
+};
+function savePauseNote(pause,text){
+  const timer=state.timer,replay=editFocusPause(timer,pause,text);
+  if(!replay)return false;
+  const previous=timer.replay;
+  timer.replay=replay;
+  if(!persist()){timer.replay=previous;return false;}
+  render();return true;
+}
 $('#end-routine').onclick=()=>action(()=>{
   if(!state.timer.sequence)return;
   record(state,'skipped');
@@ -2004,6 +2026,49 @@ function fitTaskResults(minutes){
     <ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-fit-task="${escape(task.id)}" ${locked?'disabled':''}><strong>${escape(task.text)}</strong><small>${task.estimate} min · P${taskPriority(task)}${task.energy?` · ${taskEnergyLevels[task.energy]}`:''}</small></button></li>`).join('')}</ul>`;
 }
 
+function classFitLocked(){
+  const {id,block,sequence,mistakeId}=state.timer;
+  return Boolean(id||block||sequence||mistakeId);
+}
+function classFitResults(buffer,now=new Date()){
+  if(!Number.isInteger(buffer)||buffer<0||buffer>180)return '<p>Enter a preparation buffer from 0 to 180 minutes.</p>';
+  const window=calendarFocusWindow(state.calendarEvents,buffer,now);
+  if(!window)return '<p>No timed commitment in the next seven days. Use Find a task by time to set your own window.</p>';
+  const {event,ongoing,minutes}=window;
+  const date=new Date(event.start);
+  const time=date.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  const when=dayKey(date)===dayKey(now)?time:`${shortScheduleDate(dayKey(date))} · ${time}`;
+  if(ongoing)return `<p><strong>${escape(event.title)}</strong> is on your calendar now.</p>`;
+  const tasks=focusWindowTasks(gardenFocusQueue(now),minutes),locked=classFitLocked();
+  return `<p><strong>${escape(event.title)}</strong> starts ${escape(when)}.</p><p>${minutesLabel(minutes)} available after your preparation buffer.</p>
+    ${locked?'<p>Finish or reset the current timer to start another task.</p>':''}
+    ${tasks.length?`<ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-class-fit-task="${escape(task.id)}" ${locked?'disabled':''}>
+      <strong>${escape(task.text)}</strong><small>Start focus · ${task.estimate} min</small></button></li>`).join('')}</ul>`:'<p>No ready tasks with an estimate fit this window.</p>'}`;
+}
+function updateClassFitResults(){
+  const field=$('#class-buffer'),results=$('#class-fit-results');
+  if(!field||!results)return;
+  const content=classFitResults(field.valueAsNumber);
+  if(results.dataset.markup!==content){results.innerHTML=content;results.dataset.markup=content;}
+}
+function startClassFitTask(id,buffer){
+  checkCompletion();
+  const now=new Date();
+  if(classFitLocked()||!Number.isInteger(buffer)||buffer<0||buffer>180)return;
+  const slot=calendarFocusWindow(state.calendarEvents,buffer,now);
+  const task=slot&&!slot.ongoing&&focusWindowTasks(gardenFocusQueue(now),slot.minutes).find(item=>item.id===id);
+  if(!task){updateClassFitResults();toast('The available time changed. Pick a task that still fits.');return;}
+  const {activeTask,activeTaskDay,activeBundle,timer}=state,oldBuffer=state.settings.classBuffer;
+  state.activeTask=task.id;state.activeTaskDay=dayKey(now);pauseBundleForTask(task.id);
+  state.settings.classBuffer=buffer;
+  startTaskTiming(state,task.id,task.estimate);
+  toggleFocusTimer(task,+now);
+  if(!persist()){
+    Object.assign(state,{activeTask,activeTaskDay,activeBundle,timer});state.settings.classBuffer=oldBuffer;return;
+  }
+  closePanel(false);refreshTasks();timerButton.focus({preventScroll:true});announce(`Focus started for ${task.text}.`);
+}
+
 function availableCaptures(){
   let notes=[];
   try{notes=readCaptures(storage);}catch{ /* Storage may be unavailable. */ }
@@ -2715,6 +2780,14 @@ function resourceAction(button){
 }
 
 function panelContent(id){
+  if(id==='fit-before-class')return `${header('GARDEN','What fits before class?')}
+    <label class="field-label" for="class-buffer">Minutes to get ready</label>
+    <input id="class-buffer" type="number" min="0" max="180" value="${state.settings.classBuffer??5}">
+    <div id="class-fit-results">${classFitResults(state.settings.classBuffer??5)}</div>`;
+  if(id==='focus-pause-note')return `${header('FOCUS','Pause note')}
+    <form id="focus-pause-form"><label class="field-label" for="pause-reason">Why did you pause?</label>
+      <textarea id="pause-reason" name="reason" rows="3" maxlength="240" placeholder="Looked up a formula…">${escape(editingPause?.event.note)}</textarea>
+      <div class="panel-actions"><button type="button" class="text-button close-panel">Cancel</button><button class="panel-primary">Save note</button></div></form>`;
   if(id==='office-retry')return officeRetryMarkup();
   if(id==='calendar-day-templates')return dayTemplatesMarkup();
   if(id==='project-resources')return projectResourcesMarkup();
@@ -3328,7 +3401,7 @@ function focusReplayMarkup(){
     ${session.overtimeMs?`<p>Overtime · ${formatDuration(session.overtimeMs)}</p>`:''}
     ${session.estimated?`<p>Estimated ${replayClock(session.finishedAt-session.focusMs)}–${replayClock(session.finishedAt)}. This older session only saved its duration and finish time.</p>`:
       `<ol class="replay-events">${session.events.map(item=>`<li><time datetime="${new Date(item.at).toISOString()}">${escape(replayClock(item.at))}</time>
-        <span>${replayLabels[item.action]}${item.action==='switch'||item.action==='start'&&item.title?` · ${escape(item.title||'Unassigned focus')}`:''}</span></li>`).join('')}</ol>`}
+        <span>${replayLabels[item.action]}${item.action==='switch'||item.action==='start'&&item.title?` · ${escape(item.title||'Unassigned focus')}`:''}${item.note?`<small class="replay-pause-note">${escape(item.note)}</small>`:''}</span></li>`).join('')}</ol>`}
     ${session.goal?`<p>Outcome · ${escape(session.goal)}</p>`:''}`;
 }
 function actualBlockMarkup(block){
@@ -5262,6 +5335,8 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const classFit=e.target.closest('[data-class-fit-task]');
+  if(classFit){startClassFitTask(classFit.dataset.classFitTask,$('#class-buffer').valueAsNumber);return;}
   if(e.target.closest('[data-preview-rubric]')){
     const form=$('#task-editor-form'),items=parseRubric(form.elements.rubricText.value);
     const preview=form.querySelector('[data-rubric-preview]');
@@ -5662,6 +5737,7 @@ root.addEventListener('click',e=>{
   }
 });
 root.addEventListener('input',e=>{
+  if(e.target.id==='class-buffer')updateClassFitResults();
   if(e.target.name==='rubricText')e.target.form.querySelector('[data-rubric-preview]').replaceChildren();
   if(e.target.name?.startsWith('done:')){
     const form=e.target.form,task=state.tasks.find(item=>item.id===editingTaskId);
@@ -5872,6 +5948,11 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='focus-pause-form'){
+    if(savePauseNote(editingPause,e.target.elements.reason.value)){closePanel();toast('Pause note saved to session replay.');}
+    else toast('This pause is no longer available to edit.');
+    return;
+  }
   if(e.target.id==='office-retry-form'){
     const question=state.studyQuestions.find(item=>item.id===officeRetryId);
     if(!question||officeRetryResult!==null||!['stuck','solved'].includes(e.submitter?.value))return;

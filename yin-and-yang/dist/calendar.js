@@ -240,6 +240,26 @@ export function tasksWithinTime(queue,minutes,energy=''){
     .sort((a,b)=>taskPriority(a)-taskPriority(b)||b.estimate-a.estimate).slice(0,5);
 }
 
+export function calendarFocusWindow(events,buffer,now=new Date()){
+  const time=+now;
+  for(let offset=0;offset<=7;offset++){
+    const day=shiftDay(now,offset),key=dayKey(day);
+    const next=calendarEventOccurrences(events,day).filter(event=>!event.day&&Math.max(event.start+1,event.end)>time&&event.start<time+7*86400000&&
+      event.start<+shiftDay(day,1)&&(event.start>=+day||key===dayKey(now)))
+      .sort((a,b)=>a.start-b.start)[0];
+    if(next)return {event:next,ongoing:next.start<=time,minutes:Math.max(0,Math.floor((next.start-time)/60000)-buffer)};
+  }
+  return null;
+}
+
+export function focusWindowTasks(queue,minutes){
+  return tasksWithinTime(queue.filter(task=>{
+    const estimate=task.estimate;
+    const rest=estimate>60?Math.round(Math.ceil(estimate*60/2)/5)/60:0;
+    return estimate+rest<=minutes;
+  }),minutes);
+}
+
 const replanStep=15;
 const roundUp=minute=>Math.ceil(minute/replanStep)*replanStep;
 function openSlots(busy,from,cutoff){

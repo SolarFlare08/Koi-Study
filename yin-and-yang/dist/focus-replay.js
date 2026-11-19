@@ -7,9 +7,25 @@ export function loadReplay(value){
     if(!actions.has(item?.action)||!Number.isFinite(item.at)||Math.abs(item.at)>8.64e15||item.at<(events.at(-1)?.at??-Infinity))continue;
     events.push({action:item.action,at:item.at,taskId:typeof item.taskId==='string'?item.taskId:'',
       title:typeof item.title==='string'?item.title.slice(0,160):'',
-      projectId:typeof item.projectId==='string'?item.projectId:''});
+      projectId:typeof item.projectId==='string'?item.projectId:'',
+      ...(item.action==='pause'&&typeof item.note==='string'&&item.note.trim()?{note:item.note.trim().slice(0,240)}:{})});
   }
   return events;
+}
+
+export function currentFocusPause(timer){
+  if(timer?.mode!=='focus'||timer.status!=='paused'||!timer.id)return null;
+  const index=timer.replay?.findLastIndex(event=>event.action==='pause')??-1;
+  return index<0?null:{sessionId:timer.id,index,event:timer.replay[index]};
+}
+
+export function editFocusPause(timer,expected,text){
+  const pause=currentFocusPause(timer);
+  if(!pause||pause.sessionId!==expected?.sessionId||pause.index!==expected.index||pause.event.at!==expected.event.at)return null;
+  const note=text.trim().slice(0,240);
+  const event={...pause.event};
+  if(note)event.note=note;else delete event.note;
+  return timer.replay.map((item,index)=>index===pause.index?event:item);
 }
 
 export function addReplayEvent(timer,action,now,task){

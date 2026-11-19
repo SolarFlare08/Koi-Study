@@ -19,6 +19,7 @@
 .sky .session-tools .resume-task:hover { background:color-mix(in srgb,currentColor 10%,transparent); }
 .daily-focus-goal { order:10; font-size:10px; letter-spacing:.04em; padding:8px 2px; margin-top:7px; color:var(--scene-ink); border-bottom:2px solid transparent; border-image:linear-gradient(to right,currentColor var(--goal-progress),transparent var(--goal-progress)) 1; }
 .focus-goal-dialog { max-width:450px; }
+.replay-pause-note { display:block; margin-top:4px; white-space:pre-wrap; color:var(--surface-muted); }
 #focus-reference { position:absolute; z-index:4; top:17%; right:clamp(10px,3vw,40px); width:min(290px,calc(50vw - 175px)); max-height:27%; overflow:auto; padding:10px 14px; border:1px solid var(--surface-line); border-radius:12px; color:var(--surface-ink); background:var(--surface-paper); box-shadow:0 8px 24px #10273335; }
 #focus-reference header { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; }
 #focus-reference button { padding:4px 7px; border:1px solid var(--surface-line); border-radius:5px; }
