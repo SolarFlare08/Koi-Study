@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.12.0',date:'2026-11-19',title:'Earned constellations',changes:[
+    'Unlock five Garden constellations automatically at 3, 6, 10, 15, and 21 earned stars. See your next milestone in the Field Guide.'
+  ]},
   {version:'5.11.0',date:'2026-11-18',title:'Focus before class and pause notes',changes:[
     'See what fits before your next Calendar event, leave time to get ready, and start a suggested task in one click.',
     'Add a reason when you pause in Garden or the mini timer. Read it at that pause in Calendar replay.'

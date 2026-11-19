@@ -19,6 +19,16 @@
 .sky .session-tools .resume-task:hover { background:color-mix(in srgb,currentColor 10%,transparent); }
 .daily-focus-goal { order:10; font-size:10px; letter-spacing:.04em; padding:8px 2px; margin-top:7px; color:var(--scene-ink); border-bottom:2px solid transparent; border-image:linear-gradient(to right,currentColor var(--goal-progress),transparent var(--goal-progress)) 1; }
 .focus-goal-dialog { max-width:450px; }
+.garden-unlocked-constellation { color:var(--scene-ink,#f5ebce); opacity:.7; }
+#garden-landmarks [data-sky-constellation] { width:54px; height:40px; border-radius:45%; }
+.star-constellation-guide { margin-block:14px; padding-block:12px; border-block:1px solid var(--surface-line); }
+.star-constellation-guide h3 { margin:0 0 5px; font-size:15px; }
+.star-constellation-guide ul { display:grid; grid-template-columns:repeat(auto-fit,minmax(112px,1fr)); list-style:none; margin:9px 0 0; padding:0; gap:6px; }
+.star-constellation-guide li > :is(button,span) { display:grid; gap:3px; align-content:start; width:100%; min-height:100%; text-align:left; border:1px solid var(--surface-line); border-radius:7px; padding:7px 8px; }
+.star-constellation-guide button { background:var(--surface-raised); }
+.star-constellation-guide small { color:var(--surface-muted); font-size:11px; }
+.star-constellation-sketch { color:var(--surface-accent); background:var(--surface-field); border-radius:9px; }
+.star-constellation-sketch svg { width:155px; height:114px; margin:auto; }
 .replay-pause-note { display:block; margin-top:4px; white-space:pre-wrap; color:var(--surface-muted); }
 #focus-reference { position:absolute; z-index:4; top:17%; right:clamp(10px,3vw,40px); width:min(290px,calc(50vw - 175px)); max-height:27%; overflow:auto; padding:10px 14px; border:1px solid var(--surface-line); border-radius:12px; color:var(--surface-ink); background:var(--surface-paper); box-shadow:0 8px 24px #10273335; }
 #focus-reference header { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; }

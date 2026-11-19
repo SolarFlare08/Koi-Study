@@ -1,6 +1,8 @@
 import {STORAGE_KEY,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskColorAttributes,repeatSettings,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit,loadSoundtracks,startTaskTiming,resetTaskTiming,taskFinishBreak,overtimeElapsed,finishOvertime} from './state.js';
 import {renderLandscape,blossomMarkup,animateLandscape,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
+import {gardenStarProgress,starConstellations} from './garden-growth.js';
+import {gardenConstellationSketch} from './scenery.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, weekDays, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {calendarCatalog,calendarColors,calendarColor,calendarColorName,customCalendarColor,eventColorAttributes,calendarTheme,calendarSlotMinute,eventCalendarColor,eventCalendarId,loadCalendars,personalCalendarId,visibleCalendarEvents} from './calendar-layers.js';
 import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
@@ -148,6 +150,10 @@ function persist(){
 }
 function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),4200);}
 function announce(text){$('#announcer').textContent=text;}
+function constellationUnlockMessage(previous){
+  const old=new Set(gardenStarProgress(previous).unlocked.map(item=>item.id));
+  return gardenStarProgress(state.gardenGrowth).unlocked.filter(item=>!old.has(item.id)).map(item=>item.name).join(' and ');
+}
 function recordGardenGrowth(kind,id,title,day=dayKey(),metadata){
   const previous=state.gardenGrowth;
   const next=earnGardenDetail(previous,kind,id,title,day,metadata);
@@ -156,7 +162,8 @@ function recordGardenGrowth(kind,id,title,day=dayKey(),metadata){
   if(!persist()){state.gardenGrowth=previous;return false;}
   renderGardenGrowth();
   const type=landmarkTypes[kind];
-  confirmChange(`${type.event}. A ${type.name.toLowerCase()} has joined the Garden.`);
+  const unlocked=kind==='test'&&constellationUnlockMessage(previous);
+  confirmChange(unlocked?`Constellation unlocked · ${unlocked}`:`${type.event}. A ${type.name.toLowerCase()} has joined the Garden.`);
   return true;
 }
 function saveExamPlan(projectId,exam){
@@ -173,7 +180,8 @@ function saveExamPlan(projectId,exam){
   }
   if(!persist()){project.exams=exams;state.gardenGrowth=growth;return false;}
   renderGardenGrowth();planner.render();
-  confirmChange(exam.result&&!star?'Exam result saved. A star has joined the Garden.':'Exam plan saved.');
+  const unlocked=exam.result&&!star&&constellationUnlockMessage(growth);
+  confirmChange(unlocked?`Constellation unlocked · ${unlocked}`:exam.result&&!star?'Exam result saved. A star has joined the Garden.':'Exam plan saved.');
   return true;
 }
 function viewedGardenLayout(){return state.gardenLayouts.find(item=>item.id===snapshotLayoutId);}
@@ -200,7 +208,9 @@ function renderGardenGrowth(){
     const label=escape(course?`Constellation · ${course.name}`:`${type.name} · ${item.title}`);
     return `<button type="button" data-garden-landmark="${index}" ${course?`data-sky-course="${escape(course.id)}"`:''} data-x="${x}" data-y="${center}"
       aria-label="${label}" title="${label}" aria-haspopup="dialog" aria-expanded="false"></button>`;
-  }).join('');
+  }).join('')+gardenStarProgress(state.gardenGrowth,{through:snapshotThrough}).unlocked.map(item=>
+    `<button type="button" data-sky-constellation="${item.id}" data-x="${item.x}" data-y="${item.y}"
+      aria-label="${item.name} constellation" title="${item.name}" aria-haspopup="dialog" aria-expanded="false"></button>`).join('');
   positionGardenLandmarks();
   renderedGardenGrowth=state.gardenGrowth;
   renderedGardenProjects=state.projects;
@@ -412,6 +422,8 @@ new ResizeObserver(()=>{
   if(activePanel==='garden-landmark')positionPanel(visiblePanel(),landmarkAnchor(selectedLandmark));
 }).observe(app);
 $('#garden-landmarks').addEventListener('click',event=>{
+  const constellation=event.target.closest('[data-sky-constellation]');
+  if(constellation){openUnlockedConstellation(constellation.dataset.skyConstellation,constellation,snapshotThrough);return;}
   const button=event.target.closest('[data-garden-landmark]');
   if(button?.dataset.skyCourse)openGardenCourse(button.dataset.skyCourse,button);
   else if(button)openGardenLandmark(Number(button.dataset.gardenLandmark));
@@ -1419,6 +1431,7 @@ function gardenHistoryMarkup(){
       <button type="button" data-semester-replay>Play time-lapse</button>
       ${gardenFrom||gardenThrough?'<button class="text-button" type="button" data-garden-clear-range>Clear dates</button>':''}</div>
       <p id="garden-range-error" role="alert" hidden></p></form>
+    ${starConstellationGuide(gardenThrough||snapshotThrough)}
     ${courses.length?`<div class="field-courses"><h3>Course constellations</h3><ul>${courses.map(course=>
       `<li><button type="button" data-guide-course="${escape(course.id)}">${icon('spark')} ${escape(course.name)}</button></li>`).join('')}</ul></div>`:''}
     ${state.gardenGrowth.length?`<div class="garden-history-filters" role="group" aria-label="Landmark type">
@@ -1442,6 +1455,29 @@ function gardenHistoryMarkup(){
     <div class="panel-actions"><button type="button" class="text-button" id="garden-history-today">Back to today’s progress</button>
     <button type="button" class="text-button" data-open-garden-comparison>Compare two dates</button>
     <button type="button" class="text-button" data-open-postcard>Export postcard</button></div>`;
+}
+
+let selectedConstellation='',constellationThrough='';
+function starConstellationGuide(through){
+  const {count,next,unlocked}=gardenStarProgress(state.gardenGrowth,{through});
+  const unlockedIds=new Set(unlocked.map(item=>item.id));
+  const progress=next?`${next.threshold-count} more ${next.threshold-count===1?'star':'stars'} to unlock ${next.name}.`:'All five constellations unlocked.';
+  return `<section class="star-constellation-guide"><h3>Star constellations</h3>
+    <p>${count} earned ${count===1?'star':'stars'} · ${progress}</p>
+    <ul>${starConstellations.map(item=>`<li>${unlockedIds.has(item.id)?
+      `<button type="button" data-guide-constellation="${item.id}" aria-haspopup="dialog"><strong>${item.name}</strong><small>Unlocked · ${item.threshold} stars</small></button>`:
+      `<span><strong>${item.name}</strong><small>${item.threshold} stars to unlock</small></span>`}</li>`).join('')}</ul></section>`;
+}
+function openUnlockedConstellation(id,anchor,through=''){
+  selectedConstellation=id;constellationThrough=through;
+  openPanel('star-constellation',anchor);
+}
+function starConstellationMarkup(){
+  const item=gardenStarProgress(state.gardenGrowth,{through:constellationThrough}).unlocked.find(entry=>entry.id===selectedConstellation);
+  if(!item)return header('STAR CONSTELLATIONS','Constellation unavailable');
+  return `${header('STAR CONSTELLATIONS',item.name)}<div class="star-constellation-sketch">${gardenConstellationSketch(item)}</div>
+    <p>${item.description}</p><p>Unlocked with ${item.threshold} stars · ${landmarkDate(item.day)}</p>
+    <button class="text-button" type="button" data-garden-history-open>Garden Field Guide</button>`;
 }
 function openGardenPostcard(caption=viewedGardenLayout()?.name||'',anchor=$('[data-panel="progress"]')){
   if(state.focusMode)toggleFocusMode();
@@ -2780,6 +2816,7 @@ function resourceAction(button){
 }
 
 function panelContent(id){
+  if(id==='star-constellation')return starConstellationMarkup();
   if(id==='fit-before-class')return `${header('GARDEN','What fits before class?')}
     <label class="field-label" for="class-buffer">Minutes to get ready</label>
     <input id="class-buffer" type="number" min="0" max="180" value="${state.settings.classBuffer??5}">
@@ -5335,6 +5372,8 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const constellation=e.target.closest('[data-guide-constellation]');
+  if(constellation){openUnlockedConstellation(constellation.dataset.guideConstellation,constellation,gardenThrough||snapshotThrough);return;}
   const classFit=e.target.closest('[data-class-fit-task]');
   if(classFit){startClassFitTask(classFit.dataset.classFitTask,$('#class-buffer').valueAsNumber);return;}
   if(e.target.closest('[data-preview-rubric]')){

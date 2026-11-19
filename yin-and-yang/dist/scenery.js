@@ -4,6 +4,7 @@ import {gardenFrame,gardenLandmarkKey,defaultGardenDesign} from './garden-layout
 import {gardenPieces} from './garden-pieces.js';
 import {styledBoat} from './garden-ornaments.js';
 import {renderGardenProps} from './garden-props.js';
+import {gardenStarProgress} from './garden-growth.js';
 import {gardenWeather,sceneProgress,sceneryWeatherLayers} from './garden-appearance.js';
 import {alternateBoats,alternateBoatLights,mountainSnowCut,seasonalTree,shoreDetails,snowbank,weatherMarkup} from './seasonal-scenery.js';
 const boatOrigin='783 751';
@@ -104,9 +105,22 @@ function landmarkGround(x,y,scale){
     <path d="M-25 3Q-2-5 23 1" fill="none" stroke="var(--shore-upper,#9cb28d)" stroke-width="1.7" opacity=".72"/>
   </g>`;
 }
+function constellationShape(item){
+  const lines=item.lines.map(line=>`<polyline points="${line.map(index=>item.points[index].join(',')).join(' ')}"/>`).join('');
+  const stars=item.points.map(([x,y],index)=>`<circle cx="${x}" cy="${y}" r="${index===0||index===item.points.length-1?2.8:2}"/>`).join('');
+  return `<g fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" opacity=".72">${lines}</g>
+    <g fill="currentColor">${stars}</g>`;
+}
+export function gardenConstellationSketch(item){
+  return `<svg viewBox="-65 -50 130 105" aria-hidden="true">${constellationShape(item)}</svg>`;
+}
+
 export function gardenGrowthMarkup(history,{courses=[],through='',visible,design=defaultGardenDesign}={}){
   const trees=[],lanterns=[],lights=[];
   const stars=[],cairns=[];
+  for(const item of gardenStarProgress(history,{through,visible}).unlocked){
+    stars.push(`<g class="garden-unlocked-constellation" data-constellation-art="${item.id}" transform="translate(${item.x} ${item.y})"><title>${item.name}</title>${constellationShape(item)}</g>`);
+  }
   let hasIsland=false;
   const layout=gardenLandmarkPositions(history,courses,design.placements);
   for(const course of courses){

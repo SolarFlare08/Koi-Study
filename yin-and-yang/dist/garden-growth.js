@@ -6,6 +6,32 @@ export const landmarkTypes = {
 };
 export const gardenZones={west:'West shore',island:'Lake island',east:'Pagoda shore'};
 
+export const starConstellations=[
+  {id:'crane',name:'The Crane',threshold:3,x:721,y:128,
+    points:[[-52,9],[-22,-5],[1,7],[25,-17],[45,-21],[17,18],[-27,29]],
+    lines:[[0,1,2,3,4],[2,5,6]],description:'A crane crossing the quiet lake.'},
+  {id:'kite',name:'The River Kite',threshold:6,x:830,y:197,
+    points:[[0,-28],[27,-4],[0,22],[-25,-4],[14,33],[5,45]],
+    lines:[[0,1,2,3,0],[2,4,5]],description:'A paper kite with a tail caught in the river wind.'},
+  {id:'gate',name:'The Mountain Gate',threshold:10,x:565,y:225,
+    points:[[-43,-21],[-12,-28],[16,-27],[43,-21],[-18,-4],[18,-4],[-18,29],[18,29]],
+    lines:[[0,1,2,3],[1,4,6],[2,5,7],[4,5]],description:'An open gate on the way into the mountains.'},
+  {id:'boat',name:'The Lantern Boat',threshold:15,x:1041,y:116,
+    points:[[-45,16],[-26,32],[22,34],[48,14],[0,21],[0,-28],[29,7]],
+    lines:[[0,1,2,3,4,0],[4,5,6,4]],description:'A sail and a small lantern on still water.'},
+  {id:'fox',name:'The Silver Fox',threshold:21,x:1156,y:221,
+    points:[[-43,15],[-28,-6],[-12,6],[11,7],[24,-15],[27,-30],[36,-16],[45,-27],[48,-9],[57,0]],
+    lines:[[0,1,2,3,4,5,6,7,8,9],[2,0]],description:'A fox looking back over its shoulder under moonlight.'}
+];
+
+export function gardenStarProgress(history,{through='',visible}={}){
+  const stars=history.map((item,index)=>({item,index})).filter(({item,index})=>
+    item.kind==='test'&&(!through||item.day<=through)&&(!visible||visible.has(index)))
+    .sort((a,b)=>a.item.day.localeCompare(b.item.day)||a.index-b.index);
+  return {count:stars.length,next:starConstellations.find(item=>item.threshold>stars.length),
+    unlocked:starConstellations.filter(item=>item.threshold<=stars.length).map(item=>({...item,day:stars[item.threshold-1].item.day}))};
+}
+
 export function landmarkPlacement(kind,zone,group){
   if(kind==='test'||!Object.hasOwn(gardenZones,zone))return {};
   const name=typeof group==='string'?group.trim().slice(0,80):'';
