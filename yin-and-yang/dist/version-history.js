@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.5.0',date:'2026-11-18',title:'Return to a viewpoint or a question',changes:[
+    'Save a postcard’s framing, landscape, season, and fixed lighting. Export the same view with landmarks through a date you choose.',
+    'Schedule a question from a journal passage and answer it as a dated margin note when it comes due.'
+  ]},
   {version:'5.4.0',date:'2026-11-18',title:'Undo a calendar brush stroke',changes:[
     'Undo all calendar copies from one brush placement together, then use Redo to bring them back.'
   ]},

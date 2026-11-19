@@ -128,7 +128,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
             <fieldset><legend>Archive and export</legend>
               <label>Archive landmarks through<input name="through" type="date" max="${today()}"></label>
               <label>Postcard caption<input name="caption" maxlength="90" placeholder="Optional caption"></label>
-              <div class="studio-object-actions"><button type="button" data-studio="export">Download postcard</button></div>
+              <div class="studio-object-actions"><button type="button" data-studio="export">Download postcard</button><button type="button" data-postcard-viewpoints>Postcard viewpoints</button></div>
             </fieldset>
             <button type="button" class="text-button" data-studio="reset">Reset scenery</button>
             <p class="studio-stage-help" data-studio-default-hint hidden>Save &amp; apply updates the default Garden. Assigned activities use their chosen layouts.</p>
@@ -556,5 +556,5 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     });
     form.addEventListener('submit',event=>{event.preventDefault();writeCandidate({apply:event.submitter?.value==='apply'});});
   }
-  return {open,markup,mount};
+  return {open,markup,mount,postcardScene:()=>({design:draft.design,appearance:draft.appearance,through:draft.through})};
 }

@@ -29,6 +29,7 @@ import {installBatchMove} from './calendar-batch.js';
 import {installBrush} from './calendar-brush.js';
 import {installOfficeHours} from './office-hours.js';
 import {openSemesterReplay} from './semester-replay.js';
+import {installPostcardViewpoints} from './postcard-viewpoints.js';
 import {dailyRitualMarkup,loadRitualSchedules,ritualComplete,rituals,scheduledRituals} from './daily-rituals.js';
 import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed,spotifyPath} from './spotify-embed.js';
@@ -458,6 +459,13 @@ const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>stat
 const compass=installFocusCompass({getState:()=>state,save:()=>{const ok=persist();if(ok)syncSound();return ok;},notify:toast,
   beforeTimerChange:checkCompletion,afterTimerChange:()=>{render();wake();if(activePanel==='pagoda')refreshPanel();$('#toggle-timer').focus({preventScroll:true});}});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
+const openPostcardViewpoints=installPostcardViewpoints({
+  getViews:()=>state.postcardViewpoints,
+  save:views=>{const previous=state.postcardViewpoints;state.postcardViewpoints=views;if(persist())return true;state.postcardViewpoints=previous;return false;},
+  getScene:()=>({design:sceneGardenDesign(),appearance:effectiveAppearance,through:snapshotThrough}),
+  paint:(container,view,through)=>mountGardenPreview(container,view.appearance,{design:view.design,through,history:state.gardenGrowth,courses:gardenCourses(state.gardenGrowth,state.projects)}),
+  download:savePostcard,dayKey
+});
 $('#stuck-now').onclick=$('#focus-stuck').onclick=installOfficeHours({getState:()=>state,focusedTask,notify:toast,switchTask:()=>currentTaskButton.click(),
   save:questions=>{const previous=state.studyQuestions;state.studyQuestions=questions;if(persist())return true;state.studyQuestions=previous;return false;}});
 installMiniTimer({launch:$('#open-mini-timer'),getState:()=>state,taskTitle:()=>focusedTask()?.text,
@@ -2761,6 +2769,7 @@ function panelContent(id){
       <label><input type="checkbox" name="weekly" id="postcard-weekly"> Include the last seven days of focus</label>
       <label id="postcard-highlight-label" hidden>Weekly highlight<select id="postcard-highlight"><option value="">Write your own caption</option></select></label>
       <div class="panel-actions"><button type="button" class="text-button" id="postcard-month">Use month</button>
+      <button type="button" class="text-button" data-postcard-viewpoints>Postcard viewpoints</button>
       <button type="submit" class="panel-primary">Download PNG</button></div>
       <p id="postcard-status" role="status" hidden></p></form>`;
   if(id==='focus-task')return focusTaskPicker();
@@ -5191,6 +5200,7 @@ root.addEventListener('click',e=>{
     return;
   }
   if(e.target.closest('[data-open-postcard]')){openGardenPostcard();return;}
+  if(e.target.closest('[data-postcard-viewpoints]')){openPostcardViewpoints(activePanel==='garden-studio'?studio.postcardScene():undefined);return;}
   if(e.target.closest('[data-open-garden-comparison]')){openGardenComparison();return;}
   if(e.target.closest('[data-semester-replay]')){
     const range=$('#garden-range'),from=range.elements.from.value,through=range.elements.through.value;

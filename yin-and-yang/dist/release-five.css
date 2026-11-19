@@ -37,6 +37,12 @@
 .semester-replay { width:min(760px,95vw);max-width:95vw; }
 .semester-replay .garden-scene-preview { height:auto;aspect-ratio:16/9;margin-block:10px;overflow:hidden;border-radius:9px; }
 .semester-replay .garden-scene-preview svg { width:100%;height:100%; }
+.postcard-viewpoints label { display:grid; gap:4px; min-width:0; }
+.viewpoint-controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:10px; margin:12px 0; }
+.postcard-viewpoints :is(input:not([type=range]),select) { width:100%; min-width:0; padding:7px; border:1px solid var(--surface-line); border-radius:6px; background:var(--surface-field); color:var(--surface-ink); }
+.postcard-viewpoints input[type=range] { width:100%; accent-color:var(--surface-accent); }
+.postcard-viewpoints form { display:flex; align-items:end; margin-block:12px; }
+#journal-future article button { border:1px solid var(--surface-line); border-radius:6px; padding:5px 8px; margin:6px 6px 0 0; }
 #office-print { display:none; }
 @media print {
   body:has(> #office-print)>:not(#office-print) { display:none!important; }

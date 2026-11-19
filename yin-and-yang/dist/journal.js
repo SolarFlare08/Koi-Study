@@ -1,8 +1,10 @@
 import {dayKey} from './state.js';
+import {validReadingDay} from './reading-progress.js';
 import {entriesInWeek,journalAnniversaries,journalFacets,journalLabels,journalWeek,matchingJournal,weeklyReflection} from './journal-patterns.js';
 export const JOURNAL_KEY='yin-and-yang.journal.v1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const moods=['Calm','Energized','Steady','Tired','Overwhelmed'];
+const journalDate=day=>new Date(day+'T12:00:00').toLocaleDateString([],{dateStyle:'medium'});
 const builtInTemplates=[
   {id:'reflection',name:'Daily reflection',body:'What went well?\n\nWhat got in the way?\n\nWhat will I try tomorrow?'},
   {id:'study',name:'Study recap',body:'What did I learn?\n\nWhat still needs practice?\n\nWhat will I study next?'}
@@ -13,6 +15,8 @@ export function loadJournal(storage){
     return Array.isArray(items)?items.filter(item=>typeof item?.id==='string'&&typeof item.title==='string'&&typeof item.body==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(item.date))
       .map(item=>({...item,...(item.mood!==undefined&&typeof item.mood!=='string'?{mood:''}:{}),
         ...(item.margins===undefined?{}:{margins:(Array.isArray(item.margins)?item.margins:[]).filter(n=>typeof n?.quote==='string'&&typeof n.reply==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(n.day))}),
+        ...(item.futureQuestions===undefined?{}:{futureQuestions:(Array.isArray(item.futureQuestions)?item.futureQuestions:[]).filter(q=>
+          typeof q?.id==='string'&&typeof q.quote==='string'&&typeof q.question==='string'&&validReadingDay(q.revisit))}),
         ...(item.tags===undefined?{}:{tags:journalLabels(item.tags)}),...(item.themes===undefined?{}:{themes:journalLabels(item.themes)})})):[];
   }catch{return [];}
 }
@@ -22,11 +26,13 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
   root.innerHTML=`<div class="journal-wrap"><header class="journal-hero"><div><span class="journal-kicker">THE QUIET COAST</span><h2 id="journal-heading">Journal</h2><p>Daily reflections, study notes, and crochet progress.</p></div><button id="journal-add" type="button"><span aria-hidden="true">+</span> New entry</button></header>
     <nav class="journal-views" aria-label="Journal views"><button type="button" data-journal-view="entries" aria-pressed="true">Entries</button>
       <button type="button" data-journal-view="patterns" aria-pressed="false">Patterns &amp; reflections</button>
+      <button type="button" data-journal-view="future" aria-pressed="false">Future questions</button>
       <button type="button" data-journal-view="anniversaries" aria-pressed="false">Past years</button></nav>
     <section class="journal-library" aria-labelledby="journal-library-title"><div class="journal-library-bar"><div><h3 id="journal-library-title">Your entries</h3><p id="journal-count"></p></div><label class="journal-search"><span class="sr-only">Search journal</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5"/></svg><input id="journal-search" type="search" placeholder="Search entries"></label></div>
       <div class="journal-filters">${Object.entries(facetTitles).map(([key,label])=>`<label>${label}<select data-journal-filter="${key}"></select></label>`).join('')}
         <button type="button" id="journal-clear-filters">Clear filters</button></div><div id="journal-entries"></div></section>
     <section class="journal-library" id="journal-patterns" aria-labelledby="journal-patterns-title" hidden></section>
+    <section class="journal-library" id="journal-future" aria-label="Questions for your future self" hidden></section>
     <section class="journal-library" id="journal-anniversaries" aria-labelledby="journal-anniversaries-title" hidden></section></div><dialog id="journal-dialog"></dialog>`;
   const $=selector=>root.querySelector(selector);
   const dialog=$('#journal-dialog'), add=$('#journal-add');
@@ -38,6 +44,19 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
     return true;
   }
   function render(){
+    const today=dayKey();
+    const pending=entries.filter(entry=>!entry.draft).flatMap(entry=>(entry.futureQuestions||[]).filter(q=>!q.answeredOn).map(q=>({entry,q})));
+    const due=pending.filter(({q})=>q.revisit<=today).length;
+    const futureTab=$('[data-journal-view="future"]'),tabLabel=due?'Future questions · '+due+' due':'Future questions';
+    if(futureTab.textContent!==tabLabel)futureTab.textContent=tabLabel;
+    if(view==='future'){
+      $('#journal-future').innerHTML=pending.sort((a,b)=>a.q.revisit.localeCompare(b.q.revisit)).map(({entry,q})=>
+        `<article class="journal-entry"><div><time datetime="${esc(q.revisit)}">${q.revisit<=today?'Ready to revisit':'Revisit '+journalDate(q.revisit)}</time></div>
+          <h4>${esc(q.question)}</h4><p>${esc(q.quote)}</p><button type="button" data-journal-edit="${esc(entry.id)}">Open ${esc(entry.title)}</button>
+          ${q.revisit<=today?`<button type="button" data-future-entry="${esc(entry.id)}" data-future-answer="${esc(q.id)}">Answer as margin note</button>`:''}</article>`).join('')||
+        '<p class="journal-empty">Select a line in a completed entry, then use Margin notes to set a revisit date.</p>';
+      return;
+    }
     if(view==='patterns'){if(!editingReflection)renderPatterns();return;}
     if(view==='anniversaries'){renderAnniversaries();return;}
     const facets=journalFacets(entries);
@@ -64,8 +83,41 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
     $('.journal-library[aria-labelledby="journal-library-title"]').hidden=next!=='entries';
     $('#journal-patterns').hidden=next!=='patterns';
     $('#journal-anniversaries').hidden=next!=='anniversaries';
+    $('#journal-future').hidden=next!=='future';
     for(const button of root.querySelectorAll('[data-journal-view]'))button.setAttribute('aria-pressed',String(button.dataset.journalView===next));
     render();
+  }
+  function answerFuture(entryId,questionId){
+    const question=loadJournal(storage).find(entry=>entry.id===entryId)?.futureQuestions?.find(q=>q.id===questionId);
+    if(!question||question.answeredOn||question.revisit>dayKey())return;
+    const panel=document.createElement('dialog');
+    panel.className='workspace-dialog study-companion';
+    panel.setAttribute('aria-labelledby','future-answer-title');
+    panel.innerHTML=`<header><h2 id="future-answer-title">Answer your past self</h2><button type="button" aria-label="Close">×</button></header>
+      <blockquote>${esc(question.quote)}</blockquote><p>${esc(question.question)}</p>
+      <form><label>Today’s response<textarea required maxlength="3000"></textarea></label>
+      <button class="workspace-primary">Save margin note</button></form><p role="status"></p>`;
+    document.body.append(panel);
+    panel.querySelector('header button').onclick=()=>panel.close();
+    panel.onclose=()=>panel.remove();
+    panel.showModal();
+    panel.querySelector('textarea').focus();
+    panel.querySelector('form').onsubmit=event=>{
+      event.preventDefault();
+      const reply=panel.querySelector('textarea').value.trim();
+      if(!reply)return;
+      const latest=loadJournal(storage),entry=latest.find(item=>item.id===entryId);
+      const stored=entry?.futureQuestions?.find(item=>item.id===questionId);
+      if(!stored||stored.answeredOn||stored.revisit>dayKey()){
+        panel.querySelector('[role=status]').textContent='This question is no longer ready to answer.';return;
+      }
+      const day=dayKey();
+      stored.answeredOn=day;
+      entry.margins=[...(entry.margins||[]),{day,quote:stored.quote,question:stored.question,reply}];
+      if(save(latest,false)){
+        panel.close();render();$('[data-journal-view="future"]').focus();notify('Answer saved as a margin note.');
+      }
+    };
   }
   function renderAnniversaries(){
     const groups=journalAnniversaries(entries,getReflections(),dayKey());
@@ -178,6 +230,8 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
     }
   });
   root.addEventListener('click',event=>{
+    const answer=event.target.closest('[data-future-answer]');
+    if(answer){answerFuture(answer.dataset.futureEntry,answer.dataset.futureAnswer);return;}
     const viewButton=event.target.closest('[data-journal-view]');
     if(viewButton){if(view!==viewButton.dataset.journalView)setView(viewButton.dataset.journalView);return;}
     if(event.target.closest('#journal-clear-filters')){
@@ -245,8 +299,10 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
       const notes=loadJournal(storage).find(entry=>entry.id===id)?.margins||[];
       const panel=document.createElement('dialog');panel.className='workspace-dialog study-companion';panel.setAttribute('aria-label','Journal margin notes');
       panel.innerHTML=`<header><h2>Margin notes</h2><button type="button" aria-label="Close">×</button></header>
-        ${notes.map(n=>`<article><small>${esc(n.day)}</small><blockquote>${esc(n.quote)}</blockquote><p>${esc(n.reply)}</p></article>`).join('')}
-        ${quote?`<form><blockquote>${esc(quote)}</blockquote><label>Today’s response<textarea required maxlength="3000"></textarea></label><button class="workspace-primary">Save margin note</button></form>`:'<p>Select a sentence in the entry, then open Margin notes to respond.</p>'}<p role="status"></p>`;
+        ${notes.map(n=>`<article><small>${esc(n.day)}</small><blockquote>${esc(n.quote)}</blockquote>${n.question?`<strong>${esc(n.question)}</strong>`:''}<p>${esc(n.reply)}</p></article>`).join('')}
+        ${quote?`<form><blockquote>${esc(quote)}</blockquote><label>Today’s response<textarea required maxlength="3000"></textarea></label><button class="workspace-primary">Save margin note</button></form>
+          <details><summary>Ask your future self</summary><form id="journal-future-form"><label>Question<textarea required maxlength="500"></textarea></label>
+          <label>Revisit on<input type="date" min="${dayKey()}" required></label><button class="workspace-primary">Schedule question</button></form></details>`:'<p>Select a sentence in the entry, then open Margin notes to respond.</p>'}<p role="status"></p>`;
       document.body.append(panel);panel.querySelector('header button').onclick=()=>panel.close();
       panel.onclose=()=>panel.remove();panel.showModal();
       if(quote)panel.querySelector('form').onsubmit=e=>{
@@ -255,6 +311,16 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
         if(!entry||!entry.body.includes(quote)){panel.querySelector('[role=status]').textContent='Select a sentence from the saved entry.';return;}
         entry.margins=[...(entry.margins||[]),{day:dayKey(),quote,reply}];
         if(save(latest,false)){panel.close();notify('Margin note saved.');}else panel.querySelector('[role=status]').textContent='Could not save this response.';
+      };
+      if(quote)panel.querySelector('#journal-future-form').onsubmit=e=>{
+        e.preventDefault();
+        const question=e.target.querySelector('textarea').value.trim(),revisit=e.target.querySelector('input').value;
+        const latest=loadJournal(storage),entry=latest.find(item=>item.id===id);
+        const status=panel.querySelector('[role=status]');
+        if(!entry||!entry.body.includes(quote)){status.textContent='Select a sentence from the saved entry.';return;}
+        if(!question||!validReadingDay(revisit)||revisit<dayKey()){status.textContent='Enter a question and a revisit date.';return;}
+        entry.futureQuestions=[...(entry.futureQuestions||[]),{id:crypto.randomUUID(),quote,question,revisit}];
+        if(save(latest,false)){render();panel.close();notify('Question scheduled for '+journalDate(revisit)+'.');}
       };
       return;
     }
@@ -302,7 +368,8 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
       error.textContent='Enter a title and an entry.';error.hidden=false;return;
     }
     const next=latest.filter(item=>item.id!==id&&item.id!==draftId);
-    if(!deleting)next.push({id,title,body,...(previous?.margins?{margins:previous.margins}:{}),date:data.get('date'),mood:data.get('mood'),projectId:data.get('projectId'),
+    if(!deleting)next.push({id,title,body,...(previous?.margins?{margins:previous.margins}:{}),
+      ...(previous?.futureQuestions?{futureQuestions:previous.futureQuestions}:{}),date:data.get('date'),mood:data.get('mood'),projectId:data.get('projectId'),
       tags:journalLabels(data.get('tags')),themes:journalLabels(data.get('themes')),updatedAt:Date.now()});
     if(!save(next)){
       error.textContent='Storage is unavailable. Keep this editor open to copy your entry.';error.hidden=false;return;
@@ -320,6 +387,7 @@ export function installJournal({root,storage,projects,notify,onChange,getTemplat
     else (anchor?.isConnected?anchor:add).focus({preventScroll:true});
   });
   window.addEventListener('storage',event=>{if(event.key===JOURNAL_KEY||event.key===null){entries=loadJournal(storage);render();onChange();}});
+  window.addEventListener('focus',()=>{if(!root.hidden)render();});
   new MutationObserver(()=>{if(!root.hidden)render();}).observe(root,{attributes:true,attributeFilter:['hidden']});
   render();
   return {
