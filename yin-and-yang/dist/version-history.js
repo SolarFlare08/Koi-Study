@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.6',date:'2026-11-19',title:'Softer shooting stars',changes:[
+    'Dim the shooting star’s solid center and soften the yellow halo around it.'
+  ]},
   {version:'5.14.5',date:'2026-11-19',title:'A brighter shooting-star tip',changes:[
     'Brighten the solid center of the shooting star and keep its yellow rim, glow, and trail.'
   ]},

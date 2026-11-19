@@ -313,7 +313,7 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <linearGradient id="meteor-tail" gradientUnits="userSpaceOnUse" x1="-128" y1="0" x2="0" y2="0">
   <stop stop-color="#acd7ee" stop-opacity="0"/><stop offset=".58" stop-color="#bcdef6" stop-opacity=".54"/><stop offset=".93" stop-color="#ffe547"/><stop offset="1" stop-color="#fff772"/>
 </linearGradient>
-<radialGradient id="meteor-glow"><stop stop-color="#fff78e"/><stop offset=".35" stop-color="#ffe52d" stop-opacity=".83"/><stop offset="1" stop-color="#ffd737" stop-opacity="0"/></radialGradient>
+<radialGradient id="meteor-glow"><stop stop-color="#fff78e" stop-opacity=".52"/><stop offset=".35" stop-color="#ffe52d" stop-opacity=".30"/><stop offset="1" stop-color="#ffd737" stop-opacity="0"/></radialGradient>
 <linearGradient id="bank" x2=".4" y2="1"><stop stop-color="var(--bank-upper,#547d6b)"/><stop offset="1" stop-color="var(--bank-lower,#294f4d)"/></linearGradient>
 <linearGradient id="shore" x2="0" y2="1"><stop stop-color="var(--shore-upper,#8eac91)"/><stop offset="1" stop-color="var(--shore-lower,#527e70)"/></linearGradient>
 <linearGradient id="rock-face" x2=".55" y2="1"><stop stop-color="#9cae99"/><stop offset="1" stop-color="#597b73"/></linearGradient>
@@ -339,7 +339,7 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
     <path d="M-128 0Q-40-1 0-5L0 5Q-40 1-128 0Z" fill="url(#meteor-tail)" opacity=".26"/>
     <path d="M-128 0Q-40-.85 0-2.2L0 2.2Q-40 .85-128 0Z" fill="url(#meteor-tail)"/>
   </g>
-  <circle r="21" fill="url(#meteor-glow)"/><circle r="4.9" fill="#fff36a"/><circle r="4.15" fill="#ffffe8"/>
+  <circle r="21" fill="url(#meteor-glow)"/><circle r="4.9" fill="#e7ca65"/><circle r="4.15" fill="#dedbb7"/>
 </g>
 ${pieceMarkup("mountains",design)}
 <path fill="url(#water)" d="M0 548q297-24 524-6t463-1 613 6v353H0Z"/>
