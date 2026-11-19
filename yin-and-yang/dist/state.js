@@ -2,6 +2,7 @@ import {spotifyPath} from './spotify-embed.js';
 import {youtubeContent} from './youtube-embed.js';
 import {loadGardenDesign,loadGardenLayouts,loadGardenActivityLayouts} from './garden-layout.js';
 import {loadPostcardViewpoints} from './postcard-viewpoints.js';
+import {taskReference} from './focus-reference.js';
 import {loadAppearance,loadGardenLooks} from './garden-appearance.js';
 import {loadSoundSettings} from './garden-audio.js';
 import {captureTaskChange} from './task-undo.js';
@@ -145,6 +146,7 @@ function loadTask(task) {
     resumeNote:typeof task.resumeNote==='string'?task.resumeNote.slice(0,500):'',
     resumeLocation:typeof task.resumeLocation==='string'?task.resumeLocation.trim().slice(0,240):'',
     resumeResource:handoffLink(task.resumeResource),
+    ...(task.reference?{reference:taskReference(task.reference)}:{}),
     date:/^\d{4}-\d{2}-\d{2}$/.test(task.date) ? task.date : repeat === 'none' ? '' : dayKey(),
     time:isTime(task.time) ? task.time : '',
     occurrenceTimes:Object.fromEntries(Object.entries(task.occurrenceTimes||{}).filter(([day,time])=>isDay(day)&&(time===''||isTime(time)))),

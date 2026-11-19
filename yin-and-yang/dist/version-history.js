@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.10.0',date:'2026-11-18',title:'References and calendar resizing',changes:[
+    'Pin a formula, worked example, or diagram to a task and see it in Garden and the mini timer.',
+    'Drag the edges of planned calendar blocks to resize them. Preview new times and overlaps before releasing.'
+  ]},
   {version:'5.9.0',date:'2026-11-18',title:'Calendar exceptions and assignment rubrics',changes:[
     'Skip one date of a repeating calendar item from its context menu, with Undo.',
     'Import selected rubric criteria as subtasks and track the points attached to unfinished criteria.'

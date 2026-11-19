@@ -25,6 +25,8 @@ import {installAutomaticBackup} from './automatic-backup.js';
 import {installFocusCompass,focusWeek} from './focus-compass.js';
 import {timerProgress,extendTimer} from './state.js';
 import {installMiniTimer} from './mini-timer.js';
+import {installReferenceEditor} from './focus-reference.js';
+import {installCalendarResize} from './calendar-resize.js';
 import {installBatchMove} from './calendar-batch.js';
 import {installBrush} from './calendar-brush.js';
 import {installOfficeHours} from './office-hours.js';
@@ -471,7 +473,14 @@ const openPostcardViewpoints=installPostcardViewpoints({
 $('#stuck-now').onclick=$('#focus-stuck').onclick=installOfficeHours({getState:()=>state,focusedTask,notify:toast,switchTask:()=>currentTaskButton.click(),
   startRetry:startOfficeRetry,
   save:questions=>{const previous=state.studyQuestions;state.studyQuestions=questions;if(persist())return true;state.studyQuestions=previous;return false;}});
-installMiniTimer({launch:$('#open-mini-timer'),getState:()=>state,taskTitle:()=>focusedTask()?.text,
+const renderReference=installReferenceEditor({button:$('#pin-focus-reference'),card:$('#focus-reference'),getTask:focusedTask,
+  save:(id,reference)=>{
+    const task=state.tasks.find(item=>item.id===id);if(!task)return false;
+    const previous=task.reference;task.reference=reference;
+    if(!persist()){task.reference=previous;return false;}
+    render();return true;
+  }});
+installMiniTimer({launch:$('#open-mini-timer'),getState:()=>state,taskTitle:()=>focusedTask()?.text,reference:()=>focusedTask()?.reference,
   toggle:()=>timerButton.click(),extend:()=>action(()=>extendTimer(state,300000)),
   capture:text=>{saveCapture(storage,text,currentCaptureContext());renderCaptures();},notify:toast});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
@@ -917,6 +926,7 @@ function render(){
   const bundleText=bundle?`${bundle.bundle.name} · ${bundle.done}/${bundle.steps.length}${bundle.run.paused?' · Paused':!bundle.next?' · Complete':!bundle.next.ready?' · Waiting':''}`:'';
   if(renderedBundle!==bundleText){bundleButton.textContent=bundleText;renderedBundle=bundleText;}
   focusNotes.update(task,workspace==='focus');
+  renderReference(task,workspace==='focus');
   const bundleWaiting=bundle?.next&&!bundle.run.paused&&!bundle.next.ready;
   const taskName=task?.text||(t.mistakeId?'Mistake retry':'')||(bundleWaiting?'Bundle waiting':'Choose a task');
   if(currentTaskName.textContent!==taskName)currentTaskName.textContent=taskName;
@@ -3180,14 +3190,24 @@ function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=bloc
   const length=visibleEnd-visibleStart;
   const density=mini?` data-agenda-density="${length<14?'marker':length<28?'compact':'full'}"`:'';
   const placement=`--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}`;
+  let handles='';
+  if(!mini&&workspace==='calendar'&&!block.ritual&&(!block.event||block.event.manual)){
+    const slot=block.event||calendarTaskBlock(task,blockId,occurrence);
+    if(slot){
+      const finish=new Date(slot.end);
+      const endsHere=dayKey(finish)===dayKey(date)||visibleEnd===1440&&+finish===+shiftDay(date,1);
+      handles=`${continues?'':'<span data-resize-edge="start" aria-hidden="true"></span>'}
+        ${endsHere?'<span data-resize-edge="end" aria-hidden="true"></span>':''}`;
+    }
+  }
   if(block.ritual)return `<div class="calendar-block calendar-ritual-block" style="${placement}">${renderDailyRituals(dayKey(date),[block.ritual],false)}</div>`;
-  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(block.event,placement)} data-calendar-event="${escape(block.event.id)}" data-event-day="${eventOccurrenceDay(block.event)}"${density} aria-haspopup="dialog" title="${escape(block.event.title)} · ${time}" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}"><strong>${escape(block.event.title)}</strong><span>${time}</span></button>`;
+  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(block.event,placement)} data-calendar-event="${escape(block.event.id)}" data-event-day="${eventOccurrenceDay(block.event)}"${density} aria-haspopup="dialog" title="${escape(block.event.title)} · ${time}" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}"><strong>${escape(block.event.title)}</strong><span>${time}</span>${handles}</button>`;
   const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
   const done=!openFocusBlock(block);
   const {status}=progressForBlock(block);
   const important=taskPriority(task)===1;
   const label=`Open ${escape(title)}${important?', important':''}${done?', done':''}`;
-  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-priority="${taskPriority(task)}" ${taskColorAttributes(task.calendarColor,placement)}${density} data-important="${important}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-block-label="${label}" aria-label="${label}${status?`, ${blockProgressLabels[status]}`:''}" aria-haspopup="dialog" title="${escape(title)}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span><span class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</span></button>`;
+  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-priority="${taskPriority(task)}" ${taskColorAttributes(task.calendarColor,placement)}${density} data-important="${important}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-block-label="${label}" aria-label="${label}${status?`, ${blockProgressLabels[status]}`:''}" aria-haspopup="dialog" title="${escape(title)}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span><span class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</span>${handles}</button>`;
 }
 
 function renderCalendar(){
@@ -3201,6 +3221,10 @@ function commitCalendarCopies(changes){
     if(!persist()){Object.assign(state,previous);return false;}
     refreshTasks();return true;
 }
+installCalendarResize(calendarGrid,{canResize:()=>workspace==='calendar'&&!actualCalendar&&!$('.brush-active'),getState:()=>state,
+  previewExtra:timedCalendarRituals,notify:toast,save:(result,draft)=>{
+    if(commitCalendarCopies(result.changes))confirmChange(`Block resized to ${minutesLabel(draft.end-draft.start)}.`,result.undo);
+  }});
 function showBrushAction(stroke,redo,message){
   clearTimeout(undoTimeout);
   pendingUndo=null;
@@ -4894,7 +4918,7 @@ function syncCalendarEntry(form){
 function canConvertCalendarTask(task){
   const id=task.id;
   return !(task.blocks?.length||Object.keys(task.occurrenceTimes||{}).length||task.subtasks?.length||
-    task.comments?.length||task.resumeNote||task.resumeResource||task.resumeLocation||task.labels?.length||task.projectId||
+    task.comments?.length||task.reference||task.resumeNote||task.resumeResource||task.resumeLocation||task.labels?.length||task.projectId||
     task.deadline||task.reminderAt||task.waitingFor||task.snoozedUntil||task.energy||taskPriority(task)!==4||
     task.done||task.completedOn||task.completions?.length||task.prerequisiteIds?.length||
     state.tasks.some(other=>other.prerequisiteIds?.includes(id))||

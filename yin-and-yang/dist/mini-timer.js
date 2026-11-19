@@ -1,6 +1,7 @@
 import {canExtendTimer,formatDuration,overtimeElapsed,remaining} from './state.js';
+import {paintReference} from './focus-reference.js';
 
-export function installMiniTimer({launch,getState,taskTitle,toggle,extend,capture,notify}){
+export function installMiniTimer({launch,getState,taskTitle,reference,toggle,extend,capture,notify}){
   let companion;
   function mount(win){
     companion=win;
@@ -12,6 +13,7 @@ export function installMiniTimer({launch,getState,taskTitle,toggle,extend,captur
     doc.body.innerHTML=`<main><header><span id="mode"></span><small id="status"></small></header>
       <output id="time" role="timer"></output><p id="task"></p>
       <nav><button id="toggle"></button><button id="extend">+5 min</button></nav>
+      <aside id="mini-reference" aria-label="Pinned reference" hidden><div data-reference-text></div><img alt="Pinned diagram" hidden></aside>
       <form><label for="thought">Quick capture</label><div><input id="thought" required maxlength="4000" placeholder="Leave a thought…" autocomplete="off"><button>Save</button></div><small role="status"></small></form></main>`;
     const find=id=>doc.getElementById(id);
     function paint(){
@@ -22,6 +24,7 @@ export function installMiniTimer({launch,getState,taskTitle,toggle,extend,captur
       find('task').textContent=taskTitle()||'Open focus';
       find('toggle').textContent={running:'Pause',paused:'Continue',idle:'Start',overtime:'Finish overtime'}[t.status];
       find('extend').disabled=!canExtendTimer(state,300000);
+      paintReference(find('mini-reference'),reference());
     }
     find('toggle').onclick=()=>{toggle();paint();};
     find('extend').onclick=()=>{extend();paint();};
