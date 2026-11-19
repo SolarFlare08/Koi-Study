@@ -46,6 +46,8 @@ import {validTemplateDay,loadDayTemplates,captureCalendarDay,previewCalendarDay,
 import {estimateSummary,suggestTaskEstimate,taskSplitSuggestion} from './planner-report.js';
 import {loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime} from './calendar.js';
+import {eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
+import {parseRubric,rubricPoints,rubricSummary} from './rubric.js';
 import {blockFlexibility,waitingForRecord} from './task-readiness.js';
 
 const $=s=>document.querySelector(s);
@@ -2252,7 +2254,11 @@ function taskEditor(){
           ${task?`<button class="text-button task-mistake-link" type="button" data-task-mistakes aria-haspopup="dialog">${retryCount?`Mistake notebook · ${retryCount} to retry`:'Mistake notebook'}</button>`:''}
           <section class="task-detail-section" aria-labelledby="task-subtask-heading">
             <h3 id="task-subtask-heading">Subtasks ${subtasks.length?`<small>${subtasks.filter(sub=>sub.done).length}/${subtasks.length}</small>`:''}</h3>
-            ${subtasks.map(sub=>`<div class="task-editor-subtask"><input type="checkbox" name="done:${escape(sub.id)}" aria-label="Complete ${escape(sub.text)}" ${sub.done?'checked':''}><input name="sub:${escape(sub.id)}" aria-label="Edit subtask ${escape(sub.text)}" maxlength="160" value="${escape(sub.text)}"></div>`).join('')}
+            ${subtasks.map(sub=>`<div class="task-editor-subtask"><input type="checkbox" name="done:${escape(sub.id)}" aria-label="Complete ${escape(sub.text)}" ${sub.done?'checked':''}><input name="sub:${escape(sub.id)}" aria-label="Edit subtask ${escape(sub.text)}" maxlength="160" value="${escape(sub.text)}">
+              ${rubricPoints(sub.points)!==null?`<span class="rubric-points">${rubricPoints(sub.points)} pts</span>`:''}</div>`).join('')}
+            <p data-rubric-progress>${rubricSummary(subtasks)}</p>
+            <details class="task-rubric"><summary>Import rubric</summary><label>Rubric items<textarea name="rubricText" rows="4" maxlength="12000" placeholder="Analysis | 25&#10;Citations (10 pts)"></textarea></label>
+              <button type="button" data-preview-rubric>Preview items</button><div data-rubric-preview></div></details>
             <label class="sr-only" for="task-subtasks">Add subtasks, one per line</label>
             ${split?`<aside class="split-hint"><strong>Try smaller sessions</strong><p>${split.reason} Try ${split.count} parts of about ${split.minutes} minutes.</p><button type="button" class="text-button" data-draft-parts="${split.count}" data-part-minutes="${split.minutes}">Draft subtasks</button></aside>`:''}
             <textarea id="task-subtasks" name="subtasks" rows="2" maxlength="2000" placeholder="+ Add subtasks, one per line"></textarea>
@@ -3175,7 +3181,7 @@ function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=bloc
   const density=mini?` data-agenda-density="${length<14?'marker':length<28?'compact':'full'}"`:'';
   const placement=`--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}`;
   if(block.ritual)return `<div class="calendar-block calendar-ritual-block" style="${placement}">${renderDailyRituals(dayKey(date),[block.ritual],false)}</div>`;
-  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(block.event,placement)} data-calendar-event="${escape(block.event.id)}"${density} aria-haspopup="dialog" title="${escape(block.event.title)} · ${time}" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}"><strong>${escape(block.event.title)}</strong><span>${time}</span></button>`;
+  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(block.event,placement)} data-calendar-event="${escape(block.event.id)}" data-event-day="${eventOccurrenceDay(block.event)}"${density} aria-haspopup="dialog" title="${escape(block.event.title)} · ${time}" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}"><strong>${escape(block.event.title)}</strong><span>${time}</span></button>`;
   const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
   const done=!openFocusBlock(block);
   const {status}=progressForBlock(block);
@@ -3363,7 +3369,7 @@ function renderPlannerDays(now=new Date()){
     const dayLabel=escape(date.toLocaleDateString([],{dateStyle:'full'}));
     const heading=workspace==='calendar'?`<button class="calendar-day-heading" type="button" data-calendar-day="${key}" aria-label="Open day view for ${dayLabel}">${stamp}</button>`:`<div class="calendar-day-heading">${stamp}</div>`;
     return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${actual||create&&state.hiddenCalendars.includes('tasks')?'':renderDailyRituals(key)}${create||allDay.length||imports.length?`<div class="calendar-all-day" ${create?`data-calendar-all-day-create="${key}"`:''}>
-      ${create?`<button type="button" class="calendar-all-day-new" data-calendar-all-day-create="${key}" aria-label="Add an all-day event on ${dayLabel}">+</button>`:''}${allDay.map(task=>`<button type="button" class="calendar-all-day-task${taskStatus(task,date)==='done'?' all-day-done':''}" ${taskColorAttributes(task.calendarColor)} data-important="${taskPriority(task)===1}" aria-label="${escape(task.text)}${taskPriority(task)===1?', important':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(event)} data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
+      ${create?`<button type="button" class="calendar-all-day-new" data-calendar-all-day-create="${key}" aria-label="Add an all-day event on ${dayLabel}">+</button>`:''}${allDay.map(task=>`<button type="button" class="calendar-all-day-task${taskStatus(task,date)==='done'?' all-day-done':''}" ${taskColorAttributes(task.calendarColor)} data-important="${taskPriority(task)===1}" aria-label="${escape(task.text)}${taskPriority(task)===1?', important':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(event)} data-calendar-event="${escape(event.id)}" data-event-day="${eventOccurrenceDay(event)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
   }).join('');
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
   const columns=plannerDays.map(date=>{
@@ -3555,11 +3561,22 @@ function openTaskMenu(id,anchor,x,y){
   actions.push(['duplicate','Duplicate task']);
   if(anchor.classList.contains('calendar-block'))actions.unshift(['block-focus','Start focus…']);
   if(anchor.dataset.block)actions.push(['edit-block','Edit block'],['remove-block','Remove block']);
+  if(recurringTaskDate(task,anchor))actions.push(['skip-date','Skip this date']);
   if(taskStatus(task)==='todo'&&!task.waitingFor&&!waitingOn(task).length&&!(task.snoozedUntil>dayKey()))actions.push(['focus',state.activeTask===id?'Clear focus':'Focus on this']);
   if(!task.waitingFor&&canPlanDeadline(task))actions.push(['plan-deadline','Plan to deadline…']);
   if(status!=='upcoming'||!task.repeat||task.repeat==='none')actions.unshift(['complete',status==='done'?'Reopen task':'Finish task']);
   if(task.date&&task.time&&!anchor.dataset.block)actions.push(['unschedule','Remove scheduled time']);
   actions.push(['delete','Delete task']);
+  showTaskMenu(actions,anchor,x,y);
+}
+
+function recurringTaskDate(task,anchor){
+  if(!task?.repeat||task.repeat==='none')return '';
+  const day=anchor.dataset.block?anchor.dataset.taskDay:anchor.dataset.occurrence;
+  return day&&taskOccursOn(task,new Date(day+'T12:00:00'))?day:'';
+}
+
+function showTaskMenu(actions,anchor,x,y){
   taskMenu.innerHTML=actions.map(([key,label])=>`<button type="button" role="menuitem" data-task-action="${key}">${label}</button>`).join('');
   taskMenu.hidden=false;
   const box=anchor.getBoundingClientRect();
@@ -3568,6 +3585,41 @@ function openTaskMenu(id,anchor,x,y){
   if(anchor.classList.contains('task-more'))anchor.setAttribute('aria-expanded','true');
   taskMenu.querySelector('button').focus();
   wake();
+}
+
+function skipCalendarDate(task,anchor){
+  const event=state.calendarEvents.find(item=>item.id===anchor.dataset.calendarEvent);
+  const day=event?anchor.dataset.eventDay:recurringTaskDate(task,anchor);
+  if(!day)return;
+  if(event){
+    const date=new Date(day+'T00:00:00');
+    if(!calendarEventOccurrences([event],date).some(item=>eventOccurrenceDay(item)===day))return;
+    const omitted=event.manual?{...event,excludedDays:[...new Set([...(event.excludedDays||[]),day])]}:{...event,skippedOccurrence:true};
+    if(!commitCalendarCopies({calendarEvents:state.calendarEvents.map(item=>item===event?omitted:item)}))return;
+    confirmChange(`Skipped ${shortScheduleDate(day)}.`,latest=>{
+      const current=latest.calendarEvents.find(item=>item.id===event.id);
+      if(!current)return false;
+      if(event.manual){
+        if(!current.excludedDays?.includes(day))return false;
+        current.excludedDays=current.excludedDays.filter(date=>date!==day);
+      }else{
+        if(!current.skippedOccurrence)return false;
+        delete current.skippedOccurrence;
+      }
+      return true;
+    });
+  }else{
+    const prior=task.excludedDays;
+    task.excludedDays=[...(prior||[]),day];
+    if(!persist()){task.excludedDays=prior;return;}
+    refreshTasks();
+    confirmChange(`Skipped ${shortScheduleDate(day)}.`,latest=>{
+      const current=latest.tasks.find(item=>item.id===task.id);
+      if(!current?.excludedDays?.includes(day))return false;
+      current.excludedDays=current.excludedDays.filter(date=>date!==day);return true;
+    });
+  }
+  $('#planner-heading').focus({preventScroll:true});
 }
 
 function closeTaskMenu(restore=true){
@@ -3657,6 +3709,7 @@ function finishCurrentTask(button){
 taskMenu.addEventListener('click',event=>{
   const action=event.target.closest('[data-task-action]')?.dataset.taskAction;
   const task=state.tasks.find(item=>item.id===menuTaskId);
+  if(action==='skip-date'&&menuAnchor){const anchor=menuAnchor;closeTaskMenu(false);skipCalendarDate(task,anchor);return;}
   if(!action||!task)return;
   const anchor=menuAnchor;
   const blockSurface=anchor.closest('#mini-calendar')||calendarPanel;
@@ -3669,7 +3722,7 @@ taskMenu.addEventListener('click',event=>{
   if(action==='delete'){deleteTask(task.id);return;}
   if(action==='duplicate'){
     const copy=structuredClone(task);
-    Object.assign(copy,{id:crypto.randomUUID(),done:false,completedOn:'',completions:[],occurrenceTimes:{},reminderShown:false});
+    Object.assign(copy,{id:crypto.randomUUID(),done:false,completedOn:'',completions:[],occurrenceTimes:{},excludedDays:[],reminderShown:false});
     copy.subtasks?.forEach(subtask=>{subtask.id=crypto.randomUUID();subtask.done=false;});
     copy.blocks?.forEach(block=>{block.id=crypto.randomUUID();});
     state.tasks.push(copy);persist();refreshTasks();announce('Task duplicated.');
@@ -3717,6 +3770,16 @@ taskMenu.addEventListener('keydown',event=>{
 
 for(const surface of [taskSidebar,calendarPanel]){
   surface.addEventListener('contextmenu',event=>{
+    const calendarItem=event.target.closest('[data-calendar-event][data-event-day]');
+    if(calendarItem){
+      const item=state.calendarEvents.find(e=>e.id===calendarItem.dataset.calendarEvent);
+      if(item&&((item.manual&&item.repeat&&item.repeat!=='none')||item.source)){
+        event.preventDefault();closeTaskMenu(false);menuAnchor=calendarItem;
+        const keyboard=event.clientX===0&&event.clientY===0;
+        showTaskMenu([['skip-date','Skip this date']],calendarItem,keyboard?undefined:event.clientX,keyboard?undefined:event.clientY);
+      }
+      return;
+    }
     const card=event.target.closest('[data-task]');
     if(!card)return;
     event.preventDefault();
@@ -5175,6 +5238,15 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  if(e.target.closest('[data-preview-rubric]')){
+    const form=$('#task-editor-form'),items=parseRubric(form.elements.rubricText.value);
+    const preview=form.querySelector('[data-rubric-preview]');
+    preview.innerHTML=items.length?`<fieldset><legend>Choose subtasks to add when you save</legend>${items.map((item,index)=>
+      `<div class="rubric-row"><label><input type="checkbox" name="rubricItem" value="${index}" checked> ${escape(item.text)}</label>
+        <label>Points<input name="rubricPoints:${index}" type="number" min="0" max="10000" step=".01" value="${item.points??''}"></label></div>`).join('')}</fieldset>`:
+      '<p>Paste at least one rubric item to preview.</p>';
+    return;
+  }
   const color=e.target.closest('[data-task-color-choice]');
   if(color){saveQuickTaskColor(color);return;}
   const deleteCalendar=e.target.closest('[data-calendar-list-delete]');
@@ -5566,6 +5638,12 @@ root.addEventListener('click',e=>{
   }
 });
 root.addEventListener('input',e=>{
+  if(e.target.name==='rubricText')e.target.form.querySelector('[data-rubric-preview]').replaceChildren();
+  if(e.target.name?.startsWith('done:')){
+    const form=e.target.form,task=state.tasks.find(item=>item.id===editingTaskId);
+    const summary=form?.querySelector('[data-rubric-progress]');
+    if(summary&&task)summary.textContent=rubricSummary(task.subtasks.map(sub=>({...sub,done:form.elements.namedItem('done:'+sub.id)?.checked})));
+  }
   if(e.target.matches('[data-color-wheel],[data-color-hex]')){
     syncCustomColor(e.target);
     if(e.target.form?.id==='task-editor-form')updateTaskColorFields(e.target.form);
@@ -6078,6 +6156,13 @@ root.addEventListener('submit',e=>{
     for(const line of fields.get('subtasks').split('\n')){
       const text=line.trim().slice(0,160);
       if(text)subtasks.push({id:crypto.randomUUID(),text,done:false});
+    }
+    const rubric=parseRubric(fields.get('rubricText')||'');
+    for(const index of fields.getAll('rubricItem')){
+      const item=rubric[Number(index)];
+      if(!item)continue;
+      const points=rubricPoints(fields.get('rubricPoints:'+index));
+      subtasks.push({id:crypto.randomUUID(),text:item.text,done:false,...(points===null?{}:{points})});
     }
     const comments=[...(existing?.comments||[])];
     const comment=fields.get('comment').trim();

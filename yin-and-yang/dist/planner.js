@@ -12,6 +12,8 @@ import {exportCalendar} from './calendar-export.js';
 import {cleanCaptureContext} from './capture.js';
 import {projectHealth} from './scheduling.js';
 import {waitingDecisionDue} from './task-readiness.js';
+import {rubricPoints,rubricSummary} from './rubric.js';
+import {eventOccurrenceDay} from './calendar.js';
 
 const views={search:'Search',inbox:'Inbox',today:'Today',upcoming:'Upcoming',review:'Weekly review',workload:'Workload',health:'Project health',bundles:'Task bundles',waiting:'Waiting for',filters:'Filters & Labels',reporting:'Reporting'};
 const workViewPresets={
@@ -176,7 +178,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         </div>
         ${waiting.length?`<p class="task-waiting">Waiting on ${escape(waiting.map(item=>item.text).join(', '))}</p>`:''}
         ${!complete&&task.waitingFor?`<p class="task-waiting">Waiting for ${escape(task.waitingFor.subject)}${task.waitingFor.followUp?` · Follow up ${plainDate(task.waitingFor.followUp)}`:''}</p>`:''}
-        ${subtasks.length?`<details class="planner-subtasks" ${expanded.has(task.id)?'open':''}><summary>${done}/${subtasks.length} subtasks</summary>${subtasks.map(sub=>`<label><input type="checkbox" data-planner-subtask="${escape(sub.id)}" ${sub.done?'checked':''}> <span>${escape(sub.text)}</span></label>`).join('')}</details>`:''}
+        ${subtasks.length?`<details class="planner-subtasks" ${expanded.has(task.id)?'open':''}><summary>${done}/${subtasks.length} subtasks${rubricSummary(subtasks)?' · '+rubricSummary(subtasks):''}</summary>${subtasks.map(sub=>`<label><input type="checkbox" data-planner-subtask="${escape(sub.id)}" ${sub.done?'checked':''}> <span>${escape(sub.text)}${rubricPoints(sub.points)!==null?` <small>· ${rubricPoints(sub.points)} pts</small>`:''}</span></label>`).join('')}</details>`:''}
       </div>
       <button type="button" class="planner-task-more" data-task-menu aria-label="Actions for ${title}" aria-haspopup="menu">⋯</button>
     </article>`;
@@ -391,8 +393,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         ${view==='calendar'?`<button type="button" class="calendar-month-create" data-calendar-all-day-create="${key}" aria-label="Add event on ${escape(day.toLocaleDateString([],{dateStyle:'full'}))}">+</button>`:''}
         ${view==='calendar'?(state().hiddenCalendars.includes('tasks')?'':monthRituals(day)):dailyRituals(key)}
         ${allDay.map(task=>`<button type="button" class="planner-month-task${taskStatus(task,day)==='done'?' all-day-done':''}" data-month-task ${taskColorAttributes(task.calendarColor)} data-important="${taskPriority(task)===1}" aria-label="${escape(task.text)}${taskPriority(task)===1?', important':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}
-        ${allDayEvents(events,day).map(event=>`<button type="button" class="planner-month-event" ${eventAppearance(event)} data-calendar-event="${escape(event.id)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}
-        ${calendarBlocks([],day,events).map(block=>`<button type="button" class="planner-month-event" ${eventAppearance(block.event)} data-calendar-event="${escape(block.event.id)}" title="${escape(block.event.title)}">${timeLabel(block.start)} · ${escape(block.event.title)}</button>`).join('')}
+        ${allDayEvents(events,day).map(event=>`<button type="button" class="planner-month-event" ${eventAppearance(event)} data-calendar-event="${escape(event.id)}" data-event-day="${eventOccurrenceDay(event)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}
+        ${calendarBlocks([],day,events).map(block=>`<button type="button" class="planner-month-event" ${eventAppearance(block.event)} data-calendar-event="${escape(block.event.id)}" data-event-day="${eventOccurrenceDay(block.event)}" title="${escape(block.event.title)}">${timeLabel(block.start)} · ${escape(block.event.title)}</button>`).join('')}
         ${timeStack(tasks,key)}</section>`;
     }).join('');
     return `<div class="planner-month-grid">${headings}${cells}</div>`;
@@ -899,6 +901,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         const scopedId=`ics-source:${JSON.stringify([source,event.id])}`;
         const old=oldById.get(scopedId)||oldById.get(event.id),settings={};
         const id=old?.id||scopedId;
+        if(old?.skippedOccurrence===true)settings.skippedOccurrence=true;
         for(const key of ['bufferBefore','bufferAfter'])if(!event.day&&old?.[key])settings[key]=old[key];
         events.set(id,{...event,id,source,...settings});
       }

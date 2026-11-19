@@ -107,7 +107,7 @@ export function calendarTaskBlock(task,blockId,occurrence){
     ? task.blocks?.find(block => block.id === blockId && block.date === occurrence)
     : taskOccursOn(task, date) && task;
   const time=entry&&(blockId?entry.time:scheduledTaskTime(task,occurrence));
-  if (!time) return null;
+  if (!time || entry.taskDay&&task.excludedDays?.includes(entry.taskDay)) return null;
   const minutes = entry.minutes || task.estimate || defaultBlockMinutes;
   const start = new Date(`${occurrence}T${time}`);
   const end = new Date(date);
@@ -155,6 +155,7 @@ export function calendarEventOccurrences(events,date,marginMinutes=0){
   const onDay=(day,clock)=>new Date(day.getFullYear(),day.getMonth(),day.getDate(),
     clock.getHours(),clock.getMinutes(),clock.getSeconds(),clock.getMilliseconds());
   return events.flatMap(event=>{
+    if(event.skippedOccurrence===true)return [];
     if(!event.manual||!event.repeat||event.repeat==='none')return [event];
     const start=event.day?new Date(event.day+'T00:00:00'):new Date(event.start);
     const end=event.day?new Date(event.endDay+'T00:00:00'):new Date(event.end);
@@ -176,6 +177,8 @@ export function calendarEventOccurrences(events,date,marginMinutes=0){
   });
 }
 
+export const eventOccurrenceDay=event=>event.day||dayKey(new Date(event.start));
+
 export function allDayEvents(events,date){
   const day=dayKey(date);
   return calendarEventOccurrences(events,date).filter(event=>event.day&&event.day<=day&&day<event.endDay);
@@ -188,7 +191,7 @@ export function calendarBlocks(tasks, date, events=[]) {
   const yesterday = dayKey(previous);
   for (const task of tasks) {
     for (const day of [today,yesterday]) {
-      const schedules=(task.blocks||[]).filter(entry=>entry.date===day);
+      const schedules=(task.blocks||[]).filter(entry=>entry.date===day&&(!entry.taskDay||!task.excludedDays?.includes(entry.taskDay)));
       const time=scheduledTaskTime(task,day);
       if(time&&taskOccursOn(task,day===today?date:previous))schedules.push({time,minutes:task.estimate||defaultBlockMinutes});
       for(const entry of schedules){

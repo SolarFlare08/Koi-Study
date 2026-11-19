@@ -45,7 +45,7 @@ const loadCalendarEvents=value=>Array.isArray(value)?value.filter(item=>typeof i
 
 export function taskOccursOn(task, date) {
   const day = dayKey(date);
-  if (!task.date || task.date > day) return false;
+  if (!task.date || task.date > day || task.repeat&&task.repeat!=='none'&&task.excludedDays?.includes(day)) return false;
   if (task.repeat === 'daily') return true;
   if (task.repeat === 'weekdays') return date.getDay() !== 0 && date.getDay() !== 6;
   const first = new Date(`${task.date}T00:00:00`);
@@ -148,6 +148,7 @@ function loadTask(task) {
     date:/^\d{4}-\d{2}-\d{2}$/.test(task.date) ? task.date : repeat === 'none' ? '' : dayKey(),
     time:isTime(task.time) ? task.time : '',
     occurrenceTimes:Object.fromEntries(Object.entries(task.occurrenceTimes||{}).filter(([day,time])=>isDay(day)&&(time===''||isTime(time)))),
+    ...(Array.isArray(task.excludedDays)?{excludedDays:task.excludedDays.filter(isDay)}:{}),
     estimate:Number.isInteger(task.estimate) && task.estimate > 0 && task.estimate <= 1440 ? task.estimate : null,
     energy:Object.hasOwn(taskEnergyLevels,task.energy)?task.energy:'',
     repeat,

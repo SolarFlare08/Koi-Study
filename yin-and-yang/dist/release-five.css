@@ -19,6 +19,14 @@
 .sky .session-tools .resume-task:hover { background:color-mix(in srgb,currentColor 10%,transparent); }
 .daily-focus-goal { order:10; font-size:10px; letter-spacing:.04em; padding:8px 2px; margin-top:7px; color:var(--scene-ink); border-bottom:2px solid transparent; border-image:linear-gradient(to right,currentColor var(--goal-progress),transparent var(--goal-progress)) 1; }
 .focus-goal-dialog { max-width:450px; }
+.task-rubric { margin:10px 0; padding:9px; border:1px solid var(--surface-line); border-radius:8px; }
+.task-rubric summary { cursor:pointer; font-weight:650; }
+.task-rubric fieldset { margin-top:10px; min-width:0; }
+.rubric-row { display:grid; grid-template-columns:minmax(0,1fr) 5em; gap:10px; align-items:center; margin-block:7px; }
+.rubric-row label:first-child { display:flex; align-items:center; gap:7px; overflow-wrap:anywhere; }
+.rubric-row label:last-child { font-size:11px; }
+.rubric-points { flex:none; font-size:11px; color:var(--surface-accent); }
+[data-rubric-progress]:empty { display:none; }
 .waiting-decision { margin-top:10px; padding:10px 12px; border-inline-start:2px solid var(--surface-accent); background:var(--surface-field); }
 .waiting-decision p { white-space:pre-wrap; overflow-wrap:anywhere; }
 .reading-bookmark form { display:flex; align-items:end; flex-wrap:wrap; gap:8px; }

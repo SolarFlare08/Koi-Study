@@ -51,7 +51,7 @@ export function exportCalendar(tasks,events,{scope,date,endDate,projectId,includ
   }
   if(includeEvents){
     const recurring=events.filter(event=>event.manual&&event.repeat&&event.repeat!=='none');
-    const expanded=events.filter(event=>!recurring.includes(event));
+    const expanded=events.filter(event=>!recurring.includes(event)&&event.skippedOccurrence!==true);
     for(let day=first;recurring.length&&day<=last;day=shiftDay(day,1)){
       expanded.push(...calendarEventOccurrences(recurring,day));
     }

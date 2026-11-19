@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.9.0',date:'2026-11-18',title:'Calendar exceptions and assignment rubrics',changes:[
+    'Skip one date of a repeating calendar item from its context menu, with Undo.',
+    'Import selected rubric criteria as subtasks and track the points attached to unfinished criteria.'
+  ]},
   {version:'5.8.0',date:'2026-11-18',title:'Independent retries and waiting decisions',changes:[
     'Retry an office-hours question in Garden. Record the result before revealing the meeting answer.',
     'Give a waiting task a decision date and fallback. Review the due decision in Planner and choose whether to proceed.'
