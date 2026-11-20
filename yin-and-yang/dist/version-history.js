@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.19',date:'2026-11-20',title:'Level swallow silhouettes',changes:[
+    'Level the daytime swallow silhouettes and align their wing and tail strokes with the direction of flight.'
+  ]},
   {version:'5.14.18',date:'2026-11-20',title:'Swallows that cross the sky',changes:[
     'Simplify swallows to ink strokes and replace quick turns with longer flights. Earned swallows drift near their clickable locations.'
   ]},

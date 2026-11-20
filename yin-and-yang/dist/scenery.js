@@ -167,7 +167,7 @@ export function gardenConstellationSketch(item){
 
 const swallowInk=['#526e70','#5b747a','#425e65'];
 function daySwallow(x,y,scale,index,heading=index%3===0?-1:1,crossing=0){
-  const ink=swallowInk[index%swallowInk.length],tilt=(index%5-2)*2;
+  const ink=swallowInk[index%swallowInk.length];
   const period=crossing?38+index*9:13+index*7%13;
   const delay=crossing?-period*(.25+index*.24):-(index*7%17)*.86;
   const drift=heading*(crossing?crossing/scale:11+index%5);
@@ -176,9 +176,9 @@ function daySwallow(x,y,scale,index,heading=index%3===0?-1:1,crossing=0){
     fill="none" stroke="${ink}" stroke-linecap="round" opacity=".54"
     style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s;--flight-drift:${drift.toFixed(1)}px;--wing-period:${beat}s">
     <g class="day-swallow-glide${crossing?' day-swallow-crossing':''}">
-      <g transform="scale(${heading} 1) rotate(${tilt})">
-        <path class="day-swallow-wings" d="M-11-4Q-3.5-5.5.2.8Q2.8-4.9 8.5-5" stroke-width="2"/>
-        <path d="M-3.9 3.4-.2 1-.9 4.5" stroke-width="1.25" opacity=".75"/>
+      <g transform="scale(${heading} 1)">
+        <path class="day-swallow-wings" d="M-11-3.3Q-4.8-5.2-.8.5Q3.6-3.6 9.5-2.1" stroke-width="2"/>
+        <path d="M-5.2 1.9-.7.6-4.6 3.8" stroke-width="1.25" opacity=".75"/>
       </g>
     </g>
   </g>`;
