@@ -57,21 +57,26 @@
 .garden-unlocked-constellation { color:var(--scene-ink,#f5ebce); opacity:.8; }
 .garden-earned-star { color:var(--scene-ink,#fff1cb); opacity:.9; }
 #app:not([data-sky-landmarks]) #garden-landmarks :is([data-sky-star],[data-sky-constellation]) { display:none; }
-#landscape #garden-day-sky[opacity="1"] :is(.day-swallow-glide,.day-swallow-flock) {
-  animation:swallow-glide var(--flight-period,23s) ease-in-out var(--flight-delay,-3s) infinite;
+#landscape #garden-day-sky[opacity="1"] .day-swallow-glide {
+  animation:swallow-glide var(--flight-period) ease-in-out var(--flight-delay) infinite;
 }
-#landscape #garden-day-sky[opacity="1"] .day-swallow-flock .day-swallow-glide { animation:none; }
-.day-swallow-left { --wing-lift:10deg; --wing-dip:-8deg; }
-.day-swallow-right { --wing-lift:-10deg; --wing-dip:8deg; }
-#landscape #garden-day-sky[opacity="1"] :is(.day-swallow-left,.day-swallow-right) {
-  transform-origin:0 2px;
+#landscape #garden-day-sky[opacity="1"] .day-swallow-facing {
+  animation:swallow-turn var(--flight-period) ease-in-out var(--flight-delay) infinite;
+}
+.day-swallow-wing-near { --wing-lift:14deg; --wing-dip:-13deg; }
+.day-swallow-wing-far { --wing-lift:10deg; --wing-dip:-9deg; }
+#landscape #garden-day-sky[opacity="1"] :is(.day-swallow-wing-near,.day-swallow-wing-far) {
+  transform-origin:0 1px;
   animation:swallow-wings var(--flight-period) ease-in-out var(--flight-delay) infinite;
 }
 @keyframes swallow-glide {
-  0%,100% { translate:-2px .5px; }
-  35% { translate:1px -2px; }
-  64% { translate:3px -.5px; }
-  84% { translate:1px 1px; }
+  0%,100% { translate:0 0; }
+  27% { translate:calc(var(--flight-drift) * .54) -2px; }
+  49%,53% { translate:var(--flight-drift) -.5px; }
+}
+@keyframes swallow-turn {
+  0%,49%,100% { scale:1 1; }
+  53%,96% { scale:-1 1; }
 }
 @keyframes swallow-wings {
   0%,38%,70%,100% { rotate:0deg; }

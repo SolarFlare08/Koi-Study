@@ -166,19 +166,18 @@ export function gardenConstellationSketch(item){
 }
 
 const swallowInk=['#526e70','#5b747a','#425e65'];
-const swallowWing='M-1 2C-5-3-9-7-15-7C-12-4-11 0-9 2C-6 5-3 5-1 4Z';
-function daySwallow(x,y,scale,index,heading=index%3===0?-1:1){
-  const ink=swallowInk[index%swallowInk.length],tilt=(index%5-2)*5;
-  const delay=-(index*7%17)*.86,period=15+index*3%9;
+function daySwallow(x,y,scale,index,heading=index%3===0?-1:1,travel=5){
+  const ink=swallowInk[index%swallowInk.length],tilt=(index%5-2)*3;
+  const delay=-(index*7%17)*.86,period=13+index*7%13;
+  const drift=heading*(travel+index%3);
   return `<g class="day-swallow" transform="translate(${x} ${y}) scale(${scale})"
-    fill="${ink}" opacity=".54" style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s">
+    fill="${ink}" opacity=".54" style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s;--flight-drift:${drift}px">
     <g class="day-swallow-glide">
-      <g transform="rotate(${tilt+heading*8})">
-        <g class="day-swallow-left"><path d="${swallowWing}"/></g>
-        <g class="day-swallow-right"><path d="${swallowWing}" transform="scale(-1 1)"/></g>
-        <path d="M0-5C2-5 3-2 2.3 2L1.3 6 4.6 13 0 9-4.6 13-1.3 6-2.3 2C-3-2-2-5 0-5Z"/>
-        <path d="M0 0c.9 2 .8 4 0 6-.8-2-.9-4 0-6Z" fill="#cabca4" opacity=".42"/>
-      </g>
+      <g class="day-swallow-facing"><g transform="scale(${heading} 1) rotate(${tilt})">
+        <path class="day-swallow-wing-far" d="M4 1Q-1 6-13 8Q-8 4-7 .2Q-2-2 4 1Z" opacity=".66"/>
+        <path d="M-6-.7Q1-3.8 5-2Q7.4-3.8 9.8-2L12-.6 9.6.1Q7.6 2.4 4 2.7Q-1 3.7-6 2.4L-15 5.6-10 1.5-16-1.1Z"/>
+        <path class="day-swallow-wing-near" d="M3 .5Q1-7-13-10Q-9-6-8-2Q-6 2 3 .5Z"/>
+      </g></g>
     </g>
   </g>`;
 }
@@ -190,8 +189,8 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
   for(const item of unlocked){
     stars.push(`<g class="garden-unlocked-constellation" data-constellation-art="${item.id}" transform="translate(${item.x} ${item.y})"><title>${item.name}</title>${constellationShape(item)}</g>`);
     const formation=constellationLitPoints(item).map(([x,y,magnitude],index)=>
-      daySwallow(item.x+x,item.y+y,(.22+starLight(magnitude).radius*.065).toFixed(2),item.threshold+index,1)).join('');
-    swallows.push(`<g class="day-swallow-flock" data-swallow-flock="${item.id}" style="--flight-delay:-${item.threshold}s">${formation}</g>`);
+      daySwallow(item.x+x,item.y+y,(.22+starLight(magnitude).radius*.065).toFixed(2),item.threshold+index,item.threshold%2?1:-1)).join('');
+    swallows.push(`<g data-swallow-flock="${item.id}">${formation}</g>`);
   }
   let hasIsland=false;
   const layout=gardenLandmarkPositions(history,courses,design.placements);
@@ -356,7 +355,7 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <g id="garden-growth-stars"/>
 </g>
 <g id="garden-day-sky" opacity="0">
-  <g class="day-swallow-flock" opacity=".76">${daySwallow(617,139,.66,0,1)}${daySwallow(582,154,.50,1,1)}${daySwallow(650,163,.43,2,1)}</g>
+  <g opacity=".76">${daySwallow(617,139,.66,0,1,64)}${daySwallow(582,154,.50,1,-1,48)}${daySwallow(650,163,.43,2,1,75)}</g>
   <g id="garden-growth-swallows"/>
 </g>
 <g fill="url(#cloud-light)">
