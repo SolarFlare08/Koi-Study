@@ -175,9 +175,9 @@ function daySwallow(x,y,scale,index,heading=index%3===0?-1:1,travel=5){
     fill="${ink}" opacity=".54" style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s;--flight-drift:${drift}px;--wing-period:${beat}s">
     <g class="day-swallow-glide">
       <g class="day-swallow-facing"><g transform="scale(${heading} 1) rotate(${tilt})">
-        <path class="day-swallow-wing-far" d="M4 1Q-1 6-13 8Q-8 4-7 .2Q-2-2 4 1Z" opacity=".66"/>
-        <path d="M-6-.7Q1-3.8 5-2Q7.4-3.8 9.8-2L12-.6 9.6.1Q7.6 2.4 4 2.7Q-1 3.7-6 2.4L-15 5.6-10 1.5-16-1.1Z"/>
-        <path class="day-swallow-wing-near" d="M3 .5Q1-7-13-10Q-9-6-8-2Q-6 2 3 .5Z"/>
+        <path class="day-swallow-wing-far" d="M3.5.7C-.7 5.8-6.1 7.6-11.8 7.5C-8.4 5.2-7.8 2.2-6.1.7Q-1-2.1 3.5.7Z" opacity=".60"/>
+        <path d="M-6-.6C-2.9-2.9.8-3.4 4.4-2.4C5-4.8 8.3-4.6 9.2-2.4L10.7-1.8 9.2-1.1C8.4 2.5 3.4 4-1 3.8Q-3.3 3.7-6.5 2.5Q-10.1 3.8-15.5 6.4L-10.7 1.4-16.4-1.7Q-11.8-1.1-6-.6Z"/>
+        <path class="day-swallow-wing-near" d="M3.1.8C.3-3.1-1.6-8.1-6.2-10.4Q-9-12-12.2-11.5C-8.8-9.5-8.4-5.7-7.3-3.2C-6.1.4-1.3 2.3 3.1.8Z"/>
       </g></g>
     </g>
   </g>`;

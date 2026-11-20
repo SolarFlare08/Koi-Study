@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.17',date:'2026-11-20',title:'Softer swallow silhouettes',changes:[
+    'Refine the Day only swallows with curved wings, rounded heads, and a clearer forked tail.'
+  ]},
   {version:'5.14.16',date:'2026-11-20',title:'Layered skies and gentler flight',changes:[
     'Add high wisps, mid-sky clouds, and low cloud banks that drift at different speeds. Slow the swallows’ wingbeats and narrow their sweep.'
   ]},
