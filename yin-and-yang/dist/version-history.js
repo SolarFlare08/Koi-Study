@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.12',date:'2026-11-20',title:'Swallows in the daytime Garden',changes:[
+    'Day only shows ink-wash swallows. Earned stars appear as single birds and unlocked constellations appear as gliding flocks.'
+  ]},
   {version:'5.14.11',date:'2026-11-20',title:'Kites in the breeze',changes:[
     'Give Day only kites illustrated diamond, winged, and swallowtail sails. They drift and bank at different speeds while ribbon tails flutter.'
   ]},

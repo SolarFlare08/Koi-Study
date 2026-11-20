@@ -47,11 +47,11 @@ test('every lit constellation point replaces exactly one earned star in live and
   for(const count of [2,3,5,6,20,21,24,37,38,40]){
     const through=history[count-1].day;
     const progress=gardenStarProgress(history,{through});
-    const {stars:art,kites}=gardenGrowthMarkup(history,{through});
+    const {stars:art,swallows}=gardenGrowthMarkup(history,{through});
     assert.equal((art.match(/class="garden-earned-star"/g)||[]).length,progress.free);
     assert.equal((art.match(/class="sky-star-point"/g)||[]).length,progress.assigned.size);
     assert.equal(progress.free+progress.assigned.size,count);
-    assert.equal((kites.match(/class="day-kite-sway"/g)||[]).length,count);
+    assert.equal((swallows.match(/class="day-swallow"/g)||[]).length,count);
     assert.equal(progress.assigned.size,progress.unlocked.reduce((sum,item)=>sum+item.starIndices.length,0));
   }
   assert.equal(gardenStarProgress(history).free,2);

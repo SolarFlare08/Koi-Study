@@ -3019,7 +3019,7 @@ function panelContent(id){
       <div class="studio-launch"><button type="button" class="panel-primary" data-open-garden-studio>Open Garden Studio</button></div>
       <fieldset class="appearance-options"><legend>Lighting</legend><div class="lighting-options">
         ${Object.entries(lightingOptions).map(([value,label])=>`<label><input class="sr-only" type="radio" name="garden-lighting" value="${value}" ${lighting===value?'checked':''}><span>${label}</span></label>`).join('')}
-      </div><p>Follow timer brings stars back after sunset. Day only keeps daylight and swaps stars for paper kites.</p></fieldset>
+      </div><p>Follow timer brings stars back after sunset. Day only keeps daylight and swaps stars for swallows.</p></fieldset>
       ${seasonWheelMarkup()}
       <fieldset class="appearance-options weather-options"><legend>Weather</legend>
         <select id="garden-weather" name="garden-weather" aria-label="Weather">${gardenWeatherOptions()}</select>

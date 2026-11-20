@@ -165,48 +165,33 @@ export function gardenConstellationSketch(item){
   return `<svg viewBox="-65 -50 130 105" aria-hidden="true">${constellationShape(item)}</svg>`;
 }
 
-const kiteColors=[
-  ['#a74738','#df9774','#f8dc9e'],['#3b746a','#87b1a0','#e7e3ad'],
-  ['#a67435','#e0b575','#fff1c2'],['#5f6486','#a29fbc','#eecea2']
-];
-const kiteSails=[
-  {shape:'M0-11 10-2 0 10-10-2Z',shade:'M0-11 10-2 0 10Z',
-    ribs:'M0-10V9M-9-2Q0-5 9-2',details:'M-3-4 0-7 3-4 0-1Z'},
-  {shape:'M0-8Q8-11 16-3L9 4 0 9-9 4-16-3Q-8-11 0-8Z',
-    shade:'M0-8Q8-11 16-3L9 4 0 9Z',ribs:'M0-7V8M-15-3Q0-7 15-3M-8 3 0-2 8 3',
-    details:'M-11-3h3m16 0h3'},
-  {shape:'M0-10 13-1 9 9 3 4 0 9-3 4-9 9-13-1Z',
-    shade:'M0-10 13-1 9 9 3 4 0 9Z',ribs:'M0-9V8M-12-1Q0 2 12-1',
-    details:'M-8-1l2 2 2-3m8 0 2 3 2-2'}
-];
-function dayKite(x,y,scale,index){
-  const [paper,lit,ribbon]=kiteColors[index%kiteColors.length],sail=kiteSails[index%kiteSails.length];
-  const lean=(index%5-2)*7,period=8+(index*3%7),delay=-(index*7%19)*.7;
-  return `<g transform="translate(${x} ${y}) scale(${scale})">
-    <g class="day-kite-sway" style="--kite-period:${period}s;--kite-delay:${delay.toFixed(1)}s;--kite-lean:${lean}deg">
-      <g class="day-kite-frame">
-        <g transform="translate(0 8)"><g class="day-kite-streamer">
-          <path d="M0 0C-3 5-8 6-7 12S1 16 0 22-5 26-3 31" fill="none" stroke="${paper}" stroke-width="1.45" stroke-linecap="round"/>
-          <path d="M-7 10l-4-3 1 5 3-1 3 3v-5Zm7 10-3-2v4l3-1 3 2v-4Zm-3 9-3-2v4l3-1 3 2v-4Z"
-            fill="${ribbon}" stroke="${paper}" stroke-width=".55" stroke-linejoin="round"/>
-        </g></g>
-        <path d="${sail.shape}" fill="${paper}" stroke="#473d3a" stroke-opacity=".56" stroke-width=".8" stroke-linejoin="round"/>
-        <path d="${sail.shade}" fill="${lit}" opacity=".84"/>
-        <path d="${sail.ribs}" fill="none" stroke="${ribbon}" stroke-width=".65" stroke-linecap="round" opacity=".85"/>
-        <path d="${sail.details}" fill="none" stroke="${ribbon}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+const swallowInk=['#526e70','#5b747a','#425e65'];
+const swallowWing='M-1 2C-5-3-9-7-15-7C-12-4-11 0-9 2C-6 5-3 5-1 4Z';
+function daySwallow(x,y,scale,index,heading=index%3===0?-1:1){
+  const ink=swallowInk[index%swallowInk.length],tilt=(index%5-2)*5;
+  const delay=-(index*7%17)*.56,period=10+index*3%8;
+  return `<g class="day-swallow" transform="translate(${x} ${y}) scale(${scale})"
+    fill="${ink}" style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s">
+    <g class="day-swallow-glide">
+      <g transform="rotate(${tilt+heading*8})">
+        <g class="day-swallow-left"><path d="${swallowWing}"/></g>
+        <g class="day-swallow-right"><path d="${swallowWing}" transform="scale(-1 1)"/></g>
+        <path d="M0-5C2-5 3-2 2.3 2L1.3 6 4.6 13 0 9-4.6 13-1.3 6-2.3 2C-3-2-2-5 0-5Z"/>
+        <path d="M0 0c.9 2 .8 4 0 6-.8-2-.9-4 0-6Z" fill="#cabca4" opacity=".42"/>
       </g>
-    </g></g>`;
+    </g>
+  </g>`;
 }
 
 export function gardenGrowthMarkup(history,{courses=[],through='',visible,design=defaultGardenDesign}={}){
   const trees=[],lanterns=[],lights=[];
-  const stars=[],kites=[],cairns=[];
+  const stars=[],swallows=[],cairns=[];
   const {assigned,unlocked}=gardenStarProgress(history,{through,visible});
   for(const item of unlocked){
     stars.push(`<g class="garden-unlocked-constellation" data-constellation-art="${item.id}" transform="translate(${item.x} ${item.y})"><title>${item.name}</title>${constellationShape(item)}</g>`);
     const formation=constellationLitPoints(item).map(([x,y,magnitude],index)=>
-      dayKite(item.x+x,item.y+y,(.37+starLight(magnitude).radius*.12).toFixed(2),item.threshold+index)).join('');
-    kites.push(`<g data-kite-formation="${item.id}">${formation}</g>`);
+      daySwallow(item.x+x,item.y+y,(.33+starLight(magnitude).radius*.10).toFixed(2),item.threshold+index,1)).join('');
+    swallows.push(`<g class="day-swallow-flock" data-swallow-flock="${item.id}" style="--flight-delay:-${item.threshold}s">${formation}</g>`);
   }
   let hasIsland=false;
   const layout=gardenLandmarkPositions(history,courses,design.placements);
@@ -243,7 +228,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
     }else if(item.kind==='test'){
       const artwork=courseStars.has(index)?starPoint(0,0,magnitude):earnedStarSparkle(item.sourceId);
       stars.push(`<g class="garden-earned-star" transform="${transform}">${artwork}</g>`);
-      kites.push(dayKite(x,y,(scale*.9).toFixed(2),index));
+      swallows.push(daySwallow(x,y,(scale*.83).toFixed(2),index));
     }else if(item.kind==='milestone'){
       if(!placed&&item.zone==='island')hasIsland=true;
       if(placed)cairns.push(landmarkGround(x,y,scale*.78));
@@ -256,7 +241,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
   const island=hasIsland?`<path d="M684 682q24-7 48-6t54 5q-19 7-51 7t-51-6Z" fill="var(--shore-lower,#527e70)" opacity=".76"/>
     <path d="M689 681q17-7 39-9t51 8q-32 3-52 2t-38-1Z" fill="url(#shore)"/>`:'';
   return {trees:island+trees.sort((a,b)=>a.y-b.y).map(tree=>tree.art).join(''),
-    lanterns:lanterns.join(''),lights:lights.join(''),stars:stars.join(''),kites:kites.join(''),cairns:cairns.join('')};
+    lanterns:lanterns.join(''),lights:lights.join(''),stars:stars.join(''),swallows:swallows.join(''),cairns:cairns.join('')};
 }
 
 const fieldSketches={
@@ -371,8 +356,8 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <g id="garden-growth-stars"/>
 </g>
 <g id="garden-day-sky" opacity="0">
-  <g opacity=".86">${dayKite(602,123,2.05,0)}${dayKite(1015,137,1.7,1)}${dayKite(455,175,1.25,2)}</g>
-  <g id="garden-growth-kites"/>
+  <g class="day-swallow-flock" opacity=".70">${daySwallow(617,139,1.10,0,1)}${daySwallow(582,154,.83,1,1)}${daySwallow(650,163,.72,2,1)}</g>
+  <g id="garden-growth-swallows"/>
 </g>
 <g fill="url(#cloud-light)">
   <g class="cloud-drift"><path d="M45 211C119 204 143 190 186 188C213 186 224 172 259 172C292 172 297 189 339 190C375 191 407 200 452 199C410 209 366 204 322 207C282 210 263 215 223 211C167 205 102 220 45 211Z"/><path d="M101 225C156 221 206 225 252 219C276 216 301 217 329 221C279 225 244 232 193 229Z" opacity=".65"/></g>

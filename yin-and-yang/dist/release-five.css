@@ -57,26 +57,28 @@
 .garden-unlocked-constellation { color:var(--scene-ink,#f5ebce); opacity:.8; }
 .garden-earned-star { color:var(--scene-ink,#fff1cb); opacity:.9; }
 #app:not([data-sky-landmarks]) #garden-landmarks :is([data-sky-star],[data-sky-constellation]) { display:none; }
-.day-kite-frame { rotate:var(--kite-lean); }
-#landscape #garden-day-sky[opacity="1"] .day-kite-sway { animation:day-kite-drift var(--kite-period) ease-in-out var(--kite-delay) infinite; }
-#landscape #garden-day-sky[opacity="1"] .day-kite-frame { animation:day-kite-bank var(--kite-period) ease-in-out var(--kite-delay) infinite; }
-#landscape #garden-day-sky[opacity="1"] .day-kite-streamer { animation:day-kite-flutter 2.8s ease-in-out var(--kite-delay) infinite; }
-@keyframes day-kite-drift {
-  0%,100% { translate:-3px 1px; }
-  35% { translate:4px -5px; }
-  61% { translate:7px -3px; }
-  81% { translate:1px 3px; }
+#landscape #garden-day-sky[opacity="1"] :is(.day-swallow-glide,.day-swallow-flock) {
+  animation:swallow-glide var(--flight-period,16s) ease-in-out var(--flight-delay,-3s) infinite;
 }
-@keyframes day-kite-bank {
-  0%,100% { rotate:calc(var(--kite-lean) - 6deg); }
-  35% { rotate:calc(var(--kite-lean) + 10deg); }
-  72% { rotate:calc(var(--kite-lean) - 2deg); }
+#landscape #garden-day-sky[opacity="1"] .day-swallow-flock .day-swallow-glide { animation:none; }
+.day-swallow-left { --wing-lift:16deg; --wing-dip:-15deg; }
+.day-swallow-right { --wing-lift:-16deg; --wing-dip:15deg; }
+#landscape #garden-day-sky[opacity="1"] :is(.day-swallow-left,.day-swallow-right) {
+  transform-origin:0 2px;
+  animation:swallow-wings var(--flight-period) ease-in-out var(--flight-delay) infinite;
 }
-@keyframes day-kite-flutter {
-  0%,100% { transform:rotate(-11deg) scaleX(.92); }
-  37% { transform:rotate(12deg) scaleX(1.1); }
-  68% { transform:rotate(2deg) scaleX(.96); }
+@keyframes swallow-glide {
+  0%,100% { translate:-4px 1px; }
+  35% { translate:2px -4px; }
+  64% { translate:7px -1px; }
+  84% { translate:2px 2px; }
 }
+@keyframes swallow-wings {
+  0%,38%,70%,100% { rotate:0deg; }
+  44%,57% { rotate:var(--wing-lift); }
+  51%,63% { rotate:var(--wing-dip); }
+}
+
 #landscape .garden-star-twinkle { animation:garden-star-twinkle var(--star-period) ease-in-out var(--star-phase) infinite; }
 @keyframes garden-star-twinkle {
   0%,100% { opacity:.68; }
