@@ -166,19 +166,20 @@ export function gardenConstellationSketch(item){
 }
 
 const swallowInk=['#526e70','#5b747a','#425e65'];
-function daySwallow(x,y,scale,index,heading=index%3===0?-1:1,travel=5){
-  const ink=swallowInk[index%swallowInk.length],tilt=(index%5-2)*3;
-  const delay=-(index*7%17)*.86,period=13+index*7%13;
-  const drift=heading*(travel+index%3);
+function daySwallow(x,y,scale,index,heading=index%3===0?-1:1,crossing=0){
+  const ink=swallowInk[index%swallowInk.length],tilt=(index%5-2)*2;
+  const period=crossing?38+index*9:13+index*7%13;
+  const delay=crossing?-period*(.25+index*.24):-(index*7%17)*.86;
+  const drift=heading*(crossing?crossing/scale:11+index%5);
   const beat=(3.8+index%5*.22).toFixed(2);
   return `<g class="day-swallow" transform="translate(${x} ${y}) scale(${scale})"
-    fill="${ink}" opacity=".54" style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s;--flight-drift:${drift}px;--wing-period:${beat}s">
-    <g class="day-swallow-glide">
-      <g class="day-swallow-facing"><g transform="scale(${heading} 1) rotate(${tilt})">
-        <path class="day-swallow-wing-far" d="M3.5.7C-.7 5.8-6.1 7.6-11.8 7.5C-8.4 5.2-7.8 2.2-6.1.7Q-1-2.1 3.5.7Z" opacity=".60"/>
-        <path d="M-6-.6C-2.9-2.9.8-3.4 4.4-2.4C5-4.8 8.3-4.6 9.2-2.4L10.7-1.8 9.2-1.1C8.4 2.5 3.4 4-1 3.8Q-3.3 3.7-6.5 2.5Q-10.1 3.8-15.5 6.4L-10.7 1.4-16.4-1.7Q-11.8-1.1-6-.6Z"/>
-        <path class="day-swallow-wing-near" d="M3.1.8C.3-3.1-1.6-8.1-6.2-10.4Q-9-12-12.2-11.5C-8.8-9.5-8.4-5.7-7.3-3.2C-6.1.4-1.3 2.3 3.1.8Z"/>
-      </g></g>
+    fill="none" stroke="${ink}" stroke-linecap="round" opacity=".54"
+    style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s;--flight-drift:${drift.toFixed(1)}px;--wing-period:${beat}s">
+    <g class="day-swallow-glide${crossing?' day-swallow-crossing':''}">
+      <g transform="scale(${heading} 1) rotate(${tilt})">
+        <path class="day-swallow-wings" d="M-11-4Q-3.5-5.5.2.8Q2.8-4.9 8.5-5" stroke-width="2"/>
+        <path d="M-3.9 3.4-.2 1-.9 4.5" stroke-width="1.25" opacity=".75"/>
+      </g>
     </g>
   </g>`;
 }
@@ -370,7 +371,7 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <g id="garden-growth-stars"/>
 </g>
 <g id="garden-day-sky" opacity="0">
-  <g opacity=".76">${daySwallow(617,139,.66,0,1,64)}${daySwallow(582,154,.50,1,-1,48)}${daySwallow(650,163,.43,2,1,75)}</g>
+  <g opacity=".76">${daySwallow(340,145,.73,0,1,820)}${daySwallow(1190,173,.58,1,-1,850)}${daySwallow(460,219,.53,2,1,745)}</g>
   <g id="garden-growth-swallows"/>
 </g>
 <g data-cloud-layer="middle" fill="url(#cloud-light)" filter="url(#cloud-soft-edge)">

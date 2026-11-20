@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.18',date:'2026-11-20',title:'Swallows that cross the sky',changes:[
+    'Simplify swallows to ink strokes and replace quick turns with longer flights. Earned swallows drift near their clickable locations.'
+  ]},
   {version:'5.14.17',date:'2026-11-20',title:'Softer swallow silhouettes',changes:[
     'Refine the Day only swallows with curved wings, rounded heads, and a clearer forked tail.'
   ]},
