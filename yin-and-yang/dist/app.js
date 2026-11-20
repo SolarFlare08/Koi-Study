@@ -923,6 +923,7 @@ function render(){
   effectiveAppearance=viewed?loadAppearance({...viewed.appearance,lighting:viewed.appearance.lighting==='session'?'day':viewed.appearance.lighting,weatherSince:clock.getTime()}):
     activity?loadAppearance({...activity.appearance,weatherSince:activityWeatherSince}):
     scheduledAppearance(state.appearance,state.gardenSchedule,clock);
+  if(!viewed&&!state.gardenSchedule.enabled&&state.appearance.lighting==='day')effectiveAppearance={...effectiveAppearance,lighting:'day'};
   if(paintedGardenDesign!==design){
     applyGardenDesign($('#landscape .world'),design);
     paintedGardenDesign=design;
@@ -3017,7 +3018,7 @@ function panelContent(id){
       <div class="studio-launch"><button type="button" class="panel-primary" data-open-garden-studio>Open Garden Studio</button></div>
       <fieldset class="appearance-options"><legend>Lighting</legend><div class="lighting-options">
         ${Object.entries(lightingOptions).map(([value,label])=>`<label><input class="sr-only" type="radio" name="garden-lighting" value="${value}" ${lighting===value?'checked':''}><span>${label}</span></label>`).join('')}
-      </div><p>Follow timer gives each focus session its own sunrise and sunset.</p></fieldset>
+      </div><p>Follow timer fades the stars out at sunrise and back in after sunset. Day only keeps daylight through focus and breaks.</p></fieldset>
       ${seasonWheelMarkup()}
       <fieldset class="appearance-options weather-options"><legend>Weather</legend>
         <select id="garden-weather" name="garden-weather" aria-label="Weather">${gardenWeatherOptions()}</select>
@@ -6710,7 +6711,7 @@ const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
 function sceneryMotionEnabled(){return !motionPreference.matches&&effectiveAppearance.motion!=='still';}
 function environmentFrame(now){
   const progress=state.timer.mode==='break'?1:timerProgress(state);
-  const evening=activePanel==='evening-lights'&&(!activityGardenLayout()||effectiveAppearance.lighting==='session');
+  const evening=activePanel==='evening-lights'&&effectiveAppearance.lighting!=='day'&&(!activityGardenLayout()||effectiveAppearance.lighting==='session');
   const darkSky=animateLandscape(now,progress,motionPreference.matches,evening?'night':effectiveAppearance.lighting,effectiveAppearance.motion);
   const gardenVisible=workspace==='focus'&&!document.hidden&&!activePanel&&!$('#help-guide').open;
   shootingStars.frame(now,{allowed:gardenVisible&&sceneryMotionEnabled(),dark:darkSky&&!snapshotThrough});

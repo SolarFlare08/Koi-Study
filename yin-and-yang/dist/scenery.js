@@ -324,13 +324,15 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <path fill="url(#air)" d="M0 0h1600v900H0z"/>
 <path id="season-sky-wash" fill="url(#season-sky)" d="M0 0h1600v568H0z"/>
 <g id="sun-halo"><circle r="135" fill="url(#halo)"/></g><circle id="travelling-sun" r="34" fill="#fff0cd"/>
-<g id="stars" fill="#f5d99c" opacity="0">
+<g id="garden-starlight" opacity="0">
+<g id="stars" fill="#f5d99c" opacity=".6">
   <circle cx="321" cy="116" r="1.2"/><circle cx="1013" cy="87" r="1"/><circle cx="1280" cy="167" r="1.3"/><circle cx="460" cy="237" r=".9"/><circle cx="1107" cy="247" r="1"/><circle cx="620" cy="66" r="1"/><circle cx="1423" cy="88" r=".8"/>
   <g class="orion"><title>Orion</title><path d="M901 126L932 101L974 133L949 173L938 178L927 183L901 126M927 183L916 250L983 235L949 173" stroke="#b6c8d9" stroke-width=".85" opacity=".38" fill="none"/>
     ${orionStars.map(([name,x,y,magnitude,color])=>`<g data-star-name="${name}"><title>${name}</title>${starPoint(x,y,magnitude,color)}</g>`).join('')}
   </g>
 </g>
 <g id="garden-growth-stars"/>
+</g>
 <g fill="url(#cloud-light)">
   <g class="cloud-drift"><path d="M45 211C119 204 143 190 186 188C213 186 224 172 259 172C292 172 297 189 339 190C375 191 407 200 452 199C410 209 366 204 322 207C282 210 263 215 223 211C167 205 102 220 45 211Z"/><path d="M101 225C156 221 206 225 252 219C276 216 301 217 329 221C279 225 244 232 193 229Z" opacity=".65"/></g>
   <g class="cloud-drift cloud-east"><path d="M1033 146C1090 143 1114 130 1153 133C1184 135 1205 111 1241 114C1270 116 1278 131 1308 134C1350 139 1378 134 1428 140C1386 149 1356 147 1325 150C1272 155 1242 146 1199 149C1136 153 1086 151 1033 146Z"/><path d="M1194 165C1239 165 1264 157 1308 159C1340 160 1366 162 1400 156C1367 171 1321 167 1286 168Q1239 172 1194 165Z" opacity=".56"/></g>
@@ -412,7 +414,7 @@ function lightNodes(scope,app){
   const find=id=>scope.querySelector('#'+id);
   return {sun:find('travelling-sun'),halo:find('sun-halo'),shine:find('shine'),top:find('zenith'),
     middle:find('sky-middle'),bottom:find('horizon'),wash:find('season-sky-wash'),shade:find('night-shade'),
-    lamps:find('evening-lights'),stars:find('stars'),moon:find('garden-moon'),app};
+    lamps:find('evening-lights'),stars:find('garden-starlight'),moon:find('garden-moon'),app};
 }
 let nodes,lastFrame,previewId=0;
 function paintDay(p,lighting){
@@ -428,7 +430,8 @@ function paintLight(nodes,p,lighting,width,height){
   nodes.sun.setAttribute('cx',x);nodes.sun.setAttribute('cy',y);nodes.halo.setAttribute('transform',`translate(${x} ${y})`);nodes.shine.setAttribute('transform',`translate(${x} 0)`);
   nodes.top.setAttribute('stop-color',light.top);nodes.middle.setAttribute('stop-color',light.middle);nodes.bottom.setAttribute('stop-color',light.horizon);
   nodes.wash.setAttribute('opacity',1-light.night);
-  nodes.shade.setAttribute('opacity',light.shade);nodes.stars.setAttribute('opacity',Math.max(0,(light.night-.65)/.35)*.6);
+  nodes.shade.setAttribute('opacity',light.shade);nodes.stars.setAttribute('opacity',light.starlight);
+  nodes.app.toggleAttribute('data-starlight',light.starlight>0);
   nodes.lamps.setAttribute('opacity',light.lamplight);
   const scale=Math.max(width/1600,height/900);
   nodes.moon.setAttribute('transform',`translate(${800+Math.min(280,width/scale*.34)} ${Math.max(145,(900-height/scale)/2+83)})`);

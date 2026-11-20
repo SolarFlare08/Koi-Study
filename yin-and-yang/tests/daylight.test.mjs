@@ -5,6 +5,16 @@ import {animateLandscape} from '../dist/scenery.js';
 import {weatherMarkup} from '../dist/seasonal-scenery.js';
 import {gardenWeather,loadAppearance,loadGardenLooks,sceneProgress,sceneryWeatherLayers,scheduledAppearance,weatherInterval} from '../dist/garden-appearance.js';
 
+test('stars fade with the sky and stay hidden in Day only lighting',()=>{
+  assert.equal(daylight(0).starlight,1);
+  assert.ok(daylight(.05).starlight>0&&daylight(.05).starlight<1);
+  assert.equal(daylight(.3).starlight,0);
+  assert.equal(daylight(.86).starlight,0);
+  assert.ok(daylight(.93).starlight>0&&daylight(.93).starlight<1);
+  assert.equal(daylight(1).starlight,1);
+  assert.ok([0,.5,1].every(progress=>daylight(sceneProgress(progress,'day',false)).starlight===0));
+});
+
 test('sunrise brightens into day; sunset darkens into night',()=>{
   assert.ok(daylight(0).shade>daylight(.12).shade);
   assert.equal(daylight(.5).shade,0);
@@ -38,7 +48,8 @@ test('reset immediately returns the sun and lighting to sunrise; noon is high',(
   const nodes=new Map();
   globalThis.innerWidth=1600;globalThis.innerHeight=900;
   globalThis.document={querySelector:selector=>{
-    if(!nodes.has(selector))nodes.set(selector,{attrs:{},style:{setProperty(){}},setAttribute(name,value){this.attrs[name]=value;}});
+    if(!nodes.has(selector))nodes.set(selector,{attrs:{},style:{setProperty(){}},
+      setAttribute(name,value){this.attrs[name]=value;},toggleAttribute(name,on){this.attrs[name]=on;}});
     return nodes.get(selector);
   }};
   animateLandscape(0,.93,false);
@@ -50,9 +61,12 @@ test('reset immediately returns the sun and lighting to sunrise; noon is high',(
   assert.equal(nodes.get('#evening-lights').attrs.opacity,1);
   animateLandscape(32,.5,false);
   assert.ok(sun.attrs.cy<70);
+  assert.equal(nodes.get('#garden-starlight').attrs.opacity,0);
+  assert.equal(nodes.get('#app').attrs['data-starlight'],false);
   assert.equal(nodes.get('#evening-lights').attrs.opacity,0);
   animateLandscape(48,1,false);
   assert.ok(sun.attrs.cy>480);
+  assert.equal(nodes.get('#garden-starlight').attrs.opacity,1);
   assert.equal(sun.attrs.opacity,0);
   assert.equal(nodes.get('#sun-halo').attrs.opacity,0);
   assert.equal(nodes.get('#shine').attrs.opacity,0);

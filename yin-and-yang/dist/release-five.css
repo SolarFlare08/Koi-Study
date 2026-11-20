@@ -56,6 +56,7 @@
 .sandbox-data [data-admin-action="reset"]:hover { text-decoration:underline; }
 .garden-unlocked-constellation { color:var(--scene-ink,#f5ebce); opacity:.8; }
 .garden-earned-star { color:var(--scene-ink,#fff1cb); opacity:.9; }
+#app:not([data-starlight]) #garden-landmarks :is([data-sky-star],[data-sky-constellation]) { display:none; }
 #landscape .garden-star-twinkle { animation:garden-star-twinkle var(--star-period) ease-in-out var(--star-phase) infinite; }
 @keyframes garden-star-twinkle {
   0%,100% { opacity:.68; }

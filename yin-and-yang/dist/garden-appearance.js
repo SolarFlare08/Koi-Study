@@ -1,6 +1,6 @@
 import {loadSoundSettings} from './garden-audio.js';
 
-export const lightingOptions={session:'Follow timer',day:'Day',dusk:'Dusk',night:'Night'};
+export const lightingOptions={session:'Follow timer',day:'Day only',dusk:'Dusk',night:'Night'};
 export const gardenPalettes={seasonal:'Seasonal',jade:'Jade',amber:'Amber',ink:'Blue ink'};
 export const sceneryMotionOptions={still:'Still',gentle:'Gentle',lively:'Lively'};
 export const seasonOptions={

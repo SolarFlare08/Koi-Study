@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.14.9',date:'2026-11-20',title:'Daylight and starlight',changes:[
+    'Fade out all Garden stars in daylight and bring them back after sunset.',
+    'Choose Day only in Appearance to keep the live Garden bright through focus, breaks, and Evening lights.'
+  ]},
   {version:'5.14.8',date:'2026-11-19',title:'Stars behind the mountains',changes:[
     'Draw stars and constellation lines behind the landscape. Hidden stars no longer leave clickable spots on mountain faces.'
   ]},
