@@ -165,14 +165,36 @@ export function gardenConstellationSketch(item){
   return `<svg viewBox="-65 -50 130 105" aria-hidden="true">${constellationShape(item)}</svg>`;
 }
 
-const kiteColors=['#af624f','#4d8279','#a87942','#6b7298'];
+const kiteColors=[
+  ['#a74738','#df9774','#f8dc9e'],['#3b746a','#87b1a0','#e7e3ad'],
+  ['#a67435','#e0b575','#fff1c2'],['#5f6486','#a29fbc','#eecea2']
+];
+const kiteSails=[
+  {shape:'M0-11 10-2 0 10-10-2Z',shade:'M0-11 10-2 0 10Z',
+    ribs:'M0-10V9M-9-2Q0-5 9-2',details:'M-3-4 0-7 3-4 0-1Z'},
+  {shape:'M0-8Q8-11 16-3L9 4 0 9-9 4-16-3Q-8-11 0-8Z',
+    shade:'M0-8Q8-11 16-3L9 4 0 9Z',ribs:'M0-7V8M-15-3Q0-7 15-3M-8 3 0-2 8 3',
+    details:'M-11-3h3m16 0h3'},
+  {shape:'M0-10 13-1 9 9 3 4 0 9-3 4-9 9-13-1Z',
+    shade:'M0-10 13-1 9 9 3 4 0 9Z',ribs:'M0-9V8M-12-1Q0 2 12-1',
+    details:'M-8-1l2 2 2-3m8 0 2 3 2-2'}
+];
 function dayKite(x,y,scale,index){
-  const color=kiteColors[index%kiteColors.length],lean=(index%5-2)*7;
-  return `<g transform="translate(${x} ${y}) scale(${scale}) rotate(${lean})" color="${color}">
-    <g class="day-kite-sway" style="--kite-delay:${-(index%9)}s">
-      <path d="M0 5.5c-1 3-5 4-4 7s4 1 5 4" fill="none" stroke="currentColor" stroke-width=".9" stroke-linecap="round"/>
-      <path d="M0-6l5 4.5L0 5.5l-5-7Z" fill="currentColor" stroke="#fff3cc" stroke-width=".65"/>
-      <path d="M0-5.2v9.8m-4.1-6.3h8.2" stroke="#fff3cc" stroke-width=".55" opacity=".72"/>
+  const [paper,lit,ribbon]=kiteColors[index%kiteColors.length],sail=kiteSails[index%kiteSails.length];
+  const lean=(index%5-2)*7,period=8+(index*3%7),delay=-(index*7%19)*.7;
+  return `<g transform="translate(${x} ${y}) scale(${scale})">
+    <g class="day-kite-sway" style="--kite-period:${period}s;--kite-delay:${delay.toFixed(1)}s;--kite-lean:${lean}deg">
+      <g class="day-kite-frame">
+        <g transform="translate(0 8)"><g class="day-kite-streamer">
+          <path d="M0 0C-3 5-8 6-7 12S1 16 0 22-5 26-3 31" fill="none" stroke="${paper}" stroke-width="1.45" stroke-linecap="round"/>
+          <path d="M-7 10l-4-3 1 5 3-1 3 3v-5Zm7 10-3-2v4l3-1 3 2v-4Zm-3 9-3-2v4l3-1 3 2v-4Z"
+            fill="${ribbon}" stroke="${paper}" stroke-width=".55" stroke-linejoin="round"/>
+        </g></g>
+        <path d="${sail.shape}" fill="${paper}" stroke="#473d3a" stroke-opacity=".56" stroke-width=".8" stroke-linejoin="round"/>
+        <path d="${sail.shade}" fill="${lit}" opacity=".84"/>
+        <path d="${sail.ribs}" fill="none" stroke="${ribbon}" stroke-width=".65" stroke-linecap="round" opacity=".85"/>
+        <path d="${sail.details}" fill="none" stroke="${ribbon}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
     </g></g>`;
 }
 
@@ -183,7 +205,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
   for(const item of unlocked){
     stars.push(`<g class="garden-unlocked-constellation" data-constellation-art="${item.id}" transform="translate(${item.x} ${item.y})"><title>${item.name}</title>${constellationShape(item)}</g>`);
     const formation=constellationLitPoints(item).map(([x,y,magnitude],index)=>
-      dayKite(item.x+x,item.y+y,(.6+starLight(magnitude).radius*.15).toFixed(2),item.threshold+index)).join('');
+      dayKite(item.x+x,item.y+y,(.37+starLight(magnitude).radius*.12).toFixed(2),item.threshold+index)).join('');
     kites.push(`<g data-kite-formation="${item.id}">${formation}</g>`);
   }
   let hasIsland=false;
@@ -221,7 +243,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
     }else if(item.kind==='test'){
       const artwork=courseStars.has(index)?starPoint(0,0,magnitude):earnedStarSparkle(item.sourceId);
       stars.push(`<g class="garden-earned-star" transform="${transform}">${artwork}</g>`);
-      kites.push(dayKite(x,y,scale,index));
+      kites.push(dayKite(x,y,(scale*.9).toFixed(2),index));
     }else if(item.kind==='milestone'){
       if(!placed&&item.zone==='island')hasIsland=true;
       if(placed)cairns.push(landmarkGround(x,y,scale*.78));
@@ -349,7 +371,7 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <g id="garden-growth-stars"/>
 </g>
 <g id="garden-day-sky" opacity="0">
-  <g opacity=".78">${dayKite(665,103,1.15,0)}${dayKite(1008,132,.85,1)}${dayKite(468,143,.7,2)}</g>
+  <g opacity=".86">${dayKite(602,123,2.05,0)}${dayKite(1015,137,1.7,1)}${dayKite(455,175,1.25,2)}</g>
   <g id="garden-growth-kites"/>
 </g>
 <g fill="url(#cloud-light)">

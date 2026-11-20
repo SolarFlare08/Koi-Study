@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.11',date:'2026-11-20',title:'Kites in the breeze',changes:[
+    'Give Day only kites illustrated diamond, winged, and swallowtail sails. They drift and bank at different speeds while ribbon tails flutter.'
+  ]},
   {version:'5.14.10',date:'2026-11-20',title:'Paper kites for Day only',changes:[
     'Fly paper kites in Day only. Earned stars become clickable kites and constellation groups become kite formations in this lighting mode.'
   ]},

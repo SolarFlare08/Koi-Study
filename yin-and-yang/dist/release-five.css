@@ -57,10 +57,26 @@
 .garden-unlocked-constellation { color:var(--scene-ink,#f5ebce); opacity:.8; }
 .garden-earned-star { color:var(--scene-ink,#fff1cb); opacity:.9; }
 #app:not([data-sky-landmarks]) #garden-landmarks :is([data-sky-star],[data-sky-constellation]) { display:none; }
-#landscape .day-kite-sway { animation:day-kite-sway 7s ease-in-out var(--kite-delay) infinite alternate; }
-@keyframes day-kite-sway { from { translate:-1px 0; } to { translate:1px -2.5px; } }
-#app[data-motion="still"] #landscape .day-kite-sway { animation:none; }
-@media(prefers-reduced-motion:reduce) { #landscape .day-kite-sway { animation:none; } }
+.day-kite-frame { rotate:var(--kite-lean); }
+#landscape #garden-day-sky[opacity="1"] .day-kite-sway { animation:day-kite-drift var(--kite-period) ease-in-out var(--kite-delay) infinite; }
+#landscape #garden-day-sky[opacity="1"] .day-kite-frame { animation:day-kite-bank var(--kite-period) ease-in-out var(--kite-delay) infinite; }
+#landscape #garden-day-sky[opacity="1"] .day-kite-streamer { animation:day-kite-flutter 2.8s ease-in-out var(--kite-delay) infinite; }
+@keyframes day-kite-drift {
+  0%,100% { translate:-3px 1px; }
+  35% { translate:4px -5px; }
+  61% { translate:7px -3px; }
+  81% { translate:1px 3px; }
+}
+@keyframes day-kite-bank {
+  0%,100% { rotate:calc(var(--kite-lean) - 6deg); }
+  35% { rotate:calc(var(--kite-lean) + 10deg); }
+  72% { rotate:calc(var(--kite-lean) - 2deg); }
+}
+@keyframes day-kite-flutter {
+  0%,100% { transform:rotate(-11deg) scaleX(.92); }
+  37% { transform:rotate(12deg) scaleX(1.1); }
+  68% { transform:rotate(2deg) scaleX(.96); }
+}
 #landscape .garden-star-twinkle { animation:garden-star-twinkle var(--star-period) ease-in-out var(--star-phase) infinite; }
 @keyframes garden-star-twinkle {
   0%,100% { opacity:.68; }

@@ -825,7 +825,7 @@ export const helpTopics = [
     id:'appearance', group:'Make it yours', title:'Lighting, seasons, weather, and saved looks',
     summary:'Customize the landscape and switch looks by time of day.',
     steps:['In Garden, open `Tools` → `Appearance`.',
-      'Choose `Follow timer` for sunrise and sunset as a focus session progresses, or choose `Day only` to keep the live Garden in daylight through focus, breaks, and Evening lights. In `Day only`, paper kites take the place of stars. Select an earned kite or formation to open its original test or constellation. `Dusk` and `Night` hold those light levels instead.',
+      'Choose `Follow timer` for sunrise and sunset as a focus session progresses, or choose `Day only` to keep the live Garden in daylight through focus, breaks, and Evening lights. In `Day only`, paper kites take the place of stars. Their sails drift and bank while their ribbons flutter. Still scenery and reduced motion keep them steady. Select an earned kite or formation to open its original test or constellation. `Dusk` and `Night` hold those light levels instead.',
       'Use the `Season wheel` to preview Spring, Summer, Autumn, or Winter on the same view of the lake. Choose `Apply season` to switch the live Garden, or save a named look directly from the preview.',
       'Set weather manually or choose `Rotate every 8 minutes` for seasonal changes. Summer heat brings a soft warm haze over the lake.',
       'Watch showers crossfade into lake mist and the cloud cover pull apart as skies clear. Spring petals, autumn leaves, rain, and snow scatter across the scene and move at different speeds. Summer evenings bring fireflies.',
