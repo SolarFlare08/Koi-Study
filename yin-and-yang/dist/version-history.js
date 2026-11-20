@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.16',date:'2026-11-20',title:'Layered skies and gentler flight',changes:[
+    'Add high wisps, mid-sky clouds, and low cloud banks that drift at different speeds. Slow the swallows’ wingbeats and narrow their sweep.'
+  ]},
   {version:'5.14.15',date:'2026-11-20',title:'Clearer wingbeats and softer clouds',changes:[
     'Give Day only swallows visible wingbeats and soften the edges of drifting clouds and overcast skies.'
   ]},

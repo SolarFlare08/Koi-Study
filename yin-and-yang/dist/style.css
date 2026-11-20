@@ -46,14 +46,15 @@ button:focus-visible,a:focus-visible{outline-color:#8b6d4e}.bottom-bar{color:#31
 .duration-actions{display:flex;gap:8px}
 #duration-form button{padding:4px 9px}
 .timer-actions{margin-top:10px}
-.cloud-drift{animation:cloud-drift 70s ease-in-out infinite alternate}
-.cloud-east{animation-direction:alternate-reverse;animation-duration:84s}
-.cloud-high{animation-duration:112s;animation-delay:-21s}
+.cloud-drift{--cloud-duration:82s;--cloud-from:-15px;--cloud-to:27px;animation:cloud-drift calc(var(--cloud-duration) * var(--cloud-pace,1)) ease-in-out infinite alternate}
+.cloud-east{--cloud-duration:96s;animation-direction:alternate-reverse}
+.cloud-high{--cloud-duration:145s;--cloud-from:-9px;--cloud-to:15px;animation-delay:-31s}
+.cloud-low{--cloud-duration:59s;--cloud-from:-27px;--cloud-to:43px;animation-delay:-14s}
 .boat-bob{animation:boat-bob 7s ease-in-out infinite;transform-origin:0 4px}
 .boat-wake{animation:boat-wake 8s ease-out infinite;transform-origin:0 10px}
 .fishing-ripple{animation:boat-wake 6s ease-out infinite;animation-delay:-2s}
 .focus-running #countdown{animation:timer-settle .65s ease-out}
-@keyframes cloud-drift{from{transform:translateX(-16px)}to{transform:translateX(30px)}}
+@keyframes cloud-drift{from{translate:var(--cloud-from) 0}to{translate:var(--cloud-to) 0}}
 @keyframes boat-bob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-2px) rotate(1deg)}}
 @keyframes boat-wake{0%{opacity:.32;transform:scale(.7)}75%,100%{opacity:0;transform:scale(1.45)}}
 @keyframes timer-settle{from{opacity:.65}to{opacity:1}}

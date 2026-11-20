@@ -105,7 +105,7 @@
   --weather-transition:5s; --firefly-speed:7s; --drift-speed:13s; --snow-speed:11s;
   --rain-speed:2s; --ripple-speed:3s; --mist-speed:24s; --shimmer-speed:12s;
 }
-#app[data-motion="lively"] #landscape .cloud-drift { animation-duration: 48s; }
+#app[data-motion="lively"] #landscape { --cloud-pace:.72; }
 #app[data-motion="lively"] #landscape .boat-bob { animation-duration: 4.5s; }
 #app[data-motion="lively"] #landscape .reed-sway { animation-duration: 5.5s; }
 #app[data-motion="still"] #landscape *, #app[data-motion="still"] #landscape .world {

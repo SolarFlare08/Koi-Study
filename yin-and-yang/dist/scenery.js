@@ -170,7 +170,7 @@ function daySwallow(x,y,scale,index,heading=index%3===0?-1:1,travel=5){
   const ink=swallowInk[index%swallowInk.length],tilt=(index%5-2)*3;
   const delay=-(index*7%17)*.86,period=13+index*7%13;
   const drift=heading*(travel+index%3);
-  const beat=(2.2+index%5*.21).toFixed(2);
+  const beat=(3.8+index%5*.22).toFixed(2);
   return `<g class="day-swallow" transform="translate(${x} ${y}) scale(${scale})"
     fill="${ink}" opacity=".54" style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s;--flight-drift:${drift}px;--wing-period:${beat}s">
     <g class="day-swallow-glide">
@@ -328,6 +328,10 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
   <stop stop-color="#f8f0de" stop-opacity=".60"/><stop offset=".42" stop-color="#f1ebdf" stop-opacity=".46"/>
   <stop offset=".76" stop-color="#f0ecdf" stop-opacity=".19"/><stop offset="1" stop-color="#f0ecdf" stop-opacity="0"/>
 </radialGradient>
+<radialGradient id="cloud-wisp">
+  <stop stop-color="#fcf6e8" stop-opacity=".55"/><stop offset=".58" stop-color="#f4efde" stop-opacity=".27"/>
+  <stop offset="1" stop-color="#f4efde" stop-opacity="0"/>
+</radialGradient>
 <filter id="cloud-soft-edge" x="-8%" y="-50%" width="116%" height="200%"><feGaussianBlur stdDeviation="2.6"/></filter>
 <linearGradient id="slope-wash" x2=".22" y2="1"><stop stop-color="#2c595c" stop-opacity=".32"/><stop offset="1" stop-color="#2c595c" stop-opacity="0"/></linearGradient>
 <linearGradient id="water" x2="0" y2="1"><stop stop-color="var(--water-horizon,#ced7c6)"/><stop offset=".35" stop-color="var(--water-middle,#adc9bc)"/><stop offset="1" stop-color="var(--water-near,#6d9c98)"/></linearGradient>
@@ -351,6 +355,11 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <path fill="url(#air)" d="M0 0h1600v900H0z"/>
 <path id="season-sky-wash" fill="url(#season-sky)" d="M0 0h1600v568H0z"/>
 <g id="sun-halo"><circle r="135" fill="url(#halo)"/></g><circle id="travelling-sun" r="34" fill="#fff0cd"/>
+<g class="cloud-drift cloud-high" data-cloud-layer="high" fill="url(#cloud-wisp)" opacity=".75">
+  <ellipse cx="648" cy="83" rx="277" ry="17" transform="rotate(-3 648 83)"/>
+  <ellipse cx="1092" cy="66" rx="226" ry="15" transform="rotate(-2 1092 66)"/>
+  <ellipse cx="887" cy="103" rx="172" ry="10" opacity=".70"/>
+</g>
 <g id="garden-starlight" opacity="0">
 <g id="stars" fill="#f5d99c" opacity=".6">
   <circle cx="321" cy="116" r="1.2"/><circle cx="1013" cy="87" r="1"/><circle cx="1280" cy="167" r="1.3"/><circle cx="460" cy="237" r=".9"/><circle cx="1107" cy="247" r="1"/><circle cx="620" cy="66" r="1"/><circle cx="1423" cy="88" r=".8"/>
@@ -364,10 +373,9 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
   <g opacity=".76">${daySwallow(617,139,.66,0,1,64)}${daySwallow(582,154,.50,1,-1,48)}${daySwallow(650,163,.43,2,1,75)}</g>
   <g id="garden-growth-swallows"/>
 </g>
-<g fill="url(#cloud-light)" filter="url(#cloud-soft-edge)">
+<g data-cloud-layer="middle" fill="url(#cloud-light)" filter="url(#cloud-soft-edge)">
   <g class="cloud-drift"><path d="M45 211C119 204 143 190 186 188C213 186 224 172 259 172C292 172 297 189 339 190C375 191 407 200 452 199C410 209 366 204 322 207C282 210 263 215 223 211C167 205 102 220 45 211Z"/><path d="M101 225C156 221 206 225 252 219C276 216 301 217 329 221C279 225 244 232 193 229Z" opacity=".65"/></g>
   <g class="cloud-drift cloud-east"><path d="M1033 146C1090 143 1114 130 1153 133C1184 135 1205 111 1241 114C1270 116 1278 131 1308 134C1350 139 1378 134 1428 140C1386 149 1356 147 1325 150C1272 155 1242 146 1199 149C1136 153 1086 151 1033 146Z"/><path d="M1194 165C1239 165 1264 157 1308 159C1340 160 1366 162 1400 156C1367 171 1321 167 1286 168Q1239 172 1194 165Z" opacity=".56"/></g>
-  <path class="cloud-drift cloud-high" d="M572 84C612 83 639 75 667 77C692 78 718 85 754 81C727 91 690 88 655 88Q610 90 572 84Z" opacity=".33"/>
 </g>
 <g class="weather-overcast" fill="url(#cloud-veil)" aria-hidden="true">
   <g class="weather-cover-west">
@@ -378,6 +386,11 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
     <ellipse cx="1345" cy="166" rx="554" ry="73" transform="rotate(3 1345 166)"/>
     <ellipse cx="1127" cy="131" rx="288" ry="35" opacity=".43"/>
   </g>
+</g>
+<g class="cloud-drift cloud-low" data-cloud-layer="low" fill="url(#cloud-veil)" opacity=".56">
+  <ellipse cx="404" cy="259" rx="372" ry="33" transform="rotate(-2 404 259)"/>
+  <ellipse cx="724" cy="283" rx="257" ry="22" opacity=".70"/>
+  <ellipse cx="1256" cy="253" rx="352" ry="35" transform="rotate(2 1256 253)"/>
 </g>
 <g class="sky-flock" fill="none" stroke="#5f8586" stroke-width="1.5" stroke-linecap="round" opacity="0">
   <path d="M492 195q4-4 8 0 4-5 8-3M520 180q3-4 7-1 3-4 7-2M538 201q3-4 7-1 3-4 7-2"/>
