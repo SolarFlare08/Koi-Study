@@ -63,11 +63,11 @@
 #landscape #garden-day-sky[opacity="1"] .day-swallow-facing {
   animation:swallow-turn var(--flight-period) ease-in-out var(--flight-delay) infinite;
 }
-.day-swallow-wing-near { --wing-lift:14deg; --wing-dip:-13deg; }
-.day-swallow-wing-far { --wing-lift:10deg; --wing-dip:-9deg; }
+.day-swallow-wing-near { --wing-lift:24deg; --wing-dip:-26deg; }
+.day-swallow-wing-far { --wing-lift:21deg; --wing-dip:-20deg; }
 #landscape #garden-day-sky[opacity="1"] :is(.day-swallow-wing-near,.day-swallow-wing-far) {
   transform-origin:0 1px;
-  animation:swallow-wings var(--flight-period) ease-in-out var(--flight-delay) infinite;
+  animation:swallow-wings var(--wing-period) ease-in-out var(--flight-delay) infinite;
 }
 @keyframes swallow-glide {
   0%,100% { translate:0 0; }
@@ -79,9 +79,9 @@
   53%,96% { scale:-1 1; }
 }
 @keyframes swallow-wings {
-  0%,38%,70%,100% { rotate:0deg; }
-  44%,57% { rotate:var(--wing-lift); }
-  51%,63% { rotate:var(--wing-dip); }
+  0%,7%,57%,100% { rotate:0deg; scale:1 1; }
+  16%,36% { rotate:var(--wing-lift); scale:1 1.23; }
+  26%,46% { rotate:var(--wing-dip); scale:1 .50; }
 }
 
 #landscape .garden-star-twinkle { animation:garden-star-twinkle var(--star-period) ease-in-out var(--star-phase) infinite; }

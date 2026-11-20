@@ -170,8 +170,9 @@ function daySwallow(x,y,scale,index,heading=index%3===0?-1:1,travel=5){
   const ink=swallowInk[index%swallowInk.length],tilt=(index%5-2)*3;
   const delay=-(index*7%17)*.86,period=13+index*7%13;
   const drift=heading*(travel+index%3);
+  const beat=(2.2+index%5*.21).toFixed(2);
   return `<g class="day-swallow" transform="translate(${x} ${y}) scale(${scale})"
-    fill="${ink}" opacity=".54" style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s;--flight-drift:${drift}px">
+    fill="${ink}" opacity=".54" style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s;--flight-drift:${drift}px;--wing-period:${beat}s">
     <g class="day-swallow-glide">
       <g class="day-swallow-facing"><g transform="scale(${heading} 1) rotate(${tilt})">
         <path class="day-swallow-wing-far" d="M4 1Q-1 6-13 8Q-8 4-7 .2Q-2-2 4 1Z" opacity=".66"/>
@@ -323,6 +324,11 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <linearGradient id="middle" x2=".36" y2="1"><stop stop-color="var(--ridge-middle,#719893)"/><stop offset="1" stop-color="var(--ridge-mist,#b7c9b9)"/></linearGradient>
 <linearGradient id="near" x2=".42" y2="1"><stop stop-color="var(--ridge-near,#487775)"/><stop offset="1" stop-color="var(--ridge-base,#8bb0a2)"/></linearGradient>
 <linearGradient id="cloud-light" x2="0" y2="1"><stop stop-color="#fff3db" stop-opacity=".63"/><stop offset="1" stop-color="#f4eddf" stop-opacity=".1"/></linearGradient>
+<radialGradient id="cloud-veil">
+  <stop stop-color="#f8f0de" stop-opacity=".60"/><stop offset=".42" stop-color="#f1ebdf" stop-opacity=".46"/>
+  <stop offset=".76" stop-color="#f0ecdf" stop-opacity=".19"/><stop offset="1" stop-color="#f0ecdf" stop-opacity="0"/>
+</radialGradient>
+<filter id="cloud-soft-edge" x="-8%" y="-50%" width="116%" height="200%"><feGaussianBlur stdDeviation="2.6"/></filter>
 <linearGradient id="slope-wash" x2=".22" y2="1"><stop stop-color="#2c595c" stop-opacity=".32"/><stop offset="1" stop-color="#2c595c" stop-opacity="0"/></linearGradient>
 <linearGradient id="water" x2="0" y2="1"><stop stop-color="var(--water-horizon,#ced7c6)"/><stop offset=".35" stop-color="var(--water-middle,#adc9bc)"/><stop offset="1" stop-color="var(--water-near,#6d9c98)"/></linearGradient>
 <linearGradient id="mist" x2="0" y2="1"><stop stop-color="#f6eddc" stop-opacity="0"/><stop offset=".5" stop-color="#f6eddc" stop-opacity=".8"/><stop offset="1" stop-color="#f6eddc" stop-opacity="0"/></linearGradient>
@@ -358,14 +364,20 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
   <g opacity=".76">${daySwallow(617,139,.66,0,1,64)}${daySwallow(582,154,.50,1,-1,48)}${daySwallow(650,163,.43,2,1,75)}</g>
   <g id="garden-growth-swallows"/>
 </g>
-<g fill="url(#cloud-light)">
+<g fill="url(#cloud-light)" filter="url(#cloud-soft-edge)">
   <g class="cloud-drift"><path d="M45 211C119 204 143 190 186 188C213 186 224 172 259 172C292 172 297 189 339 190C375 191 407 200 452 199C410 209 366 204 322 207C282 210 263 215 223 211C167 205 102 220 45 211Z"/><path d="M101 225C156 221 206 225 252 219C276 216 301 217 329 221C279 225 244 232 193 229Z" opacity=".65"/></g>
   <g class="cloud-drift cloud-east"><path d="M1033 146C1090 143 1114 130 1153 133C1184 135 1205 111 1241 114C1270 116 1278 131 1308 134C1350 139 1378 134 1428 140C1386 149 1356 147 1325 150C1272 155 1242 146 1199 149C1136 153 1086 151 1033 146Z"/><path d="M1194 165C1239 165 1264 157 1308 159C1340 160 1366 162 1400 156C1367 171 1321 167 1286 168Q1239 172 1194 165Z" opacity=".56"/></g>
   <path class="cloud-drift cloud-high" d="M572 84C612 83 639 75 667 77C692 78 718 85 754 81C727 91 690 88 655 88Q610 90 572 84Z" opacity=".33"/>
 </g>
-<g class="weather-overcast" fill="url(#mist)" aria-hidden="true">
-  <path class="weather-cover-west" d="M-140 104Q45 71 245 109T660 112Q706 122 740 162Q543 204 309 183T-140 207Z"/>
-  <path class="weather-cover-east" d="M858 114Q1026 64 1253 102T1720 112L1720 218Q1505 202 1327 219T858 198Z"/>
+<g class="weather-overcast" fill="url(#cloud-veil)" aria-hidden="true">
+  <g class="weather-cover-west">
+    <ellipse cx="234" cy="151" rx="574" ry="68" transform="rotate(-3 234 151)"/>
+    <ellipse cx="435" cy="174" rx="340" ry="33" opacity=".50"/>
+  </g>
+  <g class="weather-cover-east">
+    <ellipse cx="1345" cy="166" rx="554" ry="73" transform="rotate(3 1345 166)"/>
+    <ellipse cx="1127" cy="131" rx="288" ry="35" opacity=".43"/>
+  </g>
 </g>
 <g class="sky-flock" fill="none" stroke="#5f8586" stroke-width="1.5" stroke-linecap="round" opacity="0">
   <path d="M492 195q4-4 8 0 4-5 8-3M520 180q3-4 7-1 3-4 7-2M538 201q3-4 7-1 3-4 7-2"/>

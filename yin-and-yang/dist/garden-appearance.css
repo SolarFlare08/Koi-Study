@@ -78,7 +78,7 @@
 :is(#landscape,.garden-scene-preview)[data-weather="snow"] .weather-snow,
 :is(#landscape,.garden-scene-preview)[data-weather="frost"] .weather-frost { opacity: 1; visibility: visible; }
 .weather-overcast { opacity: calc(var(--scene-overcast,0)*.7); transition: opacity var(--weather-transition,8s) ease-in-out; }
-.weather-overcast path { transition: transform var(--weather-transition,8s) ease-in-out; }
+.weather-overcast :is(.weather-cover-west,.weather-cover-east) { transition: transform var(--weather-transition,8s) ease-in-out; }
 .weather-cover-west { transform: translateX(calc((1 - var(--scene-overcast,0))*-230px)); }
 .weather-cover-east { transform: translateX(calc((1 - var(--scene-overcast,0))*230px)); }
 .firefly-layer { opacity: calc(var(--scene-fireflies,0)*var(--scene-twilight,0)); transition: opacity var(--weather-transition,8s) ease-in-out; }

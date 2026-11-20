@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.15',date:'2026-11-20',title:'Clearer wingbeats and softer clouds',changes:[
+    'Give Day only swallows visible wingbeats and soften the edges of drifting clouds and overcast skies.'
+  ]},
   {version:'5.14.14',date:'2026-11-20',title:'Swallows in side profile',changes:[
     'Redraw Day only swallows in side profile and give each bird its own glide and wingbeat timing, including birds in the same flock.'
   ]},
