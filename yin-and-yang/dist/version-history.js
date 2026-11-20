@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.13',date:'2026-11-20',title:'Distant swallows',changes:[
+    'Make Day only swallows smaller and fainter, with slower glides and softer wingbeats.'
+  ]},
   {version:'5.14.12',date:'2026-11-20',title:'Swallows in the daytime Garden',changes:[
     'Day only shows ink-wash swallows. Earned stars appear as single birds and unlocked constellations appear as gliding flocks.'
   ]},

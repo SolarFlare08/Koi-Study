@@ -169,9 +169,9 @@ const swallowInk=['#526e70','#5b747a','#425e65'];
 const swallowWing='M-1 2C-5-3-9-7-15-7C-12-4-11 0-9 2C-6 5-3 5-1 4Z';
 function daySwallow(x,y,scale,index,heading=index%3===0?-1:1){
   const ink=swallowInk[index%swallowInk.length],tilt=(index%5-2)*5;
-  const delay=-(index*7%17)*.56,period=10+index*3%8;
+  const delay=-(index*7%17)*.86,period=15+index*3%9;
   return `<g class="day-swallow" transform="translate(${x} ${y}) scale(${scale})"
-    fill="${ink}" style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s">
+    fill="${ink}" opacity=".54" style="--flight-period:${period}s;--flight-delay:${delay.toFixed(2)}s">
     <g class="day-swallow-glide">
       <g transform="rotate(${tilt+heading*8})">
         <g class="day-swallow-left"><path d="${swallowWing}"/></g>
@@ -190,7 +190,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
   for(const item of unlocked){
     stars.push(`<g class="garden-unlocked-constellation" data-constellation-art="${item.id}" transform="translate(${item.x} ${item.y})"><title>${item.name}</title>${constellationShape(item)}</g>`);
     const formation=constellationLitPoints(item).map(([x,y,magnitude],index)=>
-      daySwallow(item.x+x,item.y+y,(.33+starLight(magnitude).radius*.10).toFixed(2),item.threshold+index,1)).join('');
+      daySwallow(item.x+x,item.y+y,(.22+starLight(magnitude).radius*.065).toFixed(2),item.threshold+index,1)).join('');
     swallows.push(`<g class="day-swallow-flock" data-swallow-flock="${item.id}" style="--flight-delay:-${item.threshold}s">${formation}</g>`);
   }
   let hasIsland=false;
@@ -228,7 +228,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
     }else if(item.kind==='test'){
       const artwork=courseStars.has(index)?starPoint(0,0,magnitude):earnedStarSparkle(item.sourceId);
       stars.push(`<g class="garden-earned-star" transform="${transform}">${artwork}</g>`);
-      swallows.push(daySwallow(x,y,(scale*.83).toFixed(2),index));
+      swallows.push(daySwallow(x,y,(scale*.52).toFixed(2),index));
     }else if(item.kind==='milestone'){
       if(!placed&&item.zone==='island')hasIsland=true;
       if(placed)cairns.push(landmarkGround(x,y,scale*.78));
@@ -356,7 +356,7 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 <g id="garden-growth-stars"/>
 </g>
 <g id="garden-day-sky" opacity="0">
-  <g class="day-swallow-flock" opacity=".70">${daySwallow(617,139,1.10,0,1)}${daySwallow(582,154,.83,1,1)}${daySwallow(650,163,.72,2,1)}</g>
+  <g class="day-swallow-flock" opacity=".76">${daySwallow(617,139,.66,0,1)}${daySwallow(582,154,.50,1,1)}${daySwallow(650,163,.43,2,1)}</g>
   <g id="garden-growth-swallows"/>
 </g>
 <g fill="url(#cloud-light)">

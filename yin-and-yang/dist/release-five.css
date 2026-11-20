@@ -58,20 +58,20 @@
 .garden-earned-star { color:var(--scene-ink,#fff1cb); opacity:.9; }
 #app:not([data-sky-landmarks]) #garden-landmarks :is([data-sky-star],[data-sky-constellation]) { display:none; }
 #landscape #garden-day-sky[opacity="1"] :is(.day-swallow-glide,.day-swallow-flock) {
-  animation:swallow-glide var(--flight-period,16s) ease-in-out var(--flight-delay,-3s) infinite;
+  animation:swallow-glide var(--flight-period,23s) ease-in-out var(--flight-delay,-3s) infinite;
 }
 #landscape #garden-day-sky[opacity="1"] .day-swallow-flock .day-swallow-glide { animation:none; }
-.day-swallow-left { --wing-lift:16deg; --wing-dip:-15deg; }
-.day-swallow-right { --wing-lift:-16deg; --wing-dip:15deg; }
+.day-swallow-left { --wing-lift:10deg; --wing-dip:-8deg; }
+.day-swallow-right { --wing-lift:-10deg; --wing-dip:8deg; }
 #landscape #garden-day-sky[opacity="1"] :is(.day-swallow-left,.day-swallow-right) {
   transform-origin:0 2px;
   animation:swallow-wings var(--flight-period) ease-in-out var(--flight-delay) infinite;
 }
 @keyframes swallow-glide {
-  0%,100% { translate:-4px 1px; }
-  35% { translate:2px -4px; }
-  64% { translate:7px -1px; }
-  84% { translate:2px 2px; }
+  0%,100% { translate:-2px .5px; }
+  35% { translate:1px -2px; }
+  64% { translate:3px -.5px; }
+  84% { translate:1px 1px; }
 }
 @keyframes swallow-wings {
   0%,38%,70%,100% { rotate:0deg; }
