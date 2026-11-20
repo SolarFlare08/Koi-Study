@@ -165,12 +165,26 @@ export function gardenConstellationSketch(item){
   return `<svg viewBox="-65 -50 130 105" aria-hidden="true">${constellationShape(item)}</svg>`;
 }
 
+const kiteColors=['#af624f','#4d8279','#a87942','#6b7298'];
+function dayKite(x,y,scale,index){
+  const color=kiteColors[index%kiteColors.length],lean=(index%5-2)*7;
+  return `<g transform="translate(${x} ${y}) scale(${scale}) rotate(${lean})" color="${color}">
+    <g class="day-kite-sway" style="--kite-delay:${-(index%9)}s">
+      <path d="M0 5.5c-1 3-5 4-4 7s4 1 5 4" fill="none" stroke="currentColor" stroke-width=".9" stroke-linecap="round"/>
+      <path d="M0-6l5 4.5L0 5.5l-5-7Z" fill="currentColor" stroke="#fff3cc" stroke-width=".65"/>
+      <path d="M0-5.2v9.8m-4.1-6.3h8.2" stroke="#fff3cc" stroke-width=".55" opacity=".72"/>
+    </g></g>`;
+}
+
 export function gardenGrowthMarkup(history,{courses=[],through='',visible,design=defaultGardenDesign}={}){
   const trees=[],lanterns=[],lights=[];
-  const stars=[],cairns=[];
+  const stars=[],kites=[],cairns=[];
   const {assigned,unlocked}=gardenStarProgress(history,{through,visible});
   for(const item of unlocked){
     stars.push(`<g class="garden-unlocked-constellation" data-constellation-art="${item.id}" transform="translate(${item.x} ${item.y})"><title>${item.name}</title>${constellationShape(item)}</g>`);
+    const formation=constellationLitPoints(item).map(([x,y,magnitude],index)=>
+      dayKite(item.x+x,item.y+y,(.6+starLight(magnitude).radius*.15).toFixed(2),item.threshold+index)).join('');
+    kites.push(`<g data-kite-formation="${item.id}">${formation}</g>`);
   }
   let hasIsland=false;
   const layout=gardenLandmarkPositions(history,courses,design.placements);
@@ -207,6 +221,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
     }else if(item.kind==='test'){
       const artwork=courseStars.has(index)?starPoint(0,0,magnitude):earnedStarSparkle(item.sourceId);
       stars.push(`<g class="garden-earned-star" transform="${transform}">${artwork}</g>`);
+      kites.push(dayKite(x,y,scale,index));
     }else if(item.kind==='milestone'){
       if(!placed&&item.zone==='island')hasIsland=true;
       if(placed)cairns.push(landmarkGround(x,y,scale*.78));
@@ -219,7 +234,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
   const island=hasIsland?`<path d="M684 682q24-7 48-6t54 5q-19 7-51 7t-51-6Z" fill="var(--shore-lower,#527e70)" opacity=".76"/>
     <path d="M689 681q17-7 39-9t51 8q-32 3-52 2t-38-1Z" fill="url(#shore)"/>`:'';
   return {trees:island+trees.sort((a,b)=>a.y-b.y).map(tree=>tree.art).join(''),
-    lanterns:lanterns.join(''),lights:lights.join(''),stars:stars.join(''),cairns:cairns.join('')};
+    lanterns:lanterns.join(''),lights:lights.join(''),stars:stars.join(''),kites:kites.join(''),cairns:cairns.join('')};
 }
 
 const fieldSketches={
@@ -333,6 +348,10 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
 </g>
 <g id="garden-growth-stars"/>
 </g>
+<g id="garden-day-sky" opacity="0">
+  <g opacity=".78">${dayKite(665,103,1.15,0)}${dayKite(1008,132,.85,1)}${dayKite(468,143,.7,2)}</g>
+  <g id="garden-growth-kites"/>
+</g>
 <g fill="url(#cloud-light)">
   <g class="cloud-drift"><path d="M45 211C119 204 143 190 186 188C213 186 224 172 259 172C292 172 297 189 339 190C375 191 407 200 452 199C410 209 366 204 322 207C282 210 263 215 223 211C167 205 102 220 45 211Z"/><path d="M101 225C156 221 206 225 252 219C276 216 301 217 329 221C279 225 244 232 193 229Z" opacity=".65"/></g>
   <g class="cloud-drift cloud-east"><path d="M1033 146C1090 143 1114 130 1153 133C1184 135 1205 111 1241 114C1270 116 1278 131 1308 134C1350 139 1378 134 1428 140C1386 149 1356 147 1325 150C1272 155 1242 146 1199 149C1136 153 1086 151 1033 146Z"/><path d="M1194 165C1239 165 1264 157 1308 159C1340 160 1366 162 1400 156C1367 171 1321 167 1286 168Q1239 172 1194 165Z" opacity=".56"/></g>
@@ -414,7 +433,7 @@ function lightNodes(scope,app){
   const find=id=>scope.querySelector('#'+id);
   return {sun:find('travelling-sun'),halo:find('sun-halo'),shine:find('shine'),top:find('zenith'),
     middle:find('sky-middle'),bottom:find('horizon'),wash:find('season-sky-wash'),shade:find('night-shade'),
-    lamps:find('evening-lights'),stars:find('garden-starlight'),moon:find('garden-moon'),app};
+    lamps:find('evening-lights'),stars:find('garden-starlight'),daySky:find('garden-day-sky'),moon:find('garden-moon'),app};
 }
 let nodes,lastFrame,previewId=0;
 function paintDay(p,lighting){
@@ -431,7 +450,9 @@ function paintLight(nodes,p,lighting,width,height){
   nodes.top.setAttribute('stop-color',light.top);nodes.middle.setAttribute('stop-color',light.middle);nodes.bottom.setAttribute('stop-color',light.horizon);
   nodes.wash.setAttribute('opacity',1-light.night);
   nodes.shade.setAttribute('opacity',light.shade);nodes.stars.setAttribute('opacity',light.starlight);
-  nodes.app.toggleAttribute('data-starlight',light.starlight>0);
+  const dayOnly=lighting==='day';
+  nodes.daySky.setAttribute('opacity',dayOnly?1:0);
+  nodes.app.toggleAttribute('data-sky-landmarks',light.starlight>0||dayOnly);
   nodes.lamps.setAttribute('opacity',light.lamplight);
   const scale=Math.max(width/1600,height/900);
   nodes.moon.setAttribute('transform',`translate(${800+Math.min(280,width/scale*.34)} ${Math.max(145,(900-height/scale)/2+83)})`);
@@ -449,13 +470,15 @@ function paintLight(nodes,p,lighting,width,height){
   return light.night>=.65;
 }
 
-export function mountGardenPreview(container,appearance,{history=[],courses=[],through='',visible,design=defaultGardenDesign}={}){
+export function mountGardenPreview(container,appearance,{history=[],courses=[],through='',visible,design=defaultGardenDesign,daylightSample=false}={}){
   const template=document.createElement('template');
   template.innerHTML=renderLandscape(design);
   const scene=template.content.firstElementChild;
   const art=gardenGrowthMarkup(history,{courses,through,visible,design});
   for(const [part,markup] of Object.entries(art))scene.querySelector(`#garden-growth-${part}`).innerHTML=markup;
-  paintLight(lightNodes(scene,container),sceneProgress(0,appearance.lighting,false,'still'),appearance.lighting,1600,900);
+  const lighting=daylightSample&&appearance.lighting!=='day'?'session':appearance.lighting;
+  const progress=daylightSample ? .43 : sceneProgress(0,lighting,false,'still');
+  paintLight(lightNodes(scene,container),progress,lighting,1600,900);
   applySceneryAppearance(container,appearance,gardenWeather(appearance,appearance.weatherSince));
   // Each preview carries its own paint servers and clip paths alongside the live landscape.
   const prefix=`garden-preview-${++previewId}-`;

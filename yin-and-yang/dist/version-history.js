@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.14.10',date:'2026-11-20',title:'Paper kites for Day only',changes:[
+    'Fly paper kites in Day only. Earned stars become clickable kites and constellation groups become kite formations in this lighting mode.'
+  ]},
   {version:'5.14.9',date:'2026-11-20',title:'Daylight and starlight',changes:[
     'Fade out all Garden stars in daylight and bring them back after sunset.',
     'Choose Day only in Appearance to keep the live Garden bright through focus, breaks, and Evening lights.'

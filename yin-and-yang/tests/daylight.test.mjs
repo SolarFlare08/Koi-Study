@@ -62,7 +62,8 @@ test('reset immediately returns the sun and lighting to sunrise; noon is high',(
   animateLandscape(32,.5,false);
   assert.ok(sun.attrs.cy<70);
   assert.equal(nodes.get('#garden-starlight').attrs.opacity,0);
-  assert.equal(nodes.get('#app').attrs['data-starlight'],false);
+  assert.equal(nodes.get('#garden-day-sky').attrs.opacity,0);
+  assert.equal(nodes.get('#app').attrs['data-sky-landmarks'],false);
   assert.equal(nodes.get('#evening-lights').attrs.opacity,0);
   animateLandscape(48,1,false);
   assert.ok(sun.attrs.cy>480);
@@ -70,6 +71,10 @@ test('reset immediately returns the sun and lighting to sunrise; noon is high',(
   assert.equal(sun.attrs.opacity,0);
   assert.equal(nodes.get('#sun-halo').attrs.opacity,0);
   assert.equal(nodes.get('#shine').attrs.opacity,0);
+  animateLandscape(64,.5,false,'day');
+  assert.equal(nodes.get('#garden-starlight').attrs.opacity,0);
+  assert.equal(nodes.get('#garden-day-sky').attrs.opacity,1);
+  assert.equal(nodes.get('#app').attrs['data-sky-landmarks'],true);
 });
 test('sun follows a circular arc on standard and wide screens',()=>{
   for(const [w,h] of [[1600,900],[1920,800],[390,844]]){

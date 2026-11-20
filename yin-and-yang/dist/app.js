@@ -1582,9 +1582,10 @@ function renderSeasonPreview(){
   const container=$('#garden-season-scene');
   if(!container)return;
   const appearance=previewSeasonAppearance();
-  if(!container.firstElementChild){
+  if(!container.firstElementChild||container.dataset.sampleLighting!==appearance.lighting){
     const history=state.gardenGrowth,courses=gardenCourses(history,state.projects);
-    mountGardenPreview(container,{...appearance,lighting:'day'},{history,courses,through:snapshotThrough,design:sceneGardenDesign()});
+    mountGardenPreview(container,appearance,{history,courses,through:snapshotThrough,design:sceneGardenDesign(),daylightSample:true});
+    container.dataset.sampleLighting=appearance.lighting;
   }else applySceneryAppearance(container,appearance,gardenWeather(appearance,appearance.weatherSince));
   $('#garden-season-preview-label').textContent=`${seasonOptions[appearance.season].name} · ${seasonOptions[appearance.season].detail}`;
   $('#apply-preview-season').disabled=appearance.season===effectiveAppearance.season;
@@ -3018,7 +3019,7 @@ function panelContent(id){
       <div class="studio-launch"><button type="button" class="panel-primary" data-open-garden-studio>Open Garden Studio</button></div>
       <fieldset class="appearance-options"><legend>Lighting</legend><div class="lighting-options">
         ${Object.entries(lightingOptions).map(([value,label])=>`<label><input class="sr-only" type="radio" name="garden-lighting" value="${value}" ${lighting===value?'checked':''}><span>${label}</span></label>`).join('')}
-      </div><p>Follow timer fades the stars out at sunrise and back in after sunset. Day only keeps daylight through focus and breaks.</p></fieldset>
+      </div><p>Follow timer brings stars back after sunset. Day only keeps daylight and swaps stars for paper kites.</p></fieldset>
       ${seasonWheelMarkup()}
       <fieldset class="appearance-options weather-options"><legend>Weather</legend>
         <select id="garden-weather" name="garden-weather" aria-label="Weather">${gardenWeatherOptions()}</select>

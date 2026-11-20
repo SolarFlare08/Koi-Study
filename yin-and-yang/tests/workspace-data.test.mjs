@@ -241,7 +241,7 @@ test('day recap combines completions and tomorrow’s blocks and drops an undone
 
 test('earned Garden details stay unique and survive a backup without the original project or book',()=>{
   const state=freshState();
-  assert.deepEqual(gardenGrowthMarkup(state.gardenGrowth),{trees:'',lanterns:'',lights:'',stars:'',cairns:''});
+  assert.deepEqual(gardenGrowthMarkup(state.gardenGrowth),{trees:'',lanterns:'',lights:'',stars:'',kites:'',cairns:''});
   const grove=earnGardenDetail(state.gardenGrowth,'project','studio','Studio portfolio','2026-11-12');
   const earned=earnGardenDetail(grove,'book','["the waves","virginia woolf"]','The Waves · Virginia Woolf','2026-11-19');
   assert.strictEqual(earnGardenDetail(earned,'project','studio','Renamed portfolio','2026-11-20'),earned);

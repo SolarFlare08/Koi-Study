@@ -56,7 +56,11 @@
 .sandbox-data [data-admin-action="reset"]:hover { text-decoration:underline; }
 .garden-unlocked-constellation { color:var(--scene-ink,#f5ebce); opacity:.8; }
 .garden-earned-star { color:var(--scene-ink,#fff1cb); opacity:.9; }
-#app:not([data-starlight]) #garden-landmarks :is([data-sky-star],[data-sky-constellation]) { display:none; }
+#app:not([data-sky-landmarks]) #garden-landmarks :is([data-sky-star],[data-sky-constellation]) { display:none; }
+#landscape .day-kite-sway { animation:day-kite-sway 7s ease-in-out var(--kite-delay) infinite alternate; }
+@keyframes day-kite-sway { from { translate:-1px 0; } to { translate:1px -2.5px; } }
+#app[data-motion="still"] #landscape .day-kite-sway { animation:none; }
+@media(prefers-reduced-motion:reduce) { #landscape .day-kite-sway { animation:none; } }
 #landscape .garden-star-twinkle { animation:garden-star-twinkle var(--star-period) ease-in-out var(--star-phase) infinite; }
 @keyframes garden-star-twinkle {
   0%,100% { opacity:.68; }

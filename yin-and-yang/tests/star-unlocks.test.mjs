@@ -35,7 +35,7 @@ test('the sky stars and earned constellations paint before the landscape in ever
     const svg=renderLandscape({...defaultGardenDesign,mountains});
     const ridge=svg.indexOf('data-garden-piece="mountains"');
     assert.ok(ridge>0);
-    for(const id of ['stars','garden-growth-stars','garden-meteor']){
+    for(const id of ['stars','garden-growth-stars','garden-day-sky','garden-meteor']){
       const stars=svg.indexOf(`id="${id}"`);
       assert.ok(stars>=0&&stars<ridge);
     }
@@ -47,10 +47,11 @@ test('every lit constellation point replaces exactly one earned star in live and
   for(const count of [2,3,5,6,20,21,24,37,38,40]){
     const through=history[count-1].day;
     const progress=gardenStarProgress(history,{through});
-    const art=gardenGrowthMarkup(history,{through}).stars;
+    const {stars:art,kites}=gardenGrowthMarkup(history,{through});
     assert.equal((art.match(/class="garden-earned-star"/g)||[]).length,progress.free);
     assert.equal((art.match(/class="sky-star-point"/g)||[]).length,progress.assigned.size);
     assert.equal(progress.free+progress.assigned.size,count);
+    assert.equal((kites.match(/class="day-kite-sway"/g)||[]).length,count);
     assert.equal(progress.assigned.size,progress.unlocked.reduce((sum,item)=>sum+item.starIndices.length,0));
   }
   assert.equal(gardenStarProgress(history).free,2);
