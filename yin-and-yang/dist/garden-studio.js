@@ -50,7 +50,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     return `<form id="garden-studio-form" novalidate>
       <header class="studio-top">
         <div class="studio-title"><h2 id="panel-title">Garden Studio</h2><span data-studio-draft-state></span></div>
-        <label class="studio-name">Layout name<input name="layoutName" maxlength="70" required placeholder="Name this layout"></label>
+        <label class="studio-name"><span>Layout name <small>Optional</small></span><input name="layoutName" maxlength="70" placeholder="Automatic name"></label>
         <div class="studio-top-actions">
           <div class="studio-history">
             <button type="button" data-studio="undo" title="Undo (Ctrl+Z)" aria-label="Undo">${toolIcon('M9 6l-5 5 5 5M4 11h10a4 4 0 0 1 0 8')}</button>
@@ -167,7 +167,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   }
   function updateHistoryControls(){
     const dirty=fingerprint({...draft,name:field('layoutName').value.trim()})!==savedDraft;
-    form.querySelector('[data-studio-draft-state]').textContent=dirty?'Unsaved changes':draft.id?'Saved layout':'Live Garden';
+    const draftStatus=form.querySelector('[data-studio-draft-state]');
+    draftStatus.textContent=dirty?'Unsaved changes':draft.id?'Saved layout':'Live Garden';
+    draftStatus.classList.toggle('studio-unsaved',dirty);
     form.querySelector('[data-studio="undo"]').disabled=!undo.length;
     form.querySelector('[data-studio="redo"]').disabled=!redo.length;
   }
@@ -380,13 +382,17 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   }
   function writeCandidate({apply=false,copy=false}={}){
     const name=field('layoutName');
-    name.setCustomValidity(name.value.trim()?'':'Enter a name for this layout.');
-    if(!name.reportValidity())return;
     if(!field('through').validity.valid){setTool('library');field('through').reportValidity();return;}
     const layouts=getState().gardenLayouts;
     const old=layouts.find(item=>item.id===draft.id);
     if(draft.id&&!old){status('This saved layout was removed in another tab. Save a copy to keep your edits.');if(!copy)return;}
-    const label=name.value.trim();
+    let label=name.value.trim()||old?.name;
+    if(!label){
+      const used=new Set(layouts.map(layout=>layout.name.toLowerCase()));
+      let number=1;
+      while(used.has(`garden layout ${number}`))number++;
+      label=`Garden layout ${number}`;
+    }
     const itemId=copy||!draft.id?crypto.randomUUID():draft.id;
     const [item]=loadGardenLayouts([{...draft,id:itemId,through:field('through').value,
       name:copy&&old?.name===label?label.slice(0,65)+' copy':label,savedOn:today()}]);
@@ -475,7 +481,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     });
     stage.addEventListener('pointercancel',()=>{if(drag){drag=null;render();}});
     form.addEventListener('input',event=>{
-      if(event.target===field('layoutName')){field('layoutName').setCustomValidity('');updateHistoryControls();}
+      if(event.target===field('layoutName'))updateHistoryControls();
       if(event.target===field('propSize'))field('propSizeValue').value=event.target.value+'%';
     });
     form.addEventListener('change',event=>{

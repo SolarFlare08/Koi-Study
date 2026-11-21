@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.15.4',date:'2026-11-21',title:'A cleaner Garden Studio',changes:[
+    'Move editing tools above the canvas and give the terrain and prop previews more room.',
+    'Save or apply a layout without naming it. New unnamed layouts get an available name such as Garden layout 1.'
+  ]},
   {version:'5.15.3',date:'2026-11-21',title:'A clearer look at today’s focus',changes:[
     'Put focus time and daily goal progress at the top of Today, with completed and skipped sessions below. Give the end-of-day recap a direct action beside the Garden links.'
   ]},
