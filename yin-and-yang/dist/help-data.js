@@ -82,7 +82,7 @@ export const helpTopics = [
     id:'workspaces', group:'Start here', title:'Find your way around',
     summary:'What each workspace is for, and how to find features quickly.',
     steps:['Use the bottom bar to switch between `Garden`, `Planner`, and `Calendar`. Notes, Reading, Journal, and Crochet are beside them on wide screens or under `More` on small screens.',
-      'In Garden, use `Tasks` at the top right to show or hide the sidebar below it. Use the chevron inside the sidebar to collapse only the task list. Choose Today’s focus for session totals, history, and the end-of-day recap. Choose `Edit landscape` to open Studio with your live design ready to edit.',
+      'In Garden, use `Tasks` at the top right to show or hide the sidebar below it. Use the chevron inside the sidebar to collapse only the task list. Choose `Today` for session totals, history, and the end-of-day recap. Choose `Landscape` to open Studio with your live design ready to edit.',
       'Open `Settings` in Garden to switch between Timer, Appearance, Music & video, and Backups. The sun and music-note buttons in the Garden toolbar open Appearance and Music & video directly.',
       'Use `Tools` to search for settings, Quick notes, Garden Studio, the Field Guide, and Help.',
       'Use Planner for task lists, projects, reviews, and reports. Calendar is the full schedule shared with Planner and the Garden’s 5-hour calendar.',
@@ -215,7 +215,7 @@ export const helpTopics = [
   {
     id:'progress', group:'Focus & rest', title:'See today’s progress and blossoms',
     summary:'Check today’s completed sessions, focus minutes, and skipped sessions.',
-    steps:['In Garden, choose Today’s focus at the top left.',
+    steps:['In Garden, choose `Today` at the top left.',
       'Read the totals for focus minutes, completed sessions, and skipped sessions. Session history shows each finish time, intention, and outcome. Use the links below for the end-of-day recap and the Garden Field Guide.',
       'Each completed focus session adds a blossom. Skipped sessions are recorded separately and do not add to completed totals.',
       'For earlier dates or project-level statistics, use Planner → `Reporting`.'],
@@ -224,7 +224,7 @@ export const helpTopics = [
   {
     id:'day-recap', group:'Calendar & planning', title:'Review today in two minutes',
     summary:'See what you finished or moved and what is lined up for tomorrow.',
-    steps:['Open Garden → Today’s focus → `End-of-day recap`, use the button on Planner’s Today view, or find it with `Ctrl+K`.',
+    steps:['Open Garden → Today → `End-of-day recap`, use the button on Planner’s Today view, or find it with `Ctrl+K`.',
       'Review completed tasks and rituals, focus time, and the schedule changes recorded today.',
       'Select a task, a moved or upcoming block, an event, or a captured thought to open it. Unsorted and archived thoughts captured today appear under Captured today.',
       'Check tomorrow’s events, focus blocks, and due tasks. Choose `Plan tomorrow` to reserve your first focus block.',
@@ -840,7 +840,7 @@ export const helpTopics = [
   {
     id:'garden-studio',group:'Make it yours',title:'Build a landscape in Garden Studio',
     summary:'Edit on a full-screen canvas with a tool rail, zoom, and undo.',
-    steps:['In Garden, click Edit landscape to open the Terrain palette and see the current style. Choose a category such as Shoreline, Path, Building, Building base, Boat, or Lantern. Click an illustrated tile to try that style on the canvas. Use Light for season, palette, weather, and lighting.',
+    steps:['In Garden, click Landscape to open the Terrain palette and see the current style. Choose a category such as Shoreline, Path, Building, Building base, Boat, or Lantern. Click an illustrated tile to try that style on the canvas. Use Light for season, palette, weather, and lighting.',
       'Choose Move to click or drag the building and props on the canvas. Choose earned landmarks from the Object list. The position sliders and arrow keys let you fine-tune placement.',
       'Use the bottom View and zoom controls to frame the canvas. Choose Hide panel for more canvas space, then Show panel or a tool to bring the controls back. Undo and Redo at the top step through scenery edits in the current draft.',
       'Name the layout and use Save layout or Save & apply at the top. In Layouts, load saved and starter layouts, save a copy, assign layouts by activity, set an archive date, or download a postcard.'],
@@ -850,7 +850,7 @@ export const helpTopics = [
   {
     id:'garden-props',group:'Make it yours',title:'Place props in the Garden',
     summary:'Arrange bridges, plants, water details, and stone lanterns in a Studio layout.',
-    steps:['Open Garden → Edit landscape. Choose Props in the tool rail, pick a thumbnail such as Vermilion footbridge, Copper maple, or Floating lantern, then click or tap the canvas to place it. Keep clicking to place more copies, or use Place in view from the keyboard.',
+    steps:['Open Garden → Landscape. Choose Props in the tool rail, pick a thumbnail such as Vermilion footbridge, Copper maple, or Floating lantern, then click or tap the canvas to place it. Keep clicking to place more copies, or use Place in view from the keyboard.',
       'Switch to Select, then click the prop on the canvas or choose it from the Object list. Drag or use the position sliders to move it. Use Size or Remove prop to edit it.',
       'Save your layout. Props appear in the live Garden when you apply the layout and are included in postcards and backups.'],
     action:'garden-studio',actionLabel:'Open Garden Studio',related:['garden-studio','activity-layouts','garden-postcard']
@@ -858,7 +858,7 @@ export const helpTopics = [
   {
     id:'activity-layouts',group:'Make it yours',title:'Switch Garden layouts by activity',
     summary:'Give Focus, Rest, and Shutdown their own saved Studio scenes.',
-    steps:['In Garden, choose Edit landscape. Save each scene you want to use in Studio.',
+    steps:['In Garden, choose Landscape. Save each scene you want to use in Studio.',
       'Open Layouts. Under Layout by activity, select a saved layout for Focus, Rest, or Shutdown. The assignment saves immediately.',
       'Focus and Rest follow the timer mode. Shutdown appears when you open Evening lights and returns to the timer mode’s scene when you close it.',
       'Choose Default Garden to clear an assignment. Save and apply updates the default Garden.'],

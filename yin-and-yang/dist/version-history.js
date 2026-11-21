@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.15.2',date:'2026-11-21',title:'A quieter Garden toolbar',changes:[
+    'Group the Garden toolbar into two soft surfaces that follow the scene’s colors. Use compact icons for frequent shortcuts and shorter labels for Today and Landscape.'
+  ]},
   {version:'5.15.1',date:'2026-11-21',title:'Settings together, shortcuts up front',changes:[
     'Switch between Timer, Appearance, Music & video, and Backups from Garden Settings.',
     'Open Appearance and Music & video directly from the Garden toolbar.'
