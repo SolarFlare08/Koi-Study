@@ -41,10 +41,10 @@ const sizeSlider=(name,label)=>`<label>${label} <output name="${name}Value">100%
 
 export function createGardenStudio({getState,getAppearance,getDesign,commit,download,today}){
   let draft,form,selected='',scene=null,drag=null,tool='select',stamp='',stampPoint=null,zoom=1,terrainCategory='mountains';
-  let undo=[],redo=[],savedDraft='',propCategory='all';
+  let undo=[],redo=[],savedDraft='';
   function open(){
     draft={id:'',name:'',through:'',design:loadGardenDesign(getDesign()),appearance:getAppearance()};
-    selected='';drag=null;stamp='';stampPoint=null;undo=[];redo=[];zoom=1;tool='scene';terrainCategory='mountains';propCategory='all';
+    selected='';drag=null;stamp='';stampPoint=null;undo=[];redo=[];zoom=1;tool='scene';terrainCategory='mountains';
     savedDraft=fingerprint(draft);
   }
   function markup(){
@@ -85,17 +85,25 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
             </div>
           </section>
           <section id="studio-tool-props" data-tool-panel="props" hidden>
-            <h3>Prop palette</h3>
+            <div class="studio-inspector-heading">
+              <h3>Prop library</h3><p data-studio-prop-count></p>
+            </div>
             <p>Choose a prop, then click or tap the canvas to place it.</p>
-            <div class="studio-terrain-categories" role="group" aria-label="Prop categories">${Object.entries(gardenPropCategories).map(([key,label])=>
-              `<button type="button" data-studio-prop-category="${key}" aria-controls="studio-prop-palette" aria-pressed="${key==='all'}">${label}</button>`).join('')}</div>
             <div class="studio-stamp-controls">
               ${sizeSlider('stampSize','Placement size')}
-              <button type="button" class="text-button" data-studio="place-center" disabled>Place in view</button>
+              <button type="button" data-studio="place-center" disabled>Place in view</button>
             </div>
-            <div class="studio-prop-palette" id="studio-prop-palette">${Object.entries(gardenPropTypes).map(([kind,item])=>
-              `<button type="button" data-studio-stamp="${kind}" aria-pressed="false">${propSwatch(kind)}<span>${item.name}</span></button>`).join('')}</div>
-            <p class="studio-stage-help" data-studio-prop-count></p>
+            <div class="studio-prop-library">${Object.entries(gardenPropCategories).map(([key,label])=>{
+              const items=Object.entries(gardenPropTypes).filter(([,item])=>item.category===key)
+                .sort(([,a],[,b])=>a.name.localeCompare(b.name,'en'));
+              return `<details class="studio-prop-group">
+                <summary><span class="studio-prop-group-label">${label}<span>${items.length} props</span></span></summary>
+                <div class="studio-prop-palette" role="group" aria-label="${label}">
+                  ${items.map(([kind,item])=>
+                    `<button type="button" data-studio-stamp="${kind}" aria-pressed="false">${propSwatch(kind)}<span>${item.name}</span></button>`).join('')}
+                </div>
+              </details>`;
+            }).join('')}</div>
           </section>
           <section id="studio-tool-scene" data-tool-panel="scene" hidden>
             <h3>Terrain</h3>
@@ -224,11 +232,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   function syncStamp(){
     const active=tool==='props'&&stamp&&draft.design.props.length<gardenPropLimit;
     form.querySelector('.studio-stage').toggleAttribute('data-stamping',Boolean(active));
-    for(const button of form.querySelectorAll('[data-studio-prop-category]')){
-      button.setAttribute('aria-pressed',String(button.dataset.studioPropCategory===propCategory));
-    }
     for(const button of form.querySelectorAll('[data-studio-stamp]')){
-      button.hidden=propCategory!=='all'&&gardenPropTypes[button.dataset.studioStamp].category!==propCategory;
       button.setAttribute('aria-pressed',String(button.dataset.studioStamp===stamp));
       button.disabled=draft.design.props.length>=gardenPropLimit;
     }
@@ -560,12 +564,6 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(toolButton){setTool(toolButton.dataset.studioTool);return;}
       const stampButton=event.target.closest('[data-studio-stamp]');
       if(stampButton){stamp=stampButton.dataset.studioStamp;syncStamp();updatePin();return;}
-      const propFilter=event.target.closest('[data-studio-prop-category]');
-      if(propFilter){
-        propCategory=propFilter.dataset.studioPropCategory;
-        if(propCategory!=='all'&&stamp&&gardenPropTypes[stamp].category!==propCategory)stamp='';
-        syncStamp();updatePin();return;
-      }
       const category=event.target.closest('[data-studio-category]');
       if(category){showTerrainCategory(category.dataset.studioCategory);return;}
       const style=event.target.closest('[data-studio-style]');

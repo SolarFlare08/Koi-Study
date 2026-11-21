@@ -25,7 +25,7 @@ export function gardenObjectSize(value){
   const {min,max,step}=gardenSizeBounds;
   return Number.isFinite(value)?Math.max(min,Math.min(max,Math.round(value/step)*step)):100;
 }
-export const gardenPropCategories={all:'All',plants:'Plants',water:'Water',structures:'Structures',details:'Details'};
+export const gardenPropCategories={plants:'Plants',water:'Water',structures:'Structures',details:'Details'};
 export const gardenPropTypes={
   bridge:{name:'Stone arch bridge',category:'structures',x:1200,y:673},
   dock:{name:'Wooden dock',category:'structures',x:1428,y:781},

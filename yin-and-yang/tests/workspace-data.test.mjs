@@ -593,7 +593,7 @@ test('Garden mountain presets have distinct artwork and props survive layout and
 
 test('new waterfront styles and props render and round-trip with a Studio layout',()=>{
   const props=Object.entries(gardenPropTypes).map(([kind,{x,y,category}])=>{
-    assert.ok(category!=='all'&&Object.hasOwn(gardenPropCategories,category));
+    assert.ok(Object.hasOwn(gardenPropCategories,category));
     return {id:kind,kind,x,y,size:130};
   });
   const state=freshState(),design=loadGardenDesign({

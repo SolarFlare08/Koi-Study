@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.16.1',date:'2026-11-21',title:'A brighter Garden Studio',changes:[
+    'Give Studio a light ivory workspace with jade controls, clearer selection, and larger palette labels.',
+    'Group the prop library into collapsible Plants, Water, Structures, and Details sections.'
+  ]},
   {version:'5.16.0',date:'2026-11-21',title:'More scenery for Garden Studio',changes:[
     'Place ten new props, including weeping willows, shore irises, mandarin ducks, and path beacons that light up at dusk.',
     'Browse props by type and adjust placement size above the palette.',
