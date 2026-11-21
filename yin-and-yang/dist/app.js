@@ -572,20 +572,21 @@ compactNavigation.addEventListener('change',()=>{
   if(compactNavigation.matches&&workspaceLibrary.contains(focused))workspaceMore.focus({preventScroll:true});
   if(!compactNavigation.matches&&focused===workspaceMore)workspaceButton(workspace).focus({preventScroll:true});
 });
-function gardenToolAnchor(id){return $('#objects [data-panel="'+id+'"]')||$('#garden-tools');}
+function gardenToolAnchor(id){return $('#objects [data-panel="'+id+'"]')||(id==='pagoda'?$('#garden-settings'):$('#garden-tools'));}
+const gardenSettingsSections=[['pagoda','Timer'],['appearance','Appearance'],['music','Music & video'],['backup','Backups']];
 const gardenToolGroups=[
-  ['Focus & sound',[
+  ['Settings',[
     ['pagoda','focus','Timer settings','Durations, routines, warnings','pomodoro breaks chimes notifications'],
-    ['music','music','Music & video','Spotify, YouTube, ambient sound','audio mute volume playlists']
+    ['appearance','appearance','Appearance','Lighting, seasons, weather','theme night day motion palette'],
+    ['music','music','Music & video','Spotify, YouTube, ambient sound','audio mute volume playlists'],
+    ['backup','external','Backup & restore','Protect or transfer your data','export import snapshot recovery']
   ]],
   ['Garden',[
-    ['appearance','appearance','Appearance','Lighting, seasons, weather','theme night day motion palette'],
     ['garden-studio','sliders','Edit landscape','Arrange scenery and save layouts','studio props mountains'],
     ['garden-history','sprout','Garden Field Guide','Landmarks, constellations, postcards','stars trees lanterns history']
   ]],
   ['Notes & support',[
     ['notes','note','Quick notes','Capture a thought or open the inbox','sticky distraction scratchpad'],
-    ['backup','external','Backup & restore','Protect or transfer your data','export import snapshot recovery'],
     ['help','help','Help guide','How-to guides and shortcuts','instructions documentation version history']
   ]]
 ];
@@ -620,6 +621,14 @@ function addGardenToolsReturn(panel,id,anchor){
   panel.querySelector('.panel-header>div')?.insertAdjacentHTML('afterbegin',
     `<button type="button" class="garden-tools-return" data-return-garden-tools>${icon('left')}<span>All tools</span></button>`);
 }
+function syncSettingsNavigation(panel,id){
+  panel.querySelector('.garden-settings-nav')?.remove();
+  const isSettings=gardenSettingsSections.some(([section])=>section===id);
+  panel.classList.toggle('garden-settings-panel',isSettings);
+  if(!isSettings)return;
+  panel.querySelector('.panel-header').insertAdjacentHTML('afterend',`<nav class="garden-settings-nav" aria-label="Garden settings">
+    ${gardenSettingsSections.map(([section,label])=>`<button type="button" id="garden-setting-${id}-${section}" data-garden-setting="${section}" ${section===id?'aria-current="page"':''} ${section==='backup'?'aria-haspopup="dialog"':''}>${label}</button>`).join('')}</nav>`);
+}
 function inSchedule(){return workspace==='planner'||workspace==='calendar';}
 let sidebarBeforeFocus=desktopTasks.matches;
 setTaskSidebar(sidebarBeforeFocus);
@@ -640,6 +649,7 @@ function showWorkspace(next){
   focusNotes.update(next==='focus'?focusedTask():null,next==='focus');
   $('#objects').hidden=next!=='focus';
   $('#garden-tools').hidden=next!=='focus';
+  $('#garden-settings').hidden=next!=='focus';
   taskToggle.hidden=next!=='focus';
   $('#penguin').hidden=next!=='focus';
   workspaceNav.querySelectorAll('button[data-workspace]').forEach(button=>{
@@ -1277,7 +1287,7 @@ document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>{
     return;
   }
   if(el.id==='garden-tools'){gardenToolQuery='';lastGardenTool='';}
-  if(activePanel===el.dataset.panel)closePanel();else openPanel(el.dataset.panel,el);
+  if(activePanel===el.dataset.panel&&lastAnchor===el)closePanel();else openPanel(el.dataset.panel,el);
 });
 function syncFocusMode(){
   const enabled=state.focusMode;
@@ -3051,7 +3061,7 @@ function panelContent(id){
   if(id==='garden-tools')return gardenToolsMarkup();
   if(id==='appearance'){
     const {lighting,season,motion,palette}=state.appearance;
-    return `${header('GARDEN APPEARANCE','Light and seasons')}
+    return `${header('SETTINGS','Appearance')}
       <div class="studio-launch"><button type="button" class="panel-primary" data-open-garden-studio>Open Garden Studio</button></div>
       <fieldset class="appearance-options"><legend>Lighting</legend><div class="lighting-options">
         ${Object.entries(lightingOptions).map(([value,label])=>`<label><input class="sr-only" type="radio" name="garden-lighting" value="${value}" ${lighting===value?'checked':''}><span>${label}</span></label>`).join('')}
@@ -3147,7 +3157,7 @@ function panelContent(id){
   }
   if(id==='task-tradeoffs')return tradeoffsMarkup();
   if(id==='focus-replay')return focusReplayMarkup();
-  if(id==='pagoda')return `${header('TIMER SETTINGS','Find your rhythm.')}<p>A little structure. A lot of space.</p><button type="button" class="text-button" id="open-backup">Backup and restore</button><form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}<button type="button" class="text-button" id="open-break-ideas">Manage break ideas</button>${timerRoutines()}`;
+  if(id==='pagoda')return `${header('SETTINGS','Timer')}<form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}<button type="button" class="text-button" id="open-break-ideas">Manage break ideas</button>${timerRoutines()}`;
   if(id==='task-editor')return taskEditor();
   if(id==='block-editor')return blockEditor();
   if(id==='capture')return `${header('QUICK CAPTURE','Leave a thought here.')}
@@ -3187,7 +3197,7 @@ function panelContent(id){
   if(id==='garden-course')return gardenCourseMarkup();
   if(id==='garden-landmark')return gardenLandmarkMarkup();
   if(id==='day-recap')return dayRecapMarkup();
-  return `${header('BY THE LAKE','Music & video')}
+  return `${header('SETTINGS','Music & video')}
     <div class="media-sources" role="group" aria-label="Media source">
       <button type="button" data-media-source="spotify">Spotify</button><button type="button" data-media-source="youtube">YouTube</button>
     </div>
@@ -3293,6 +3303,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   if(id==='progress')panel.classList.add('focus-today-panel');
   if(id==='garden-tools'){panel.classList.add('garden-tools-panel');filterGardenTools(panel);}
   addGardenToolsReturn(panel,id,anchor);
+  syncSettingsNavigation(panel,id);
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
   if(id==='appearance')renderSeasonPreview();
@@ -3304,7 +3315,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   positionPanel(panel,anchor);wake();
   if(id==='garden-landmark')landmarkPanelSize.observe(panel);
   const firstControl=panel.querySelector(id==='appearance'?'input:checked':id==='event-editor'?'[name=title]':'input,textarea,select')||panel.querySelector('button');
-  const initialFocus=['replan-today','plan-tomorrow','plan-deadline','build-week','project-context','schedule-drop','garden-landmark','garden-comparison','garden-studio','garden-tools'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
+  const initialFocus=panel.classList.contains('garden-settings-panel')||['replan-today','plan-tomorrow','plan-deadline','build-week','project-context','schedule-drop','garden-landmark','garden-comparison','garden-studio','garden-tools'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
   if(initialFocus.id==='panel-title')initialFocus.tabIndex=-1;
   initialFocus.focus({preventScroll:true});
 }
@@ -3340,6 +3351,7 @@ function refreshPanel(){
   p.innerHTML=panelContent(activePanel);
   if(activePanel==='garden-tools')filterGardenTools(p);
   addGardenToolsReturn(p,activePanel,lastAnchor);
+  syncSettingsNavigation(p,activePanel);
   if(sandboxDataOpen)p.querySelector('.sandbox-data').open=true;
   if(activePanel==='routine-editor')updatePhaseButtons();
   const scheduleForm=p.querySelector('#task-editor-form,#block-editor-form');
@@ -5593,6 +5605,18 @@ root.addEventListener('click',e=>{
     ($(`[data-home-tool="${lastGardenTool}"]:not([hidden])`)||$('#garden-tool-search')).focus({preventScroll:true});
     return;
   }
+  const settings=e.target.closest('[data-garden-setting]');
+  if(settings){
+    const destination=settings.dataset.gardenSetting;
+    if(destination==='backup'){backup.open();return;}
+    if(destination!==activePanel){
+      const anchor=lastAnchor;
+      if(anchor?.id==='garden-tools')lastGardenTool=destination;
+      openPanel(destination,anchor);
+      $(`#garden-setting-${destination}-${destination}`).focus({preventScroll:true});
+    }
+    return;
+  }
   const homeTool=e.target.closest('[data-home-tool]');
   if(homeTool){
     const id=homeTool.dataset.homeTool;
@@ -5600,7 +5624,7 @@ root.addEventListener('click',e=>{
     if(id==='help'){closePanel();helpGuide.open();return;}
     if(id==='backup'){closePanel();backup.open();return;}
     if(id==='garden-studio'){openGardenStudio();return;}
-    openPanel(id,gardenToolAnchor(id));return;
+    openPanel(id,gardenSettingsSections.some(([section])=>section===id)?$('#garden-tools'):gardenToolAnchor(id));return;
   }
   if(e.target.closest('#open-break-ideas')){openPanel('break-ideas',gardenToolAnchor('pagoda'));return;}
   if(e.target.closest('#next-break-idea')){breakIdeaIndex++;renderBreakSuggestion();return;}
@@ -5790,11 +5814,6 @@ root.addEventListener('click',e=>{
     persist();
   }
   const btn=e.target.closest('button');if(!btn)return;
-  if(btn.id==='open-backup'){
-    closePanel();
-    backup.open();
-    return;
-  }
   if(btn.id==='open-reading-shelf'){
     $('#workspace-tabs [data-workspace="reading"]').click();
     return;

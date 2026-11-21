@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.15.1',date:'2026-11-21',title:'Settings together, shortcuts up front',changes:[
+    'Switch between Timer, Appearance, Music & video, and Backups from Garden Settings.',
+    'Open Appearance and Music & video directly from the Garden toolbar.'
+  ]},
   {version:'5.15.0',date:'2026-11-21',title:'A clearer Garden Tools menu',changes:[
     'Browse Garden tools by category or search by name, feature, or keyword.',
     'Open Backup & restore or Edit landscape directly. Use All tools to return from a tool panel and pick up where you left off.'

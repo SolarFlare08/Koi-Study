@@ -43,7 +43,7 @@ export const helpTopics = [
     related:['timer','focus-compass']},
   {id:'automatic-backups',group:'Start here',title:'Automatic backups and recovery',
     summary:'Protect your Garden automatically and see whether the backup succeeded.',
-    steps:['Open Tools → Backup & restore. In a browser tab, Automatic protection shows local backup status. In the Windows app, it also shows disk backup status. Choose Back up now to create a snapshot immediately.',
+    steps:['Open Garden → Settings → Backups. In a browser tab, Automatic protection shows local backup status. In the Windows app, it also shows disk backup status. Choose Back up now to create a snapshot immediately.',
       'While the app is open, changed data is captured every five minutes, with an initial backup after ten seconds. The last three automatic snapshots are separate from five manual restore points. Preview any snapshot and choose the sections to restore.',
       'The Windows app also saves JSON files in %LOCALAPPDATA%\\Yin and Yang\\Backups. It keeps 30 recent snapshots plus the first snapshot from each of the last 14 backed-up days. A normal window close makes another disk backup.',
       'Choose Open backup folder in the Windows app, then restore a JSON file through the normal backup preview. Tasks, calendars, saved journal drafts, notes, books, Stitchbook photos, and settings use the existing portable backup format.',
@@ -83,7 +83,8 @@ export const helpTopics = [
     summary:'What each workspace is for, and how to find features quickly.',
     steps:['Use the bottom bar to switch between `Garden`, `Planner`, and `Calendar`. Notes, Reading, Journal, and Crochet are beside them on wide screens or under `More` on small screens.',
       'In Garden, use `Tasks` at the top right to show or hide the sidebar below it. Use the chevron inside the sidebar to collapse only the task list. Choose Today’s focus for session totals, history, and the end-of-day recap. Choose `Edit landscape` to open Studio with your live design ready to edit.',
-      'Open `Tools` to browse Focus & sound, Garden, and Notes & support. Use Find a tool to search, then press Enter to open the first match. Within a tool panel, choose All tools to return to your search.',
+      'Open `Settings` in Garden to switch between Timer, Appearance, Music & video, and Backups. The sun and music-note buttons in the Garden toolbar open Appearance and Music & video directly.',
+      'Use `Tools` to search for settings, Quick notes, Garden Studio, the Field Guide, and Help.',
       'Use Planner for task lists, projects, reviews, and reports. Calendar is the full schedule shared with Planner and the Garden’s 5-hour calendar.',
       'Choose `Search` or press `Ctrl+K` to search across tasks, sticky notes, books, and journal entries, or run a command.'],
     tip:'The filled tab marks your current workspace. On small screens, More stays highlighted while a workspace in its menu is active. Open Help with F1 or find it in Ctrl+K.',
@@ -128,7 +129,7 @@ export const helpTopics = [
   {
     id:'routines', group:'Focus & rest', title:'Save timer routines and an intention',
     summary:'Keep favorite focus and break lengths ready to use.',
-    steps:['In Garden, open `Tools` → `Timer settings`.',
+    steps:['In Garden, open `Settings` → `Timer`.',
       'Set Focus and Rest lengths and add a session intention under `What are you making space for?`. Choose `Save rhythm`.',
       'Use the routines section to apply Classic (25/5), Deep work (50/10), or a routine you saved.',
       'To save your own routine, give it a name and set its focus and rest lengths, then save it.',
@@ -177,7 +178,7 @@ export const helpTopics = [
   {
     id:'break-ideas', group:'Focus & rest', title:'Save break ideas that fit the timer',
     summary:'Keep a personal list of 2-, 5-, and 10-minute ways to take a break.',
-    steps:['In Garden, open `Tools` → `Timer settings` → `Manage break ideas`. Name the activity, choose 2, 5, or 10 minutes, and select `Add idea`.',
+    steps:['In Garden, open `Settings` → `Timer` → `Manage break ideas`. Name the activity, choose 2, 5, or 10 minutes, and select `Add idea`.',
       'During Rest, open `Session tools` → `Break idea` beneath the timer. Garden suggests an activity at the longest saved length that fits the time left.',
       'Choose `Another idea` when more than one activity fits at that length. Use `Remove` to take an idea off your list.'],
     action:'focus', actionLabel:'Open Garden', related:['timer','backup']
@@ -204,7 +205,7 @@ export const helpTopics = [
   {
     id:'notifications', group:'Focus & rest', title:'Timer warnings and optional chimes',
     summary:'Get a five-minute focus warning and a 2:30 break warning.',
-    steps:['Open Garden → `Tools` → `Timer settings` → `Timer warnings`.',
+    steps:['Open Garden → `Settings` → `Timer` → `Timer warnings`.',
       'Choose `Enable browser notifications` and allow notifications when your browser asks.',
       'Focus sessions warn at `5:00` remaining; breaks warn at `2:30`. A phase shorter than its warning threshold does not produce that warning.',
       'Choose `Adjust chimes and ambience` to control the separate focus and break sound volumes.'],
@@ -824,7 +825,7 @@ export const helpTopics = [
   {
     id:'appearance', group:'Make it yours', title:'Lighting, seasons, weather, and saved looks',
     summary:'Customize the landscape and switch looks by time of day.',
-    steps:['In Garden, open `Tools` → `Appearance`.',
+    steps:['In Garden, select the Appearance button in the toolbar or open `Settings` → `Appearance`.',
       'Choose `Follow timer` for sunrise and sunset as a focus session progresses, or choose `Day only` to keep the live Garden in daylight through focus, breaks, and Evening lights. In `Day only`, faint ink-stroke swallows take the place of stars. Distant birds glide sideways across the sky, and earned birds stay near their clickable locations. Still scenery and reduced motion keep them steady. Select an earned swallow or flock to open its original test or constellation. `Dusk` and `Night` hold those light levels instead.',
       'Use the `Season wheel` to preview Spring, Summer, Autumn, or Winter on the same view of the lake. Choose `Apply season` to switch the live Garden, or save a named look directly from the preview.',
       'Set weather manually or choose `Rotate every 8 minutes` for seasonal changes. Summer heat brings a soft warm haze over the lake.',
@@ -867,7 +868,7 @@ export const helpTopics = [
   {
     id:'garden-postcard',group:'Make it yours',title:'Export a Garden postcard',
     summary:'Download a 1600 × 900 PNG of the landscape with an optional caption.',
-    steps:['In Garden, open `Tools` → `Appearance` or `Garden Field Guide`, then choose `Export postcard`.',
+    steps:['In Garden, open `Appearance` or `Tools` → `Garden Field Guide`, then choose `Export postcard`.',
       'Type a caption such as a semester title or milestone, choose `Use month`, or leave it blank.',
       'Choose `Download PNG`. To export an earlier Garden, first open a historical view from the Field Guide.'],
     action:'garden-postcard',actionLabel:'Open postcard export',related:['garden-growth','garden-inscriptions','garden-comparison','appearance']
@@ -875,7 +876,7 @@ export const helpTopics = [
   {
     id:'music', group:'Make it yours', title:'Spotify, YouTube, and app sounds',
     summary:'Play your playlists and choose whether the app makes any sound.',
-    steps:['In Garden, open `Tools` → `Music & video`. Choose Spotify or YouTube, paste a link, and choose `Load`. Each service keeps its own most recent link.',
+    steps:['In Garden, select the music-note button in the toolbar or open `Settings` → `Music & video`. Choose Spotify or YouTube, paste a link, and choose `Load`. Each service keeps its own most recent link.',
       'To keep several links, paste a link, expand `Save a soundtrack`, and enter a name. Use `Saved soundtracks` to switch links or `Remove saved` to remove one.',
       'On YouTube, choose `Pop out video` for a mini player inside Yin and Yang. Use `Expand` to return to the full player or hide the video to continue listening.',
       'Use `Open in Spotify` or `Open on YouTube` to play the saved link on the service’s own site.',
@@ -916,7 +917,7 @@ export const helpTopics = [
     id:'backup', group:'Your data', title:'Saving locally, backups, and restoring',
     summary:'Keep your work when closing a tab and move it to another device.',
     steps:['Saved work stays in this browser on this device when you close the tab. Reopen the app at the same address, browser, and profile to access it.',
-      'Open Garden → Tools → Timer settings → `Backup and restore`, then choose `Download backup` to export one file with tasks, calendar, journal, notes, reading history, crochet projects/time, and settings.',
+      'Open Garden → Settings → `Backups`, then choose `Download backup` to export one file with tasks, calendar, journal, notes, reading history, crochet projects/time, and settings.',
       'On another device or after a reset, open Backup and restore and choose the `.json` file.',
       'Review the add and replace counts. Open `Show records`, then expand a `Replace` row to compare the current and incoming values for each changed field. Check the sections you want and choose `Restore selected sections`. Reading logs match by date.',
       'Choose `Save restore point` to keep a dated snapshot in this browser. The five newest points stay available. Choose the dated snapshot and restore the sections you want through the same preview.'],

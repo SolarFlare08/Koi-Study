@@ -12,20 +12,28 @@
 }
 .garden-action span[data-icon] { display: inline-flex; flex: none; }
 .garden-action svg { width: 14px; height: 14px; color: var(--surface-accent); }
-#objects .garden-action, #garden-tools, #open-command-palette, #garden-tasks {
+#objects .garden-action, #garden-tools, #garden-settings, #open-command-palette, #garden-tasks {
   border-color: color-mix(in srgb,var(--surface-line) 78%,transparent);
   background: color-mix(in srgb,var(--surface-paper) 92%,transparent);
 }
 #objects .garden-edit { border-color: var(--surface-accent); background: var(--surface-raised); }
 #objects .garden-action:hover, #objects .garden-action[aria-expanded="true"],
-#garden-tools:is(:hover,[aria-expanded="true"]), #open-command-palette:hover,
+:is(#garden-tools,#garden-settings):is(:hover,[aria-expanded="true"]), #open-command-palette:hover,
 #garden-tasks:is(:hover,[aria-expanded="true"]) {
   border-color: var(--surface-accent); background: var(--surface-raised);
 }
 .garden-action:focus-visible { outline-color: var(--surface-accent); outline-offset: 2px; }
 #garden-tools[aria-expanded="true"] svg, #workspace-more svg { rotate: 180deg; }
 #workspace-more[aria-expanded="true"] svg { rotate: 0deg; }
-#app.focus-view :is(#garden-tools,#garden-tasks) { display: none; }
+#app.focus-view :is(#garden-tools,#garden-settings,#garden-tasks) { display: none; }
+.garden-settings-panel:not(#music-panel) { width:min(410px,calc(100vw - 28px)); }
+.garden-settings-nav {
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:3px; margin:1px 0 14px;
+  padding:3px; border:1px solid var(--surface-line); border-radius:9px; background:var(--surface-field);
+}
+.garden-settings-nav button { padding:7px 2px; min-height:36px; border-radius:6px; color:var(--surface-muted); font-size:11px; line-height:1.25; }
+.garden-settings-nav button:hover { background:var(--surface-raised); color:var(--surface-ink); }
+.garden-settings-nav button[aria-current] { background:var(--surface-raised); color:var(--surface-ink); box-shadow:inset 0 -2px var(--surface-accent); font-weight:700; }
 #app[data-workspace="focus"] #fullscreen { color: var(--surface-ink); }
 #app[data-workspace="focus"] :is(.sky,#task-sidebar,#penguin) {
   --scene-ink: var(--garden-ink,#2b4549); --scene-muted: var(--garden-muted,#3c5659);
@@ -87,13 +95,21 @@
 #workspace-tabs .workspace-primary button > span:first-child, #workspace-tabs #workspace-more > span:first-child { display: inline-flex; }
 #workspace-library small, #workspace-tabs #workspace-more { display: none; }
 
-@media(max-width:680px) {
-  #app[data-workspace="focus"] .topbar { grid-template-columns: 1fr; gap: 5px; padding: 9px 10px; }
+@media(max-width:940px) {
+  #app[data-workspace="focus"] .topbar { grid-template-columns: minmax(0,1fr); gap: 5px; padding: 9px 10px; }
   #app[data-workspace="focus"] .topbar #objects { justify-self: start; }
   #app[data-workspace="focus"] .top-actions { grid-column: 1; grid-row: 2; justify-self: end; }
   #app[data-workspace="focus"] #task-sidebar { top:94px; max-height:calc(100% - 174px); }
   #app[data-workspace="focus"] .topbar #objects[hidden] + .top-actions, #app.focus-view .top-actions { grid-row: 1; justify-self: end; }
   #app[data-workspace="focus"] #garden-snapshot { top: 91px; }
+}
+@media(max-width:540px) {
+  #objects .garden-quick-setting { width:36px; padding-inline:0; }
+  .garden-quick-label { display:none; }
+}
+@media(max-width:420px) {
+  .garden-utility-label { display:none; }
+  :is(#garden-settings,#open-command-palette) { width:34px; padding-inline:0; }
 }
 @media(max-width:640px) {
   #workspace-tabs { overflow: visible; }
@@ -115,5 +131,14 @@
   #workspace-tabs button { padding-inline: 6px; }
   #workspace-tabs .workspace-primary button > span:first-child { display: none; }
   .garden-action { padding-inline: 7px; }
+  #app[data-workspace="focus"]:not(.focus-view) .topbar #objects:not([hidden]) {
+    display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 34px 34px; width:100%; justify-content:start;
+  }
+  #objects .garden-action { width:auto; min-width:0; }
+  #objects .garden-action:not(.garden-quick-setting) { padding-inline:3px; gap:3px; font-size:11px; }
+  #app[data-workspace="focus"]:not(.focus-view) .top-actions {
+    display:grid; grid-template-columns:47px 33px 33px minmax(0,1fr) 28px 49px; width:100%; min-width:0; gap:3px;
+  }
+  #app[data-workspace="focus"]:not(.focus-view) .top-actions button { min-width:0; width:auto; padding-inline:2px; gap:3px; }
   #focus-mode-label { font-size: 10px; }
 }
