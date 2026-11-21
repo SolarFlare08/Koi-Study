@@ -19,13 +19,18 @@ export const defaultGardenDesign={mountains:'classic',shoreline:'classic',pavili
   boat:'seasonal',lantern:'classic',path:'none',camera:'wide',pavilionPosition:null,pavilionSize:100,placements:{},landmarkSizes:{},props:[]};
 export const pavilionBounds={x:[90,1510],y:[557,848]};
 export const gardenPropBounds={x:[32,1568],y:[446,883]};
+const skyPropBounds={x:gardenPropBounds.x,y:[32,530]};
 export const gardenPropLimit=36;
 export const gardenSizeBounds={min:25,max:200,step:5};
 export function gardenObjectSize(value){
   const {min,max,step}=gardenSizeBounds;
   return Number.isFinite(value)?Math.max(min,Math.min(max,Math.round(value/step)*step)):100;
 }
-export const gardenPropCategories={plants:'Plants',water:'Water',structures:'Structures',details:'Details'};
+export const gardenPropCategories={plants:'Plants',water:'Water',structures:'Structures',details:'Details',sky:'Sky'};
+const sceneProps=(group,category,x,y)=>Object.fromEntries(
+  Object.entries(gardenPieceOptions[group]).filter(([style])=>style!=='none').map(([style,name])=>
+    [group+'-'+style,{name:group==='path'?name+' segment':group==='lantern'?'Hanging lantern · '+name:name,category,x,y,group,style}])
+);
 export const gardenPropTypes={
   bridge:{name:'Stone arch bridge',category:'structures',x:1200,y:673},
   dock:{name:'Wooden dock',category:'structures',x:1428,y:781},
@@ -51,15 +56,38 @@ export const gardenPropTypes={
   well:{name:'Stone well',category:'structures',x:188,y:757},
   bellpost:{name:'Bronze wind bell',category:'details',x:1160,y:615},
   beacon:{name:'Path beacon',category:'details',x:214,y:773},
-  pottery:{name:'Celadon jars',category:'details',x:1131,y:618}
+  pottery:{name:'Celadon jars',category:'details',x:1131,y:618},
+  shorepine:{name:'Shore pine',category:'plants',x:161,y:780},
+  cherry:{name:'Cherry blossom tree',category:'plants',x:128,y:760},
+  shoremaple:{name:'Autumn shore tree',category:'plants',x:1384,y:597},
+  baretree:{name:'Bare winter tree',category:'plants',x:1479,y:606},
+  shorereeds:{name:'Shore reeds',category:'plants',x:1440,y:818},
+  wildflowers:{name:'Shore wildflowers',category:'plants',x:207,y:774},
+  leaflitter:{name:'Fallen maple leaves',category:'details',x:208,y:766},
+  boulder:{name:'Rounded shore boulder',category:'details',x:1449,y:842},
+  cairn:{name:'Stone cairn',category:'details',x:1441,y:824},
+  island:{name:'Low lake island',category:'water',x:1030,y:735},
+  shorelotus:{name:'Flowering lotus pad',category:'water',x:541,y:764},
+  dragonfly:{name:'Lake dragonfly',category:'water',x:570,y:699},
+  ripple:{name:'Lake ripples',category:'water',x:632,y:714,viewBox:'-62 -22 124 44'},
+  ice:{name:'Shore ice',category:'water',x:421,y:768,viewBox:'-62 -22 124 44'},
+  cloud:{name:'Cloud bank',category:'sky',x:430,y:164,layer:'sky',viewBox:'-72 -25 144 50'},
+  swallow:{name:'Swallow',category:'sky',x:544,y:187,layer:'day',viewBox:'-15 -9 30 18'},
+  star:{name:'Golden star',category:'sky',x:580,y:127,layer:'night',viewBox:'-12 -9 24 18'},
+  crescent:{name:'Crescent moon',category:'sky',x:1130,y:138,layer:'night',viewBox:'-32 -29 64 58'},
+  ...sceneProps('pavilion','structures',1194,655),
+  ...sceneProps('path','structures',1168,643),
+  ...sceneProps('lantern','details',1124,634)
 };
+export const gardenPropLayer=kind=>gardenPropTypes[kind]?.layer||'ground';
+export const gardenPropPositionBounds=kind=>gardenPropLayer(kind)==='ground'?gardenPropBounds:skyPropBounds;
 export function loadGardenProps(value){
   const props=new Map();
   for(const item of Array.isArray(value)?value:[]){
     if(typeof item?.id!=='string'||!/^[a-z0-9_-]{1,80}$/i.test(item.id)||!Object.hasOwn(gardenPropTypes,item.kind)||
       !Number.isFinite(item.x)||!Number.isFinite(item.y))continue;
     const size=gardenObjectSize(item.size);
-    props.set(item.id,{id:item.id,kind:item.kind,...clampGardenPlacement(item.x,item.y,gardenPropBounds),size});
+    props.set(item.id,{id:item.id,kind:item.kind,...clampGardenPlacement(item.x,item.y,gardenPropPositionBounds(item.kind)),size});
     if(props.size===gardenPropLimit)break;
   }
   return [...props.values()];

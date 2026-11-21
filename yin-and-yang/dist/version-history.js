@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.17.0',date:'2026-11-21',title:'Place more of the Garden',changes:[
+    'Stamp copies of scenery such as shore trees, reeds, flowers, rocks, lake details, and cairns.',
+    'Place any Garden building, path style, or hanging lantern as its own prop. Extra buildings come with stone bases and their lights work at night.',
+    'Browse a Sky category for clouds, Day lighting swallows, stars, and crescent moons. Sky props sit behind the mountains.'
+  ]},
   {version:'5.16.1',date:'2026-11-21',title:'A brighter Garden Studio',changes:[
     'Give Studio a light ivory workspace with jade controls, clearer selection, and larger palette labels.',
     'Group the prop library into collapsible Plants, Water, Structures, and Details sections.'

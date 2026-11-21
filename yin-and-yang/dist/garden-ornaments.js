@@ -171,19 +171,22 @@ export function foundationArt(kind,span=35){
 export function placedPavilion(style,design,lights=false){
   const point=design.pavilionPosition||defaultPavilionPosition;
   const transform=pavilionTransform(point,design.pavilionSize);
-  const building=buildings[style],base=pavilionFoundation(design);
+  const base=pavilionFoundation(design);
+  const options={base,lantern:design.lantern,reflection:base!=='land'||!design.pavilionPosition};
+  return `<g transform="${transform}"${lights?'':` data-foundation="${base}"`}>${pavilionArtwork(style,options,lights)}</g>`;
+}
+
+export function pavilionArtwork(style,{base='stone',lantern='classic',reflection=false}={},lights=false){
+  const building=buildings[style];
   const [lx,ly]=building.lantern;
   if(lights){
     const panesGlow=building.panes.length?`<ellipse cy="-19" rx="39" ry="30" fill="url(#lamp-halo)" opacity=".68"/>
       ${building.panes.map(pane=>panes(...pane,'#f7c68b')).join('')}`:'';
-    const reflection=base==='land'&&design.pavilionPosition?'':
-      '<path d="M-15 24h29m-23 4h16m-28 5H3" stroke="#f7c58c" stroke-linecap="round" opacity=".37"/>';
-    return `<g transform="${transform}">${panesGlow}${gardenLantern(design.lantern,lx,ly,{lit:true})}
-      ${panesGlow||design.lantern!=='none'?reflection:''}</g>`;
+    const glint=reflection&&(panesGlow||lantern!=='none')?
+      '<path d="M-15 24h29m-23 4h16m-28 5H3" stroke="#f7c58c" stroke-linecap="round" opacity=".37"/>':'';
+    return panesGlow+gardenLantern(lantern,lx,ly,{lit:true})+glint;
   }
-  return `<g transform="${transform}" data-foundation="${base}">
-    ${foundationArt(base,building.span)}${building.art}${building.panes.map(pane=>panes(...pane,windows)).join('')}
-    ${gardenLantern(design.lantern,lx,ly)}</g>`;
+  return foundationArt(base,building.span)+building.art+building.panes.map(pane=>panes(...pane,windows)).join('')+gardenLantern(lantern,lx,ly);
 }
 
 const boats={

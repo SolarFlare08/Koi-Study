@@ -48,7 +48,7 @@ const shallowsEast=`<path d="M1600 761Q1554 774 1530 786T1471 815Q1447 829 1424 
   <path d="M1405 853q-39 3-58-9 29-8 53-6m11 21q50-2 89-28" fill="none" stroke="#cbdab1" stroke-width="3" opacity=".67"/>
   <path d="M1308 848q14-9 29-2-6 8-25 7l5-4Zm-20 19q9-8 24-4-6 7-19 8l4-4Z" fill="#a1b584"/>`;
 const pathPoints=[[1049,630],[1061,627],[1075,624],[1087,622],[1100,624],[1113,625],[1127,624],[1142,621],[1155,617],[1171,613],[1185,610],[1198,606]];
-function shorePath(style,{lantern}){
+export function shorePath(style,{lantern,lit=true,lightsOnly=false}){
   if(style==='none')return '';
   if(style==='gravel'){
     const trail='M1048 628C1080 617 1116 629 1149 622Q1175 611 1198 606';
@@ -67,12 +67,12 @@ function shorePath(style,{lantern}){
       <path d="${deck}" fill="none" stroke="#b8a484" stroke-width="5" stroke-linecap="round"/>
       <path d="${deck}" fill="none" stroke="#776c59" stroke-width="5" stroke-dasharray=".8 3.2" opacity=".8"/>`;
   }
-  const stones=pathPoints.map(([x,y],index)=>`<ellipse cx="${x}" cy="${y}" rx="${index%2?5:6}" ry="1.9" fill="#c9c6a7" stroke="#697f71" stroke-width=".7"/>`).join('');
+  const stones=lightsOnly?'':pathPoints.map(([x,y],index)=>`<ellipse cx="${x}" cy="${y}" rx="${index%2?5:6}" ry="1.9" fill="#c9c6a7" stroke="#697f71" stroke-width=".7"/>`).join('');
   if(style==='stones')return stones;
   return stones+[2,5,8,11].map(i=>{
     const [x,y]=pathPoints[i];
-    return lantern==='none'?'':`<path d="M${x} ${y-1}v-5" stroke="#6f7866" stroke-width="1.3"/>
-      ${gardenLantern(lantern,x,y-7,{lit:true,hanging:false,scale:.55})}`;
+    return lantern==='none'?'':`${lightsOnly?'':`<path d="M${x} ${y-1}v-5" stroke="#6f7866" stroke-width="1.3"/>`}
+      ${gardenLantern(lantern,x,y-7,{lit,hanging:false,scale:.55})}`;
   }).join('');
 }
 

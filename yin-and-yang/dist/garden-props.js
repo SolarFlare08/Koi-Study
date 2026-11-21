@@ -1,3 +1,9 @@
+import {gardenPropLayer,gardenPropTypes} from './garden-layout.js';
+import {gardenLantern,pavilionArtwork} from './garden-ornaments.js';
+import {shorePath} from './garden-pieces.js';
+import {pine,rock,sceneReeds,daySwallow,lowIsland,stoneCairn,westCloud,lakeRipplePath,starDiamond,moonFace} from './garden-scene-art.js';
+import {seasonalTree,shoreFlowers,fallenLeaves,lotus,lakeDragonfly} from './seasonal-scenery.js';
+
 const props={
   bridge:`<ellipse cy="5" rx="57" ry="6" fill="#345e64" opacity=".19"/>
     <path d="M-56 1Q-43-5-27-17C-10-33 11-33 29-16Q44-5 56 1L52 6H25C21-9 10-17 0-17S-21-9-25 6H-52Z" fill="#9eab9d" stroke="#607a78" stroke-width="1.4"/>
@@ -127,19 +133,52 @@ const props={
     <path d="M-5-20q2 11 0 20m8-20q2 9 8 15l5 1" fill="none" stroke="#596f66" stroke-width="1.5" stroke-linecap="round"/>
     <path d="M-25-23q19 2 30-6 4-6 0-10-9-9-1-16 5-4 11-2 4 2 3 5-8-2-9 4-1 2 4 6 8 9 2 16-9 11-29 8Z" fill="#e4e4ce"/>
     <path d="M-23-22q13 1 21-8 3-4 5-4-1 14-12 16Z" fill="#758886"/>
-    <path d="M16-54l14 3-13 2Z" fill="#897a5e"/><ellipse cx="14" cy="-55" rx="3" ry="1.5" fill="#b27662"/>`
+    <path d="M16-54l14 3-13 2Z" fill="#897a5e"/><ellipse cx="14" cy="-55" rx="3" ry="1.5" fill="#b27662"/>`,
+  shorepine:pine(0,0,.46),
+  cherry:seasonalTree(0,0,.44,'spring'),
+  shoremaple:seasonalTree(0,0,.43,'autumn'),
+  baretree:seasonalTree(0,0,.43,'winter'),
+  shorereeds:sceneReeds(0,0),
+  wildflowers:shoreFlowers(-18,-15,1.55)+shoreFlowers(6,-18,1.27,1)+shoreFlowers(18,-7,.86,2),
+  leaflitter:`<g transform="scale(1.8)">${fallenLeaves([[-14,-3],[-8,2],[2,-6],[8,3],[17,-2]])}</g>`,
+  boulder:rock(0,0,1,1,'#879d8e'),
+  cairn:`<g transform="scale(1.35)">${stoneCairn}</g>`,
+  island:lowIsland(),
+  shorelotus:lotus(0,0,1.6,'#f4c1ca'),
+  dragonfly:lakeDragonfly(0,0),
+  ripple:`<g fill="#e2ecd5" opacity=".56">
+    <path transform="translate(-55 -6) scale(1.1 6)" d="${lakeRipplePath}"/>
+    <path transform="translate(-43 3) scale(.86 4)" d="${lakeRipplePath}"/>
+  </g>`,
+  ice:'<path d="M-56 0q26-2 46 2l-15 4 23 2m-3-11h34l9 2h19m-45 8 22-2 17 2" fill="none" stroke="#dbe9eb" stroke-linecap="round" opacity=".8"/>',
+  cloud:`<g transform="scale(.34) translate(-249 -201)" fill="#eff0de" opacity=".52">${westCloud}</g>`,
+  swallow:daySwallow(0,0,.95,1,1),
+  star:`<g class="garden-star-twinkle" style="--star-period:6.4s;--star-phase:-2s">${starDiamond}</g>`,
+  crescent:moonFace
 };
-export const gardenPropArtwork=kind=>props[kind];
 const floaterGlow='<ellipse cy="-10" rx="25" ry="19" fill="url(#lamp-halo)"/><path d="M-6-4l2-14h8l2 14Z" fill="#ffd193"/>';
 const lanternGlow='<circle cy="-22" r="19" fill="url(#lamp-halo)"/><rect x="-3" y="-25" width="6" height="6" rx=".6" fill="#ffcf89"/>';
 const beaconGlow='<circle cy="-31" r="23" fill="url(#lamp-halo)"/><path d="M-8-26h16l-3-11H-5Z" fill="#ffcf89"/><path d="M0-37v11" stroke="#9b7651"/>';
-export function gardenPropTransform({x,y,size}){
-  const scale=Math.round(size*(.79+(y-446)/1000))/100;
+const propLights={lantern:lanternGlow,floater:floaterGlow,beacon:beaconGlow};
+const lanternPost='<ellipse cy="2" rx="17" ry="3.8" fill="#456b64" opacity=".23"/><path d="M-12 0v-43q12-8 24-3" fill="none" stroke="#756856" stroke-width="3" stroke-linecap="round"/>';
+
+export function gardenPropArtwork(kind,lights=false){
+  const {group,style}=gardenPropTypes[kind]||{};
+  if(group==='pavilion')return pavilionArtwork(style,{reflection:true},lights);
+  if(group==='lantern')return (lights?'':lanternPost)+gardenLantern(style,9,-34,{lit:lights,scale:1.3});
+  if(group==='path'){
+    if(lights&&style!=='lanterns')return '';
+    return `<g transform="scale(.86) translate(-1123 -625)">${shorePath(style,{lantern:'classic',lit:lights,lightsOnly:lights})}</g>`;
+  }
+  return (lights?propLights[kind]:props[kind])||'';
+}
+export function gardenPropTransform({x,y,size,kind}){
+  const scale=gardenPropLayer(kind)==='ground'?Math.round(size*(.79+(y-446)/1000))/100:size/100;
   return `translate(${x} ${y}) scale(${scale})`;
 }
-export function renderGardenProps(items,lights=false){
-  return [...items].sort((a,b)=>a.y-b.y).map(item=>{
-    const art=lights?({lantern:lanternGlow,floater:floaterGlow,beacon:beaconGlow}[item.kind]||''):props[item.kind];
+export function renderGardenProps(items,lights=false,layer='ground'){
+  return items.filter(({kind})=>gardenPropLayer(kind)===layer).sort((a,b)=>a.y-b.y).map(item=>{
+    const art=gardenPropArtwork(item.kind,lights);
     return art?`<g data-garden-prop="${item.id}" data-prop-type="${item.kind}" transform="${gardenPropTransform(item)}">${art}</g>`:'';
   }).join('');
 }

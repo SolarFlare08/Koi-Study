@@ -853,7 +853,8 @@ export const helpTopics = [
   {
     id:'garden-props',group:'Make it yours',title:'Place props in the Garden',
     summary:'Arrange bridges, plants, water details, and stone lanterns in a Studio layout.',
-    steps:['Open Garden → Landscape and choose Props in the toolbar. Open Plants, Water, Structures, or Details to browse the props in that category. Click the heading again to collapse it. Beacons light up at dusk and at night.',
+    steps:['Open Garden → Landscape and choose Props in the toolbar. Expand Plants, Water, Structures, Details, or Sky. Copy scenery such as cherry blossom trees, boulders, reeds, lotus pads, and cairns. Structures includes every building and path style, and Details includes hanging lanterns on posts.',
+      'Use Sky to place clouds, swallows, stars, or a crescent moon behind the mountains. Swallows appear in Day lighting. Stars and crescents appear when stars are out and are decorative.',
       'Pick a thumbnail and set Placement size above the palette. Click or tap the canvas to place it. The pointer preview shows where the prop will land and how large it will be. Keep clicking for more copies, or use Place in view from the keyboard.',
       'Switch to Move, then click the prop on the canvas or choose it from the Object list. Drag or use the position sliders to move it. Use Object size or Remove prop to edit it.',
       'Save your layout. Props appear in the live Garden when you apply the layout and are included in postcards and backups.'],

@@ -1,5 +1,5 @@
 import {gardenCameras,gardenPieceOptions,defaultGardenDesign,gardenStarterLayouts,gardenFrame,loadGardenDesign,loadGardenLayouts,
-  gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds,gardenPropBounds,gardenPropTypes,gardenPropCategories,gardenPropLimit,gardenSizeBounds,gardenObjectSize} from './garden-layout.js';
+  gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds,gardenPropLayer,gardenPropPositionBounds,gardenPropTypes,gardenPropCategories,gardenPropLimit,gardenSizeBounds,gardenObjectSize} from './garden-layout.js';
 import {loadAppearance,seasonOptions,lightingOptions,gardenPalettes,weatherBySeason} from './garden-appearance.js';
 import {gardenLandmarkPositions,mountGardenPreview} from './scenery.js';
 import {gardenCourses,landmarkTypes} from './garden-growth.js';
@@ -100,7 +100,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
                 <summary><span class="studio-prop-group-label">${label}<span>${items.length} props</span></span></summary>
                 <div class="studio-prop-palette" role="group" aria-label="${label}">
                   ${items.map(([kind,item])=>
-                    `<button type="button" data-studio-stamp="${kind}" aria-pressed="false">${propSwatch(kind)}<span>${item.name}</span></button>`).join('')}
+                    `<button type="button" data-studio-stamp="${kind}" data-prop-layer="${gardenPropLayer(kind)}" aria-pressed="false">${propSwatch(kind)}<span>${item.name}</span></button>`).join('')}
                 </div>
               </details>`;
             }).join('')}</div>
@@ -167,7 +167,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       <svg viewBox="${viewBox}" aria-hidden="true">${art}</svg><span>${label}</span></button>`;
   }
   function propSwatch(kind){
-    return `<svg viewBox="-75 -87 150 111" aria-hidden="true">${gardenPropArtwork(kind)}</svg>`;
+    const {group,viewBox}=gardenPropTypes[kind];
+    const frame=viewBox||(group==='pavilion'?'-83 -112 166 138':group==='path'?'-75 -38 150 62':'-75 -87 150 111');
+    return `<svg viewBox="${frame}" aria-hidden="true">${gardenPropArtwork(kind)}</svg>`;
   }
   const field=name=>form.elements.namedItem(name);
   const status=message=>{form.querySelector('[data-studio-status]').textContent=message;};
@@ -239,11 +241,15 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     form.querySelector('[data-studio="place-center"]').disabled=!active;
     field('stampSize').disabled=!active;
     const ghost=scene.querySelector('.studio-ghost');
+    if(active){
+      const parent=gardenPropLayer(stamp)==='ground'?scene:scene.querySelector('[data-garden-piece="skyProps"]');
+      if(ghost.parentNode!==parent)parent.append(ghost);
+    }
     ghost.innerHTML=active?gardenPropArtwork(stamp):'';
     paintStamp();
   }
   function stampCandidate(position){
-    return {kind:stamp,...clampGardenPlacement(position.x,position.y,gardenPropBounds),size:gardenObjectSize(field('stampSize').valueAsNumber)};
+    return {kind:stamp,...clampGardenPlacement(position.x,position.y,gardenPropPositionBounds(stamp)),size:gardenObjectSize(field('stampSize').valueAsNumber)};
   }
   function paintStamp(){
     const ghost=scene.querySelector('.studio-ghost');
@@ -314,7 +320,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const [x,y]=landmark?.position||placementBounds.x;
     return landmark?clampGardenPlacement(x,y):null;
   }
-  function selectedBounds(){return selected===buildingTarget?pavilionBounds:selected.startsWith(propPrefix)?gardenPropBounds:placementBounds;}
+  function selectedBounds(){return selected===buildingTarget?pavilionBounds:selected.startsWith(propPrefix)?gardenPropPositionBounds(selectedProp()?.kind):placementBounds;}
   function selectedSize(){
     return selected===buildingTarget?draft.design.pavilionSize:selectedProp()?.size??draft.design.landmarkSizes[selected]??100;
   }
@@ -365,10 +371,15 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       form.querySelector('[data-studio="automatic"]').disabled=!(prop||(building?draft.design.pavilionPosition:Object.hasOwn(draft.design.placements,selected)));
     }
     form.querySelector('[data-studio-placement-tip]').textContent=tool==='props'
-      ?stamp?`Click the canvas to place ${gardenPropTypes[stamp].name.toLowerCase()}.`:'Choose a prop from the palette.'
+      ?stamp?`Click the canvas to place ${gardenPropTypes[stamp].name.toLowerCase()}.${propLightingTip(gardenPropLayer(stamp))}`:'Choose a prop from the palette.'
       :tool!=='select'?'Changes are previewed on the canvas.'
       :!point?'Click an object or select it from the list.'
       :visible?'Drag to move. Arrow keys nudge the selected object.':'This object is outside the current view.';
+  }
+  function propLightingTip(layer){
+    if(layer==='day')return ' Visible in Day lighting.';
+    if(layer==='night')return ' Visible when stars are out.';
+    return '';
   }
   function render(){
     const state=getState(),history=state.gardenGrowth,courses=gardenCourses(history,state.projects);
@@ -583,7 +594,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         case 'zoom-fit':setZoom(1);break;
         case 'place-center':{
           const [x,y,w,h]=gardenFrame(draft.design.camera);
-          placeProp({x:x+w/2,y:y+h*.78});break;
+          placeProp({x:x+w/2,y:y+h*(gardenPropLayer(stamp)==='ground'?.78:.18)});break;
         }
         case 'remove-prop':removeSelectedProp();field('landmark').focus();break;
         case 'copy':writeCandidate({copy:true});break;

@@ -20,25 +20,28 @@ const copperClusters=[
 function canopy(clusters,colors){
   return clusters.map(([x,y,rx,ry],i)=>`<path transform="${pos(x,y)}" d="M${-rx} 1Q${-rx} ${-ry} ${-rx*.52} ${-ry*.66}Q${-rx*.27} ${-ry*1.54} ${rx*.18} ${-ry*.82}Q${rx*.58} ${-ry*1.17} ${rx*.72} ${-ry*.3}Q${rx*1.16} ${-ry*.22} ${rx} 2Q${rx*.77} ${ry*.7} ${rx*.28} ${ry*.57}Q${-rx*.38} ${ry} ${-rx} 1Z" fill="${colors[i%colors.length]}"/>`).join('');
 }
-export function seasonalTree(x,y,scale){
+export function seasonalTree(x,y,scale,fixedSeason=''){
   const trunk=`<path d="M-10 2Q-2-18-3-45Q-5-67 2-95L5-133L14-173L12-139L14-105Q6-66 8-44Q7-19 16 2Z" fill="var(--tree-bark)"/>
     <path d="M5-93Q-16-121-48-142M6-67Q22-92 57-109M8-118Q28-143 50-154M4-49Q-12-67-41-80M4-106Q-5-138-23-160" fill="none" stroke="var(--tree-bark)" stroke-width="5" stroke-linecap="round"/>`;
-  return `<g transform="${pos(x,y,scale)}">
-    <ellipse class="season-layer spring-scene autumn-scene winter-scene" cx="3" cy="1" rx="27" ry="4" fill="#415758" opacity=".19"/>
-    <g class="season-layer spring-scene" style="--tree-bark:#745d60">
+  const branches={
+    spring:`<g style="--tree-bark:#745d60">
       ${trunk}${canopy(cherryClusters,['#db9ba9','#e9b5bd','#f1c4c6','#d88f9e','#f5d2cb'])}
       ${cherryClusters.map(([cx,cy],i)=>flower(cx+(i%3-1)*6,cy-3,.56+(i%3)*.16,hues[i%hues.length])).join('')}
       ${cherryClusters.filter((_,i)=>i%2===0).map(([cx,cy],i)=>flower(cx+12,cy+3,.42,hues[(i+1)%hues.length])).join('')}
-    </g>
-    <g class="season-layer autumn-scene" style="--tree-bark:#67483d">
+    </g>`,
+    autumn:`<g style="--tree-bark:#67483d">
       ${trunk}${canopy(copperClusters,['#ad4e36','#cc6f42','#e09a51','#b5593d','#ebaf59','#c06444'])}
       ${copperClusters.map(([cx,cy],i)=>`<path transform="${pos(cx+7,cy-2,.43)} rotate(${i*67})" d="${maple}" fill="#f5bb68" opacity=".75"/>`).join('')}
-    </g>
-    <g class="season-layer winter-scene" style="--tree-bark:#485b61">
+    </g>`,
+    winter:`<g style="--tree-bark:#485b61">
       ${trunk}
       <path d="M13-153 21-174 19-193M19-173 32-182M14-173 9-192M10-155-2-167-7-183M-22-159-33-176-33-191m0 16-16-8m27 23 1-17M-48-142-61-155-70-175m8 19-20-10M50-154 58-167 62-186m-4 20 17-11m-30 27 25-4 12-9M57-109 69-126 77-130m-13 13 23-5m-46 23 2-19 7-12M-41-80-55-95-61-111m11 23-19-10m40 24-1-18-7-12" fill="none" stroke="#485b61" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="M-45-145Q-18-132-8-112m20-8q15-22 33-32m-28 75q17-21 36-29m-89 29 25 14" fill="none" stroke="#c5d6da" stroke-width="2.4" stroke-linecap="round" opacity=".83"/>
-    </g>
+    </g>`
+  };
+  return `<g transform="${pos(x,y,scale)}">
+    <ellipse ${fixedSeason?'':'class="season-layer spring-scene autumn-scene winter-scene"'} cx="3" cy="1" rx="27" ry="4" fill="#415758" opacity=".19"/>
+    ${fixedSeason?branches[fixedSeason]:Object.entries(branches).map(([season,art])=>`<g class="season-layer ${season}-scene">${art}</g>`).join('')}
   </g>`;
 }
 
@@ -50,23 +53,34 @@ const snowbanks={
 export const snowbank=side=>`<path class="season-layer winter-scene" fill="#e4edef" opacity=".93" d="${snowbanks[side]}"/>`;
 export const mountainSnowCut='M45 247H246V349Q217 336 197 320Q185 309 177 313L164 304L145 323L132 316Q104 348 63 366H45ZM1092 276H1278V371Q1252 357 1230 342L1203 337L1185 324L1171 340L1159 334Q1130 366 1106 383H1092Z';
 
-function lotus(x,y,s,color){
+export function lotus(x,y,s,color){
   return `<g transform="${pos(x,y,s)}"><path d="M-14 1C-14-6 7-8 14-3L4 0 14 3C7 9-14 7-14 1Z" fill="#799a79"/><path d="M-6-1C-12-8-8-12-5-9L-1-5Q-5-10 0-15Q5-10 1-5L6-10Q12-9 7-2Q0 4-6-1Z" fill="${color}"/><path d="M-3-2 0-6 4-2" fill="none" stroke="#c89276" stroke-width="1" stroke-linecap="round"/></g>`;
+}
+export function shoreFlowers(x,y,scale,index=0){
+  return flower(x,y,scale,hues[index%hues.length],true)+flower(x+8,y+4,scale*.61,hues[(index+1)%hues.length],true)+
+    flower(x-5,y+7,scale*.49,hues[(index+2)%hues.length],true);
+}
+export function fallenLeaves(points){
+  const colors=['#b75a40','#de9a57','#d47b45','#e4ad60'];
+  return points.map(([x,y],i)=>`<path d="${maple}" transform="${pos(x,y,.28+(i%4)*.15)} rotate(${i*57})" fill="${colors[i%4]}" opacity=".86"/>`).join('');
+}
+export function lakeDragonfly(x,y){
+  return `<g transform="translate(${x} ${y})"><path class="summer-dragonfly" stroke="#829589" stroke-width="1.1" stroke-linecap="round" fill="none" d="M0-3v8M0-1Q-9-8-9-4Q-9-1 0 0Q9-8 9-4Q9-1 0 0M0 1q-10 2-6 3M0 1q10 2 6 3"/></g>`;
 }
 export function shoreDetails(){
   const grass=[[21,671,1.4],[53,690,.86],[75,713,1.2],[48,756,1.65],[93,761,.9],[121,768,1.15],[152,754,.9],[213,754,1.05],[208,797,.7],[1327,830,.7],[1351,825,.85],[1392,819,1.05],[1505,779,.7],[1555,780,1.4],[1583,795,1.6]];
   const leaves=[[20,672],[41,689],[56,693],[77,708],[87,724],[55,736],[70,754],[96,771],[134,783],[202,759],[226,763],[1490,789],[1519,776],[1551,781],[1397,821],[1359,830],[1391,834],[470,762],[549,792],[1038,683],[1182,718]];
   return `<g class="season-layer spring-scene">
-    ${grass.map(([x,y,s],i)=>flower(x,y,s,hues[i%hues.length],true)+flower(x+8,y+4,s*.61,hues[(i+1)%hues.length],true)+flower(x-5,y+7,s*.49,hues[(i+2)%hues.length],true)).join('')}
+    ${grass.map(([x,y,s],i)=>shoreFlowers(x,y,s,i)).join('')}
     ${lotus(509,727,.75,'#f4c1ca')}${lotus(534,739,.6,'#f2d0d3')}${lotus(1062,755,.72,'#efb1bb')}${lotus(1086,765,.49,'#f5d5cc')}
     <path d="M462 675q15-3 32-1m554 54h38m-511 55h22" stroke="#e7c4bd" fill="none" opacity=".6" stroke-linecap="round"/>
   </g>
   <g class="season-layer summer-scene">
     ${lotus(466,736,.9,'#eee0a6')}${lotus(496,749,.59,'#e8cd91')}${lotus(1106,701,.73,'#eadc98')}
-    <g class="summer-dragonfly" transform="translate(602 689)" stroke="#a6b4a1" stroke-width="1.1" stroke-linecap="round" fill="none"><path d="M0-3v8M0-1Q-9-8-9-4Q-9-1 0 0Q9-8 9-4Q9-1 0 0M0 1q-10 2-6 3M0 1q10 2 6 3"/></g>
+    ${lakeDragonfly(602,689)}
   </g>
   <g class="season-layer autumn-scene">
-    ${leaves.map(([x,y],i)=>`<path d="${maple}" transform="${pos(x,y,.28+(i%4)*.15)} rotate(${i*57})" fill="${['#b75a40','#de9a57','#d47b45','#e4ad60'][i%4]}" opacity=".86"/>`).join('')}
+    ${fallenLeaves(leaves)}
     <path d="M22 697q15 1 27 8m59 64q20 7 46 10m1242 49q18-2 29-7" stroke="#d9ab68" stroke-width="2.2" fill="none" opacity=".63"/>
   </g>
   <g class="season-layer winter-scene" fill="none" stroke-linecap="round" stroke="#dbe9eb">

@@ -312,6 +312,7 @@
 .studio-stage:focus-visible { outline: 2px solid var(--studio-accent); }
 .studio-stage .studio-scene { border: 0; border-radius: 0; width: 100%; height: 100%; pointer-events: auto; }
 .studio-scene :is([id$='-night-shade'],[id$='-evening-lights'],[id$='-stars'],[class*='weather-']) { pointer-events: none; }
+.studio-scene :is([id$='-garden-starlight'],[id$='-garden-day-sky'])[opacity="0"] [data-garden-prop] { pointer-events: none; }
 .studio-stage[data-placing],.studio-stage[data-stamping] { cursor: crosshair; touch-action: none; }
 .studio-stage:not([data-stamping]) :is([data-garden-prop],[data-garden-piece="pavilion"]) { cursor: grab; touch-action: none; }
 .studio-pin {
@@ -344,6 +345,8 @@
 .studio-prop-palette span,.studio-style-palette span { align-content:center; min-height:25px; font-size:12px; line-height:1.2; }
 .studio-prop-palette svg,.studio-style-palette svg { width: 100%; display: block; border-radius: 6px; }
 .studio-prop-palette svg { height: 63px; background: linear-gradient(#e0eae0,#ccddd1); }
+.studio-prop-palette [data-prop-layer="night"] svg { background: linear-gradient(#2e4558,#455a68); }
+.studio-prop-palette [data-studio-stamp="cloud"] svg { background: linear-gradient(#9ab8ba,#ccd9ce); }
 .studio-style-palette svg { height: 64px; background: linear-gradient(#dbe8db,#bfd6cc); }
 .studio-style-palette[data-studio-style-group="mountains"] svg { height:clamp(52px,6vw,76px); }
 .studio-style-palette svg * { animation: none !important; }
