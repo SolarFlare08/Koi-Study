@@ -573,6 +573,53 @@ compactNavigation.addEventListener('change',()=>{
   if(!compactNavigation.matches&&focused===workspaceMore)workspaceButton(workspace).focus({preventScroll:true});
 });
 function gardenToolAnchor(id){return $('#objects [data-panel="'+id+'"]')||$('#garden-tools');}
+const gardenToolGroups=[
+  ['Focus & sound',[
+    ['pagoda','focus','Timer settings','Durations, routines, warnings','pomodoro breaks chimes notifications'],
+    ['music','music','Music & video','Spotify, YouTube, ambient sound','audio mute volume playlists']
+  ]],
+  ['Garden',[
+    ['appearance','appearance','Appearance','Lighting, seasons, weather','theme night day motion palette'],
+    ['garden-studio','sliders','Edit landscape','Arrange scenery and save layouts','studio props mountains'],
+    ['garden-history','sprout','Garden Field Guide','Landmarks, constellations, postcards','stars trees lanterns history']
+  ]],
+  ['Notes & support',[
+    ['notes','note','Quick notes','Capture a thought or open the inbox','sticky distraction scratchpad'],
+    ['backup','external','Backup & restore','Protect or transfer your data','export import snapshot recovery'],
+    ['help','help','Help guide','How-to guides and shortcuts','instructions documentation version history']
+  ]]
+];
+let gardenToolQuery='',lastGardenTool='';
+
+function gardenToolsMarkup(){
+  return header('GARDEN','Tools')+`<label class="garden-tools-search">${icon('search')}
+    <span class="sr-only">Find a Garden tool</span><input id="garden-tool-search" type="search" placeholder="Find a tool" autocomplete="off" value="${escape(gardenToolQuery)}"></label>
+    <div class="garden-tool-groups">${gardenToolGroups.map(([title,tools])=>`<section class="garden-tool-group">
+      <h3>${title}</h3><div class="garden-tools-list">${tools.map(([id,symbol,label,description,keywords])=>`
+        <button type="button" data-home-tool="${id}" data-tool-keywords="${keywords}" aria-haspopup="dialog">
+          <span class="garden-tool-icon">${icon(symbol)}</span><span><strong>${label}</strong><small>${description}</small></span>
+        </button>`).join('')}</div></section>`).join('')}</div>
+    <p class="garden-tools-empty" role="status" hidden>No tools match that search.</p>`;
+}
+function filterGardenTools(panel){
+  const terms=gardenToolQuery.trim().toLowerCase().split(/\s+/);
+  let matches=false;
+  for(const group of panel.querySelectorAll('.garden-tool-group')){
+    for(const button of group.querySelectorAll('[data-home-tool]')){
+      const text=(group.querySelector('h3').textContent+' '+button.textContent+' '+button.dataset.toolKeywords).toLowerCase();
+      button.hidden=!terms.every(term=>text.includes(term));
+    }
+    group.hidden=!group.querySelector('[data-home-tool]:not([hidden])');
+    matches||=!group.hidden;
+  }
+  panel.querySelector('.garden-tools-empty').hidden=matches;
+}
+function addGardenToolsReturn(panel,id,anchor){
+  panel.querySelector('[data-return-garden-tools]')?.remove();
+  if(anchor?.id!=='garden-tools'||id==='garden-tools')return;
+  panel.querySelector('.panel-header>div')?.insertAdjacentHTML('afterbegin',
+    `<button type="button" class="garden-tools-return" data-return-garden-tools>${icon('left')}<span>All tools</span></button>`);
+}
 function inSchedule(){return workspace==='planner'||workspace==='calendar';}
 let sidebarBeforeFocus=desktopTasks.matches;
 setTaskSidebar(sidebarBeforeFocus);
@@ -1229,6 +1276,7 @@ document.querySelectorAll('[data-panel]').forEach(el=>el.onclick=()=>{
     else setTaskSidebar(taskSidebar.hidden);
     return;
   }
+  if(el.id==='garden-tools'){gardenToolQuery='';lastGardenTool='';}
   if(activePanel===el.dataset.panel)closePanel();else openPanel(el.dataset.panel,el);
 });
 function syncFocusMode(){
@@ -3000,19 +3048,7 @@ function panelContent(id){
     <p class="capture-shortcuts"><kbd>N</kbd> Next <kbd>P</kbd> Previous${captureInboxTab==='inbox'?' <kbd>F</kbd> File <kbd>L</kbd> Link <kbd>A</kbd> Archive':''}</p>
     <div id="capture-inbox-list">${captureInboxList()}</div>`;
   if(id==='garden-studio')return studio.markup();
-  if(id==='garden-tools'){
-    const tools=[
-      ['pagoda','focus','Timer settings','Durations, routines, chimes, and backups'],
-      ['appearance','appearance','Appearance','Light, seasons, weather, and saved looks'],
-      ['notes','note','Quick notes','Capture a distraction or open the note inbox'],
-      ['music','music','Music & video','Spotify, YouTube, and app sounds'],
-      ['garden-history','sprout','Garden Field Guide','Landmarks, saved layouts, and postcards'],
-      ['help','help','Help','How-to guides and shortcuts']
-    ];
-    return header('GARDEN','Tools')+`<div class="garden-tools-list">${tools.map(([id,symbol,label,description])=>
-      `<button type="button" data-home-tool="${id}" aria-haspopup="dialog">${icon(symbol)}
-        <span><strong>${label}</strong><small>${description}</small></span>${icon('down')}</button>`).join('')}</div>`;
-  }
+  if(id==='garden-tools')return gardenToolsMarkup();
   if(id==='appearance'){
     const {lighting,season,motion,palette}=state.appearance;
     return `${header('GARDEN APPEARANCE','Light and seasons')}
@@ -3255,6 +3291,8 @@ function openPanel(id,anchor,landmarkIndex=null){
   else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','calendar-list-editor','ritual-schedules','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs','calendar-day-templates','project-resources'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':['focus-subtasks','project-context'].includes(id)?'panel focus-checklist-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
   if(id==='admin-sandbox')panel.classList.add('admin-sandbox-panel');
   if(id==='progress')panel.classList.add('focus-today-panel');
+  if(id==='garden-tools'){panel.classList.add('garden-tools-panel');filterGardenTools(panel);}
+  addGardenToolsReturn(panel,id,anchor);
   if(id==='routine-editor')updatePhaseButtons();
   if(id==='break-ideas')renderBreakSuggestion();
   if(id==='appearance')renderSeasonPreview();
@@ -3265,8 +3303,8 @@ function openPanel(id,anchor,landmarkIndex=null){
   if(id==='music')syncSound();
   positionPanel(panel,anchor);wake();
   if(id==='garden-landmark')landmarkPanelSize.observe(panel);
-  const firstControl=panel.querySelector(id==='garden-tools'?'[data-home-tool]':id==='appearance'?'input:checked':id==='event-editor'?'[name=title]':'input,textarea,select')||panel.querySelector('button');
-  const initialFocus=['replan-today','plan-tomorrow','plan-deadline','build-week','project-context','schedule-drop','garden-landmark','garden-comparison','garden-studio'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
+  const firstControl=panel.querySelector(id==='appearance'?'input:checked':id==='event-editor'?'[name=title]':'input,textarea,select')||panel.querySelector('button');
+  const initialFocus=['replan-today','plan-tomorrow','plan-deadline','build-week','project-context','schedule-drop','garden-landmark','garden-comparison','garden-studio','garden-tools'].includes(id)||id==='task-editor'&&editingTaskId?panel.querySelector('#panel-title'):firstControl;
   if(initialFocus.id==='panel-title')initialFocus.tabIndex=-1;
   initialFocus.focus({preventScroll:true});
 }
@@ -3300,6 +3338,8 @@ function refreshPanel(){
   const focusId=p.contains(document.activeElement)?document.activeElement.id:null;
   const sandboxDataOpen=p.querySelector('.sandbox-data')?.open;
   p.innerHTML=panelContent(activePanel);
+  if(activePanel==='garden-tools')filterGardenTools(p);
+  addGardenToolsReturn(p,activePanel,lastAnchor);
   if(sandboxDataOpen)p.querySelector('.sandbox-data').open=true;
   if(activePanel==='routine-editor')updatePhaseButtons();
   const scheduleForm=p.querySelector('#task-editor-form,#block-editor-form');
@@ -5548,10 +5588,18 @@ root.addEventListener('click',e=>{
     });
     return;
   }
+  if(e.target.closest('[data-return-garden-tools]')){
+    openPanel('garden-tools',$('#garden-tools'));
+    ($(`[data-home-tool="${lastGardenTool}"]:not([hidden])`)||$('#garden-tool-search')).focus({preventScroll:true});
+    return;
+  }
   const homeTool=e.target.closest('[data-home-tool]');
   if(homeTool){
     const id=homeTool.dataset.homeTool;
+    lastGardenTool=id;
     if(id==='help'){closePanel();helpGuide.open();return;}
+    if(id==='backup'){closePanel();backup.open();return;}
+    if(id==='garden-studio'){openGardenStudio();return;}
     openPanel(id,gardenToolAnchor(id));return;
   }
   if(e.target.closest('#open-break-ideas')){openPanel('break-ideas',gardenToolAnchor('pagoda'));return;}
@@ -5919,7 +5967,17 @@ root.addEventListener('click',e=>{
     confirmChange('Block deleted.',finishUndo());
   }
 });
+root.addEventListener('keydown',event=>{
+  if(event.target.id!=='garden-tool-search'||event.key!=='Enter'||event.isComposing)return;
+  event.preventDefault();
+  visiblePanel()?.querySelector('[data-home-tool]:not([hidden])')?.click();
+});
 root.addEventListener('input',e=>{
+  if(e.target.id==='garden-tool-search'){
+    gardenToolQuery=e.target.value;
+    filterGardenTools(visiblePanel());
+    return;
+  }
   if(e.target.id==='class-buffer')updateClassFitResults();
   if(e.target.name==='rubricText')e.target.form.querySelector('[data-rubric-preview]').replaceChildren();
   if(e.target.name?.startsWith('done:')){

@@ -49,17 +49,33 @@
 .focus-today-links small { margin-top:3px; font-size:11px; color:var(--surface-muted); }
 .focus-today-links .text-button { justify-self:start; margin-left:8px; }
 
-.garden-tools-list { display: grid; gap: 4px; }
+.panel.garden-tools-panel { width:min(510px,calc(100vw - 28px)); max-height:min(700px,calc(100dvh - 34px)); overflow:auto; }
+.garden-tools-search { display:flex; align-items:center; gap:8px; margin:12px 0 14px; padding:0 10px; border:1px solid var(--surface-line); border-radius:8px; background:var(--surface-field); }
+.garden-tools-search:focus-within { outline:2px solid var(--surface-accent); outline-offset:1px; }
+.garden-tools-search svg { flex:none; width:15px; height:15px; color:var(--surface-accent); }
+.panel .garden-tools-search input { flex:1; width:100%; min-width:0; padding:9px 0; border:0; border-radius:0; background:transparent; outline:none; }
+.garden-tool-group + .garden-tool-group { margin-top:13px; }
+.garden-tool-group h3 { margin:0 0 6px; color:var(--surface-muted); font-size:11px; font-weight:700; }
+.garden-tools-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
 .garden-tools-list button {
-  display: grid; grid-template-columns: 17px minmax(0,1fr) 11px; align-items: center; gap: 9px;
-  text-align: left; min-height: 47px; padding: 8px; border: 1px solid transparent; border-radius: 7px;
+  display:grid; grid-template-columns:28px minmax(0,1fr); align-items:center; gap:8px;
+  text-align:left; min-height:48px; padding:7px; border:1px solid var(--surface-line); border-radius:8px;
+  background:var(--surface-field);
 }
-.garden-tools-list button:is(:hover,:focus-visible) { border-color: var(--surface-line); background: var(--surface-raised); }
-.garden-tools-list button svg { width: 15px; height: 15px; color: var(--surface-accent); }
-.garden-tools-list button svg:last-child { width: 11px; height: 11px; rotate: -90deg; }
+.garden-tools-list button:is(:hover,:focus-visible) { border-color:var(--surface-accent); background:var(--surface-raised); }
+.garden-tool-icon { width:28px; height:28px; display:grid; place-items:center; border-radius:6px; color:var(--surface-accent); background:var(--surface-raised); }
+.garden-tool-icon svg { width:15px; height:15px; }
 .garden-tools-list strong, .garden-tools-list small { display: block; }
-.garden-tools-list strong { font-size: 13px; }
-.garden-tools-list small { margin-top: 2px; color: var(--surface-muted); font-size: 11px; }
+.garden-tools-list strong { font-size:12px; }
+.garden-tools-list small { margin-top:3px; color:var(--surface-muted); font-size:10px; line-height:1.35; }
+.garden-tools-empty { margin:14px 0; }
+.garden-tools-return { display:flex; align-items:center; gap:4px; width:fit-content; margin:0 0 8px; padding:3px 4px; border-radius:5px; color:var(--surface-accent); font-size:11px; }
+.garden-tools-return:hover { background:var(--surface-raised); }
+.garden-tools-return svg { width:13px; height:13px; }
+@media(max-width:400px) {
+  .garden-tools-list { grid-template-columns:minmax(0,1fr); }
+  .garden-tool-group + .garden-tool-group { margin-top:10px; }
+}
 
 #workspace-tabs { align-items: center; gap: 5px; }
 .workspace-primary, #workspace-library { display: flex; gap: 3px; }

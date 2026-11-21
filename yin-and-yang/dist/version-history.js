@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.15.0',date:'2026-11-21',title:'A clearer Garden Tools menu',changes:[
+    'Browse Garden tools by category or search by name, feature, or keyword.',
+    'Open Backup & restore or Edit landscape directly. Use All tools to return from a tool panel and pick up where you left off.'
+  ]},
   {version:'5.14.19',date:'2026-11-20',title:'Level swallow silhouettes',changes:[
     'Level the daytime swallow silhouettes and align their wing and tail strokes with the direction of flight.'
   ]},
