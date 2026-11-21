@@ -25,7 +25,7 @@ function timeDescription(minutes){
   return hours?`${hours} h${rest?` ${rest} min`:''}`:`${rest} min`;
 }
 
-export function installFocusCompass({getState,save,notify,beforeTimerChange,afterTimerChange}){
+export function installFocusCompass({getState,save,notify,beforeTimerChange,afterTimerChange,onGoalChanged}){
   const root=document.querySelector('.sky');
   const meta=document.createElement('div');meta.className='focus-compass';
   meta.innerHTML=`<svg viewBox="0 0 32 32" aria-hidden="true"><circle class="compass-track" cx="16" cy="16" r="13"/><circle id="compass-progress" cx="16" cy="16" r="13" pathLength="100"/></svg><span id="compass-caption"></span><button type="button" id="compass-bell" title="Timer chimes" aria-label="Turn on timer chimes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5Zm5 3h4"/><path class="bell-slash" d="m3 3 18 18"/></svg></button>`;
@@ -69,17 +69,18 @@ export function installFocusCompass({getState,save,notify,beforeTimerChange,afte
     const day=event.target.closest('[data-focus-day]');
     if(day){selectedDay=day.dataset.focusDay;renderWeek(Date.now());}
   };
-  goal.onclick=()=>{
+  function openGoal(){
     const now=Date.now();selectedDay=dayKey(new Date(now));dialog.querySelector('input').value=focusCompass(getState(),now).goal;
     renderWeek(now);dialog.showModal();
-  };
+  }
+  goal.onclick=openGoal;
   dialog.querySelectorAll('[data-minutes]').forEach(b=>b.onclick=()=>{dialog.querySelector('input').value=b.dataset.minutes;});
   dialog.querySelector('form').onsubmit=e=>{
     if(e.submitter?.value!=='save'){e.preventDefault();dialog.close();return;}
     e.preventDefault();const value=Number(dialog.querySelector('input').value);
     if(!Number.isInteger(value)||value<5||value>720)return;
     const state=getState(),old=state.settings.dailyFocusGoal;state.settings.dailyFocusGoal=value;
-    if(save()){dialog.close();notify('Daily focus goal saved.');}else state.settings.dailyFocusGoal=old;
+    if(save()){dialog.close();onGoalChanged?.();notify('Daily focus goal saved.');}else state.settings.dailyFocusGoal=old;
   };
   const bell=meta.querySelector('button');
   bell.onclick=()=>{
@@ -138,7 +139,7 @@ export function installFocusCompass({getState,save,notify,beforeTimerChange,afte
   function closeTools(){tools.hidden=true;toggle.setAttribute('aria-expanded','false');}
   document.addEventListener('pointerdown',event=>{if(!tools.hidden&&!tools.contains(event.target)&&!toggle.contains(event.target))closeTools();});
   root.addEventListener('keydown',event=>{if(event.key==='Escape'&&!tools.hidden){event.stopPropagation();closeTools();toggle.focus();}});
-  return {render(now=Date.now()){
+  return {openGoal,render(now=Date.now()){
     const state=getState(),data=focusCompass(state,now);
     meta.querySelector('#compass-progress').style.strokeDashoffset=100-data.progress*100;
     meta.querySelector('#compass-caption').textContent=data.endsAt?'Until '+new Date(data.endsAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:true}):data.label;

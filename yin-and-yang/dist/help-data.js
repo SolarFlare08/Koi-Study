@@ -216,7 +216,8 @@ export const helpTopics = [
     id:'progress', group:'Focus & rest', title:'See today’s progress and blossoms',
     summary:'Check today’s completed sessions, focus minutes, and skipped sessions.',
     steps:['In Garden, choose `Today` at the top left.',
-      'Read the totals for focus minutes, completed sessions, and skipped sessions. Session history shows each finish time, intention, and outcome. Use the links below for the end-of-day recap and the Garden Field Guide.',
+      'The summary puts focus time and progress toward your daily goal first. Select the goal to edit it or view the past seven days. Completed and skipped totals sit below the goal.',
+      'Session history shows each finish time, intention, and outcome. Use the shortcuts below for End-of-day recap, Garden Field Guide, and Evening lights.',
       'Each completed focus session adds a blossom. Skipped sessions are recorded separately and do not add to completed totals.',
       'For earlier dates or project-level statistics, use Planner → `Reporting`.'],
     action:'progress', actionLabel:'Open today’s progress', related:['day-recap','garden-growth','reporting','timer','weekly-review']

@@ -26,7 +26,7 @@ import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,mana
 import {installBackup,restoreBackup} from './backup.js';
 import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
-import {installFocusCompass,focusWeek} from './focus-compass.js';
+import {installFocusCompass,focusCompass,focusWeek} from './focus-compass.js';
 import {timerProgress,extendTimer} from './state.js';
 import {installMiniTimer} from './mini-timer.js';
 import {installReferenceEditor} from './focus-reference.js';
@@ -494,6 +494,7 @@ const reading=installReadingShelf({root:$('#reading-workspace'),getRituals:()=>s
 const automaticBackup=adminSandbox?null:installAutomaticBackup({storage,getState:()=>state,getCaptures:availableCaptures});
 const backup=installBackup({dialog:$('#backup-dialog'),storage,getState:()=>state,getCaptures:availableCaptures,notify:toast,automaticBackup,sandbox:adminSandbox});
 const compass=installFocusCompass({getState:()=>state,save:()=>{const ok=persist();if(ok)syncSound();return ok;},notify:toast,
+  onGoalChanged:()=>{if(activePanel==='progress')refreshPanel();},
   beforeTimerChange:checkCompletion,afterTimerChange:()=>{render();wake();if(activePanel==='pagoda')refreshPanel();$('#toggle-timer').focus({preventScroll:true});}});
 const commandPalette=installCommandPalette({dialog:$('#command-palette'),getEntries:commandEntries});
 const openPostcardViewpoints=installPostcardViewpoints({
@@ -3180,18 +3181,23 @@ function panelContent(id){
     <p class="note-caption"><kbd>Ctrl+Alt+N</kbd> for quick capture</p>
     <div id="notes-captures">${captureCards()}</div>`;
   if(id==='progress'){
-    const p=todayProgress(state);
-    const date=new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'});
+    const now=new Date(),{today:p,goal}=focusCompass(state,now.getTime());
+    const date=now.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'});
     const sessions=[...p.items].reverse().map(session=>`<li>
-      <span>${escape(session.intention||'Focus session')}<br><time>${new Date(session.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(session.focusMs/60000)} min</time>${focusReviewDetails(session)}</span>
+      <div class="focus-session-copy"><strong>${escape(session.intention||'Focus session')}</strong><time>${new Date(session.finishedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(session.focusMs/60000)} min</time>${focusReviewDetails(session)}</div>
       <span class="outcome ${session.outcome==='skipped'?'skipped':''}">${session.outcome==='completed'?'Completed':'Skipped'}</span></li>`).join('');
     return `${header(date,'Today’s focus')}
-      <dl class="focus-today-totals"><div><dt>Focus minutes</dt><dd>${p.minutes}</dd></div><div><dt>Completed</dt><dd>${p.completed}</dd></div><div><dt>Skipped</dt><dd>${p.skipped}</dd></div></dl>
-      <section class="focus-today-sessions"><h3>Session history</h3>${sessions?`<ul class="history-list">${sessions}</ul>`:'<p>No focus sessions recorded today.</p>'}</section>
+      <section class="focus-today-overview" aria-label="Focus summary">
+        <div class="focus-today-time"><span>Focus time</span><strong>${p.minutes} <small>min</small></strong></div>
+        <progress aria-label="Daily focus goal" value="${Math.min(p.minutes,goal)}" max="${goal}"></progress>
+        <div class="focus-today-goal"><span>${p.minutes>=goal?'Goal reached':`${goal-p.minutes} min to go`}</span><button type="button" id="focus-today-goal" aria-haspopup="dialog">${goal} min goal</button></div>
+        <dl class="focus-today-totals"><div><dt>Completed</dt><dd>${p.completed}</dd></div><div><dt>Skipped</dt><dd>${p.skipped}</dd></div></dl>
+      </section>
+      <section class="focus-today-sessions"><h3>Session history</h3>${sessions?`<ul class="history-list">${sessions}</ul>`:'<p class="focus-today-empty">No focus sessions recorded today.</p>'}</section>
       <div class="focus-today-links">
-        <button type="button" id="open-day-recap">${icon('calendar')}<span><strong>End-of-day recap</strong><small>Review today and see what’s planned for tomorrow</small></span></button>
-        <button type="button" id="open-garden-history">${icon('sprout')}<span><strong>Garden Field Guide</strong><small>Explore landmarks and constellations</small></span></button>
-        <button type="button" class="text-button" data-evening-lights>Evening lights</button>
+        <button type="button" id="open-day-recap">${icon('calendar')}<span><strong>End-of-day recap</strong><small>Review today and see tomorrow’s plans</small></span><span class="focus-today-arrow">${icon('down')}</span></button>
+        <button type="button" id="open-garden-history">${icon('sprout')}<span>Garden Field Guide</span></button>
+        <button type="button" data-evening-lights>${icon('spark')}<span>Evening lights</span></button>
       </div>`;
   }
   if(id==='garden-history')return gardenHistoryMarkup();
@@ -5703,6 +5709,7 @@ root.addEventListener('click',e=>{
   }
   const restore=e.target.closest('[data-restore-capture]');
   if(restore){restoreCapture(restore.dataset.restoreCapture);captureInboxFocus();return;}
+  if(e.target.closest('#focus-today-goal')){compass.openGoal();return;}
   if(e.target.closest('#open-day-recap')){openPanel('day-recap',$('[data-panel="progress"]'));return;}
   if(e.target.closest('#recap-open-tomorrow')){runHelpAction('tomorrow');return;}
   const recap=e.target.closest('.recap-entry');

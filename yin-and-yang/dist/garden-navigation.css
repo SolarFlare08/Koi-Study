@@ -53,19 +53,35 @@
   background: color-mix(in srgb,var(--scene-paper) 55%,transparent);
 }
 #app[data-workspace="focus"] #task-sidebar { top:62px; bottom:auto; right:clamp(10px,2.2vw,30px); max-height:calc(100% - 146px); }
-.focus-today-totals { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin:12px 0 17px; }
-.focus-today-totals div { display:flex; flex-direction:column-reverse; gap:5px; padding:9px 8px; border:1px solid var(--surface-line); border-radius:8px; background:var(--surface-field); }
-.focus-today-totals dt { color:var(--surface-muted); font-size:10px; }
-.focus-today-totals dd { margin:0; font:24px/1 Georgia,serif; font-variant-numeric:tabular-nums; }
-.focus-today-sessions h3 { margin:0 0 8px; font-size:13px; }
-.focus-today-links { display:grid; gap:4px; margin-top:15px; padding-top:9px; border-top:1px solid var(--surface-line); }
-.focus-today-links button:not(.text-button) { display:flex; align-items:center; gap:8px; padding:8px; border-radius:7px; text-align:left; }
-.focus-today-links button:not(.text-button):hover { background:var(--surface-raised); }
+.panel.focus-today-panel { width:min(390px,calc(100vw - 28px)); max-height:min(680px,calc(100dvh - 84px)); overflow:auto; }
+.focus-today-overview { padding:12px 13px 10px; margin:12px 0 17px; border:1px solid var(--surface-line); border-radius:11px; background:linear-gradient(145deg,var(--surface-field),var(--surface-raised)); }
+.focus-today-time { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; column-gap:8px; }
+.focus-today-time span { color:var(--surface-muted); font-size:12px; font-weight:650; }
+.focus-today-time strong { font:32px/1 Georgia,serif; font-variant-numeric:tabular-nums; }
+.focus-today-time small { font:600 11px system-ui,sans-serif; color:var(--surface-muted); }
+.focus-today-overview progress { display:block; width:100%; height:6px; margin:10px 0 6px; border:0; border-radius:8px; accent-color:var(--surface-accent); }
+.focus-today-overview progress::-webkit-progress-bar { border-radius:8px; background:color-mix(in srgb,var(--surface-accent) 16%,transparent); }
+.focus-today-overview progress::-webkit-progress-value { border-radius:8px; background:var(--surface-accent); }
+.focus-today-goal { display:flex; justify-content:space-between; flex-wrap:wrap; gap:3px 7px; align-items:center; color:var(--surface-muted); font-size:11px; }
+.focus-today-goal button { padding:3px 0; color:var(--surface-accent); text-decoration:underline; text-underline-offset:3px; }
+.focus-today-totals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:8px 0 0; padding-top:8px; border-top:1px solid var(--surface-line); }
+.focus-today-totals div { display:flex; align-items:baseline; flex-direction:row-reverse; justify-content:flex-end; gap:6px; }
+.focus-today-totals dt { color:var(--surface-muted); font-size:11px; }
+.focus-today-totals dd { margin:0; font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; }
+.focus-today-sessions h3 { margin:0 0 7px; font-size:13px; }
+.panel .focus-today-empty { margin:0; padding:10px; border:1px dashed var(--surface-line); border-radius:8px; font-size:11px; }
+.focus-today-sessions .history-list li { align-items:flex-start; gap:8px; }
+.focus-session-copy { display:grid; gap:3px; min-width:0; overflow-wrap:anywhere; }
+.focus-session-copy strong { font-weight:650; }
+.focus-today-links { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; margin-top:13px; }
+.focus-today-links button { display:flex; align-items:center; gap:7px; min-width:0; padding:8px; border:1px solid var(--surface-line); border-radius:8px; text-align:left; font-size:11px; }
+.focus-today-links button:hover { background:var(--surface-raised); border-color:var(--surface-accent); }
+#open-day-recap { grid-column:1/-1; background:var(--surface-raised); }
 .focus-today-links svg { flex:none; color:var(--surface-accent); }
-.focus-today-links :is(strong,small) { display:block; }
-.focus-today-links strong { font-size:12px; }
+.focus-today-links :is(strong,small) { display:block; line-height:1.25; }
+.focus-today-links strong { font-size:13px; }
 .focus-today-links small { margin-top:3px; font-size:11px; color:var(--surface-muted); }
-.focus-today-links .text-button { justify-self:start; margin-left:8px; }
+.focus-today-arrow { margin-inline-start:auto; transform:rotate(-90deg); }
 
 .panel.garden-tools-panel { width:min(510px,calc(100vw - 28px)); max-height:min(700px,calc(100dvh - 34px)); overflow:auto; }
 .garden-tools-search { display:flex; align-items:center; gap:8px; margin:12px 0 14px; padding:0 10px; border:1px solid var(--surface-line); border-radius:8px; background:var(--surface-field); }

@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'5.15.3',date:'2026-11-21',title:'A clearer look at today’s focus',changes:[
+    'Put focus time and daily goal progress at the top of Today, with completed and skipped sessions below. Give the end-of-day recap a direct action beside the Garden links.'
+  ]},
   {version:'5.15.2',date:'2026-11-21',title:'A quieter Garden toolbar',changes:[
     'Group the Garden toolbar into two soft surfaces that follow the scene’s colors. Use compact icons for frequent shortcuts and shorter labels for Today and Landscape.'
   ]},
