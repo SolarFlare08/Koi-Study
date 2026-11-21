@@ -115,13 +115,14 @@ function inside(x,y,polygon){
   return land;
 }
 const pavilionScale=y=>Math.min(1.45,1+(y-defaultPavilionPosition.y)/490);
-export function pavilionTransform({x,y}){
-  return `translate(${x} ${y}) scale(${pavilionScale(y)})`;
+export function pavilionTransform({x,y},size=100){
+  return `translate(${x} ${y}) scale(${pavilionScale(y)*size/100})`;
 }
 export function pavilionFoundation(design){
   if(design.foundation!=='auto')return design.foundation;
-  if(!design.pavilionPosition)return 'land';
-  const {x,y}=design.pavilionPosition,span=buildings[design.pavilion].span*.72*pavilionScale(y);
+  if(!design.pavilionPosition&&(!design.pavilionSize||design.pavilionSize===100))return 'land';
+  const {x,y}=design.pavilionPosition||defaultPavilionPosition;
+  const span=buildings[design.pavilion].span*.72*pavilionScale(y)*(design.pavilionSize??100)/100;
   const land=[farBank,...banks[design.shoreline]];
   return [x-span,x,x+span].every(px=>land.some(polygon=>inside(px,y,polygon)))?'land':'stone';
 }
@@ -149,7 +150,7 @@ export function foundationArt(kind,span=35){
 
 export function placedPavilion(style,design,lights=false){
   const point=design.pavilionPosition||defaultPavilionPosition;
-  const transform=pavilionTransform(point);
+  const transform=pavilionTransform(point,design.pavilionSize);
   const building=buildings[style],base=pavilionFoundation(design);
   const [lx,ly]=building.lantern;
   if(lights){

@@ -71,7 +71,7 @@ function growthPosition(slots,index){
   return [x+Math.cos(angle)*radius,y+Math.sin(angle)*radius/3,scale*Math.max(.32,.72-layer*.04)];
 }
 
-export function gardenLandmarkPositions(history,courses=[],placements={}){
+export function gardenLandmarkPositions(history,courses=[],placements={},sizes={}){
   const positions=new Map();
   const courseCenters=[[478,228],[1048,107],[700,147],[1250,286],[241,61],[1442,62],[824,74],[1061,275],[425,120],[1310,187]];
   courses.forEach((course,index)=>{
@@ -108,8 +108,9 @@ export function gardenLandmarkPositions(history,courses=[],placements={}){
       spot=`${item.kind}:${position[0]}:${position[1]}`;
     }while(occupied.has(spot));
     counts.set(key,index);occupied.add(spot);
-    const custom=placements[gardenLandmarkKey(item)];
-    return {item,index:originalIndex,position:custom?[custom.x,custom.y,position[2]]:position};
+    const landmarkKey=gardenLandmarkKey(item),custom=placements[landmarkKey];
+    const scale=position[2]*((sizes[landmarkKey]??100)/100);
+    return {item,index:originalIndex,position:[custom?.x??position[0],custom?.y??position[1],scale]};
   });
 }
 
@@ -195,7 +196,7 @@ export function gardenGrowthMarkup(history,{courses=[],through='',visible,design
     swallows.push(`<g data-swallow-flock="${item.id}">${formation}</g>`);
   }
   let hasIsland=false;
-  const layout=gardenLandmarkPositions(history,courses,design.placements);
+  const layout=gardenLandmarkPositions(history,courses,design.placements,design.landmarkSizes);
   const courseStars=new Set(courses.flatMap(course=>course.stars.map(({index})=>index)));
   let nextStar=0;
   const starMagnitudes=[1.05,2.7,1.85,3.1,1.4,2.45,3.45,2.2,2.9,1.6,3.7];

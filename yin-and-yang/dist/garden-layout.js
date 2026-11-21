@@ -16,10 +16,15 @@ export const gardenCameras={
 };
 export const defaultPavilionPosition={x:1096,y:615};
 export const defaultGardenDesign={mountains:'classic',shoreline:'classic',pavilion:'pagoda',foundation:'auto',
-  boat:'seasonal',lantern:'classic',path:'none',camera:'wide',pavilionPosition:null,placements:{},props:[]};
+  boat:'seasonal',lantern:'classic',path:'none',camera:'wide',pavilionPosition:null,pavilionSize:100,placements:{},landmarkSizes:{},props:[]};
 export const pavilionBounds={x:[90,1510],y:[557,848]};
 export const gardenPropBounds={x:[32,1568],y:[446,883]};
 export const gardenPropLimit=36;
+export const gardenSizeBounds={min:25,max:200,step:5};
+export function gardenObjectSize(value){
+  const {min,max,step}=gardenSizeBounds;
+  return Number.isFinite(value)?Math.max(min,Math.min(max,Math.round(value/step)*step)):100;
+}
 export const gardenPropTypes={
   bridge:{name:'Stone arch bridge',x:1200,y:673},
   dock:{name:'Wooden dock',x:1428,y:781},
@@ -42,7 +47,7 @@ export function loadGardenProps(value){
   for(const item of Array.isArray(value)?value:[]){
     if(typeof item?.id!=='string'||!/^[a-z0-9_-]{1,80}$/i.test(item.id)||!Object.hasOwn(gardenPropTypes,item.kind)||
       !Number.isFinite(item.x)||!Number.isFinite(item.y))continue;
-    const size=Number.isFinite(item.size)?Math.max(50,Math.min(200,Math.round(item.size/5)*5)):100;
+    const size=gardenObjectSize(item.size);
     props.set(item.id,{id:item.id,kind:item.kind,...clampGardenPlacement(item.x,item.y,gardenPropBounds),size});
     if(props.size===gardenPropLimit)break;
   }
@@ -69,7 +74,7 @@ export function clampGardenPlacement(x,y,bounds=placementBounds){
   }));
 }
 export function loadGardenDesign(value){
-  const design={...defaultGardenDesign,placements:{},props:loadGardenProps(value?.props)};
+  const design={...defaultGardenDesign,placements:{},landmarkSizes:{},props:loadGardenProps(value?.props)};
   for(const [piece,options] of Object.entries(gardenPieceOptions)){
     if(Object.hasOwn(options,value?.[piece]))design[piece]=value[piece];
   }
@@ -77,6 +82,14 @@ export function loadGardenDesign(value){
     design.pavilionPosition=clampGardenPlacement(value.pavilionPosition.x,value.pavilionPosition.y,pavilionBounds);
   }
   if(Object.hasOwn(gardenCameras,value?.camera))design.camera=value.camera;
+  design.pavilionSize=gardenObjectSize(value?.pavilionSize);
+  for(const [key,size] of Object.entries(value?.landmarkSizes||{})){
+    let parts;
+    try{parts=JSON.parse(key);}catch{continue;}
+    if(!Array.isArray(parts)||parts.length!==2||!movableGardenLandmark({kind:parts[0]})||typeof parts[1]!=='string'||!parts[1])continue;
+    const normalized=gardenObjectSize(size);
+    if(normalized!==100)design.landmarkSizes[gardenLandmarkKey({kind:parts[0],sourceId:parts[1]})]=normalized;
+  }
   for(const [key,point] of Object.entries(value?.placements||{})){
     let parts;
     try{parts=JSON.parse(key);}catch{continue;}

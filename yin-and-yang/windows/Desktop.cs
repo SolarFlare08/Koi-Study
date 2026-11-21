@@ -230,8 +230,16 @@ internal sealed class Desktop : Form
     {
         if (verify || closingSaved || view.CoreWebView2 == null || !IsGarden(view.CoreWebView2.Source)) return;
         args.Cancel = true;
+        if (!Enabled) return;
         Enabled = false;
         try {
+            var draftCheck = view.ExecuteScriptAsync("Boolean(window.gardenStudioHasUnsavedChanges && window.gardenStudioHasUnsavedChanges())");
+            if (await Task.WhenAny(draftCheck, Task.Delay(8000)) != draftCheck) throw new IOException("Garden Studio did not respond in time.");
+            if (await draftCheck == "true" && MessageBox.Show(this, "Discard unsaved changes to this Garden layout?",
+                "Unsaved Garden layout", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) {
+                Enabled = true;
+                return;
+            }
             var request = view.ExecuteScriptAsync("window.gardenDesktopSnapshot ? window.gardenDesktopSnapshot() : null");
             if (await Task.WhenAny(request, Task.Delay(8000)) != request) throw new IOException("The backup did not respond in time.");
             var value = serializer.Deserialize<string>(await request);

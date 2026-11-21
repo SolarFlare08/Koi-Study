@@ -541,7 +541,7 @@ test('Garden activities resolve independently, ignore missing layouts, and survi
 
 test('movable Garden buildings use land and water foundations and keep their lights and options through backup',()=>{
   const state=freshState();
-  const design=loadGardenDesign({pavilion:'tiered',boat:'junk',lantern:'hex',path:'boardwalk',pavilionPosition:{x:785,y:685}});
+  const design=loadGardenDesign({pavilion:'tiered',boat:'junk',lantern:'hex',path:'boardwalk',pavilionPosition:{x:785,y:685},pavilionSize:65});
   assert.equal(pavilionFoundation(design),'stone');
   assert.equal(pavilionFoundation(loadGardenDesign({...design,pavilionPosition:{x:1260,y:601}})),'land');
   assert.equal(pavilionFoundation(loadGardenDesign({...design,foundation:'timber'})),'timber');
@@ -555,6 +555,17 @@ test('movable Garden buildings use land and water foundations and keep their lig
   const {state:restored}=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[])));
   assert.deepEqual(restored.gardenDesign,design);
   assert.deepEqual(restored.gardenLayouts[0].design,{...design,boat:'none'});
+});
+
+test('resizing an earned landmark preserves its anchor and saves the scale',()=>{
+  const state=freshState();
+  const item={kind:'project',sourceId:'cedar',title:'Cedar',day:'2026-11-21'};
+  const key=gardenLandmarkKey(item);
+  state.gardenDesign=loadGardenDesign({landmarkSizes:{[key]:37}});
+  const {state:restored}=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[])));
+  const [x,y,scale]=gardenLandmarkPositions([item])[0].position;
+  assert.equal(restored.gardenDesign.landmarkSizes[key],35);
+  assert.deepEqual(gardenLandmarkPositions([item],[],{},restored.gardenDesign.landmarkSizes)[0].position,[x,y,scale*.35]);
 });
 
 test('Garden mountain presets have distinct artwork and props survive layout and backup round trips',()=>{

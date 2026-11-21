@@ -98,8 +98,8 @@ function shoreBank(name,side,options){
   const snow=name==='classic'?snowbank(side):`<path class="season-layer winter-scene" d="${bankSnow[name][side]}" fill="#e2edf0" opacity=".82"/>`;
   return options[name]+snow;
 }
-const pavilionKey=({foundation,lantern,pavilionPosition,shoreline})=>
-  [foundation,lantern,pavilionPosition?.x,pavilionPosition?.y,shoreline].join('|');
+const pavilionKey=({foundation,lantern,pavilionPosition,pavilionSize,shoreline})=>
+  [foundation,lantern,pavilionPosition?.x,pavilionPosition?.y,pavilionSize,shoreline].join('|');
 
 export const gardenPieces={
   mountains:{option:'mountains',render:mountains},

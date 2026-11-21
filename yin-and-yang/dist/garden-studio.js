@@ -1,5 +1,5 @@
 import {gardenCameras,gardenPieceOptions,defaultGardenDesign,gardenStarterLayouts,gardenFrame,loadGardenDesign,loadGardenLayouts,
-  gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds,gardenPropBounds,gardenPropTypes,gardenPropLimit} from './garden-layout.js';
+  gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds,gardenPropBounds,gardenPropTypes,gardenPropLimit,gardenSizeBounds,gardenObjectSize} from './garden-layout.js';
 import {loadAppearance,seasonOptions,lightingOptions,gardenPalettes,weatherBySeason} from './garden-appearance.js';
 import {gardenLandmarkPositions,mountGardenPreview} from './scenery.js';
 import {gardenCourses,landmarkTypes} from './garden-growth.js';
@@ -37,13 +37,14 @@ const toolIcon=d=>`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" s
 
 const options=values=>Object.entries(values).map(([key,label])=>`<option value="${escape(key)}">${escape(label)}</option>`).join('');
 const select=(name,label,values)=>`<label>${label}<select name="${name}">${options(values)}</select></label>`;
+const sizeSlider=(name,label)=>`<label>${label} <output name="${name}Value">100%</output><input type="range" name="${name}" min="${gardenSizeBounds.min}" max="${gardenSizeBounds.max}" step="${gardenSizeBounds.step}" value="100"></label>`;
 
 export function createGardenStudio({getState,getAppearance,getDesign,commit,download,today}){
-  let draft,form,selected='',scene=null,drag=null,tool='select',stamp='',zoom=1,terrainCategory='mountains';
+  let draft,form,selected='',scene=null,drag=null,tool='select',stamp='',stampPoint=null,zoom=1,terrainCategory='mountains';
   let undo=[],redo=[],savedDraft='';
   function open(){
     draft={id:'',name:'',through:'',design:loadGardenDesign(getDesign()),appearance:getAppearance()};
-    selected='';drag=null;stamp='';undo=[];redo=[];zoom=1;tool='scene';terrainCategory='mountains';
+    selected='';drag=null;stamp='';stampPoint=null;undo=[];redo=[];zoom=1;tool='scene';terrainCategory='mountains';
     savedDraft=fingerprint(draft);
   }
   function markup(){
@@ -67,8 +68,6 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         <div class="studio-board">
           <div class="studio-stage" tabindex="0" aria-label="Landscape canvas" aria-describedby="studio-canvas-tip">
             <div class="garden-scene-preview studio-scene" aria-hidden="true"></div>
-            <span class="studio-pin" aria-hidden="true" hidden></span>
-            <div class="studio-ghost" aria-hidden="true" hidden></div>
           </div>
         </div>
         <aside class="studio-settings" id="studio-settings" aria-label="Tool controls">
@@ -80,9 +79,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
               <label>Horizontal position<input type="range" name="x" min="${placementBounds.x[0]}" max="${placementBounds.x[1]}"></label>
               <label>Vertical position<input type="range" name="y" min="${placementBounds.y[0]}" max="${placementBounds.y[1]}"></label>
               <small class="studio-foundation-note" data-studio-foundation hidden></small>
-              <div data-studio-prop-controls hidden>
-                <label>Size <output name="propSizeValue"></output><input type="range" name="propSize" min="50" max="200" step="5" value="100"></label>
-              </div>
+              ${sizeSlider('objectSize','Object size')}
               <div class="studio-object-actions"><button type="button" data-studio="automatic">Reset position</button>
                 <button type="button" data-studio="remove-prop" hidden>Remove prop</button></div>
             </div>
@@ -93,6 +90,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
             <div class="studio-prop-palette">${Object.entries(gardenPropTypes).map(([kind,item])=>
               `<button type="button" data-studio-stamp="${kind}" aria-pressed="false">${propSwatch(kind)}<span>${item.name}</span></button>`).join('')}</div>
             <p class="studio-stage-help" data-studio-prop-count></p>
+            ${sizeSlider('stampSize','Placement size')}
             <button type="button" class="text-button" data-studio="place-center" disabled>Place in view</button>
           </section>
           <section id="studio-tool-scene" data-tool-panel="scene" hidden>
@@ -165,8 +163,14 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const {season,lighting,palette,weather,motion}=appearance;
     return JSON.stringify({name,design,season,lighting,palette,weather,motion,through});
   }
+  function hasUnsavedChanges(){
+    return Boolean(form?.isConnected&&fingerprint({...draft,name:field('layoutName').value.trim()})!==savedDraft);
+  }
+  function canLeave(){
+    return !hasUnsavedChanges()||window.confirm('Discard unsaved changes to this Garden layout?');
+  }
   function updateHistoryControls(){
-    const dirty=fingerprint({...draft,name:field('layoutName').value.trim()})!==savedDraft;
+    const dirty=hasUnsavedChanges();
     const draftStatus=form.querySelector('[data-studio-draft-state]');
     draftStatus.textContent=dirty?'Unsaved changes':draft.id?'Saved layout':'Live Garden';
     draftStatus.classList.toggle('studio-unsaved',dirty);
@@ -192,7 +196,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     setSettingsVisible(true);
     for(const button of form.querySelectorAll('[data-studio-tool]'))button.setAttribute('aria-pressed',String(button.dataset.studioTool===key));
     for(const pane of form.querySelectorAll('[data-tool-panel]'))pane.hidden=pane.dataset.toolPanel!==key;
-    form.querySelector('.studio-ghost').hidden=true;
+    stampPoint=null;
     syncStamp();updatePin();
   }
   function setSettingsVisible(visible){
@@ -221,9 +225,19 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       button.disabled=draft.design.props.length>=gardenPropLimit;
     }
     form.querySelector('[data-studio="place-center"]').disabled=!active;
-    const ghost=form.querySelector('.studio-ghost');
-    if(active)ghost.innerHTML=propSwatch(stamp);
-    else ghost.hidden=true;
+    field('stampSize').disabled=!active;
+    const ghost=scene.querySelector('.studio-ghost');
+    ghost.innerHTML=active?gardenPropArtwork(stamp):'';
+    paintStamp();
+  }
+  function stampCandidate(position){
+    return {kind:stamp,...clampGardenPlacement(position.x,position.y,gardenPropBounds),size:gardenObjectSize(field('stampSize').valueAsNumber)};
+  }
+  function paintStamp(){
+    const ghost=scene.querySelector('.studio-ghost');
+    const show=stampPoint&&tool==='props'&&stamp&&draft.design.props.length<gardenPropLimit;
+    ghost.setAttribute('visibility',show?'visible':'hidden');
+    if(show)ghost.setAttribute('transform',gardenPropTransform(stampCandidate(stampPoint)));
   }
   function setZoom(level){
     zoom=Math.max(1,Math.min(2.5,level));
@@ -271,6 +285,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   function populate(){
     updateLibrary();updateActivityChoices();syncFields();
     field('layoutName').value=draft.name;
+    field('stampSize').value=100;field('stampSizeValue').value='100%';
     render();showTerrainCategory(terrainCategory);setTool(tool);setZoom(zoom);
   }
   function landmarks(){
@@ -282,12 +297,15 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     if(selected===buildingTarget)return draft.design.pavilionPosition||defaultPavilionPosition;
     if(selected.startsWith(propPrefix))return selectedProp()||null;
     const state=getState(),courses=gardenCourses(state.gardenGrowth,state.projects);
-    const landmark=gardenLandmarkPositions(state.gardenGrowth,courses,draft.design.placements)
+    const landmark=gardenLandmarkPositions(state.gardenGrowth,courses,draft.design.placements,draft.design.landmarkSizes)
       .find(({item})=>gardenLandmarkKey(item)===selected);
     const [x,y]=landmark?.position||placementBounds.x;
     return landmark?clampGardenPlacement(x,y):null;
   }
   function selectedBounds(){return selected===buildingTarget?pavilionBounds:selected.startsWith(propPrefix)?gardenPropBounds:placementBounds;}
+  function selectedSize(){
+    return selected===buildingTarget?draft.design.pavilionSize:selectedProp()?.size??draft.design.landmarkSizes[selected]??100;
+  }
   function savePosition(point){
     if(selected===buildingTarget)draft.design.pavilionPosition=point;
     else if(selected.startsWith(propPrefix))Object.assign(selectedProp(),point);
@@ -296,7 +314,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   function previewPosition(point){
     if(selected===buildingTarget){
       for(const id of ['pavilion','pavilionLights']){
-        scene.querySelector('[data-garden-piece="'+id+'"] > g').setAttribute('transform',pavilionTransform(point));
+        scene.querySelector('[data-garden-piece="'+id+'"] > g').setAttribute('transform',pavilionTransform(point,draft.design.pavilionSize));
       }
     }
     const prop=selectedProp();
@@ -308,13 +326,12 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     updatePin(point,true);
   }
   function updatePin(point=pointForSelected(),previewing=false){
-    const stage=form.querySelector('.studio-stage'),pin=form.querySelector('.studio-pin');
+    const stage=form.querySelector('.studio-stage'),pin=scene.querySelector('.studio-pin');
     const [left,top,width,height]=gardenFrame(draft.design.camera);
     const visible=tool==='select'&&point&&point.x>=left&&point.x<=left+width&&point.y>=top&&point.y<=top+height;
-    stage.toggleAttribute('data-placing',tool==='select'&&Boolean(point));pin.hidden=!visible;
+    stage.toggleAttribute('data-placing',tool==='select'&&Boolean(point));pin.setAttribute('visibility',visible?'visible':'hidden');
     if(visible){
-      pin.style.left=`${(point.x-left)/width*100}%`;
-      pin.style.top=`${(point.y-top)/height*100}%`;
+      pin.setAttribute('cx',point.x);pin.setAttribute('cy',point.y);
     }
     form.querySelector('.studio-placement').hidden=!point;
     form.querySelector('[data-studio-no-selection]').hidden=Boolean(point);
@@ -322,9 +339,8 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const support=form.querySelector('[data-studio-foundation]');
     support.hidden=!building;
     const prop=selectedProp();
-    form.querySelector('[data-studio-prop-controls]').hidden=!prop;
     form.querySelector('[data-studio="remove-prop"]').hidden=!prop;
-    if(prop){field('propSize').value=prop.size;field('propSizeValue').value=prop.size+'%';}
+    field('objectSize').value=selectedSize();field('objectSizeValue').value=selectedSize()+'%';
     if(building){
       const base=pavilionFoundation({...draft.design,pavilionPosition:previewing?point:draft.design.pavilionPosition});
       support.textContent={land:'Low plinth · on land',stone:'Stone outcrop',timber:'Timber landing',terrace:'Stone terrace'}[base];
@@ -360,6 +376,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     field('landmark').value=selected;
     scene=mountGardenPreview(form.querySelector('.studio-scene'),loadAppearance(draft.appearance),
       {history,courses,through:draft.through,design:draft.design});
+    scene.insertAdjacentHTML('beforeend','<g class="studio-ghost" data-live-scenery visibility="hidden"></g><circle class="studio-pin" data-live-scenery visibility="hidden" r="5"/>');
     for(const button of form.querySelectorAll('[data-studio-style]')){
       button.setAttribute('aria-pressed',String(draft.design[button.dataset.studioPiece]===button.dataset.studioStyle));
     }
@@ -369,7 +386,8 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   function placeProp(position){
     if(!stamp||draft.design.props.length>=gardenPropLimit)return;
     const before=structuredClone(draft),id=crypto.randomUUID();
-    draft.design.props.push({id,kind:stamp,...clampGardenPlacement(position.x,position.y,gardenPropBounds),size:100});
+    draft.design.props.push({id,...stampCandidate(position)});
+    stampPoint=null;
     selected=propPrefix+id;
     record(before);render();status(gardenPropTypes[stamp].name+' placed.');
   }
@@ -421,7 +439,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     form=element;
     if(!form)return;
     populate();
-    const stage=form.querySelector('.studio-stage'),ghost=form.querySelector('.studio-ghost');
+    const stage=form.querySelector('.studio-stage');
     function handleKey(event){
       if(event.key==='Escape'&&tool==='props'&&stamp){
         event.preventDefault();event.stopPropagation();stamp='';setTool('props');return;
@@ -442,10 +460,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       savePosition(clampGardenPlacement(point.x+offset[0]*distance,point.y+offset[1]*distance,selectedBounds()));
       record(before);render();
     }
-    const scenePoint=event=>{
-      const pane=form.querySelector('.studio-scene svg').getBoundingClientRect(),[left,top,width,height]=gardenFrame(draft.design.camera);
-      return {x:left+(event.clientX-pane.left)/pane.width*width,y:top+(event.clientY-pane.top)/pane.height*height};
-    };
+    const scenePoint=event=>new DOMPoint(event.clientX,event.clientY).matrixTransform(scene.getScreenCTM().inverse());
     const eventPoint=event=>{
       const point=scenePoint(event);
       return clampGardenPlacement(point.x-(drag?.dx||0),point.y-(drag?.dy||0),selectedBounds());
@@ -468,11 +483,10 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     stage.addEventListener('pointermove',event=>{
       if(drag?.pointer===event.pointerId)previewPosition(eventPoint(event));
       else if(tool==='props'&&stamp&&event.pointerType==='mouse'&&draft.design.props.length<gardenPropLimit){
-        const point=scenePoint(event),[left,top,width,height]=gardenFrame(draft.design.camera);
-        ghost.hidden=false;ghost.style.left=`${(point.x-left)/width*100}%`;ghost.style.top=`${(point.y-top)/height*100}%`;
+        stampPoint=scenePoint(event);paintStamp();
       }
     });
-    stage.addEventListener('pointerleave',()=>{ghost.hidden=true;});
+    stage.addEventListener('pointerleave',()=>{stampPoint=null;paintStamp();});
     stage.addEventListener('pointerup',event=>{
       if(drag?.pointer!==event.pointerId)return;
       const next=eventPoint(event),previous=pointForSelected();
@@ -482,7 +496,8 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     stage.addEventListener('pointercancel',()=>{if(drag){drag=null;render();}});
     form.addEventListener('input',event=>{
       if(event.target===field('layoutName'))updateHistoryControls();
-      if(event.target===field('propSize'))field('propSizeValue').value=event.target.value+'%';
+      if(event.target===field('stampSize')){field('stampSizeValue').value=event.target.value+'%';paintStamp();}
+      if(event.target===field('objectSize'))field('objectSizeValue').value=event.target.value+'%';
     });
     form.addEventListener('change',event=>{
       const {name,value}=event.target;
@@ -497,6 +512,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         return;
       }
       if(name==='library'){
+        if(!canLeave()){updateLibrary();return;}
         const saved=value.startsWith('saved:')&&getState().gardenLayouts.find(item=>item.id===value.slice(6));
         const key=value.startsWith('starter:')?value.slice(8):'';
         const template=Object.hasOwn(gardenStarterLayouts,key)&&gardenStarterLayouts[key];
@@ -516,8 +532,13 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       }else if(name==='x'||name==='y'){
         if(!selected)return;
         savePosition(clampGardenPlacement(Number(field('x').value),Number(field('y').value),selectedBounds()));
-      }else if(name==='propSize'){
-        const prop=selectedProp();if(!prop)return;prop.size=Number(value);
+      }else if(name==='objectSize'){
+        if(!selected)return;
+        const size=gardenObjectSize(Number(value)),prop=selectedProp();
+        if(selected===buildingTarget)draft.design.pavilionSize=size;
+        else if(prop)prop.size=size;
+        else if(size===100)delete draft.design.landmarkSizes[selected];
+        else draft.design.landmarkSizes[selected]=size;
       }else if(name==='camera')draft.design.camera=value;
       else if(['season','lighting','palette','weather'].includes(name)){
         draft.appearance=loadAppearance({...draft.appearance,[name]:value});
@@ -578,5 +599,5 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     });
     form.addEventListener('submit',event=>{event.preventDefault();writeCandidate({apply:event.submitter?.value==='apply'});});
   }
-  return {open,markup,mount,postcardScene:()=>({design:draft.design,appearance:draft.appearance,through:draft.through})};
+  return {open,markup,mount,canLeave,hasUnsavedChanges,postcardScene:()=>({design:draft.design,appearance:draft.appearance,through:draft.through})};
 }

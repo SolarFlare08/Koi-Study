@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.15.5',date:'2026-11-21',title:'Precise Garden Studio placement',changes:[
+    'Warn before discarding unsaved Studio edits or closing the app with a draft.',
+    'Align placement previews with actual objects at any canvas zoom, and let props, buildings, and earned landmarks be resized for depth.'
+  ]},
   {version:'5.15.4',date:'2026-11-21',title:'A cleaner Garden Studio',changes:[
     'Move editing tools above the canvas and give the terrain and prop previews more room.',
     'Save or apply a layout without naming it. New unnamed layouts get an available name such as Garden layout 1.'

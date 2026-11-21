@@ -207,7 +207,7 @@ function renderGardenGrowth(){
     const star=course.stars.find(({item,index})=>!assigned.has(index)&&(!snapshotThrough||item.day<=snapshotThrough));
     return star?[[star.index,course]]:[];
   }));
-  $('#garden-landmarks').innerHTML=gardenLandmarkPositions(state.gardenGrowth,courses,design.placements).map(({item,index,position})=>{
+  $('#garden-landmarks').innerHTML=gardenLandmarkPositions(state.gardenGrowth,courses,design.placements,design.landmarkSizes).map(({item,index,position})=>{
     if(snapshotThrough&&item.day>snapshotThrough)return '';
     if(assigned.has(index))return '';
     const type=landmarkTypes[item.kind], [x,y,scale]=position;
@@ -401,6 +401,12 @@ examStudyDialog.addEventListener('submit',event=>{
     if(added.some(task=>JSON.stringify(latest.tasks.find(item=>item.id===task.id))!==saved.get(task.id)))return false;
     latest.tasks=latest.tasks.filter(task=>!added.includes(task));return true;
   });
+});
+window.gardenStudioHasUnsavedChanges=studio.hasUnsavedChanges;
+window.addEventListener('beforeunload',event=>{
+  if(!studio.hasUnsavedChanges())return;
+  event.preventDefault();
+  event.returnValue='';
 });
 const bundleEditor=installBundleEditor({dialog:$('#bundle-dialog'),tasks:gardenTasks,save:item=>saveBundle(item),remove:id=>saveBundle(null,id)});
 const planner=installPlanner({
@@ -667,7 +673,8 @@ $('#workspace-tabs').addEventListener('click',event=>{
   if(!button)return;
   const inMore=compactNavigation.matches&&workspaceLibrary.contains(button);
   if(button.dataset.workspace===workspace){if(inMore)setWorkspaceMenu(false,true);return;}
-  closePanel(false);closeTaskMenu(false);
+  if(closePanel(false)===false)return;
+  closeTaskMenu(false);
   const next=button.dataset.workspace;
   if(next==='planner'||next==='calendar'){openSchedule(next,button);return;}
   if(inSchedule()){
@@ -774,7 +781,8 @@ function runHelpAction(action){
   if(action==='garden-studio'){openGardenStudio();return;}
   if(action==='garden-postcard'){openGardenPostcard();return;}
   if(action==='evening-lights'){openEveningLights();return;}
-  closePanel(false);closeTaskMenu(false);
+  if(closePanel(false)===false)return;
+  closeTaskMenu(false);
   const workspaces=['focus','planner','calendar','crochet','journal','notes','reading'];
   if(workspaces.includes(action)){visitWorkspace(action);return;}
   if(action==='search'){commandPalette.open();return;}
@@ -1312,6 +1320,7 @@ function syncFocusMode(){
   if(!document.activeElement.getClientRects().length)focusModeButton.focus({preventScroll:true});
 }
 function toggleFocusMode(){
+  if(activePanel==='garden-studio'&&closePanel(false)===false)return;
   state.focusMode=!state.focusMode;
   persist();render();wake();
   announce(state.focusMode?'Focus mode on. Press Escape to return to the garden.':'Focus mode off.');
@@ -3296,11 +3305,12 @@ function positionPanel(panel,anchor){
 }
 function visiblePanel(){return root.querySelector('.panel:not(.music-hidden,.music-mini)');}
 function openPanel(id,anchor,landmarkIndex=null){
+  if(closePanel(false)===false)return;
   if(id==='capture')activeCaptureContext=currentCaptureContext();
   if(id==='focus-goal')goalTimer=state.timer;
   if(id==='appearance')seasonPreview=effectiveAppearance.season;
   if(id==='garden-studio')studio.open();
-  closePanel(false);selectedLandmark=landmarkIndex;
+  selectedLandmark=landmarkIndex;
   if(selectedLandmark!==null)$(`[data-garden-landmark="${selectedLandmark}"]`)?.classList.add('landmark-selected');
   activePanel=id;lastAnchor=anchor;anchor?.setAttribute('aria-expanded','true');
   let panel=root.querySelector('#music-panel');
@@ -3327,6 +3337,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   initialFocus.focus({preventScroll:true});
 }
 function closePanel(restore=true){
+  if(activePanel==='garden-studio'&&!studio.canLeave())return false;
   if(restore&&returnToCaptureInbox&&(['capture-project','capture-link'].includes(activePanel)||activePanel==='task-editor'&&taskDraft?.captureKey)){
     returnToCaptureInbox=false;openCaptureInbox(false);return;
   }
@@ -3830,7 +3841,7 @@ calendarScroll.addEventListener('keydown',event=>{
 new ResizeObserver(updatePlannerViewport).observe(calendarScroll);
 
 function openSchedule(destination,anchor,date=new Date(),minute){
-  closePanel(false);
+  if(closePanel(false)===false)return;
   closeTaskMenu(false);
   if(!inSchedule()){
     reopenTasksAfterCalendar=workspace==='focus'?!taskSidebar.hidden:desktopTasks.matches;

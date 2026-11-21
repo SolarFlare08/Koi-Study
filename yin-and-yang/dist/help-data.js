@@ -844,6 +844,8 @@ export const helpTopics = [
     steps:['In Garden, click Landscape to open the Terrain palette and see the current style. Choose a category such as Shoreline, Path, Building, Building base, Boat, or Lantern. Click an illustrated tile to try that style on the canvas. Use Light for season, palette, weather, and lighting.',
       'Choose Move to click or drag the building and props on the canvas. Choose earned landmarks from the Object list. The position sliders and arrow keys let you fine-tune placement.',
       'Use the bottom View and zoom controls to frame the canvas. Choose Hide panel for more canvas space, then Show panel or a tool to bring the controls back. Undo and Redo at the top step through scenery edits in the current draft.',
+      'Use Object size in Move to resize buildings, props, or earned landmarks. Position farther up the scene for distance and choose a smaller size for a more distant look.',
+      'Studio asks before you close or switch layouts with unsaved edits. Choose Cancel to keep editing, or confirm to discard the draft.',
       'Use Save layout or Save & apply at the top. Leave Layout name blank to get an automatic name, such as Garden layout 1. Clearing the name of an existing layout keeps its saved name. In Layouts, load saved and starter layouts, save a copy, assign layouts by activity, set an archive date, or download a postcard.'],
     tip:'Save & apply updates the default Garden and pauses daily appearance presets. Activity assignments keep using their chosen layouts.',
     action:'garden-studio',actionLabel:'Open Garden Studio',related:['appearance','garden-growth','garden-postcard','backup']
@@ -851,8 +853,8 @@ export const helpTopics = [
   {
     id:'garden-props',group:'Make it yours',title:'Place props in the Garden',
     summary:'Arrange bridges, plants, water details, and stone lanterns in a Studio layout.',
-    steps:['Open Garden → Landscape. Choose Props in the toolbar, pick a thumbnail such as Vermilion footbridge, Copper maple, or Floating lantern, then click or tap the canvas to place it. Keep clicking to place more copies, or use Place in view from the keyboard.',
-      'Switch to Move, then click the prop on the canvas or choose it from the Object list. Drag or use the position sliders to move it. Use Size or Remove prop to edit it.',
+    steps:['Open Garden → Landscape. Choose Props in the toolbar and pick a thumbnail. Set Placement size, then click or tap the canvas to place it. The pointer preview uses the same anchor and depth scale as the placed object. Keep clicking for more copies, or use Place in view from the keyboard.',
+      'Switch to Move, then click the prop on the canvas or choose it from the Object list. Drag or use the position sliders to move it. Use Object size or Remove prop to edit it.',
       'Save your layout. Props appear in the live Garden when you apply the layout and are included in postcards and backups.'],
     action:'garden-studio',actionLabel:'Open Garden Studio',related:['garden-studio','activity-layouts','garden-postcard']
   },

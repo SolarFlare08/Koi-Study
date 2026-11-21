@@ -311,11 +311,9 @@
 .studio-stage[data-placing],.studio-stage[data-stamping] { cursor: crosshair; touch-action: none; }
 .studio-stage:not([data-stamping]) :is([data-garden-prop],[data-garden-piece="pavilion"]) { cursor: grab; touch-action: none; }
 .studio-pin {
-  position: absolute; width: 16px; height: 16px; transform: translate(-50%,-50%); pointer-events: none;
-  border: 2px solid #f5eecc; border-radius: 50%; background: #ad7058; box-shadow: 0 0 0 1px #281d23,0 0 0 5px #eed4a950;
+  pointer-events:none; fill:#ad7058; stroke:#f5eecc; stroke-width:2; vector-effect:non-scaling-stroke;
 }
-.studio-ghost { position: absolute; width: 10%; pointer-events: none; opacity: .5; transform: translate(-50%,-78%); }
-.studio-ghost svg { display: block; width: 100%; height: auto; }
+.studio-ghost { pointer-events:none; opacity:.55; }
 .studio-settings { min-width:0; min-height:0; overflow:auto; padding:16px; border-left:1px solid var(--studio-line); background:var(--studio-frame); scrollbar-width:thin; }
 .studio-settings section { display:grid; gap:11px; }
 .studio-settings h3 { margin:0; color:var(--studio-ink); font:19px/1.15 Georgia,serif; }
