@@ -841,7 +841,7 @@ export const helpTopics = [
   {
     id:'garden-studio',group:'Make it yours',title:'Build a landscape in Garden Studio',
     summary:'Edit on a full-screen canvas with a toolbar, zoom, and undo.',
-    steps:['In Garden, click Landscape to open the Terrain palette and see the current style. Choose a category such as Shoreline, Path, Building, Building base, Boat, or Lantern. Click an illustrated tile to try that style on the canvas. Use Light for season, palette, weather, and lighting.',
+    steps:['In Garden, click Landscape to open the Terrain palette and see the current style. Choose a category such as Mountains, Building, Boat, or Lantern. Click an illustrated tile to try it on the canvas. Try Glacial bowl for snowy peaks at the sides, or Terraced slopes for a layered hillside. Use Light for season, palette, weather, and lighting.',
       'Choose Move to click or drag the building and props on the canvas. Choose earned landmarks from the Object list. The position sliders and arrow keys let you fine-tune placement.',
       'Use the bottom View and zoom controls to frame the canvas. Choose Hide panel for more canvas space, then Show panel or a tool to bring the controls back. Undo and Redo at the top step through scenery edits in the current draft.',
       'Use Object size in Move to resize buildings, props, or earned landmarks. Position farther up the scene for distance and choose a smaller size for a more distant look.',
@@ -853,7 +853,8 @@ export const helpTopics = [
   {
     id:'garden-props',group:'Make it yours',title:'Place props in the Garden',
     summary:'Arrange bridges, plants, water details, and stone lanterns in a Studio layout.',
-    steps:['Open Garden → Landscape. Choose Props in the toolbar and pick a thumbnail. Set Placement size, then click or tap the canvas to place it. The pointer preview uses the same anchor and depth scale as the placed object. Keep clicking for more copies, or use Place in view from the keyboard.',
+    steps:['Open Garden → Landscape and choose Props in the toolbar. Use Plants, Water, Structures, or Details to find props such as weeping willows, mandarin ducks, round garden gates, and path beacons. Beacons light up at dusk and at night.',
+      'Pick a thumbnail and set Placement size above the palette. Click or tap the canvas to place it. The pointer preview shows where the prop will land and how large it will be. Keep clicking for more copies, or use Place in view from the keyboard.',
       'Switch to Move, then click the prop on the canvas or choose it from the Object list. Drag or use the position sliders to move it. Use Object size or Remove prop to edit it.',
       'Save your layout. Props appear in the live Garden when you apply the layout and are included in postcards and backups.'],
     action:'garden-studio',actionLabel:'Open Garden Studio',related:['garden-studio','activity-layouts','garden-postcard']

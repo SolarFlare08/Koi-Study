@@ -347,6 +347,8 @@
 .studio-terrain-categories { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--studio-line); padding: 0 0 9px; }
 .studio-terrain-categories button { font-size: 11px; border: 1px solid var(--studio-line); border-radius: 5px; padding: 6px 8px; }
 .studio-terrain-categories button:hover { background: var(--surface-raised); }
+.studio-stamp-controls { display: grid; gap: 3px; margin: 9px 0 11px; }
+.studio-stamp-controls button { justify-self: start; }
 .studio-style-palette [fill="url(#far)"] { fill: #9aafa9; }
 .studio-style-palette [fill="url(#middle)"] { fill: #748f8a; }
 .studio-style-palette [fill="url(#near)"] { fill: #55746f; }

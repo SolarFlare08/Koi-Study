@@ -55,6 +55,23 @@ const buildings={
       ${eave(29,-34,15,'#6b575b')}${eave(18,-52,9,'#8b6659')}
       <path d="M0-61v-5m-2 2h4" stroke="#c0a878" stroke-width="1.3"/>`
   },
+  watch:{
+    span:31,lantern:[23,-19],panes:[[-8,-72,16,14],[-8,-35,16,17]],
+    art:`<path d="M-25 0l7-48h36l7 48Z" fill="#9ca79a"/>
+      <path d="M-17-49v-32h34v32Z" fill="#b8ad8c"/>
+      <path d="M-20-48h40m-43 34h46m-43-12h10m23-11h5" fill="none" stroke="#72877e" stroke-width="2"/>
+      <path d="M-19-80v32m38-32v32" stroke="#716555" stroke-width="3"/>
+      ${eave(29,-81,17,'#536f6c')}${eave(26,-47,7)}
+      <path d="M-29 0h58l4 4h-66Z" fill="#768c80"/><path d="M0-98v-6" stroke="#9b946e" stroke-width="1.4"/>`
+  },
+  cloister:{
+    span:55,lantern:[39,-20],panes:[[-32,-28,12,18],[-9,-28,11,18],[16,-28,12,18]],
+    art:`<path d="M-44-34h88V0h-88Z" fill="#c2b996"/>
+      <path d="M-44-34V0m22-34V0M0-34V0m22-34V0m22-34V0M-46-7h92" stroke="#806e59" stroke-width="3"/>
+      <path d="M-57-35q12-6 21-21h72q11 16 21 21Q0-27-57-35Z" fill="#536f66"/>
+      <path d="M-54-35q54 6 108 0M-36-55h72" stroke="#b0aa83" fill="none" stroke-width="1.5"/>
+      <path d="M-48 0h96l5 4H-53Z" fill="#788b81"/>`
+  },
   bell:{
     span:28,lantern:[22,-13],panes:[],
     art:`<path d="M-28 0v-24h7v24m42 0v-24h7v24" fill="#869493"/>
@@ -70,13 +87,16 @@ const lanternBodies={
   hex:'<path d="M-5-3 0-5 5-3 5 3 0 5-5 3Z"/><path d="M0-5V5" stroke="#8f684e" stroke-width=".8"/>',
   glass:'<path d="M-3-6h6l2 4-1 6-4 2-4-2-1-6Z"/><path d="M-2-5l-1 3 1 4m4-7 1 3-1 4" fill="none" stroke="#c7dbbf" stroke-width=".65"/>',
   tassel:'<path d="M-4-5h8Q8 0 4 5h-8Q-8 0-4-5Z"/><path d="M0 4v6m-2-3h4l1 4h-6Z" stroke="#95664d" stroke-width=".75"/><path d="M-2-4q-3 4 0 8m4-8q3 4 0 8" fill="none" stroke="#e7ad7e" stroke-width=".65"/>',
-  paper:'<rect x="-3.3" y="-5" width="6.6" height="10" rx="1.3"/><path d="M-3-2h6m-6 4h6" stroke="#9f795f" opacity=".7" stroke-width=".6"/>'
+  paper:'<rect x="-3.3" y="-5" width="6.6" height="10" rx="1.3"/><path d="M-3-2h6m-6 4h6" stroke="#9f795f" opacity=".7" stroke-width=".6"/>',
+  lotus:'<path d="M0 5q-6 0-7-7 3 0 5 3-2-4 2-8 4 4 2 8 2-3 5-3-1 7-7 7Z"/><path d="M0 4Q-3 2 0-3 3 2 0 4Z" fill="#e8c39a" stroke-width=".4"/>',
+  window:'<path d="M-5-4 0-7l5 3v8L0 6-5 4Z"/><path d="M-3-3h6v6h-6Zm3 0v6m-3-3h6" fill="none" stroke="#796c53" stroke-width=".7"/>'
 };
+const lanternColors={glass:'#769f90',paper:'#cda779',lotus:'#c48683',window:'#bfa772'};
 export function gardenLantern(style,x,y,{lit=false,hanging=true,scale=1}={}){
   if(style==='none')return '';
   return `<g transform="translate(${x} ${y}) scale(${scale})">
     ${lit?'<circle r="18" fill="url(#lamp-halo)"/>':hanging?'<path d="M0-5v-7" stroke="#705e50" stroke-width="1"/>':''}
-    <g fill="${lit?'#ffd59a':style==='glass'?'#769f90':style==='paper'?'#cda779':'#b87254'}" stroke="#82644f" stroke-width=".65">${lanternBodies[style]}</g>
+    <g fill="${lit?'#ffd59a':lanternColors[style]||'#b87254'}" stroke="#82644f" stroke-width=".65">${lanternBodies[style]}</g>
     <path d="M-2-5h4m-4 10h4m-2 0v2" stroke="#7e6650" stroke-width=".7" stroke-linecap="round"/>
   </g>`;
 }
@@ -186,6 +206,12 @@ const boats={
     <path d="M-9-7Q-8-22 4-19l7 12m-9-9 10 3 17-9" fill="#668377" stroke="#5c796a" stroke-width="2" stroke-linecap="round"/>
     <path d="M-9-20 0-26l11 5q-7 4-20 1Z" fill="#b4a278"/>
     <path d="M-12 3 30-26l3 2-42 31-5 1Z" fill="#ac9a77"/>`,lamp:[-28,-9]},
+  cargo:{art:`<path d="M-30-6h17v-12h-17Zm19 0H7v-19h-18ZM9-6h18v-12H9Z" fill="#aa9166" stroke="#796e58" stroke-width="1.2"/>
+    <path d="M-32-17h20m0-6H9m-9-1v18m8-11h20m-8-1v12" stroke="#d3bb8b" fill="none" stroke-width="1.3"/>
+    <path d="M-37-7v-23h23m-4 0v8m50 15-4-17 13-12" fill="none" stroke="#746b54" stroke-width="1.7" stroke-linecap="round"/>`,lamp:[-18,-20]},
+  canopy:{art:`<path d="M-32-5v-22m52 22v-22M-17-5v-29m27 29v-29" fill="none" stroke="#756e57" stroke-width="2"/>
+    <path d="M-39-25q7-15 30-16 23 1 39 14L18-22q-23-8-49 2Z" fill="#a7a67c"/>
+    <path d="M-37-25q22-9 55 3m-29-18q18 3 29 14m-39 15h34m-28 0v7m18-7v7" fill="none" stroke="#d9c6a0" stroke-width="1.6"/>`,lamp:[33,-9]},
   lotus:{art:`<path d="M-31-2q25-9 58-2" fill="none" stroke="#8fa185" stroke-width="3"/>
     <path d="M0-5q-20-1-25-18 13 1 20 10Q-9-25 0-36 9-26 6-13q8-9 20-10Q22-8 0-5Z" fill="#c78991"/>
     <path d="M0-6q-12-4-15-15 11 4 15 12 6-8 15-12Q12-9 0-6Z" fill="#e9a8a5"/>

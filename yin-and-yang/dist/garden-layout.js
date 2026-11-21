@@ -1,12 +1,12 @@
 import {loadAppearance} from './garden-appearance.js';
 
 export const gardenPieceOptions={
-  mountains:{classic:'Layered peaks',summit:'Snowcapped summit',karst:'Ink pillars',valley:'Cloud valley',twins:'Twin peaks',rounded:'Soft ridges',highlands:'Distant highlands'},
+  mountains:{classic:'Layered peaks',summit:'Snowcapped summit',karst:'Ink pillars',valley:'Cloud valley',twins:'Twin peaks',rounded:'Soft ridges',highlands:'Distant highlands',cirque:'Glacial bowl',terraces:'Terraced slopes'},
   shoreline:{classic:'Reed banks',inlet:'Stone inlet',meadow:'Low meadow',slate:'Slate ledges',shallows:'Lotus shallows'},
-  pavilion:{pagoda:'Lakeside pagoda',tiered:'Three-tier pagoda',tea:'Tea shelter',gate:'Moon gate',vermilion:'Vermilion pavilion',bell:'Stone bell tower',water:'Water pavilion',shrine:'Hillside shrine'},
+  pavilion:{pagoda:'Lakeside pagoda',tiered:'Three-tier pagoda',tea:'Tea shelter',gate:'Moon gate',vermilion:'Vermilion pavilion',bell:'Stone bell tower',water:'Water pavilion',shrine:'Hillside shrine',watch:'Ridge watchtower',cloister:'Roofed gallery'},
   foundation:{auto:'Match the shore',stone:'Stone outcrop',timber:'Timber landing',terrace:'Stone terrace'},
-  boat:{seasonal:'Changes with season',junk:'Junk under sail',sampan:'Covered sampan',skiff:'Reed skiff',lotus:'Lotus ferry',sail:'Ivory sail',festival:'Lantern barge',none:'Quiet lake'},
-  lantern:{classic:'Small oval',silk:'Round silk',hex:'Hexagonal bronze',paper:'Paper cylinder',glass:'Celadon glass',tassel:'Tasselled silk',none:'No lantern'},
+  boat:{seasonal:'Changes with season',junk:'Junk under sail',sampan:'Covered sampan',skiff:'Reed skiff',lotus:'Lotus ferry',sail:'Ivory sail',festival:'Lantern barge',cargo:'Tea cargo boat',canopy:'Canopy ferry',none:'Quiet lake'},
+  lantern:{classic:'Small oval',silk:'Round silk',hex:'Hexagonal bronze',paper:'Paper cylinder',glass:'Celadon glass',tassel:'Tasselled silk',lotus:'Lotus lantern',window:'Lattice lantern',none:'No lantern'},
   path:{none:'No path',stones:'Stepping stones',lanterns:'Lantern path',boardwalk:'Timber boardwalk',gravel:'Gravel trail',causeway:'Slate causeway'}
 };
 export const gardenCameras={
@@ -25,22 +25,33 @@ export function gardenObjectSize(value){
   const {min,max,step}=gardenSizeBounds;
   return Number.isFinite(value)?Math.max(min,Math.min(max,Math.round(value/step)*step)):100;
 }
+export const gardenPropCategories={all:'All',plants:'Plants',water:'Water',structures:'Structures',details:'Details'};
 export const gardenPropTypes={
-  bridge:{name:'Stone arch bridge',x:1200,y:673},
-  dock:{name:'Wooden dock',x:1428,y:781},
-  lantern:{name:'Stone lantern',x:1158,y:621},
-  bamboo:{name:'Bamboo grove',x:1496,y:828},
-  pine:{name:'Leaning pine',x:290,y:843},
-  plum:{name:'Plum blossoms',x:98,y:758},
-  rocks:{name:'Shore rocks',x:377,y:809},
-  reeds:{name:'Golden reeds',x:1442,y:804},
-  lilies:{name:'Lily pads',x:529,y:768},
-  crane:{name:'White crane',x:1260,y:705},
-  redbridge:{name:'Vermilion footbridge',x:1230,y:660},
-  maple:{name:'Copper maple',x:167,y:800},
-  cascade:{name:'Rock cascade',x:1255,y:622},
-  floater:{name:'Floating lantern',x:914,y:761},
-  wheel:{name:'Wooden waterwheel',x:1145,y:635}
+  bridge:{name:'Stone arch bridge',category:'structures',x:1200,y:673},
+  dock:{name:'Wooden dock',category:'structures',x:1428,y:781},
+  lantern:{name:'Stone lantern',category:'details',x:1158,y:621},
+  bamboo:{name:'Bamboo grove',category:'plants',x:1496,y:828},
+  pine:{name:'Leaning pine',category:'plants',x:290,y:843},
+  plum:{name:'Plum blossoms',category:'plants',x:98,y:758},
+  rocks:{name:'Shore rocks',category:'details',x:377,y:809},
+  reeds:{name:'Golden reeds',category:'plants',x:1442,y:804},
+  lilies:{name:'Lily pads',category:'water',x:529,y:768},
+  crane:{name:'White crane',category:'water',x:1260,y:705},
+  redbridge:{name:'Vermilion footbridge',category:'structures',x:1230,y:660},
+  maple:{name:'Copper maple',category:'plants',x:167,y:800},
+  cascade:{name:'Rock cascade',category:'water',x:1255,y:622},
+  floater:{name:'Floating lantern',category:'water',x:914,y:761},
+  wheel:{name:'Wooden waterwheel',category:'structures',x:1145,y:635},
+  willow:{name:'Weeping willow',category:'plants',x:126,y:761},
+  ginkgo:{name:'Golden ginkgo',category:'plants',x:1440,y:601},
+  iris:{name:'Shore irises',category:'plants',x:1464,y:827},
+  ducks:{name:'Mandarin duck pair',category:'water',x:575,y:742},
+  ford:{name:'Stepping-stone ford',category:'water',x:278,y:782},
+  screen:{name:'Round garden gate',category:'structures',x:1342,y:604},
+  well:{name:'Stone well',category:'structures',x:188,y:757},
+  bellpost:{name:'Bronze wind bell',category:'details',x:1160,y:615},
+  beacon:{name:'Path beacon',category:'details',x:214,y:773},
+  pottery:{name:'Celadon jars',category:'details',x:1131,y:618}
 };
 export function loadGardenProps(value){
   const props=new Map();

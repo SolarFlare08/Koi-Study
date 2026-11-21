@@ -69,6 +69,60 @@ const props={
     <circle cx="0" cy="-20" r="25" fill="none" stroke="#8a765a" stroke-width="6"/>
     <path d="M0-48v56m-28-28h56m-48-20 40 40m-40 0 40-40" stroke="#a58963" stroke-width="2.5"/>
     <circle cy="-20" r="5" fill="#715f50"/><path d="M-38 11h18m15 3h27" stroke="#cddbc5" opacity=".7" stroke-linecap="round"/>`,
+  willow:`<ellipse cy="2" rx="36" ry="5" fill="#3d6963" opacity=".23"/>
+    <path d="M-9 2q15-21 11-46 2-13 13-21M2-35q-12-19-31-19m32 13q13-20 37-15" fill="none" stroke="#6d6651" stroke-width="4" stroke-linecap="round"/>
+    <path d="M-56-45q9-22 33-24 9-13 28-12 24-1 33 14 19 3 24 20-10 10-22-1-8 7-22-2-11 6-25 0-12 6-26 1-12 8-23 4Z" fill="#83a180"/>
+    <path d="M-49-50q-8 12-9 34m16-41q-9 18-7 38m14-42q-7 19-7 34m13-30q-8 22-4 41m13-44q-3 12-4 28m45-36q12 17 11 35m-3-34q12 18 12 41m-1-37q12 14 12 31m-2-27q9 14 8 28" fill="none" stroke="#68896f" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M-44-56q10-9 25-7 18-15 41-5" fill="none" stroke="#aec092" stroke-width="2" stroke-linecap="round"/>`,
+  ginkgo:`<ellipse cy="2" rx="32" ry="5" fill="#456b64" opacity=".2"/>
+    <path d="M-5 1q6-13 4-28l3-43m-3 37q-7-11-23-20m24 16q9-16 28-24" fill="none" stroke="#76664e" stroke-width="4.3" stroke-linecap="round"/>
+    <path d="M-43-46q-12-18 8-21 2-14 19-13 11-13 23-5 14-4 23 9 15 0 19 14 14 9 0 20-16 8-32 3-8 8-21 1-14 5-21-3-13 3-18-5Z" fill="#c7a65e"/>
+    <path d="M-37-51q-9-10 8-14 3-10 19-8 7-12 19-6 12-1 18 9 15 1 16 11-9-4-22 0-12-7-23 0-14-5-29 8Z" fill="#e3c27a"/>
+    <path d="M-29-49q8 7 15-1m15 2q7 6 14 0m12-5q7 5 14-1M-19-8q4-4 10-2-4 5-10 2m43 2q4-5 9-4-2 5-9 4" fill="none" stroke="#e6c884" stroke-width="1.8" stroke-linecap="round"/>`,
+  iris:`<ellipse cy="2" rx="32" ry="4" fill="#4f7e72" opacity=".23"/>
+    <path d="M-21 1q-1-22-16-40 18 8 21 36M-6 1q6-29 21-43-7 14-15 42M8 1q9-21 26-28-11 9-19 27M-14 0q-5-21-22-24 10 8 16 23" fill="#648d79"/>
+    <path d="M-12 0v-35M4 0l2-48M20 0v-26" stroke="#548375" stroke-width="2" fill="none"/>
+    <path d="M-12-34q-15 0-16-8 7-3 12 3-5-10 2-12 5 1 5 10 7-8 12-3-3 10-15 10ZM6-47q-14-1-13-9 6-3 11 3-3-9 3-11 6 3 3 11 8-6 12-1-4 8-16 7ZM20-25q-10-2-10-7 4-2 8 3-2-8 3-8 4 1 2 7 6-4 9-1-2 6-12 6Z" fill="#a796b5"/>
+    <path d="M-14-38h4m14-13h4m10 23h3" stroke="#ead3a0" stroke-width="2" stroke-linecap="round"/>`,
+  ducks:`<path d="M-60 7q19 4 43 0m21 7q21 4 46-1M-3 1q21 3 49 0" fill="none" stroke="#d6e5d6" stroke-linecap="round" opacity=".77"/>
+    <path d="M-50-3q8 2 17-4 9-7 18-4 6-1 6-6 0-8 7-8 9 0 9 8l6 3-8 3q-1 16-22 16-22 0-33-8Z" fill="#537a78"/>
+    <path d="M-24-9q9-6 13-2-9 10-23 8Zm18-13q7-6 12 2-5-2-9 4l-3-1Z" fill="#e1cc9f"/>
+    <path d="M-36-5q1-9 9-12 5 10-2 15Z" fill="#bd8061"/>
+    <path d="M9 8q10-1 18-6 7-4 17-1 3-2 3-7 1-7 8-6 6 1 6 7l5 2-6 2q-2 11-16 13-22 2-35-4Z" fill="#9a9278"/>
+    <path d="M29 6q10-5 15-2-5 6-15 4m23-18q4 0 7 4l-6 2Z" fill="#e4d7b7"/>`,
+  ford:`<path d="M-65 10q24 4 48 0m-10-14q15 3 33 0m20-11q15 2 33-1" stroke="#d6e2cf" fill="none" stroke-linecap="round" opacity=".61"/>
+    <path d="M-54 7q-7-5 2-11 12-5 26 0 11 6 3 11-13 7-31 0Zm35-13q-6-5 3-9 13-4 23 1 7 5 0 9-10 5-26-1ZM8-18q-5-4 4-8 12-2 21 1 5 4-1 7-9 5-24 0Zm30-9q-6-3 0-6 8-4 18-1 5 3 0 6-7 4-18 1Z" fill="#627e80"/>
+    <path d="M-54 3q-3-4 6-7 13-3 24 3-4 7-18 6Zm35-13q6-6 18-6 7 1 9 4-10 6-27 2ZM9-22q9-6 23-3-6 6-23 3Zm30-9q9-5 17-2-7 5-17 2Z" fill="#a6afa0"/>`,
+  screen:`<ellipse cy="3" rx="52" ry="5" fill="#426966" opacity=".21"/>
+    <path d="M-44 2v-47q19-11 44-12 25 1 44 12V2H18V-9a18 18 0 1 0-36 0V2Z" fill="#d1cbb0" stroke="#8c9b87" stroke-width="1.3"/>
+    <path d="M-48-45Q0-71 48-45L44-40Q0-61-44-40Z" fill="#51756e"/>
+    <path d="M-41-43q17-9 37-13m13 0q17 3 30 11M-18-7v-2a18 18 0 0 1 36 0v2m-58-16h7m-7 6h9m66-5h6m-8 5h8" fill="none" stroke="#a9ae95" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M-46 0h27v4h-27Zm65 0h27v4H19Z" fill="#889986"/>`,
+  well:`<ellipse cy="4" rx="34" ry="6" fill="#3b6664" opacity=".2"/>
+    <path d="M-22-11h44v11q-22 13-44 0Z" fill="#839791"/><ellipse cy="-11" rx="23" ry="8" fill="#b4ba9f"/>
+    <ellipse cy="-11" rx="16" ry="4.6" fill="#4f7274"/>
+    <path d="M-19-3q18 8 38 0m-25-1v6m17-8v5M-23-11v-33m46 33v-33" fill="none" stroke="#656f5c" stroke-width="2.6"/>
+    <path d="M-33-42 0-59 34-42Q0-34-33-42Z" fill="#54766d"/>
+    <path d="M-27-42q25 4 52 0M-14-33h28M1-33v12" fill="none" stroke="#b7a980" stroke-width="1.5"/>
+    <path d="M-4-21h10l-2 7h-6Z" fill="#ad9470"/>`,
+  bellpost:`<ellipse cy="2" rx="23" ry="4" fill="#4c756d" opacity=".19"/>
+    <path d="M-15 1v-49q20-13 38-3" fill="none" stroke="#726951" stroke-width="4" stroke-linecap="round"/>
+    <path d="M-21 2h12l5 4h-21Z" fill="#849687"/>
+    <path d="M9-55v14m0 9v13" stroke="#79664f" stroke-width="1.2"/>
+    <path d="M9-44q10 5 9 12l4 4H-4l4-4q-1-7 9-12Z" fill="#b29260" stroke="#82745b"/>
+    <path d="M-2-29h22M6-21l7 11-4 6-5-13Z" stroke="#807559" fill="#c5ad76" stroke-width="1.2"/>`,
+  beacon:`<ellipse cy="3" rx="24" ry="4" fill="#456e69" opacity=".22"/>
+    <path d="M-13 2 0-4l13 6-5 3H-8Z" fill="#9bad9a"/>
+    <path d="M-4 1l1-25h6L5 1Z" fill="#788b80"/>
+    <path d="M-11-24h22l-4-15H-7Z" fill="#b69264" stroke="#6e6b58" stroke-width="1.4"/>
+    <path d="M-12-39 0-47l12 8Zm0 15h24v3h-24Z" fill="#697f76"/>
+    <path d="M0-46v-4m0 13v10" stroke="#7d8d76" stroke-width="1.5"/>`,
+  pottery:`<ellipse cx="1" cy="3" rx="29" ry="5" fill="#486e6b" opacity=".23"/>
+    <path d="M-20-25q3 5-4 11-7 9 2 15 9 4 17-1 6-6 0-14-6-6-3-11Z" fill="#75978a"/>
+    <path d="M-21-26h14M-24-12q7 3 17 0m-19 4q10 4 21 0" fill="none" stroke="#afbea0" stroke-width="1.4"/>
+    <path d="M4-15q4 3-1 8-5 6 1 10 8 4 16 0 6-5 0-11-6-5-3-7Z" fill="#9ea681"/>
+    <path d="M3-16h15M2-4q9 4 18 0" fill="none" stroke="#c7c4a1" stroke-width="1.3"/>
+    <path d="M-4 5q-1-5 8-5 11 0 11 5l-3 3H-1Z" fill="#537a73"/>`,
   crane:`<ellipse cy="1" rx="23" ry="3.2" fill="#467176" opacity=".18"/>
     <path d="M-5-20q2 11 0 20m8-20q2 9 8 15l5 1" fill="none" stroke="#596f66" stroke-width="1.5" stroke-linecap="round"/>
     <path d="M-25-23q19 2 30-6 4-6 0-10-9-9-1-16 5-4 11-2 4 2 3 5-8-2-9 4-1 2 4 6 8 9 2 16-9 11-29 8Z" fill="#e4e4ce"/>
@@ -78,13 +132,14 @@ const props={
 export const gardenPropArtwork=kind=>props[kind];
 const floaterGlow='<ellipse cy="-10" rx="25" ry="19" fill="url(#lamp-halo)"/><path d="M-6-4l2-14h8l2 14Z" fill="#ffd193"/>';
 const lanternGlow='<circle cy="-22" r="19" fill="url(#lamp-halo)"/><rect x="-3" y="-25" width="6" height="6" rx=".6" fill="#ffcf89"/>';
+const beaconGlow='<circle cy="-31" r="23" fill="url(#lamp-halo)"/><path d="M-8-26h16l-3-11H-5Z" fill="#ffcf89"/><path d="M0-37v11" stroke="#9b7651"/>';
 export function gardenPropTransform({x,y,size}){
   const scale=Math.round(size*(.79+(y-446)/1000))/100;
   return `translate(${x} ${y}) scale(${scale})`;
 }
 export function renderGardenProps(items,lights=false){
   return [...items].sort((a,b)=>a.y-b.y).map(item=>{
-    const art=lights?({lantern:lanternGlow,floater:floaterGlow}[item.kind]||''):props[item.kind];
+    const art=lights?({lantern:lanternGlow,floater:floaterGlow,beacon:beaconGlow}[item.kind]||''):props[item.kind];
     return art?`<g data-garden-prop="${item.id}" data-prop-type="${item.kind}" transform="${gardenPropTransform(item)}">${art}</g>`:'';
   }).join('');
 }

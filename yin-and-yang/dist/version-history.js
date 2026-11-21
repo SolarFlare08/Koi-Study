@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.16.0',date:'2026-11-21',title:'More scenery for Garden Studio',changes:[
+    'Place ten new props, including weeping willows, shore irises, mandarin ducks, and path beacons that light up at dusk.',
+    'Browse props by type and adjust placement size above the palette.',
+    'Try two new styles each for mountains, buildings, boats, and hanging lanterns.'
+  ]},
   {version:'5.15.5',date:'2026-11-21',title:'Precise Garden Studio placement',changes:[
     'Warn before discarding unsaved Studio edits or closing the app with a draft.',
     'Align placement previews with actual objects at any canvas zoom, and let props, buildings, and earned landmarks be resized for depth.'

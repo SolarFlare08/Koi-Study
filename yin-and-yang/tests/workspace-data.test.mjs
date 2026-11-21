@@ -17,7 +17,7 @@ import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
 import {pavilionFoundation} from '../dist/garden-ornaments.js';
-import {gardenPieceOptions,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
+import {gardenPieceOptions,gardenPropCategories,gardenPropTypes,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
 import {eveningCamera,renderLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
 
 test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
@@ -592,21 +592,32 @@ test('Garden mountain presets have distinct artwork and props survive layout and
 });
 
 test('new waterfront styles and props render and round-trip with a Studio layout',()=>{
+  const props=Object.entries(gardenPropTypes).map(([kind,{x,y,category}])=>{
+    assert.ok(category!=='all'&&Object.hasOwn(gardenPropCategories,category));
+    return {id:kind,kind,x,y,size:130};
+  });
   const state=freshState(),design=loadGardenDesign({
     shoreline:'slate',path:'gravel',pavilion:'shrine',foundation:'terrace',boat:'festival',lantern:'glass',
-    props:[{id:'light',kind:'floater',x:815,y:750,size:130},{id:'cascade',kind:'cascade',x:1260,y:640}]
+    props
   });
   const svg=renderLandscape(design);
   for(const [piece,style] of [['westBank','slate'],['eastBank','slate'],['path','gravel'],['pavilion','shrine'],['boat','festival']]){
     assert.ok(svg.includes('data-garden-piece="'+piece+'" data-variant="'+style+'">'));
   }
   assert.equal(pavilionFoundation(design),'terrace');
-  assert.equal(svg.split('data-garden-prop="light"').length-1,2);
-  assert.ok(svg.includes('data-prop-type="cascade"'));
+  for(const {kind} of props){
+    const count=svg.split('data-prop-type="'+kind+'"').length-1;
+    assert.equal(count,['lantern','floater','beacon'].includes(kind)?2:1,kind);
+  }
   assert.doesNotMatch(svg,/undefined/);
   state.gardenLayouts=[{id:'water',name:'Terrace',design}];
   const restored=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state;
   assert.deepEqual(restored.gardenLayouts[0].design,design);
+  for(const [piece,styles] of Object.entries({pavilion:['watch','cloister'],boat:['cargo','canopy'],lantern:['lotus','window']})){
+    const variants=styles.map(style=>renderLandscape(loadGardenDesign({...design,[piece]:style})));
+    variants.forEach(svg=>assert.doesNotMatch(svg,/undefined/));
+    assert.notEqual(...variants);
+  }
   for(const shoreline of ['slate','shallows']){
     const shore=loadGardenDesign({...design,shoreline,foundation:'auto',pavilionPosition:{x:94,y:822}});
     assert.equal(pavilionFoundation(shore),'land');
