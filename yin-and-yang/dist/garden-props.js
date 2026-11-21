@@ -1,4 +1,4 @@
-import {gardenPropLayer,gardenPropTypes} from './garden-layout.js';
+import {gardenPropLayer,gardenPropTypes,gardenPropsInOrder} from './garden-layout.js';
 import {gardenLantern,pavilionArtwork} from './garden-ornaments.js';
 import {shorePath} from './garden-pieces.js';
 import {pine,rock,sceneReeds,daySwallow,lowIsland,stoneCairn,westCloud,lakeRipplePath,starDiamond,moonFace} from './garden-scene-art.js';
@@ -176,9 +176,12 @@ export function gardenPropTransform({x,y,size,kind}){
   const scale=gardenPropLayer(kind)==='ground'?Math.round(size*(.79+(y-446)/1000))/100:size/100;
   return `translate(${x} ${y}) scale(${scale})`;
 }
-export function renderGardenProps(items,lights=false,layer='ground'){
-  return items.filter(({kind})=>gardenPropLayer(kind)===layer).sort((a,b)=>a.y-b.y).map(item=>{
-    const art=gardenPropArtwork(item.kind,lights);
-    return art?`<g data-garden-prop="${item.id}" data-prop-type="${item.kind}" transform="${gardenPropTransform(item)}">${art}</g>`:'';
+export function renderGardenProps(items,stack='middle'){
+  return gardenPropsInOrder(items,stack).map(item=>{
+    const art=gardenPropArtwork(item.kind);
+    const lights=gardenPropArtwork(item.kind,true);
+    const phase=gardenPropLayer(item.kind);
+    return art?`<g data-garden-prop="${item.id}" data-prop-type="${item.kind}" data-prop-phase="${phase}" transform="${gardenPropTransform(item)}">
+      ${art}${lights?`<g class="garden-prop-light">${lights}</g>`:''}</g>`:'';
   }).join('');
 }

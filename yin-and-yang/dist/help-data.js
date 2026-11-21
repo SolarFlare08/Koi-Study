@@ -857,6 +857,7 @@ export const helpTopics = [
       'Use Sky to place clouds, swallows, stars, or a crescent moon behind the mountains. Swallows appear in Day lighting. Stars and crescents appear when stars are out and are decorative.',
       'Pick a thumbnail and set Placement size above the palette. Click or tap the canvas to place it. The pointer preview shows where the prop will land and how large it will be. Keep clicking for more copies, or use Place in view from the keyboard.',
       'Switch to Move, then click the prop on the canvas or choose it from the Object list. Drag or use the position sliders to move it. Use Object size or Remove prop to edit it.',
+      'In Move, use Layer to bring a placed prop forward or send it backward. Bring to front and Send to back move it to the ends of its current layer. Choose Behind scenery, Among scenery, or In front of scenery to move a ground prop between layers. Sky props share their own layer behind the mountains. Use the Object list to select a covered prop.',
       'Save your layout. Props appear in the live Garden when you apply the layout and are included in postcards and backups.'],
     action:'garden-studio',actionLabel:'Open Garden Studio',related:['garden-studio','activity-layouts','garden-postcard']
   },

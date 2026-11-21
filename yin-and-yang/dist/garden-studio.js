@@ -1,5 +1,7 @@
 import {gardenCameras,gardenPieceOptions,defaultGardenDesign,gardenStarterLayouts,gardenFrame,loadGardenDesign,loadGardenLayouts,
-  gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds,gardenPropLayer,gardenPropPositionBounds,gardenPropTypes,gardenPropCategories,gardenPropLimit,gardenSizeBounds,gardenObjectSize} from './garden-layout.js';
+  gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds,
+  gardenPropLayer,gardenPropPositionBounds,gardenPropTypes,gardenPropCategories,gardenPropLimit,gardenSizeBounds,gardenObjectSize,
+  gardenPropBands,gardenPropBand,gardenPropStack,gardenPropsInOrder,moveGardenPropLayer} from './garden-layout.js';
 import {loadAppearance,seasonOptions,lightingOptions,gardenPalettes,weatherBySeason} from './garden-appearance.js';
 import {gardenLandmarkPositions,mountGardenPreview} from './scenery.js';
 import {gardenCourses,landmarkTypes} from './garden-growth.js';
@@ -9,6 +11,7 @@ import {gardenPieces} from './garden-pieces.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const buildingTarget='building',propPrefix='prop:';
+const layerActions={forward:'Bring forward',backward:'Send backward',front:'Bring to front',back:'Send to back'};
 const pieceLabels={mountains:'Mountains',shoreline:'Shoreline',path:'Path',pavilion:'Building',
   foundation:'Building base',boat:'Boat',lantern:'Lantern'};
 const tools={
@@ -80,6 +83,13 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
               <label>Vertical position<input type="range" name="y" min="${placementBounds.y[0]}" max="${placementBounds.y[1]}"></label>
               <small class="studio-foundation-note" data-studio-foundation hidden></small>
               ${sizeSlider('objectSize','Object size')}
+              <fieldset class="studio-layer-controls" hidden>
+                <legend>Layer</legend>
+                ${select('propBand','Scenery layer',gardenPropBands)}
+                <p data-studio-layer-position></p>
+                <div class="studio-layer-actions studio-object-actions">${Object.entries(layerActions).map(([direction,label])=>
+                  `<button type="button" data-studio-layer="${direction}">${label}</button>`).join('')}</div>
+              </fieldset>
               <div class="studio-object-actions"><button type="button" data-studio="automatic">Reset position</button>
                 <button type="button" data-studio="remove-prop" hidden>Remove prop</button></div>
             </div>
@@ -357,6 +367,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const support=form.querySelector('[data-studio-foundation]');
     support.hidden=!building;
     const prop=selectedProp();
+    if(!previewing)updateLayerControls(prop);
     form.querySelector('[data-studio="remove-prop"]').hidden=!prop;
     field('objectSize').value=selectedSize();field('objectSizeValue').value=selectedSize()+'%';
     if(building){
@@ -375,6 +386,20 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       :tool!=='select'?'Changes are previewed on the canvas.'
       :!point?'Click an object or select it from the list.'
       :visible?'Drag to move. Arrow keys nudge the selected object.':'This object is outside the current view.';
+  }
+  function updateLayerControls(prop){
+    const controls=form.querySelector('.studio-layer-controls');
+    controls.hidden=!prop;
+    if(!prop)return;
+    const stack=gardenPropStack(prop),order=gardenPropsInOrder(draft.design.props,stack),index=order.indexOf(prop);
+    const band=field('propBand');
+    band.parentElement.hidden=stack==='sky';
+    band.value=gardenPropBand(prop);
+    controls.querySelector('[data-studio-layer-position]').textContent=
+      `${stack==='sky'?'Sky · ':''}${index+1} of ${order.length}, back to front`;
+    for(const button of controls.querySelectorAll('[data-studio-layer]')){
+      button.disabled=['back','backward'].includes(button.dataset.studioLayer)?index===0:index===order.length-1;
+    }
   }
   function propLightingTip(layer){
     if(layer==='day')return ' Visible in Day lighting.';
@@ -548,6 +573,16 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         return;
       }
       if(name==='landmark'){selected=value;updatePin();return;}
+      if(name==='propBand'){
+        const prop=selectedProp();
+        if(!prop||gardenPropStack(prop)==='sky'||!Object.hasOwn(gardenPropBands,value)||gardenPropBand(prop)===value)return;
+        const before=structuredClone(draft);
+        if(value==='middle')delete prop.band;
+        else prop.band=value;
+        delete prop.order;
+        record(before);render();
+        return;
+      }
       const before=structuredClone(draft);
       if(name==='through'){
         if(!event.target.validity.valid)return;
@@ -575,6 +610,16 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(toolButton){setTool(toolButton.dataset.studioTool);return;}
       const stampButton=event.target.closest('[data-studio-stamp]');
       if(stampButton){stamp=stampButton.dataset.studioStamp;syncStamp();updatePin();return;}
+      const layerButton=event.target.closest('[data-studio-layer]');
+      if(layerButton){
+        const next=moveGardenPropLayer(draft.design.props,selectedProp()?.id,layerButton.dataset.studioLayer);
+        if(next!==draft.design.props){
+          const before=structuredClone(draft);
+          draft.design.props=next;
+          record(before);render();
+        }
+        return;
+      }
       const category=event.target.closest('[data-studio-category]');
       if(category){showTerrainCategory(category.dataset.studioCategory);return;}
       const style=event.target.closest('[data-studio-style]');

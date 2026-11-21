@@ -17,7 +17,7 @@ import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
 import {pavilionFoundation} from '../dist/garden-ornaments.js';
-import {gardenPieceOptions,gardenPropCategories,gardenPropTypes,gardenPropLimit,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
+import {gardenPieceOptions,gardenPropCategories,gardenPropTypes,gardenPropLimit,gardenPropsInOrder,moveGardenPropLayer,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
 import {eveningCamera,renderLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
 
 test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
@@ -587,7 +587,7 @@ test('Garden mountain presets have distinct artwork and props survive layout and
   assert.deepEqual(restored.gardenDesign,design);
   assert.deepEqual(restored.gardenLayouts[0].design.props,props);
   const svg=renderLandscape(restored.gardenDesign);
-  assert.equal(svg.split('data-garden-prop="lamp"').length-1,2);
+  assert.match(svg,/data-garden-prop="lamp"[^]*?class="garden-prop-light"/);
   assert.equal(svg.split('data-garden-prop="bridge"').length-1,1);
 });
 
@@ -617,7 +617,9 @@ test('new waterfront styles and props render and round-trip with a Studio layout
     for(const {kind} of batch){
       const {group,style}=gardenPropTypes[kind];
       const lights=group==='pavilion'||group==='lantern'||style==='lanterns'||['lantern','floater','beacon'].includes(kind);
-      assert.equal(artwork.split('data-prop-type="'+kind+'"').length-1,lights?2:1,kind);
+      assert.equal(artwork.split('data-prop-type="'+kind+'"').length-1,1,kind);
+      const body=artwork.split('data-prop-type="'+kind+'"')[1].split('data-garden-prop=')[0];
+      assert.equal(body.includes('class="garden-prop-light"'),lights,kind);
     }
   }
   const sky=loadGardenDesign({props:[
@@ -631,9 +633,9 @@ test('new waterfront styles and props render and round-trip with a Studio layout
   assert.deepEqual(readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state.gardenDesign,sky);
   const skyArtwork=renderLandscape(sky);
   const ridge=skyArtwork.indexOf('data-garden-piece="mountains"');
-  for(const [piece,id] of [['skyProps','cloud'],['dayProps','swallow'],['nightProps','star']]){
-    const layer=skyArtwork.indexOf('data-garden-piece="'+piece+'"');
-    const prop=skyArtwork.indexOf('data-garden-prop="'+id+'"');
+  const layer=skyArtwork.indexOf('data-garden-piece="skyProps"');
+  for(const [id,phase] of [['cloud','sky'],['swallow','day'],['star','night']]){
+    const prop=skyArtwork.indexOf(`data-garden-prop="${id}" data-prop-type="${id}" data-prop-phase="${phase}"`);
     assert.ok(layer<prop&&prop<ridge);
   }
   for(const [piece,styles] of Object.entries({pavilion:['watch','cloister'],boat:['cargo','canopy'],lantern:['lotus','window']})){
@@ -646,6 +648,33 @@ test('new waterfront styles and props render and round-trip with a Studio layout
     assert.equal(pavilionFoundation(shore),'land');
     assert.equal(pavilionFoundation(loadGardenDesign({...shore,pavilionPosition:{x:650,y:717}})),'stone');
   }
+});
+
+test('Garden layer edits preserve position and survive backup and SVG rendering',()=>{
+  const props=loadGardenProps([
+    {id:'tree',kind:'cherry',x:815,y:691,size:130},
+    {id:'rock',kind:'boulder',x:810,y:680,size:95},
+    {id:'lamp',kind:'beacon',x:813,y:700,size:65},
+    {id:'lake',kind:'ripple',x:815,y:680,band:'back'},
+    {id:'flowers',kind:'wildflowers',x:815,y:680,band:'front'}
+  ]);
+  const order=items=>gardenPropsInOrder(items,'middle').map(({id})=>id);
+  assert.deepEqual(order(props),['rock','tree','lamp']);
+  const forward=moveGardenPropLayer(props,'rock','forward');
+  assert.deepEqual(order(forward),['tree','rock','lamp']);
+  const back=moveGardenPropLayer(forward,'lamp','back');
+  assert.deepEqual(order(back),['lamp','tree','rock']);
+  assert.equal(moveGardenPropLayer(back,'lamp','backward'),back);
+  assert.deepEqual(back.map(({id,x,y,size})=>({id,x,y,size})),props.map(({id,x,y,size})=>({id,x,y,size})));
+  const state=freshState();
+  state.gardenDesign=loadGardenDesign({props:back});
+  state.gardenLayouts=[{id:'bank',name:'Lake bank',design:state.gardenDesign}];
+  const {state:restored}=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[])));
+  assert.deepEqual(restored.gardenLayouts[0].design,state.gardenDesign);
+  const svg=renderLandscape(restored.gardenDesign);
+  const indices=['data-garden-prop="lake"','data-garden-piece="westBank"','data-garden-prop="lamp"',
+    'data-garden-prop="tree"','data-garden-prop="rock"','id="garden-growth-cairns"','data-garden-prop="flowers"'].map(value=>svg.indexOf(value));
+  assert.ok(indices.every((value,i)=>value>=0&&(!i||indices[i-1]<value)));
 });
 
 test('Reading keeps standalone library books, fractional reviews and rereads in backups',()=>{

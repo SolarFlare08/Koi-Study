@@ -312,7 +312,9 @@
 .studio-stage:focus-visible { outline: 2px solid var(--studio-accent); }
 .studio-stage .studio-scene { border: 0; border-radius: 0; width: 100%; height: 100%; pointer-events: auto; }
 .studio-scene :is([id$='-night-shade'],[id$='-evening-lights'],[id$='-stars'],[class*='weather-']) { pointer-events: none; }
-.studio-scene :is([id$='-garden-starlight'],[id$='-garden-day-sky'])[opacity="0"] [data-garden-prop] { pointer-events: none; }
+[data-prop-phase="day"] { visibility: var(--prop-day-visibility,hidden); }
+[data-prop-phase="night"] { visibility: var(--prop-night-visibility,hidden); opacity: var(--prop-starlight,0); }
+.garden-prop-light { opacity: var(--prop-lamplight,0); pointer-events: none; }
 .studio-stage[data-placing],.studio-stage[data-stamping] { cursor: crosshair; touch-action: none; }
 .studio-stage:not([data-stamping]) :is([data-garden-prop],[data-garden-piece="pavilion"]) { cursor: grab; touch-action: none; }
 .studio-pin {
@@ -337,6 +339,9 @@
 .studio-object-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .studio-object-actions button { color: var(--studio-ink); border: 1px solid var(--studio-line); border-radius: 6px; padding: 6px 8px; font-size: 11px; }
 .studio-object-actions [data-studio="remove-prop"] { color: var(--surface-danger); }
+.studio-settings .studio-layer-controls { padding: 9px 10px 10px; background: var(--studio-bg); }
+.studio-layer-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.studio-layer-actions button { min-height: 31px; background: var(--studio-frame); }
 .studio-prop-palette,.studio-style-palette { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
 .studio-prop-palette button,.studio-style-palette button { min-width: 0; display: grid; grid-template-rows: auto 1fr; gap: 5px; border: 1px solid var(--studio-line); border-radius: 10px; padding: 5px; background: var(--studio-bg); }
 .studio-settings :is(.studio-style-palette,.studio-prop-palette) button[aria-pressed="true"] { border-color:var(--studio-accent); box-shadow:inset 0 0 0 1px var(--studio-accent); font-weight:700; }

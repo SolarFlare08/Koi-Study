@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.18.0',date:'2026-11-21',title:'Layers in Garden Studio',changes:[
+    'Move placed props forward or backward in their layer, or send them straight to the front or back.',
+    'Put ground props behind, among, or in front of the built-in scenery. Sky props can overlap one another and stay behind the mountains.',
+    'Layer edits support Undo and Redo and are saved with layouts and backups.'
+  ]},
   {version:'5.17.0',date:'2026-11-21',title:'Place more of the Garden',changes:[
     'Stamp copies of scenery such as shore trees, reeds, flowers, rocks, lake details, and cairns.',
     'Place any Garden building, path style, or hanging lantern as its own prop. Extra buildings come with stone bases and their lights work at night.',

@@ -257,11 +257,8 @@ const seasonalBoatLights=()=>`<g transform="translate(${boatOrigin})">
   </g>`;
 const boatPiece=(style,lights=false)=>style==='seasonal'?(lights?seasonalBoatLights():seasonalBoat()):
   `<g transform="translate(${boatOrigin})">${styledBoat(style,lights)}</g>`;
-const propPiece={option:'props',key:design=>JSON.stringify(design.props||[]),render:items=>renderGardenProps(items||[])};
-const scenePieces={...gardenPieces,props:propPiece,propLights:{...propPiece,render:items=>renderGardenProps(items||[],true)},
-  skyProps:{...propPiece,render:items=>renderGardenProps(items||[],false,'sky')},
-  dayProps:{...propPiece,render:items=>renderGardenProps(items||[],false,'day')},
-  nightProps:{...propPiece,render:items=>renderGardenProps(items||[],false,'night')},
+const propPiece=stack=>({option:'props',key:design=>JSON.stringify(design.props||[]),render:items=>renderGardenProps(items||[],stack)});
+const scenePieces={...gardenPieces,props:propPiece('middle'),backProps:propPiece('back'),frontProps:propPiece('front'),skyProps:propPiece('sky'),
   boat:{option:'boat',render:style=>boatPiece(style)},
   boatLights:{option:'boat',render:style=>boatPiece(style,true)}};
 const pieceKey=(piece,design)=>piece.key?.(design)||'';
@@ -332,12 +329,10 @@ export function renderLandscape(design=defaultGardenDesign){return `<svg class="
   </g>
 </g>
 <g id="garden-growth-stars"/>
-${pieceMarkup('nightProps',design)}
 </g>
 <g id="garden-day-sky" opacity="0">
   <g opacity=".76">${daySwallow(340,145,.73,0,1,820)}${daySwallow(1190,173,.58,1,-1,850)}${daySwallow(460,219,.53,2,1,745)}</g>
   <g id="garden-growth-swallows"/>
-  ${pieceMarkup('dayProps',design)}
 </g>
 <g data-cloud-layer="middle" fill="url(#cloud-light)" filter="url(#cloud-soft-edge)">
   <g class="cloud-drift">${westCloud}</g>
@@ -378,6 +373,7 @@ ${lakeRippleMarkup()}
   <path class="lake-glimmer" d="M650 734h20m-12 5h7" opacity="0"/>
   <path class="lake-glimmer glimmer-late" d="M878 704h13m-8 4h4" opacity="0"/>
 </g>
+${pieceMarkup("backProps",design)}
 <g class="far-shore">
   <path d="M1600 641C1515 624 1453 622 1387 624C1293 626 1203 634 1129 636C1096 636 1068 631 1041 626C1069 642 1101 646 1147 645C1283 641 1397 634 1481 640C1530 644 1567 650 1600 658Z" fill="#6a948a" opacity=".28"/>
   <path fill="url(#shore)" d="M1600 580C1519 553 1451 551 1392 562C1359 569 1327 566 1302 569C1234 574 1181 582 1141 596C1102 610 1069 615 1041 620C1030 623 1044 628 1067 631C1121 639 1179 633 1234 626C1300 618 1367 612 1429 616C1491 620 1545 633 1600 644Z"/>
@@ -403,10 +399,10 @@ ${pieceMarkup("path",design)}
 ${pieceMarkup("props",design)}
 <g id="garden-growth-trees"/>
 <g id="garden-growth-cairns"/>
+${pieceMarkup("frontProps",design)}
 <rect id="night-shade" width="1600" height="900" fill="#071730" opacity="0"/>
 <g id="evening-lights" opacity="0">
   <g id="garden-growth-lights"/>
-  ${pieceMarkup("propLights",design)}
   <g class="far-shore">
     ${pieceMarkup("pavilionLights",design)}
   </g>
@@ -446,6 +442,10 @@ function paintLight(nodes,p,lighting,width,height){
   nodes.shade.setAttribute('opacity',light.shade);nodes.stars.setAttribute('opacity',light.starlight);
   const dayOnly=lighting==='day';
   nodes.daySky.setAttribute('opacity',dayOnly?1:0);
+  nodes.app.style.setProperty('--prop-day-visibility',dayOnly?'visible':'hidden');
+  nodes.app.style.setProperty('--prop-night-visibility',light.starlight>0?'visible':'hidden');
+  nodes.app.style.setProperty('--prop-starlight',light.starlight);
+  nodes.app.style.setProperty('--prop-lamplight',light.lamplight);
   nodes.app.toggleAttribute('data-sky-landmarks',light.starlight>0||dayOnly);
   nodes.lamps.setAttribute('opacity',light.lamplight);
   const scale=Math.max(width/1600,height/900);
