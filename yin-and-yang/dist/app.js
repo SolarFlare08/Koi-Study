@@ -27,7 +27,8 @@ import {installBackup,restoreBackup} from './backup.js';
 import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
 import {installFocusCompass,focusCompass,focusWeek} from './focus-compass.js';
-import {timerProgress,extendTimer} from './state.js';
+import {timerProgress,extendTimer,canExtendCalendarTimer,extendCalendarTimer} from './state.js';
+import {calendarBlockDurationChange,planRunningBlockExtension} from './calendar.js';
 import {installMiniTimer} from './mini-timer.js';
 import {installReferenceEditor} from './focus-reference.js';
 import {installCalendarResize} from './calendar-resize.js';
@@ -129,6 +130,8 @@ const studio=createGardenStudio({getState:()=>state,getAppearance:()=>effectiveA
     savePostcard(blob,'garden-studio-'+dayKey()+'.png');
   }});
 let handoffMarkup='', actualCalendar=false, replayRenderKey='', returnToCalendarMonth=false;
+const blockExtensionMinutes=10;
+let extensionPreview=null;
 let renderedBundle='';
 let savedSchedule=snapshotSchedule(state), captureInboxTab='inbox', returnToCaptureInbox=false, captureInboxIndex=0;
 const gardenAudio=createGardenAudio();
@@ -1065,6 +1068,7 @@ function render(){
   resumeButton.dataset.resumeId=resume?.id||'';
   const handoff=$('#focus-handoff');
   const showHandoff=workspace==='focus'&&t.mode==='focus'&&!t.mistakeId&&hasHandoff(task);
+  app.classList.toggle('calendar-focus-context',Boolean(showHandoff&&t.block&&task?.reference));
   handoff.hidden=!showHandoff;
   if(showHandoff){
     const html=`<h2 id="focus-handoff-title">Pick up here</h2>${handoffDetails(task)}`;
@@ -1091,6 +1095,7 @@ function render(){
   if(calendarHistory!==state.history||calendarHistoryLength!==state.history.length)syncCalendarProgress(clock.getTime());
   if(workspace==='calendar'&&actualCalendar)updateActualCalendar(clock);
   if(activePanel==='calendar-block')updateBlockPreview(clock.getTime());
+  $('#extend-running-block').hidden=workspace!=='focus'||!canExtendCalendarTimer(state,blockExtensionMinutes*60000,clock.getTime());
   const running=t.status==='running';
   const waitingForBundle=t.mode==='focus'&&!t.id&&bundleWaiting;
   timerButton.disabled=Boolean(waitingForBundle);
@@ -1234,6 +1239,11 @@ currentTaskButton.onclick=()=>{
 };
 finishTaskButton.onclick=()=>openPanel('finish-task',finishTaskButton);
 $('#focus-goal').onclick=()=>openPanel('focus-goal',$('#focus-goal'));
+$('#extend-running-block').onclick=event=>{
+  checkCompletion();
+  extensionPreview=planRunningBlockExtension(state,blockExtensionMinutes);
+  openPanel('calendar-extension',event.currentTarget);
+};
 $('#finish-retry').onclick=finishMistakeFocus;
 $('#review-retry').onclick=()=>openPanel('mistake-retry',$('#review-retry'));
 $('#break-ideas').onclick=()=>{
@@ -2594,16 +2604,40 @@ function saveQuickTaskColor(button){
 
 function calendarBlockPreview(){
   const task=state.tasks.find(item=>item.id===lastAnchor.dataset.task);
+  const hasReference=Boolean(task?.reference),resume=hasHandoff(task)||hasReference;
   return `${header('CALENDAR BLOCK',escape(task?.text||'Task unavailable'))}
     <p id="block-focus-time"></p>
     <p id="block-actual-focus"></p>
     <p class="task-waiting" id="block-prerequisites" hidden></p>
+    ${resume?`<section class="calendar-resume-context" aria-label="Saved focus context">
+      ${hasHandoff(task)?`<h3>Last handoff</h3>${handoffDetails(task)}`:''}
+      ${hasReference?'<p>Pinned reference will open beside the timer.</p>':''}
+    </section>`:''}
     ${task?taskColorPicker(task):''}
     <div class="panel-actions calendar-block-actions">
-      <button class="panel-primary" type="button" id="start-block-focus">${icon('play')} Start focus</button>
+      <button class="panel-primary" type="button" id="start-block-focus">${icon('play')} ${resume?'Resume focus':'Start focus'}</button>
       <button type="button" class="text-button" id="edit-calendar-block">${lastAnchor.dataset.block?'Edit block':'Edit task'}</button>
       ${lastAnchor.dataset.block?'<button type="button" class="text-button" id="edit-calendar-task">Edit task</button>':''}
     </div>`;
+}
+function extensionTime(timestamp){
+  return new Date(timestamp).toLocaleString([],{
+    weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true
+  });
+}
+function calendarExtensionPreview(){
+  const plan=extensionPreview;
+  if(!plan)return `${header('CALENDAR BLOCK','Extend block')}<p>This running block is no longer available to extend.</p>`;
+  const task=state.tasks.find(item=>item.id===plan.taskId);
+  return `${header('CALENDAR BLOCK','Add 10 minutes')}
+    <p>${escape(task?.text||'Focus block')}</p>
+    <dl class="calendar-extension-times">
+      <div><dt>Calendar ends</dt><dd>${extensionTime(plan.plannedEnd)} → <strong>${extensionTime(plan.newPlannedEnd)}</strong></dd></div>
+      ${plan.newFocusEnd!==plan.newPlannedEnd?`<div><dt>Timer ends</dt><dd>${extensionTime(plan.focusEnd)} → <strong>${extensionTime(plan.newFocusEnd)}</strong></dd></div>`:''}
+    </dl>
+    ${plan.conflicts.length?`<section class="calendar-resume-context"><h3>Overlaps in the extra time</h3><ul>${plan.conflicts.map(item=>
+      `<li><strong>${escape(item.title)}</strong><small>${item.type} · ${extensionTime(item.start)} – ${extensionTime(item.end)}</small></li>`).join('')}</ul></section>`:'<p>No timed commitments overlap the extra ten minutes.</p>'}
+    <div class="panel-actions"><button type="button" class="text-button close-panel">Cancel</button><button type="button" class="panel-primary" id="confirm-block-extension">Extend 10 minutes</button></div>`;
 }
 
 function selectedBlockTiming(now){
@@ -3163,6 +3197,7 @@ function panelContent(id){
       <button type="button" class="text-button" data-view-project="${escape(project.id)}">Open project</button></div>`;
   }
   if(id==='calendar-block')return calendarBlockPreview();
+  if(id==='calendar-extension')return calendarExtensionPreview();
   if(id==='task-color'){
     const task=state.tasks.find(item=>item.id===taskColorMenuId);
     return header('TASK COLOR',escape(task?.text||'Task unavailable'))+(task?taskColorPicker(task):'');
@@ -4068,7 +4103,7 @@ taskMenu.addEventListener('click',event=>{
   if(action==='delete'){deleteTask(task.id);return;}
   if(action==='duplicate'){
     const copy=structuredClone(task);
-    Object.assign(copy,{id:crypto.randomUUID(),done:false,completedOn:'',completions:[],occurrenceTimes:{},excludedDays:[],reminderShown:false});
+    Object.assign(copy,{id:crypto.randomUUID(),done:false,completedOn:'',completions:[],occurrenceTimes:{},occurrenceMinutes:{},excludedDays:[],reminderShown:false});
     copy.subtasks?.forEach(subtask=>{subtask.id=crypto.randomUUID();subtask.done=false;});
     copy.blocks?.forEach(block=>{block.id=crypto.randomUUID();});
     state.tasks.push(copy);persist();refreshTasks();announce('Task duplicated.');
@@ -5886,6 +5921,24 @@ root.addEventListener('click',e=>{
     return;
   }
   if(btn.id==='edit-calendar-task'){openTaskEditor(lastAnchor.dataset.task,lastAnchor);return;}
+  if(btn.id==='confirm-block-extension'&&activePanel==='calendar-extension'){
+    checkCompletion();
+    const now=Date.now(),plan=planRunningBlockExtension(state,blockExtensionMinutes,now);
+    if(JSON.stringify(plan)!==JSON.stringify(extensionPreview)){
+      extensionPreview=plan;refreshPanel();
+      $('#confirm-block-extension')?.focus({preventScroll:true});
+      announce(plan?'The calendar changed. Review the updated extension.':'This block is no longer available to extend.');
+      return;
+    }
+    if(!plan)return;
+    const {tasks,timer}=state;
+    if(!extendCalendarTimer(state,blockExtensionMinutes*60000,now))return;
+    state.tasks=tasks.map(task=>task.id===plan.taskId?{...task,...calendarBlockDurationChange(task,plan.blockId,plan.occurrence,plan.minutes)}:task);
+    if(!persist()){Object.assign(state,{tasks,timer});return;}
+    closePanel();refreshTasks();wake();
+    toast('Calendar block extended by 10 minutes.');announce('Calendar block extended by 10 minutes.');
+    return;
+  }
   if(btn.id==='edit-calendar-block'){
     const {task,block}=lastAnchor.dataset;
     if(block)openBlockEditor(task,lastAnchor,block);
@@ -5907,7 +5960,7 @@ root.addEventListener('click',e=>{
     persist();refreshTasks();wake();
     $('#toggle-timer').focus({preventScroll:true});
     const message=skipped?'Block focus started. The previous session was skipped.':'Block focus started.';
-    toast(message);announce(message);
+    toast(message);announce(message+(hasHandoff(task)||task?.reference?' Saved focus context is beside the timer.':''));
   }
   if(btn.id==='panel-timer-toggle')$('#toggle-timer').click();
   if(btn.id==='timer-notifications')toggleNotifications();

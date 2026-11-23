@@ -4,6 +4,42 @@ import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, calen
 import {freshState, loadState, record, reset, settle, startBlockFocus} from '../dist/state.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {ritualComplete} from '../dist/daily-rituals.js';
+import {calendarTaskBlock,calendarBlockDurationChange,planRunningBlockExtension} from '../dist/calendar.js';
+import {extendCalendarTimer} from '../dist/state.js';
+
+test('extending a running recurring block previews overnight conflicts and updates only its occurrence',()=>{
+  const minute=60000,day='2026-11-10',next='2026-11-11',start=+new Date(day+'T23:30');
+  const state=freshState(),task={id:'read',text:'Read',done:false,date:day,time:'23:30',repeat:'daily',estimate:30};
+  state.tasks=[task,{id:'review',text:'Review',done:false,date:next,time:'00:03',repeat:'none',estimate:20}];
+  state.calendarEvents=[{id:'class',title:'Class',start:+new Date(next+'T00:12'),end:+new Date(next+'T01:00'),bufferBefore:5}];
+  startBlockFocus(state,task.id,30*minute,false,start,day);
+  const original=state.timer,now=start+3*minute;
+  const plan=planRunningBlockExtension(state,10,now);
+  assert.deepEqual(plan.conflicts.map(row=>[row.title,row.type]),[['Review','Task block'],['Class','Event buffer']]);
+  assert.equal(state.timer,original);
+  assert.equal(extendCalendarTimer(state,10*minute,now),true);
+  Object.assign(task,calendarBlockDurationChange(task,null,day,plan.minutes));
+  assert.equal(state.timer.id,original.id);
+  assert.equal(state.timer.endAt,original.endAt+10*minute);
+  const restored=loadState({getItem:()=>JSON.stringify(state)}).tasks[0];
+  assert.equal(calendarTaskBlock(restored,null,day).minutes,40);
+  assert.equal(calendarTaskBlock(restored,null,next).minutes,30);
+});
+
+test('extending a split calendar session keeps its current phase and adds time after the queued phases',()=>{
+  const minute=60000,day='2026-11-10',start=+new Date(day+'T09:00');
+  const state=freshState(),task={id:'read',text:'Read',blocks:[{id:'a',date:day,time:'09:00',minutes:75}]};
+  state.tasks=[task];
+  startBlockFocus(state,task.id,75*minute,true,start,day,'a');
+  const original=state.timer;
+  assert.equal(extendCalendarTimer(state,10*minute,start+minute),true);
+  assert.equal(state.timer.endAt,original.endAt);
+  assert.equal(state.timer.block.left,35*minute);
+  settle(state,start+50*minute);
+  assert.equal(state.timer.mode,'break');
+  assert.equal(state.timer.total,10*minute);
+  assert.equal(state.timer.block.left,25*minute);
+});
 
 test('tomorrow’s reservation avoids commitments, persists, and replaces only its own block',()=>{
   const date=new Date(2026,10,11),day='2026-11-11',state=freshState();

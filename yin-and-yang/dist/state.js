@@ -150,6 +150,7 @@ function loadTask(task) {
     date:/^\d{4}-\d{2}-\d{2}$/.test(task.date) ? task.date : repeat === 'none' ? '' : dayKey(),
     time:isTime(task.time) ? task.time : '',
     occurrenceTimes:Object.fromEntries(Object.entries(task.occurrenceTimes||{}).filter(([day,time])=>isDay(day)&&(time===''||isTime(time)))),
+    occurrenceMinutes:Object.fromEntries(Object.entries(task.occurrenceMinutes||{}).filter(([day,minutes])=>isDay(day)&&Number.isInteger(minutes)&&minutes>0&&minutes<=1440)),
     ...(Array.isArray(task.excludedDays)?{excludedDays:task.excludedDays.filter(isDay)}:{}),
     estimate:Number.isInteger(task.estimate) && task.estimate > 0 && task.estimate <= 1440 ? task.estimate : null,
     energy:Object.hasOwn(taskEnergyLevels,task.energy)?task.energy:'',
@@ -384,6 +385,24 @@ export function extendTimer(state,ms,now=Date.now()){
   const t=state.timer,left=remaining(state,now)+ms,pacing={left,progress:timerProgress(state,now)};
   state.timer={...t,total:t.total+ms,remaining:left,pacing,endAt:t.status==='running'?t.endAt+ms:null};
   if(t.taskBreak)state.timer.baseTotal=t.baseTotal||t.total;
+  return true;
+}
+
+export function canExtendCalendarTimer(state,ms,now=Date.now()){
+  const {timer:t}=state;
+  return Boolean(t.block&&t.status==='running'&&remaining(state,now)>0&&Number.isInteger(ms)&&ms>0&&
+    t.total+t.block.left+ms<=86400000);
+}
+
+export function extendCalendarTimer(state,ms,now=Date.now()){
+  if(!canExtendCalendarTimer(state,ms,now))return false;
+  const t=state.timer;
+  if(t.mode==='break'||t.block.left>0){
+    state.timer={...t,block:{...t.block,left:t.block.left+ms}};
+  }else{
+    const left=remaining(state,now)+ms;
+    state.timer={...t,total:t.total+ms,remaining:left,endAt:t.endAt+ms,pacing:{left,progress:timerProgress(state,now)}};
+  }
   return true;
 }
 

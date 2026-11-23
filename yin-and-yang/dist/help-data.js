@@ -494,9 +494,10 @@ export const helpTopics = [
     id:'block-focus', group:'Calendar & planning', title:'Start focus from a calendar block',
     summary:'Use the block’s remaining time and track what actually happened.',
     steps:['Click a task block in Calendar or Garden’s 5-hour calendar.',
-      'Choose the start-focus action in its panel. The linked task is selected automatically.',
+      'Choose Start focus or Resume focus in its panel. The linked task is selected automatically, and its saved handoff and pinned reference appear beside the timer.',
       'The countdown uses the time still available before the block ends. If you start before the block, its full planned duration is available.',
-      'Blocks longer than an hour use focus periods of up to 50 minutes with 10-minute breaks. Click a block later to inspect its recorded focus time and status.'],
+      'Blocks longer than an hour use focus periods of up to 50 minutes with 10-minute breaks. Click a block later to inspect its recorded focus time and status.',
+      'While the timer is running, choose Extend block in Garden and review the new end times and any overlapping task blocks, events, or event buffers. Choose Extend 10 minutes to update both the timer and this calendar occurrence. Existing breaks stay in place.'],
     tip:'Blocks can show focused, partly done, or missed. A completed focus session and a completed task are separate records; check off the task when the work itself is finished.',
     action:'calendar', actionLabel:'Open Calendar', related:['timer','reporting','replan']
   },

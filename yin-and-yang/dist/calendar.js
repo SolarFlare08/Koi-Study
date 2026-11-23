@@ -1,4 +1,4 @@
-import {dayKey, repeatSettings, taskOccursOn, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
+import {canExtendCalendarTimer,dayKey, repeatSettings, taskOccursOn, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
 import {unavailableRanges} from './availability.js';
 
 const minutesPerDay = 24 * 60;
@@ -100,6 +100,7 @@ export function addTaskBlock(task, date, time, minutes = task.estimate || defaul
 export function scheduledTaskTime(task,occurrence){
   return task.time ? task.occurrenceTimes?.[occurrence]??task.time : '';
 }
+const scheduledTaskMinutes=(task,occurrence)=>task.occurrenceMinutes?.[occurrence]??(task.estimate||defaultBlockMinutes);
 
 export function calendarTaskBlock(task,blockId,occurrence){
   const date = new Date(`${occurrence}T00:00:00`);
@@ -108,7 +109,7 @@ export function calendarTaskBlock(task,blockId,occurrence){
     : taskOccursOn(task, date) && task;
   const time=entry&&(blockId?entry.time:scheduledTaskTime(task,occurrence));
   if (!time || entry.taskDay&&task.excludedDays?.includes(entry.taskDay)) return null;
-  const minutes = entry.minutes || task.estimate || defaultBlockMinutes;
+  const minutes = blockId?entry.minutes:scheduledTaskMinutes(task,occurrence);
   const start = new Date(`${occurrence}T${time}`);
   const end = new Date(date);
   end.setMinutes(timeMinutes(time) + minutes);
@@ -120,6 +121,52 @@ export function blockFocusTiming(task, blockId, occurrence, now = Date.now()) {
   if(!scheduled)return null;
   const {start,end,minutes}=scheduled;
   return {available: Math.max(0, end - Math.max(start, now)), split: minutes > 60, early: now < start};
+}
+
+export function calendarBlockDurationChange(task,blockId,occurrence,minutes){
+  return blockId?{blocks:task.blocks.map(block=>block.id===blockId&&block.date===occurrence?{...block,minutes}:block)}:
+    {occurrenceMinutes:{...task.occurrenceMinutes,[occurrence]:minutes}};
+}
+
+export function planRunningBlockExtension(state,addMinutes,now=Date.now()){
+  const extra=addMinutes*60000,t=state.timer;
+  if(!canExtendCalendarTimer(state,extra,now))return null;
+  const {taskId,blockId,occurrence}=t.block;
+  const task=state.tasks.find(item=>item.id===taskId);
+  const slot=task&&calendarTaskBlock(task,blockId,occurrence);
+  if(!slot||slot.minutes+addMinutes>minutesPerDay)return null;
+  const minutes=slot.minutes+addMinutes;
+  const revised=calendarTaskBlock({...task,...calendarBlockDurationChange(task,blockId,occurrence,minutes)},blockId,occurrence);
+  const plannedEnd=+slot.end,newPlannedEnd=+revised.end,focusEnd=t.endAt+t.block.left,newFocusEnd=focusEnd+extra;
+  const ranges=[[plannedEnd,newPlannedEnd],[focusEnd,newFocusEnd]];
+  const conflicts=new Map();
+  const add=(key,title,start,end,type)=>{
+    if(ranges.some(([from,to])=>from<end&&to>start))conflicts.set(key,{title,start,end,type});
+  };
+  const days=new Set(ranges.flatMap(([from,to])=>{
+    const result=[];
+    for(let day=shiftDay(new Date(from),0);+day<to;day=shiftDay(day,1))result.push(+day);
+    return result;
+  }));
+  for(const date of days){
+    const day=new Date(date);
+    for(const block of calendarBlocks(state.tasks,day)){
+      if(!openFocusBlock(block)||(block.task.id===taskId&&(block.blockId||null)===(blockId||null)&&block.occurrence===occurrence))continue;
+      const item=calendarTaskBlock(block.task,block.blockId,block.occurrence);
+      if(item)add(calendarFocusKey(block.task.id,block.occurrence,block.blockId),block.task.text,+item.start,+item.end,'Task block');
+    }
+    for(const event of calendarEventOccurrences(state.calendarEvents,day,180)){
+      if(event.day)continue;
+      const end=Math.max(event.end,event.start+60000);
+      const key=JSON.stringify([event.id,event.start]);
+      add(key,event.title,event.start,end,'Event');
+      if(!conflicts.has(key)&&(event.bufferBefore||event.bufferAfter)){
+        add(key,event.title,event.start-(event.bufferBefore||0)*60000,end+(event.bufferAfter||0)*60000,'Event buffer');
+      }
+    }
+  }
+  return {timerId:t.id,taskId,blockId,occurrence,minutes,plannedEnd,newPlannedEnd,focusEnd,newFocusEnd,
+    conflicts:[...conflicts.values()].sort((a,b)=>a.start-b.start)};
 }
 
 export function calendarFocusKey(taskId,occurrence,blockId){
@@ -193,7 +240,7 @@ export function calendarBlocks(tasks, date, events=[]) {
     for (const day of [today,yesterday]) {
       const schedules=(task.blocks||[]).filter(entry=>entry.date===day&&(!entry.taskDay||!task.excludedDays?.includes(entry.taskDay)));
       const time=scheduledTaskTime(task,day);
-      if(time&&taskOccursOn(task,day===today?date:previous))schedules.push({time,minutes:task.estimate||defaultBlockMinutes});
+      if(time&&taskOccursOn(task,day===today?date:previous))schedules.push({time,minutes:scheduledTaskMinutes(task,day)});
       for(const entry of schedules){
         const start=timeMinutes(entry.time), end=start+entry.minutes;
         if(day===today)blocks.push({task,blockId:entry.id,taskDay:entry.taskDay,start,end:Math.min(end,minutesPerDay),occurrence:today,continues:false});
@@ -342,7 +389,7 @@ export function replanToday(tasks,events,now=new Date(),lockedTaskId,options){
   for(const block of missed){
     const {task,blockId,start}=block;
     const entry=task.blocks?.find(item=>item.id===blockId);
-    const minutes=entry?.minutes||task.estimate||defaultBlockMinutes;
+    const minutes=entry?.minutes||scheduledTaskMinutes(task,block.occurrence);
     const details={taskId:task.id,blockId:blockId||null,title:task.text,from:start,minutes};
     const slots=openSlots(busy,elapsed,cutoff);
     const whole=slots.find(slot=>slot.end-slot.start>=minutes);

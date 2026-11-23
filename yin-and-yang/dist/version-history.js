@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.20.3',date:'2026-11-22',title:'Resume and extend calendar focus',changes:[
+    'Resume from a task block with its last handoff and pinned reference beside the timer.',
+    'Preview what an extra ten minutes would overlap, then extend the running timer and its calendar occurrence together.'
+  ]},
   {version:'5.20.2',date:'2026-11-22',title:'Reusable prop arrangements and preview comparison',changes:[
     'Save a prop selection as a named arrangement and place it in any layout with its spacing, sizes, and layers intact.',
     'Hold Before to compare the draft with the saved or starting layout from the same view.'
