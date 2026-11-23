@@ -1,6 +1,35 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {freshState,startPause,startBlockFocus,skipPhase,remaining,settle,record,reset,consumeTimerWarning,parseDuration,formatTypedDuration,todayProgress,loadState,STORAGE_KEY,dayKey,taskStatus,completeTask} from '../dist/state.js';
+import {incompleteFocusSessions,loadRoutinePhase,loadFocusSetups} from '../dist/state.js';
+
+test('focus setup layouts persist through reload and into the next routine phase',()=>{
+  const state=freshState();
+  state.gardenLayouts=[{id:'hills',name:'Hills',design:{mountains:'terraces'}}];
+  state.focusSetups=loadFocusSetups([{id:'setup',name:' Deep Garden ',routineId:'deep',layoutId:'hills',soundtrackId:''}]);
+  loadRoutinePhase(state,{name:'Deep work',setupLayoutId:'hills',
+    phases:[{name:'Focus',mode:'focus',ms:3000000},{name:'Rest',mode:'break',ms:600000}]});
+  startPause(state,1000000);
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  assert.deepEqual(restored.focusSetups,state.focusSetups);
+  assert.equal(restored.timer.sequence.setupLayoutId,'hills');
+  settle(restored,restored.timer.endAt);
+  assert.equal(restored.timer.mode,'break');
+  assert.equal(restored.timer.sequence.setupLayoutId,'hills');
+});
+
+test('incomplete focus keeps remaining time and ignores resolved or superseded reviews',()=>{
+  const state=freshState();
+  state.tasks=[{id:'read',text:'Read',done:false}];
+  state.activeTask='read';
+  startPause(state,1000000);
+  const session=record(state,'completed',1120000,{early:true});
+  assert.equal(session.focusMs,120000);
+  assert.equal(session.remainingMs,1380000);
+  assert.deepEqual(incompleteFocusSessions(state.history),[session]);
+  assert.deepEqual(incompleteFocusSessions([{...session,followUp:'rescheduled'}]),[]);
+  assert.deepEqual(incompleteFocusSessions([session,{...session,id:'new',finishedAt:1220000,incomplete:false}]),[]);
+});
 test('finishing focus early credits elapsed time and the original task',()=>{
   const state=freshState(), start=1000000, finish=start+90000;
   state.tasks.push({id:'read',text:'Read the chapter'});

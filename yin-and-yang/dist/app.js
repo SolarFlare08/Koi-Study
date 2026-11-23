@@ -29,6 +29,8 @@ import {installAutomaticBackup} from './automatic-backup.js';
 import {installFocusCompass,focusCompass,focusWeek} from './focus-compass.js';
 import {timerProgress,extendTimer,canExtendCalendarTimer,extendCalendarTimer,focusWrapUp,wrapUpMinutes} from './state.js';
 import {calendarBlockDurationChange,planRunningBlockExtension} from './calendar.js';
+import {quickTask} from './planner-data.js';
+import {incompleteFocusSessions,loadFocusSetups} from './state.js';
 import {installMiniTimer} from './mini-timer.js';
 import {installReferenceEditor} from './focus-reference.js';
 import {installCalendarResize} from './calendar-resize.js';
@@ -195,6 +197,8 @@ function saveExamPlan(projectId,exam){
 }
 function viewedGardenLayout(){return state.gardenLayouts.find(item=>item.id===snapshotLayoutId);}
 function activityGardenLayout(){
+  const setup=state.gardenLayouts.find(item=>item.id===state.timer.sequence?.setupLayoutId);
+  if(setup)return setup;
   return gardenActivityLayout(state.gardenLayouts,state.gardenActivityLayouts,{mode:state.timer.mode,shutdown:activePanel==='evening-lights'});
 }
 function sceneGardenDesign(){return (viewedGardenLayout()||activityGardenLayout())?.design||state.gardenDesign;}
@@ -1000,7 +1004,7 @@ function render(){
   effectiveAppearance=viewed?loadAppearance({...viewed.appearance,lighting:viewed.appearance.lighting==='session'?'day':viewed.appearance.lighting,weatherSince:clock.getTime()}):
     activity?loadAppearance({...activity.appearance,weatherSince:activityWeatherSince}):
     scheduledAppearance(state.appearance,state.gardenSchedule,clock);
-  if(!viewed&&!state.gardenSchedule.enabled&&state.appearance.lighting==='day')effectiveAppearance={...effectiveAppearance,lighting:'day'};
+  if(!viewed&&!activity&&!state.gardenSchedule.enabled&&state.appearance.lighting==='day')effectiveAppearance={...effectiveAppearance,lighting:'day'};
   if(paintedGardenDesign!==design){
     applyGardenDesign($('#landscape .world'),design);
     paintedGardenDesign=design;
@@ -1270,6 +1274,9 @@ currentTaskButton.onclick=()=>{
 };
 finishTaskButton.onclick=()=>openPanel('finish-task',finishTaskButton);
 $('#focus-goal').onclick=()=>openPanel('focus-goal',$('#focus-goal'));
+$('#quick-task-capture').onclick=event=>openPanel('quick-task',event.currentTarget);
+$('#open-focus-setups').onclick=event=>openPanel('focus-setups',event.currentTarget);
+$('#open-incomplete-focus').onclick=event=>openPanel('incomplete-focus',event.currentTarget);
 $('#wrap-save-next').onclick=event=>{
   if(focusedTask())openPanel('resume',event.currentTarget);
 };
@@ -1987,7 +1994,7 @@ function blockEditor(){
         <div><label class="field-label" for="block-time">Time</label><input id="block-time" name="time" type="time" value="${escape(block?.time||blockDraft?.time||task.time||'09:00')}" required></div>
       </div>
       <label class="field-label" for="block-minutes">Duration (min)</label>
-      <input id="block-minutes" name="minutes" type="number" min="1" max="1440" value="${block?.minutes||task.estimate||60}" required>
+      <input id="block-minutes" name="minutes" type="number" min="1" max="1440" value="${block?.minutes||blockDraft?.minutes||task.estimate||60}" required>
       <div class="estimate-suggestion" data-estimate-suggestion hidden></div>
       ${schedulePreviewRegion()}
       ${flexibilityFields(block?.flexibility)}
@@ -2174,6 +2181,130 @@ function saveBreakIdeas(ideas){
 }
 function pendingFocusReview(){
   return state.history.findLast(item=>item.mode==='focus'&&item.outcome==='completed'&&item.goal&&!item.review);
+}
+function quickTaskCapture(){
+  return `${header('PLANNER','Capture a task')}
+    <form id="quick-task-capture-form"><label class="field-label" for="quick-task-line">Task in one line</label>
+      <input id="quick-task-line" name="line" maxlength="300" placeholder="Review chapter 4 tomorrow for 30m" required>
+      <div id="quick-task-details" class="calendar-resume-context" aria-live="polite" hidden></div>
+      <div class="panel-actions"><button class="panel-primary" disabled>Add task</button></div>
+    </form>`;
+}
+function updateQuickTask(form){
+  const task=quickTask(form.elements.line.value,{},state.projects),preview=form.querySelector('#quick-task-details');
+  preview.hidden=!task;
+  form.querySelector('button').disabled=!task;
+  preview.innerHTML=task?`<h3>${escape(task.text)}</h3><p>${[
+    task.date&&shortScheduleDate(task.date),task.time&&timeLabel(timeMinutes(task.time)),
+    task.estimate&&minutesLabel(task.estimate),task.repeat!=='none'&&taskFrequencies[task.repeat],
+    task.deadline&&'Due '+shortScheduleDate(task.deadline),
+    state.projects.find(item=>item.id===task.projectId)?.name,task.priority&&'P'+task.priorityLevel,...task.labels
+  ].filter(Boolean).map(escape).join(' · ')||'Inbox · No date or duration'}</p>`:'';
+}
+function focusSetupsMarkup(){
+  const routine=[...builtinRoutines,...state.routines];
+  const options=items=>items.map(item=>`<option value="${escape(item.id)}">${escape(item.name)}</option>`).join('');
+  return `${header('FOCUS','Focus setups')}
+    ${state.focusSetups.length?`<div class="routine-list">${state.focusSetups.map(item=>{
+      const parts=[routine.find(entry=>entry.id===item.routineId)?.name||'Unavailable routine',
+        state.gardenLayouts.find(entry=>entry.id===item.layoutId)?.name||'Current Garden',
+        state.soundtracks.find(entry=>entry.id===item.soundtrackId)?.name].filter(Boolean);
+      return `<div class="routine-row"><button type="button" data-start-focus-setup="${escape(item.id)}"><strong>${escape(item.name)}</strong><span>${parts.map(escape).join(' · ')}</span></button></div>`;
+    }).join('')}</div>`:''}
+    <form id="focus-setup-form">
+      <label class="field-label" for="focus-setup-name">Setup name</label><input name="name" id="focus-setup-name" maxlength="70" required>
+      <label class="field-label" for="focus-setup-routine">Timer routine</label><select name="routineId" id="focus-setup-routine">${options(routine)}</select>
+      <label class="field-label" for="focus-setup-layout">Garden layout</label><select name="layoutId" id="focus-setup-layout"><option value="">Current Garden</option>${options(state.gardenLayouts)}</select>
+      <label class="field-label" for="focus-setup-soundtrack">Soundtrack</label><select name="soundtrackId" id="focus-setup-soundtrack"><option value="">Keep current audio</option>${options(state.soundtracks)}</select>
+      <div class="panel-actions"><button class="panel-primary">Save setup</button></div>
+    </form>`;
+}
+function startFocusSetup(id){
+  checkCompletion();
+  if(state.timer.id){toast('Finish or reset the current timer before starting a setup.');return;}
+  const setup=state.focusSetups.find(item=>item.id===id);
+  const routine=setup&&[...builtinRoutines,...state.routines].find(item=>item.id===setup.routineId);
+  const layout=setup&&state.gardenLayouts.find(item=>item.id===setup.layoutId);
+  const soundtrack=setup&&state.soundtracks.find(item=>item.id===setup.soundtrackId);
+  if(!routine||setup.layoutId&&!layout||setup.soundtrackId&&!soundtrack){
+    toast('A routine, layout, or soundtrack used by this setup is unavailable.');return;
+  }
+  const {timer,mediaSource,spotify,youtube}=state;
+  const phases=routine.phases||[{name:'Focus',mode:'focus',ms:routine.focus},{name:'Rest',mode:'break',ms:routine.rest}];
+  loadRoutinePhase(state,{name:routine.name,phases,...(layout?{setupLayoutId:layout.id}:{})});
+  startPause(state,Date.now(),focusedTask()?.id);
+  if(soundtrack){
+    state.mediaSource=soundtrack.source;
+    state[soundtrack.source]=soundtrack.link;
+  }
+  if(!persist()){Object.assign(state,{timer,mediaSource,spotify,youtube});return;}
+  snapshotLayoutId='';snapshotThrough='';renderedGardenGrowth=null;updateGardenSnapshotLabel();
+  closePanel(false);render();wake();
+  if(soundtrack){
+    if($('#music-panel')&&(mediaSource!==soundtrack.source||({spotify,youtube})[soundtrack.source]!==soundtrack.link))mountMedia();
+    openPanel('music',mediaPanelAnchor());
+  }else timerButton.focus({preventScroll:true});
+  toast(`${setup.name} started.`);
+}
+function unfinishedFocus(){
+  const tasks=new Map(gardenTasks().map(task=>[task.id,task]));
+  return incompleteFocusSessions(state.history).flatMap(session=>{
+    const task=tasks.get(session.taskId);
+    if(!task||task.done||taskStatus(task,new Date(session.finishedAt))==='done')return [];
+    return [{session,task}];
+  });
+}
+function incompleteFocusMarkup(){
+  const entries=unfinishedFocus();
+  const ready=new Set(gardenFocusQueue().map(task=>task.id));
+  return `${header('FOCUS','Incomplete sessions')}
+    ${entries.length?`<div class="incomplete-session-list">${entries.map(({session,task})=>{
+      const handoff=session.nextHandoff||sessionHandoff(task)||session.startHandoff;
+      return `<section class="calendar-resume-context">
+        <h3>${escape(task.text)}</h3><p>${escape(extensionTime(session.finishedAt))} · ${formatDuration(session.focusMs)} focused</p>
+        ${handoff?handoffDetails(handoff):'<p>No stopping point was saved.</p>'}
+        ${session.review?.next?`<p>${escape(session.review.next)}</p>`:''}
+        <div class="panel-actions"><button type="button" data-incomplete-action="resume" data-session-id="${escape(session.id)}" ${state.timer.id||!ready.has(task.id)?'disabled':''}>Resume</button>
+          <button type="button" data-incomplete-action="schedule" data-session-id="${escape(session.id)}">Reschedule</button>
+          <button type="button" data-incomplete-action="close" data-session-id="${escape(session.id)}">Close out</button></div>
+      </section>`;
+    }).join('')}</div>`:'<p>No incomplete focus sessions to review.</p>'}`;
+}
+function actOnIncomplete(id,action,anchor){
+  checkCompletion();
+  const entry=unfinishedFocus().find(item=>item.session.id===id);
+  if(!entry){refreshPanel();return;}
+  const {session,task}=entry;
+  const minutes=Math.min(1440,Math.max(1,Math.ceil((session.remainingMs||0)/60000)||
+    Math.max(0,(task.estimate||0)-Math.floor(session.focusMs/60000))||Math.round(state.settings.focus)));
+  if(action==='schedule'){
+    const date=new Date();
+    date.setMinutes(Math.floor(date.getMinutes()/30)*30+30,0,0);
+    openBlockEditor(task.id,lastAnchor||anchor,null,{date:dayKey(date),time:timeValue(date.getHours()*60+date.getMinutes()),minutes,incompleteSessionId:id});
+    return;
+  }
+  const previous=state.history,originalTimer=state.timer;
+  const {activeTask,activeTaskDay,activeBundle,tasks}=state;
+  if(action==='resume'){
+    if(state.timer.id||!gardenFocusQueue().some(item=>item.id===task.id))return;
+    if(state.timer.sequence)reset(state,'focus');
+    const savedHandoff=sessionHandoff(session.nextHandoff||session.startHandoff);
+    const resume=!sessionHandoff(task)&&savedHandoff?{...task,...savedHandoff}:task;
+    if(resume!==task)state.tasks=tasks.map(item=>item===task?resume:item);
+    selectTaskForTimer(resume,minutes);
+    toggleFocusTimer(resume);
+  }
+  state.history=previous.map(item=>item.id===id?{...item,followUp:action==='resume'?'resumed':'closed'}:item);
+  if(!persist()){Object.assign(state,{history:previous,timer:originalTimer,activeTask,activeTaskDay,activeBundle,tasks});return;}
+  if(action==='resume'){closePanel(false);refreshTasks();timerButton.focus({preventScroll:true});}
+  else{
+    refreshPanel();
+    confirmChange('Session closed out. The task remains open.',latest=>{
+      const current=latest.history.find(item=>item.id===id);
+      if(current?.followUp!=='closed')return false;
+      delete current.followUp;return true;
+    });
+  }
 }
 function focusReviewMarkup(){
   const session=pendingFocusReview();
@@ -3106,6 +3237,9 @@ function panelContent(id){
   if(id==='availability')return availabilityMarkup();
   if(id==='routine-editor')return routineEditor();
   if(id==='focus-review')return focusReviewMarkup();
+  if(id==='quick-task')return quickTaskCapture();
+  if(id==='focus-setups')return focusSetupsMarkup();
+  if(id==='incomplete-focus')return incompleteFocusMarkup();
   if(id==='mistake-retry')return mistakeRetryMarkup();
   if(id==='break-ideas')return breakIdeasMarkup();
   if(id==='focus-goal')return `${header('FOCUS',state.timer.id?'Set an outcome':'Warm up')}
@@ -5682,6 +5816,10 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const setup=e.target.closest('[data-start-focus-setup]');
+  if(setup){startFocusSetup(setup.dataset.startFocusSetup);return;}
+  const incomplete=e.target.closest('[data-incomplete-action]');
+  if(incomplete){actOnIncomplete(incomplete.dataset.sessionId,incomplete.dataset.incompleteAction,incomplete);return;}
   const adminAction=e.target.closest('[data-admin-action]');
   if(adminAction){runAdminSandbox(adminAction.dataset.adminAction);return;}
   const constellation=e.target.closest('[data-guide-constellation]');
@@ -6157,6 +6295,7 @@ root.addEventListener('input',e=>{
     if(e.target.validity.valid&&minutes>0)fitMinutes=minutes;
     $('#fit-results').innerHTML=fitTaskResults(minutes);
   }
+  if(e.target.id==='quick-task-line')updateQuickTask(e.target.form);
   if(e.target.id==='prerequisite-search'){
     const query=e.target.value.trim().toLowerCase();
     let matches=0;
@@ -6472,6 +6611,23 @@ root.addEventListener('submit',e=>{
   if(e.target.id==='week-slot-form'){updateWeekSlot(e.target);return;}
   if(e.target.id==='schedule-drop-form'){saveScheduleDrop();return;}
   if(e.target.id==='plan-tomorrow-form'){saveTomorrowPlan(e.target);return;}
+  if(e.target.id==='quick-task-capture-form'){
+    const task=quickTask(e.target.elements.line.value,{},state.projects);
+    if(!task)return;
+    const previous=state.tasks;state.tasks=[...previous,task];
+    if(!persist()){state.tasks=previous;return;}
+    closePanel();refreshTasks();confirmChange(`Added ${task.text}.`);return;
+  }
+  if(e.target.id==='focus-setup-form'){
+    const {name,routineId,layoutId,soundtrackId}=Object.fromEntries(new FormData(e.target));
+    const previous=state.focusSetups,label=name.trim();
+    if(!label)return;
+    const existing=previous.find(item=>item.name.toLowerCase()===label.toLowerCase());
+    const item={id:existing?.id||crypto.randomUUID(),name:label,routineId,layoutId,soundtrackId};
+    state.focusSetups=loadFocusSetups([...previous,item]);
+    if(!persist()){state.focusSetups=previous;return;}
+    refreshPanel();confirmChange('Focus setup saved.');return;
+  }
   if(e.target.id==='replan-cutoff-form'){
     const cutoff=new FormData(e.target).get('cutoff'), previous=state.replanCutoff;
     state.replanCutoff=cutoff;
@@ -6747,10 +6903,19 @@ root.addEventListener('submit',e=>{
     Object.assign(block,{date,time,minutes});
     if(flexibility)block.flexibility=flexibility;else delete block.flexibility;
     const undo=finishUndo();
-    if(!persist()){undo?.(state);return;}
+    const previous=state.history,followUpId=blockDraft?.incompleteSessionId;
+    if(followUpId)state.history=previous.map(item=>item.id===followUpId&&!item.followUp?{...item,followUp:'rescheduled'}:item);
+    if(!persist()){undo?.(state);state.history=previous;return;}
     closePanel(false);refreshTasks();
     openSchedule('calendar',calendarToggle,new Date(`${date}T00:00:00`),Math.max(0,timeMinutes(time)-60));
-    confirmChange(existing?'Block updated.':'Block scheduled.',undo);
+    confirmChange(existing?'Block updated.':'Block scheduled.',followUpId?latest=>{
+      if(!undo?.(latest))return false;
+      latest.history=latest.history.map(item=>{
+        if(item.id!==followUpId||item.followUp!=='rescheduled')return item;
+        const restored={...item};delete restored.followUp;return restored;
+      });
+      return true;
+    }:undo);
   }
   if(e.target.id==='soundtrack-form'){saveSoundtrack(e.target);return;}
   if(e.target.id==='media-form'){

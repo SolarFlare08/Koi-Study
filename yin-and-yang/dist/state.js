@@ -215,7 +215,7 @@ export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true, taskBoardCollapsed:false }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], calendars:loadCalendars(), hiddenCalendars:[], calendarTheme:'day', calendarDayTemplates:[], dailyRituals:{}, ritualSchedules:loadRitualSchedules(), studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], libraryBooks:[], readingShelfRows:loadShelfRows(), readingBookends:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],studyQuestions:[],
-    taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],gardenArrangements:[],gardenActivityLayouts:{},postcardViewpoints:[],breakIdeas:[],
+    taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],gardenArrangements:[],gardenActivityLayouts:{},focusSetups:[],postcardViewpoints:[],breakIdeas:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
 export function routinePhases(value) {
@@ -230,6 +230,26 @@ export function loadRoutinePhase(state,sequence,index=0){
   Object.assign(state.timer,{remaining:phase.ms,total:phase.ms,sequence:{...sequence,index}});
 }
 
+export function loadFocusSetups(value){
+  if(!Array.isArray(value))return [];
+  return [...new Map(value.flatMap(item=>{
+    const {id,routineId,layoutId,soundtrackId}=item||{};
+    const name=typeof item?.name==='string'?item.name.trim().slice(0,70):'';
+    return name&&[id,routineId,layoutId,soundtrackId].every(key=>typeof key==='string')&&id&&routineId?
+      [[id,{id,name,routineId,layoutId,soundtrackId}]]:[];
+  })).values()];
+}
+
+export function incompleteFocusSessions(history){
+  const pending=new Map();
+  for(const session of [...history].sort((a,b)=>b.finishedAt-a.finishedAt)){
+    if(session.mode!=='focus'||!session.taskId||pending.has(session.taskId))continue;
+    if(session.focusMs<=0&&session.outcome==='skipped')continue;
+    pending.set(session.taskId,session);
+  }
+  return [...pending.values()].filter(item=>!item.followUp&&(item.outcome==='skipped'||item.incomplete||item.review?.result==='partial'));
+}
+
 export function loadState(storage) {
   const base = freshState();
   try {
@@ -240,6 +260,7 @@ export function loadState(storage) {
     base.gardenDesign=loadGardenDesign(raw.gardenDesign);
     base.gardenLayouts=loadGardenLayouts(raw.gardenLayouts);
     base.gardenArrangements=loadGardenArrangements(raw.gardenArrangements);
+    base.focusSetups=loadFocusSetups(raw.focusSetups);
     base.postcardViewpoints=loadPostcardViewpoints(raw.postcardViewpoints);
     base.gardenActivityLayouts=loadGardenActivityLayouts(raw.gardenActivityLayouts,base.gardenLayouts);
     base.gardenSchedule=loadGardenSchedule(raw.gardenSchedule);
@@ -356,6 +377,7 @@ export function loadState(storage) {
       const sequence=t.sequence, phases=routinePhases(sequence?.phases);
       if(phases&&typeof sequence.name==='string'&&Number.isInteger(sequence.index)&&phases[sequence.index]?.mode===t.mode){
         base.timer.sequence={name:sequence.name,phases,index:sequence.index};
+        if(base.gardenLayouts.some(layout=>layout.id===sequence.setupLayoutId))base.timer.sequence.setupLayoutId=sequence.setupLayoutId;
       }else delete base.timer.sequence;
       if(typeof t.goal==='string')base.timer.goal=t.goal.slice(0,160);
       else delete base.timer.goal;
@@ -558,6 +580,10 @@ export function record(state, outcome, now=Date.now(), {early=false}={}) {
     h.replay=snapshot.replay;
   }
   if(t.mode==='focus'){
+    if(early||outcome==='skipped'){
+      h.incomplete=true;
+      h.remainingMs=remaining(state,now);
+    }
     if(t.goal)h.goal=t.goal;
     if(t.mistakeId)h.mistakeId=t.mistakeId;
     if(t.startHandoff)h.startHandoff=t.startHandoff;

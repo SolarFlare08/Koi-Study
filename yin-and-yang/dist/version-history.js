@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.20.5',date:'2026-11-22',title:'Quick tasks, focus setups, and session follow-up',changes:[
+    'Capture a task in one line and review the parsed details before adding it.',
+    'Save a timer routine, Garden layout, and soundtrack as a reusable focus setup.',
+    'Review interrupted or partial focus sessions and resume, reschedule, or close them out.'
+  ]},
   {version:'5.20.4',date:'2026-11-22',title:'Wrap up and find your next focus task',changes:[
     'Reserve the final minutes of focus for saving work and leaving a handoff. Set the duration in Timer settings.',
     'Pin a first task in Plan tomorrow and see it beside the timer on the planned day.',

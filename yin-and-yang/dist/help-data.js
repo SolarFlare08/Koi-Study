@@ -1,5 +1,14 @@
 // Keep feature instructions separate from the guide UI so they can be updated together with the app.
 export const helpTopics = [
+  {id:'quick-task-capture',group:'Calendar & planning',title:'Capture a task in one line',summary:'See the parsed task before saving it.',
+    steps:['In Garden, open Session tools → Capture a task. Try “Review chapter 4 tomorrow for 30m”.',
+      'Check the title, date, and estimate in the preview. Adjust the line if needed, then choose Add task. Add a time such as “at 9am” to put it on the calendar.'],related:['focus-queue']},
+  {id:'focus-setups',group:'Focus & rest',title:'Save and start a focus setup',summary:'Keep a routine, layout, and soundtrack together.',
+    steps:['In Garden, open Session tools → Focus setups. Name the setup, choose a routine, and optionally choose a saved Studio layout and soundtrack. Save it.',
+      'Click a saved setup to start its first phase. Its layout stays in use for the routine. If you chose a soundtrack, the player opens with it loaded. Press Play in the player.'],related:['timer','block-focus']},
+  {id:'incomplete-focus',group:'Focus & rest',title:'Review incomplete sessions',summary:'See a stopping point and decide what to do next.',
+    steps:['In Garden, open Session tools → Incomplete sessions. The list shows the latest interrupted, ended-early, or partial session for each open task.',
+      'Resume to start another focus session, or Reschedule to open a new calendar block with a suggested duration. Close out dismisses the review and keeps the task and time logged.'],related:['resume','block-focus']},
   {id:'focus-wrap-up',group:'Focus & rest',title:'Leave time to wrap up',summary:'Use the final minutes of focus to save your work and write a next step.',
     steps:['Set Wrap-up minutes in Timer settings. The default is three minutes. Set it to zero to turn it off.',
       'When Wrap up appears beside the running timer, save your work and choose Save next step to open the handoff. The countdown keeps running.'],related:['timer','resume']},

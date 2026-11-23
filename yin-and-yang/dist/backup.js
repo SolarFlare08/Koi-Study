@@ -234,6 +234,7 @@ export function planBackupRestore(storage,current,incoming,sections){
     stateList(apply,'gardenGrowth','Garden landmarks',item=>JSON.stringify([item.kind,item.sourceId]));
     stateList(apply,'gardenLooks','Saved Garden looks');
     stateList(apply,'soundtracks','Saved soundtracks');
+    stateList(apply,'focusSetups','Saved focus setups');
     stateList(apply,'gardenLayouts','Saved Studio layouts');
     stateList(apply,'gardenArrangements','Saved prop arrangements');
     stateList(apply,'postcardViewpoints','Postcard viewpoints');
