@@ -860,6 +860,8 @@ export const helpTopics = [
       'In Move, use Layer to bring a placed prop forward or send it backward. Bring to front and Send to back move it to the ends of its current layer. Choose Behind scenery, Among scenery, or In front of scenery to move a ground prop between layers. Sky props share their own layer behind the mountains. Use the Object list to select a covered prop.',
       'Open Layers in the toolbar to see thumbnail rows front to back. Select a row, drag its handle, or use Bring forward and Send backward. Ground props can be dropped into a different ground section.',
       'Use the eye to hide a prop and the padlock to protect it from moving, resizing, reordering, or removal. Use the same buttons to show or unlock it. Hidden props stay in the layout and are left out of the scene and postcards. Undo and Redo work for layer changes, visibility, and locks.',
+      'In Layers, check two or more placed props and choose Group selected. In Move, drag any member to move the whole group. Unlock all members before moving a locked group. To separate them, select any member in Layers and choose Ungroup.',
+      'Select a prop in Layers and choose Duplicate or Duplicate group. Copies are offset when space allows and keep their sizes, visibility, and layers. Copies start unlocked so you can reposition them.',
       'Save your layout. Props appear in the live Garden when you apply the layout and are included in postcards and backups.'],
     action:'garden-studio',actionLabel:'Open Garden Studio',related:['garden-studio','activity-layouts','garden-postcard']
   },

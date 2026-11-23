@@ -17,7 +17,7 @@ import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
 import {pavilionFoundation} from '../dist/garden-ornaments.js';
-import {gardenPieceOptions,gardenPropCategories,gardenPropTypes,gardenPropLimit,gardenPropsInOrder,moveGardenPropLayer,dropGardenPropLayer,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
+import {gardenPieceOptions,gardenPropCategories,gardenPropTypes,gardenPropLimit,gardenPropsInOrder,moveGardenPropLayer,dropGardenPropLayer,gardenPropMoveBounds,duplicateGardenProps,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
 import {eveningCamera,renderLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
 
 test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
@@ -685,6 +685,23 @@ test('Garden layer edits preserve position and survive backup and SVG rendering'
   const saved=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state.gardenDesign;
   assert.deepEqual(saved.props,changed);
   assert.doesNotMatch(renderLandscape(saved),/data-garden-prop="lamp"/);
+});
+
+test('Garden group copies keep spacing, scene layers, and stack order near an edge',()=>{
+  const originals=loadGardenProps([
+    {id:'lamp',kind:'beacon',x:1568,y:878,band:'front',size:125,groupId:'gate'},
+    {id:'bridge',kind:'bridge',x:1555,y:868,band:'back',size:70,groupId:'gate',locked:true},
+    {id:'tree',kind:'cherry',x:1460,y:883,band:'front'}
+  ]);
+  assert.equal(gardenPropMoveBounds(originals.slice(0,2),originals[0]).x[1],1568);
+  let serial=0;
+  const result=duplicateGardenProps(originals,originals[0],()=>`copy-${++serial}`);
+  assert.equal(result.id,'copy-2');
+  const saved=loadGardenProps(result.props);
+  const [lamp,bridge]=saved.filter(prop=>prop.groupId==='copy-1');
+  assert.deepEqual([lamp.x-bridge.x,lamp.y-bridge.y,lamp.size,bridge.size,lamp.band,bridge.band],[13,10,125,70,'front','back']);
+  assert.equal(bridge.locked,undefined);
+  assert.deepEqual(gardenPropsInOrder(saved,'front').map(prop=>prop.id),['lamp','copy-2','tree']);
 });
 
 test('Reading keeps standalone library books, fractional reviews and rereads in backups',()=>{

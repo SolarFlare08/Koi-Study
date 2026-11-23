@@ -1,7 +1,8 @@
 import {gardenCameras,gardenPieceOptions,defaultGardenDesign,gardenStarterLayouts,gardenFrame,loadGardenDesign,loadGardenLayouts,
   gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds,
   gardenPropLayer,gardenPropPositionBounds,gardenPropTypes,gardenPropCategories,gardenPropLimit,gardenSizeBounds,gardenObjectSize,
-  gardenPropBands,gardenPropBand,gardenPropStack,gardenPropsInOrder,moveGardenPropLayer,dropGardenPropLayer} from './garden-layout.js';
+  gardenPropBands,gardenPropBand,gardenPropStack,gardenPropsInOrder,moveGardenPropLayer,dropGardenPropLayer,
+  gardenPropMembers,gardenPropMoveBounds,duplicateGardenProps} from './garden-layout.js';
 import {loadAppearance,seasonOptions,lightingOptions,gardenPalettes,weatherBySeason} from './garden-appearance.js';
 import {gardenLandmarkPositions,mountGardenPreview} from './scenery.js';
 import {gardenCourses,landmarkTypes} from './garden-growth.js';
@@ -54,9 +55,11 @@ const sizeSlider=(name,label)=>`<label>${label} <output name="${name}Value">100%
 export function createGardenStudio({getState,getAppearance,getDesign,commit,download,today}){
   let draft,form,selected='',scene=null,drag=null,tool='select',stamp='',stampPoint=null,zoom=1,terrainCategory='mountains';
   let undo=[],redo=[],savedDraft='',layerDrag='';
+  const marked=new Set();
   function open(){
     draft={id:'',name:'',through:'',design:loadGardenDesign(getDesign()),appearance:getAppearance()};
     selected='';drag=null;layerDrag='';stamp='';stampPoint=null;undo=[];redo=[];zoom=1;tool='scene';terrainCategory='mountains';
+    marked.clear();
     savedDraft=fingerprint(draft);
   }
   function markup(){
@@ -105,7 +108,12 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
           </section>
           <section id="studio-tool-layers" data-tool-panel="layers" hidden>
             <h3>Layers</h3>
-            <p>Placed props are listed front to back within each section.</p>
+            <p>Props are listed front to back. Check two or more to group them, or click a row to select it.</p>
+            <div class="studio-layer-actions studio-object-actions">
+              <button type="button" data-studio="group-props">Group selected</button>
+              <button type="button" data-studio="ungroup-props" hidden>Ungroup</button>
+              <button type="button" data-studio="duplicate-props">Duplicate</button>
+            </div>
             <div class="studio-layer-actions studio-object-actions">
               <button type="button" data-studio-layer="forward">Bring forward</button>
               <button type="button" data-studio-layer="backward">Send backward</button>
@@ -338,6 +346,8 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     return getState().gardenGrowth.filter(item=>movableGardenLandmark(item)&&(!draft.through||item.day<=draft.through));
   }
   function selectedProp(){return draft.design.props.find(item=>propPrefix+item.id===selected);}
+  function selectedMembers(prop=selectedProp()){return prop?gardenPropMembers(draft.design.props,prop):[];}
+  function groupMoveLocked(prop){return selectedMembers(prop).some(item=>item.locked);}
   function pointForSelected(){
     if(!selected)return null;
     if(selected===buildingTarget)return draft.design.pavilionPosition||defaultPavilionPosition;
@@ -348,13 +358,19 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const [x,y]=landmark?.position||placementBounds.x;
     return landmark?clampGardenPlacement(x,y):null;
   }
-  function selectedBounds(){return selected===buildingTarget?pavilionBounds:selected.startsWith(propPrefix)?gardenPropPositionBounds(selectedProp()?.kind):placementBounds;}
+  function selectedBounds(){
+    const prop=selectedProp();
+    return prop?gardenPropMoveBounds(selectedMembers(prop),prop):selected===buildingTarget?pavilionBounds:placementBounds;
+  }
   function selectedSize(){
     return selected===buildingTarget?draft.design.pavilionSize:selectedProp()?.size??draft.design.landmarkSizes[selected]??100;
   }
   function savePosition(point){
     if(selected===buildingTarget)draft.design.pavilionPosition=point;
-    else if(selected.startsWith(propPrefix))Object.assign(selectedProp(),point);
+    else if(selected.startsWith(propPrefix)){
+      const prop=selectedProp(),dx=point.x-prop.x,dy=point.y-prop.y;
+      for(const item of selectedMembers(prop)){item.x+=dx;item.y+=dy;}
+    }
     else draft.design.placements[selected]=point;
   }
   function previewPosition(point){
@@ -365,8 +381,10 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     }
     const prop=selectedProp();
     if(prop){
-      for(const node of scene.querySelectorAll('[data-garden-prop="'+prop.id+'"]')){
-        node.setAttribute('transform',gardenPropTransform({...prop,...point}));
+      const dx=point.x-prop.x,dy=point.y-prop.y;
+      for(const item of selectedMembers(prop)){
+        scene.querySelector('[data-garden-prop="'+item.id+'"]')?.setAttribute('transform',
+          gardenPropTransform({...item,x:item.x+dx,y:item.y+dy}));
       }
     }
     updatePin(point,true);
@@ -375,8 +393,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const stage=form.querySelector('.studio-stage'),pin=scene.querySelector('.studio-pin');
     const [left,top,width,height]=gardenFrame(draft.design.camera);
     const prop=selectedProp(),locked=Boolean(prop?.locked);
+    const moveLocked=groupMoveLocked(prop);
     const visible=['select','layers'].includes(tool)&&!prop?.hidden&&point&&point.x>=left&&point.x<=left+width&&point.y>=top&&point.y<=top+height;
-    stage.toggleAttribute('data-placing',tool==='select'&&Boolean(point)&&!locked&&!prop?.hidden);pin.setAttribute('visibility',visible?'visible':'hidden');
+    stage.toggleAttribute('data-placing',tool==='select'&&Boolean(point)&&!moveLocked&&!prop?.hidden);pin.setAttribute('visibility',visible?'visible':'hidden');
     if(visible){
       pin.setAttribute('cx',point.x);pin.setAttribute('cy',point.y);
     }
@@ -397,15 +416,15 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     if(point){
       for(const axis of ['x','y']){
         const input=field(axis),[min,max]=selectedBounds()[axis];
-        input.min=min;input.max=max;input.value=point[axis];input.disabled=locked;
+        input.min=min;input.max=max;input.value=point[axis];input.disabled=moveLocked||min===max;
       }
-      form.querySelector('[data-studio="automatic"]').disabled=locked||!(prop||(building?draft.design.pavilionPosition:Object.hasOwn(draft.design.placements,selected)));
+      form.querySelector('[data-studio="automatic"]').disabled=moveLocked||!(prop||(building?draft.design.pavilionPosition:Object.hasOwn(draft.design.placements,selected)));
     }
     form.querySelector('[data-studio-placement-tip]').textContent=tool==='props'
       ?stamp?`Click the canvas to place ${gardenPropTypes[stamp].name.toLowerCase()}.${propLightingTip(gardenPropLayer(stamp))}`:'Choose a prop from the palette.'
       :tool!=='select'?'Changes are previewed on the canvas.'
       :!point?'Click an object or select it from the list.'
-      :locked?'This prop is locked. Unlock it in Layers to edit it.'
+      :moveLocked?'Unlock all selected props in Layers to move them.'
       :prop?.hidden?'This prop is hidden. Use Layers to show it.'
       :visible?'Drag to move. Arrow keys nudge the selected object.':'This object is outside the current view.';
   }
@@ -425,19 +444,37 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     for(const button of form.querySelectorAll('[data-studio-layer]')){
       button.disabled=!prop||Boolean(prop.locked)||(['back','backward'].includes(button.dataset.studioLayer)?index===0:index===order.length-1);
     }
+    updateGroupControls(prop);
+  }
+  function updateGroupControls(prop=selectedProp()){
+    const members=selectedMembers(prop),ids=new Set(members.map(item=>item.id));
     for(const button of form.querySelectorAll('[data-layer-action="select"]')){
-      button.setAttribute('aria-pressed',String(prop?.id===button.closest('[data-layer-id]').dataset.layerId));
+      button.setAttribute('aria-pressed',String(ids.has(button.closest('[data-layer-id]').dataset.layerId)));
     }
+    const group=form.querySelector('[data-studio="group-props"]'),ungroup=form.querySelector('[data-studio="ungroup-props"]');
+    group.hidden=members.length>1&&marked.size===0;
+    group.disabled=marked.size<2;
+    ungroup.hidden=!group.hidden;
+    const duplicate=form.querySelector('[data-studio="duplicate-props"]');
+    duplicate.textContent=members.length>1?'Duplicate group':'Duplicate';
+    duplicate.disabled=!members.length||draft.design.props.length+members.length>gardenPropLimit;
+    duplicate.title=members.length&&duplicate.disabled?`The layout limit is ${gardenPropLimit} props.`:'';
   }
   function renderLayerList(propOptions){
+    const groups=new Map();
+    for(const {groupId} of draft.design.props)if(groupId&&!groups.has(groupId))groups.set(groupId,groups.size+1);
+    for(const id of marked)if(!draft.design.props.some(prop=>prop.id===id&&!prop.groupId))marked.delete(id);
     form.querySelector('.studio-layer-list').innerHTML=draft.design.props.length?
       Object.entries(layerStacks).map(([stack,label])=>{
         const rows=gardenPropsInOrder(draft.design.props,stack).reverse().map(prop=>{
           const name=escape(propOptions[propPrefix+prop.id]);
           const toggle=(action,verb,icon)=>`<button type="button" data-layer-action="${action}" aria-label="${verb} ${name}" title="${verb} ${name}">${toolIcon(layerIcons[icon])}</button>`;
           return `<li class="studio-layer-row" data-layer-id="${prop.id}"${prop.hidden?' data-layer-hidden':''}>
+            ${prop.groupId?'<span class="studio-group-link" aria-hidden="true">↳</span>':
+              `<input type="checkbox" data-layer-mark aria-label="Select ${name} for grouping"${marked.has(prop.id)?' checked':''}>`}
             <span class="studio-layer-grip"${prop.locked?'':' draggable="true"'} aria-hidden="true">${toolIcon(layerIcons.grip)}</span>
-            <button type="button" data-layer-action="select" aria-pressed="false">${propSwatch(prop.kind)}<span>${name}</span></button>
+            <button type="button" data-layer-action="select" aria-pressed="false">${propSwatch(prop.kind)}
+              <span>${name}${prop.groupId?`<small>Group ${groups.get(prop.groupId)}</small>`:''}</span></button>
             ${toggle('hidden',prop.hidden?'Show':'Hide',prop.hidden?'hide':'show')}
             ${toggle('locked',prop.locked?'Unlock':'Lock',prop.locked?'lock':'unlock')}
           </li>`;
@@ -490,7 +527,36 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     if(!prop||prop.locked)return;
     const before=structuredClone(draft);
     draft.design.props=draft.design.props.filter(item=>item!==prop);selected='';
+    const remaining=selectedMembers(prop);
+    if(prop.groupId&&remaining.length===1)delete remaining[0].groupId;
     record(before);render();status(gardenPropTypes[prop.kind].name+' removed.');
+  }
+  function changeGrouping(group){
+    const members=group?draft.design.props.filter(prop=>marked.has(prop.id)&&!prop.groupId):selectedMembers();
+    if(members.length<2)return;
+    const before=structuredClone(draft),groupId=group?crypto.randomUUID():'';
+    for(const prop of members){
+      if(groupId)prop.groupId=groupId;
+      else delete prop.groupId;
+    }
+    marked.clear();
+    selected=propPrefix+members[0].id;
+    record(before);render();
+    form.querySelector(`[data-layer-id="${members[0].id}"] [data-layer-action="select"]`)?.focus({preventScroll:true});
+    status(group?`Grouped ${members.length} props. Use Move to reposition the group.`:`Ungrouped ${members.length} props.`);
+  }
+  function duplicateSelection(){
+    const prop=selectedProp();
+    if(!prop)return;
+    const result=duplicateGardenProps(draft.design.props,prop);
+    if(!result)return;
+    const before=structuredClone(draft);
+    draft.design.props=result.props;
+    selected=propPrefix+result.id;
+    marked.clear();
+    record(before);render();
+    form.querySelector(`[data-layer-id="${result.id}"] [data-layer-action="select"]`)?.focus({preventScroll:true});
+    status(prop.groupId?'Group duplicated.':'Prop duplicated.');
   }
   function writeCandidate({apply=false,copy=false}={}){
     const name=field('layoutName');
@@ -547,6 +613,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(event.target!==stage||tool!=='select')return;
       if(selectedProp()?.locked||selectedProp()?.hidden)return;
       if(event.key==='Delete'&&selectedProp()){event.preventDefault();removeSelectedProp();return;}
+      if(groupMoveLocked())return;
       const offset={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[event.key];
       const point=pointForSelected();
       if(!offset||!point)return;
@@ -568,7 +635,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       const building=event.target.closest('[data-garden-piece="pavilion"]');
       const hit=propId?propPrefix+propId:building?buildingTarget:'';
       if(hit){selected=hit;field('landmark').value=hit;}
-      if(selectedProp()?.locked||selectedProp()?.hidden){updatePin();return;}
+      if(groupMoveLocked()||selectedProp()?.hidden){updatePin();return;}
       const anchor=pointForSelected(),point=scenePoint(event);
       if(!anchor)return;
       drag={pointer:event.pointerId,dx:hit?point.x-anchor.x:0,dy:hit?point.y-anchor.y:0,before:structuredClone(draft)};
@@ -645,6 +712,13 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     });
     form.addEventListener('change',event=>{
       const {name,value}=event.target;
+      if(event.target.hasAttribute('data-layer-mark')){
+        const id=event.target.closest('[data-layer-id]').dataset.layerId;
+        if(event.target.checked)marked.add(id);
+        else marked.delete(id);
+        updateGroupControls();
+        return;
+      }
       const activity=event.target.dataset.studioActivity;
       if(activity){
         const state=getState();
@@ -684,7 +758,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         if(!event.target.validity.valid)return;
         draft.through=value;
       }else if(name==='x'||name==='y'){
-        if(!selected||selectedProp()?.locked)return;
+        if(!selected||groupMoveLocked())return;
         savePosition(clampGardenPlacement(Number(field('x').value),Number(field('y').value),selectedBounds()));
       }else if(name==='objectSize'){
         if(!selected||selectedProp()?.locked)return;
@@ -754,6 +828,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
           placeProp({x:x+w/2,y:y+h*(gardenPropLayer(stamp)==='ground'?.78:.18)});break;
         }
         case 'remove-prop':removeSelectedProp();field('landmark').focus();break;
+        case 'group-props':changeGrouping(true);break;
+        case 'ungroup-props':changeGrouping(false);break;
+        case 'duplicate-props':duplicateSelection();break;
         case 'copy':writeCandidate({copy:true});break;
         case 'reset':{
           const before=structuredClone(draft);
@@ -761,11 +838,11 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
           record(before);syncFields();render();status('Scenery reset in this draft.');break;
         }
         case 'automatic':{
-          if(selectedProp()?.locked)break;
+          if(groupMoveLocked())break;
           const before=structuredClone(draft);
           if(selected===buildingTarget)draft.design.pavilionPosition=null;
           else if(selected.startsWith(propPrefix)){
-            const prop=selectedProp(),{x,y}=gardenPropTypes[prop.kind];savePosition({x,y});
+            const prop=selectedProp(),{x,y}=gardenPropTypes[prop.kind];savePosition(clampGardenPlacement(x,y,selectedBounds()));
           }else if(selected)delete draft.design.placements[selected];
           record(before);render();field('landmark').focus();break;
         }

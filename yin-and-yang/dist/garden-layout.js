@@ -84,6 +84,40 @@ export const gardenPropPositionBounds=kind=>gardenPropLayer(kind)==='ground'?gar
 export const gardenPropBands={back:'Behind scenery',middle:'Among scenery',front:'In front of scenery'};
 export const gardenPropBand=prop=>prop.band||'middle';
 export const gardenPropStack=prop=>gardenPropLayer(prop.kind)==='ground'?gardenPropBand(prop):'sky';
+export const gardenPropMembers=(props,prop)=>prop.groupId?props.filter(item=>item.groupId===prop.groupId):[prop];
+
+export function gardenPropMoveBounds(members,anchor){
+  return Object.fromEntries(['x','y'].map(axis=>{
+    const ranges=members.map(prop=>{
+      const [min,max]=gardenPropPositionBounds(prop.kind)[axis];
+      return [min-prop[axis],max-prop[axis]];
+    });
+    return [axis,[anchor[axis]+Math.max(...ranges.map(range=>range[0])),anchor[axis]+Math.min(...ranges.map(range=>range[1]))]];
+  }));
+}
+
+export function duplicateGardenProps(props,anchor,makeId=()=>crypto.randomUUID()){
+  const members=gardenPropMembers(props,anchor);
+  if(props.length+members.length>gardenPropLimit)return null;
+  const bounds=gardenPropMoveBounds(members,anchor);
+  const offset=axis=>{
+    const [min,max]=bounds[axis],forward=Math.min(18,max-anchor[axis]),backward=Math.max(-18,min-anchor[axis]);
+    return forward>=-backward?forward:backward;
+  };
+  const [dx,dy]=['x','y'].map(offset),groupId=anchor.groupId?makeId():'';
+  const copies=new Map(members.map(prop=>{
+    const copy={...prop,id:makeId(),x:prop.x+dx,y:prop.y+dy};
+    if(groupId)copy.groupId=groupId;
+    delete copy.locked;
+    return [prop.id,copy];
+  }));
+  let next=[...props,...copies.values()];
+  for(const stack of new Set(members.map(gardenPropStack))){
+    const order=gardenPropsInOrder(props,stack).flatMap(prop=>copies.has(prop.id)?[prop,copies.get(prop.id)]:[prop]);
+    next=rankGardenProps(next,order);
+  }
+  return {props:next,id:copies.get(anchor.id).id};
+}
 
 export function gardenPropsInOrder(props,stack){
   return props.filter(prop=>gardenPropStack(prop)===stack).sort((a,b)=>(a.order??a.y)-(b.order??b.y));
@@ -136,10 +170,14 @@ export function loadGardenProps(value){
     if(Number.isFinite(item.order))prop.order=Math.round(Math.max(bounds.y[0],Math.min(bounds.y[1],item.order)));
     if(item.hidden===true)prop.hidden=true;
     if(item.locked===true)prop.locked=true;
+    if(typeof item.groupId==='string'&&/^[a-z0-9_-]{1,80}$/i.test(item.groupId))prop.groupId=item.groupId;
     props.set(item.id,prop);
     if(props.size===gardenPropLimit)break;
   }
-  return [...props.values()];
+  const items=[...props.values()],groups=new Map();
+  for(const {groupId} of items)if(groupId)groups.set(groupId,(groups.get(groupId)||0)+1);
+  for(const prop of items)if(groups.get(prop.groupId)===1)delete prop.groupId;
+  return items;
 }
 export const gardenStarterLayouts={
   spring:{name:'Blossom walk',design:{mountains:'rounded',shoreline:'meadow',pavilion:'gate',path:'stones',camera:'wide'},

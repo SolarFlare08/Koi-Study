@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.20.0',date:'2026-11-22',title:'Group and duplicate Garden props',changes:[
+    'Group placed props in Layers and move them together. Ungroup to move them independently again.',
+    'Duplicate a prop or group with its spacing, sizes, and layers intact. Groups save with layouts and backups.'
+  ]},
   {version:'5.19.0',date:'2026-11-22',title:'Visual Layers in Garden Studio',changes:[
     'Browse placed props in front-to-back order with thumbnails. Select a prop from its row or drag its handle to reorder it.',
     'Hide props while editing other scenery and lock finished placements against accidental edits. Visibility and locks save with layouts and backups.'
