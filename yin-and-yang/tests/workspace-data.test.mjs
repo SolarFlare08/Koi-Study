@@ -19,7 +19,7 @@ import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGr
 import {pavilionFoundation} from '../dist/garden-ornaments.js';
 import {gardenPieceOptions,gardenPropCategories,gardenPropTypes,gardenPropLimit,gardenPropsInOrder,moveGardenPropLayer,dropGardenPropLayer,gardenPropMoveBounds,duplicateGardenProps,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
 import {eveningCamera,renderLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
-import {gardenPropBounds,gardenScenery,gardenSceneryObject,snapGardenPoint} from '../dist/garden-layout.js';
+import {gardenPropBounds,gardenScenery,gardenSceneryObject,snapGardenPoint,loadGardenArrangements,placeGardenArrangement} from '../dist/garden-layout.js';
 
 test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
   let history=earnGardenDetail([],'project','a','Project','2026-09-01',{zone:'east',group:'Fall'});
@@ -723,6 +723,24 @@ test('Garden snaps to nearby anchors and restores edited original scenery',()=>{
   const svg=renderLandscape(restored);
   assert.match(svg,/data-garden-scenery="west-tree-2" transform="translate\(252 767\)/);
   assert.doesNotMatch(svg,/data-garden-scenery="east-reeds"/);
+});
+
+test('Saved Garden arrangements round-trip and retain spacing and layers on placement',()=>{
+  const state=freshState();
+  state.gardenArrangements=loadGardenArrangements([{id:'walk',name:' Lantern walk ',props:[
+    {id:'stone',kind:'ford',x:800,y:690,band:'back'},
+    {id:'lamp',kind:'beacon',x:850,y:700,band:'front',size:135,rotation:-15}
+  ]}]);
+  const restored=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state;
+  assert.deepEqual(restored.gardenArrangements,state.gardenArrangements);
+  let id=0;
+  const result=placeGardenArrangement([],restored.gardenArrangements[0],{x:1500,y:900},()=>`placed-${++id}`);
+  const [stone,lamp]=result.props;
+  assert.equal(lamp.y,883);
+  assert.deepEqual([lamp.x-stone.x,lamp.y-stone.y,lamp.size,lamp.rotation],[50,10,135,-15]);
+  assert.deepEqual([stone.band,lamp.band],['back','front']);
+  assert.equal(stone.groupId,lamp.groupId);
+  assert.equal(placeGardenArrangement(Array(gardenPropLimit-1),restored.gardenArrangements[0],{x:100,y:700}),null);
 });
 
 test('Reading keeps standalone library books, fractional reviews and rereads in backups',()=>{

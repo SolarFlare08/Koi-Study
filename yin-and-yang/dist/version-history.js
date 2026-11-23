@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.20.2',date:'2026-11-22',title:'Reusable prop arrangements and preview comparison',changes:[
+    'Save a prop selection as a named arrangement and place it in any layout with its spacing, sizes, and layers intact.',
+    'Hold Before to compare the draft with the saved or starting layout from the same view.'
+  ]},
   {version:'5.20.1',date:'2026-11-22',title:'Snap and edit original scenery',changes:[
     'Turn on Snap to align objects with nearby scenery while placing or dragging. Guides show the alignment, and holding Alt allows free placement.',
     'Move, resize, or hide the original trees, rocks, and reeds. Edits save with the layout and support Undo and Redo.'

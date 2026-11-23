@@ -311,6 +311,11 @@
 }
 .studio-stage:focus-visible { outline: 2px solid var(--studio-accent); }
 .studio-stage .studio-scene { border: 0; border-radius: 0; width: 100%; height: 100%; pointer-events: auto; }
+.studio-before { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.studio-before .garden-scene-preview { width: 100%; height: 100%; border: 0; border-radius: 0; }
+.studio-before > span { position: absolute; top: 10px; left: 10px; padding: 4px 9px; border-radius: 6px; background: var(--studio-bg); color: var(--studio-ink); font-size: 11px; font-weight: 700; }
+.studio-compare { touch-action: none; user-select: none; }
+.studio-compare[aria-pressed="true"] { background: var(--studio-highlight); border-color: #729985; color: var(--studio-accent); }
 .studio-scene :is([id$='-night-shade'],[id$='-evening-lights'],[id$='-stars'],[class*='weather-']) { pointer-events: none; }
 [data-prop-phase="day"] { visibility: var(--prop-day-visibility,hidden); }
 [data-prop-phase="night"] { visibility: var(--prop-night-visibility,hidden); opacity: var(--prop-starlight,0); }
@@ -349,6 +354,10 @@
 .studio-orientation output { font-variant-numeric: tabular-nums; color: var(--studio-accent); }
 .studio-layer-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
 .studio-layer-actions button { min-height: 31px; background: var(--studio-frame); }
+.studio-arrangements summary { padding: 10px; }
+.studio-arrangement-fields { display: grid; gap: 6px; padding: 0 10px 10px; }
+.studio-arrangement-fields button { justify-self: start; min-height: 30px; padding: 4px 8px; border: 1px solid var(--studio-line); border-radius: 6px; background: var(--studio-frame); font-size: 11px; }
+.studio-arrangement-fields button:hover:enabled { background: var(--studio-highlight); }
 .studio-layer-list { display: grid; gap: 12px; min-width: 0; }
 .studio-layer-stack { min-width: 0; padding: 8px; border: 1px solid var(--studio-line); border-radius: 9px; background: var(--studio-bg); }
 .studio-layer-stack h4 { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: var(--studio-accent); }
@@ -438,6 +447,6 @@
 @media(max-width:400px) {
   .studio-title h2 { font-size:20px; }
   .studio-tools button { gap:2px; font-size:10px; }
-  .studio-top-actions { justify-content: space-between; flex-basis: 100%; }
+  .studio-top-actions { justify-content: space-between; flex-basis: 100%; gap: 4px; }
   .studio-status:has([data-studio-status]:not(:empty)) #studio-canvas-tip { display: none; }
 }

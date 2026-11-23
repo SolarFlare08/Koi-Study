@@ -1372,16 +1372,17 @@ function openGardenStudio(){
   visitWorkspace('focus');
   openPanel('garden-studio',$('#edit-current-landscape'));
 }
-function saveStudioLayouts(layouts,applied,assignments=state.gardenActivityLayouts){
-  const {gardenLayouts,gardenDesign,appearance,gardenSchedule,gardenActivityLayouts}=state;
+function saveStudioLayouts(layouts,applied,assignments=state.gardenActivityLayouts,arrangements=state.gardenArrangements){
+  const {gardenLayouts,gardenDesign,appearance,gardenSchedule,gardenActivityLayouts,gardenArrangements}=state;
   state.gardenLayouts=layouts;
+  state.gardenArrangements=arrangements;
   state.gardenActivityLayouts=loadGardenActivityLayouts(assignments,layouts);
   if(applied){
     state.gardenDesign=applied.design;
     state.appearance=loadAppearance(applied.appearance);
     state.gardenSchedule={...gardenSchedule,enabled:false};
   }
-  if(!persist()){Object.assign(state,{gardenLayouts,gardenDesign,appearance,gardenSchedule,gardenActivityLayouts});return false;}
+  if(!persist()){Object.assign(state,{gardenLayouts,gardenDesign,appearance,gardenSchedule,gardenActivityLayouts,gardenArrangements});return false;}
   if(applied){
     snapshotThrough='';snapshotLayoutId='';
     renderedGardenGrowth=null;

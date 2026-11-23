@@ -226,6 +226,38 @@ export function loadGardenProps(value){
   for(const prop of items)if(groups.get(prop.groupId)===1)delete prop.groupId;
   return items;
 }
+export function loadGardenArrangements(value){
+  const arrangements=new Map();
+  for(const item of Array.isArray(value)?value:[]){
+    if(typeof item?.id!=='string'||!item.id||typeof item.name!=='string')continue;
+    const name=item.name.trim().slice(0,70),props=loadGardenProps(item.props);
+    if(name&&props.length)arrangements.set(item.id,{id:item.id,name,props});
+  }
+  return [...arrangements.values()];
+}
+
+export function placeGardenArrangement(props,arrangement,position,makeId=()=>crypto.randomUUID()){
+  const source=arrangement.props;
+  if(!source.length||props.length+source.length>gardenPropLimit)return null;
+  const center=Object.fromEntries(['x','y'].map(axis=>{
+    const coordinates=source.map(item=>item[axis]);
+    return [axis,Math.round((Math.min(...coordinates)+Math.max(...coordinates))/2)];
+  }));
+  const target=clampGardenPlacement(position.x,position.y,gardenPropMoveBounds(source,center));
+  const dx=target.x-center.x,dy=target.y-center.y,groupId=source.length>1?makeId():'';
+  const copies=new Map(source.map(prop=>{
+    const copy={...prop,id:makeId(),x:prop.x+dx,y:prop.y+dy};
+    delete copy.locked;
+    if(groupId)copy.groupId=groupId;
+    return [prop.id,copy];
+  }));
+  let next=[...props,...copies.values()];
+  for(const stack of new Set(source.map(gardenPropStack))){
+    const incoming=gardenPropsInOrder(source,stack).map(item=>copies.get(item.id));
+    next=rankGardenProps(next,[...gardenPropsInOrder(props,stack),...incoming]);
+  }
+  return {props:next,id:copies.values().next().value.id};
+}
 export const gardenStarterLayouts={
   spring:{name:'Blossom walk',design:{mountains:'rounded',shoreline:'meadow',pavilion:'gate',path:'stones',camera:'wide'},
     appearance:{season:'spring',lighting:'day',weather:'petals'}},
