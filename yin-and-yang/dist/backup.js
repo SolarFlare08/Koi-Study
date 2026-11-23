@@ -167,7 +167,7 @@ export function planBackupRestore(storage,current,incoming,sections){
       details.push({label:'Active task bundle',added:local?0:1,replaced:changes.length,unchanged:local&&!changes.length?1:0,changes});
       if(apply)state.activeBundle=run;
     }
-    for(const [key,label] of [['tomorrowPlan','First focus reservation'],['focusPins','Pinned focus order']]){
+    for(const [key,label] of [['tomorrowPlan','First focus reservation'],['tomorrowPin','Pinned first task'],['focusPins','Pinned focus order']]){
       const local=current[key], backup=incoming.state[key];
       if(!backup||local?.day>backup.day)continue;
       const changed=comparable(local)!==comparable(backup);

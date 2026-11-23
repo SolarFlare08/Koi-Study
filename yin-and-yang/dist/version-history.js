@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.20.4',date:'2026-11-22',title:'Wrap up and find your next focus task',changes:[
+    'Reserve the final minutes of focus for saving work and leaving a handoff. Set the duration in Timer settings.',
+    'Pin a first task in Plan tomorrow and see it beside the timer on the planned day.',
+    'Set a minimum useful time for tasks that can make progress in less than their full estimate.'
+  ]},
   {version:'5.20.3',date:'2026-11-22',title:'Resume and extend calendar focus',changes:[
     'Resume from a task block with its last handoff and pinned reference beside the timer.',
     'Preview what an extra ten minutes would overlap, then extend the running timer and its calendar occurrence together.'

@@ -282,9 +282,20 @@ export function focusTaskQueue(tasks,date=new Date(),pinnedIds=[],tasksById=new 
   return pinnedIds.length?automatic.sort((a,b)=>(rank.get(a.id)??pinnedIds.length)-(rank.get(b.id)??pinnedIds.length)):automatic;
 }
 
-export function tasksWithinTime(queue,minutes,energy=''){
-  return queue.filter(task=>Number.isInteger(task.estimate)&&task.estimate>0&&task.estimate<=minutes&&(!energy||task.energy===energy))
-    .sort((a,b)=>taskPriority(a)-taskPriority(b)||b.estimate-a.estimate).slice(0,5);
+export function taskTimeFit(task,available,includeRest=false){
+  const estimate=task.estimate||0;
+  const cost=minutes=>minutes+(includeRest&&minutes>60?Math.round(minutes*60/2/5)/60:0);
+  if(estimate>0&&cost(estimate)<=available)return {minutes:estimate,partial:false};
+  const minimum=task.minimumUsefulMinutes;
+  if(!minimum||cost(minimum)>available)return null;
+  let minutes=Math.min(available,estimate||available);
+  while(minutes>minimum&&cost(minutes)>available)minutes--;
+  return {minutes,partial:true};
+}
+export function tasksWithinTime(queue,minutes,energy='',includeRest=false){
+  return queue.filter(task=>!energy||task.energy===energy).map(task=>({task,fit:taskTimeFit(task,minutes,includeRest)}))
+    .filter(({fit})=>fit).sort((a,b)=>taskPriority(a.task)-taskPriority(b.task)||Number(a.fit.partial)-Number(b.fit.partial)||b.fit.minutes-a.fit.minutes)
+    .slice(0,5).map(({task})=>task);
 }
 
 export function calendarFocusWindow(events,buffer,now=new Date()){
@@ -300,11 +311,7 @@ export function calendarFocusWindow(events,buffer,now=new Date()){
 }
 
 export function focusWindowTasks(queue,minutes){
-  return tasksWithinTime(queue.filter(task=>{
-    const estimate=task.estimate;
-    const rest=estimate>60?Math.round(Math.ceil(estimate*60/2)/5)/60:0;
-    return estimate+rest<=minutes;
-  }),minutes);
+  return tasksWithinTime(queue,minutes,'',true);
 }
 
 const replanStep=15;

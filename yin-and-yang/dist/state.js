@@ -153,6 +153,7 @@ function loadTask(task) {
     occurrenceMinutes:Object.fromEntries(Object.entries(task.occurrenceMinutes||{}).filter(([day,minutes])=>isDay(day)&&Number.isInteger(minutes)&&minutes>0&&minutes<=1440)),
     ...(Array.isArray(task.excludedDays)?{excludedDays:task.excludedDays.filter(isDay)}:{}),
     estimate:Number.isInteger(task.estimate) && task.estimate > 0 && task.estimate <= 1440 ? task.estimate : null,
+    minimumUsefulMinutes:Number.isInteger(task.minimumUsefulMinutes)&&task.minimumUsefulMinutes>=1&&task.minimumUsefulMinutes<=1440?task.minimumUsefulMinutes:null,
     energy:Object.hasOwn(taskEnergyLevels,task.energy)?task.energy:'',
     repeat,
     priority:task.priority === true,
@@ -304,6 +305,7 @@ export function loadState(storage) {
     base.gardenGrowth=loadGardenGrowth(raw.gardenGrowth);
     base.finishedBooks=loadFinishedBooks(raw.finishedBooks,base.gardenGrowth,base.dailyRituals,base.readingNotes);
     base.settings.taskBoardCollapsed=raw.settings?.taskBoardCollapsed===true;
+    base.settings.wrapMinutes=wrapUpMinutes(raw.settings?.wrapMinutes);
     if(Number.isInteger(raw.settings?.classBuffer)&&raw.settings.classBuffer>=0&&raw.settings.classBuffer<=180)base.settings.classBuffer=raw.settings.classBuffer;
     if(Number.isInteger(raw.settings?.dailyFocusGoal)&&raw.settings.dailyFocusGoal>=5&&raw.settings.dailyFocusGoal<=720)base.settings.dailyFocusGoal=raw.settings.dailyFocusGoal;
     for (const mode of ['focus','break']) if (Number.isFinite(raw.settings?.[mode]) && raw.settings[mode]>=1/60 && raw.settings[mode]<=180) base.settings[mode]=raw.settings[mode];
@@ -328,6 +330,8 @@ export function loadState(storage) {
     base.activeTask=base.tasks.some(t=>t.id===raw.activeTask&&!t.done)?raw.activeTask:null;
     if(base.activeTask&&isDay(raw.activeTaskDay))base.activeTaskDay=raw.activeTaskDay;
     const plan=raw.tomorrowPlan;
+    const pin=raw.tomorrowPin;
+    if(isDay(pin?.day)&&base.tasks.some(task=>task.id===pin.taskId))base.tomorrowPin={day:pin.day,taskId:pin.taskId};
     if(isDay(plan?.day)&&base.tasks.some(task=>task.id===plan.taskId)&&
         (plan.blockId===null||typeof plan.blockId==='string')){
       base.tomorrowPlan={day:plan.day,taskId:plan.taskId,blockId:plan.blockId,ownsBlock:plan.ownsBlock===true&&Boolean(plan.blockId)};
@@ -429,6 +433,14 @@ export function consumeTimerWarning(state,now=Date.now()) {
   if (timer.total<limit||left>limit||left===0) return null;
   timer.warningSent=true;
   return {id:timer.id,mode:timer.mode,left};
+}
+export function wrapUpMinutes(value){
+  return Number.isInteger(value)&&value>=0&&value<=15?value:3;
+}
+export function focusWrapUp(state,now=Date.now()){
+  const {timer}=state,left=remaining(state,now);
+  const reserved=Math.min(wrapUpMinutes(state.settings.wrapMinutes)*60000,timer.total-60000);
+  return Boolean(timer.mode==='focus'&&timer.id&&['running','paused'].includes(timer.status)&&left>0&&left<=reserved);
 }
 export function startPause(state, now=Date.now(), taskId=state.activeTask) {
   const t=state.timer;

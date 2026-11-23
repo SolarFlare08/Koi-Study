@@ -27,7 +27,7 @@ import {installBackup,restoreBackup} from './backup.js';
 import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
 import {installFocusCompass,focusCompass,focusWeek} from './focus-compass.js';
-import {timerProgress,extendTimer,canExtendCalendarTimer,extendCalendarTimer} from './state.js';
+import {timerProgress,extendTimer,canExtendCalendarTimer,extendCalendarTimer,focusWrapUp,wrapUpMinutes} from './state.js';
 import {calendarBlockDurationChange,planRunningBlockExtension} from './calendar.js';
 import {installMiniTimer} from './mini-timer.js';
 import {installReferenceEditor} from './focus-reference.js';
@@ -52,7 +52,7 @@ import {taskTemplate,projectResource} from './project-planning.js';
 import {validTemplateDay,loadDayTemplates,captureCalendarDay,previewCalendarDay,copyCalendarDay} from './calendar-day-templates.js';
 import {estimateSummary,suggestTaskEstimate,taskSplitSuggestion} from './planner-report.js';
 import {loadRoutinePhase,routinePhases} from './state.js';
-import {tasksWithinTime} from './calendar.js';
+import {tasksWithinTime,taskTimeFit} from './calendar.js';
 import {calendarFocusWindow,focusWindowTasks} from './calendar.js';
 import {eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
 import {parseRubric,rubricPoints,rubricSummary} from './rubric.js';
@@ -841,8 +841,14 @@ function runHelpAction(action){
 
 function gardenFocusQueue(date=new Date(),tasks=gardenTasks(),tasksById=taskIndex()){
   const day=dayKey(date);
+  const first=state.tomorrowPin?.day===day?state.tomorrowPin.taskId:null;
   const pins=state.focusPins?.day===day&&state.focusPins.ids.length?state.focusPins.ids:state.tomorrowPlan?.day===day?[state.tomorrowPlan.taskId]:[];
+  if(first)return focusTaskQueue(tasks,date,[...new Set([first,...pins])],tasksById);
   return focusTaskQueue(tasks,date,pins,tasksById);
+}
+function pinnedFirstTask(date=new Date()){
+  const day=dayKey(date),pin=state.tomorrowPin?.day===day?state.tomorrowPin:state.tomorrowPlan?.day===day?state.tomorrowPlan:null;
+  return pin&&gardenFocusQueue(date).find(task=>task.id===pin.taskId);
 }
 function taskBundleStatus(bundle,date=new Date(),queue=gardenFocusQueue(date)){
   const run=state.activeBundle?.id===bundle.id?state.activeBundle:null;
@@ -932,7 +938,8 @@ function focusedTask(date=new Date()){
   if(bundle?.next&&!bundle.run.paused)return bundle.next.ready||bundle.next.id===sessionId&&!bundle.next.task?.waitingFor?bundle.next.task:undefined;
   const snoozedSession=state.tasks.find(task=>task.id===sessionId&&!task.waitingFor&&task.snoozedUntil>day);
   if(snoozedSession)return snoozedSession;
-  const selectedId=(state.tomorrowPlan?.day!==day||state.activeTaskDay===day?state.activeTask:null)||sessionId;
+  const pinToday=state.tomorrowPin?.day===day||state.tomorrowPlan?.day===day;
+  const selectedId=(pinToday&&state.activeTaskDay!==day?null:state.activeTask)||sessionId;
   return queue.find(task=>task.id===selectedId)||queue[0];
 }
 function taskFocusMinutes(task,now=Date.now()){
@@ -941,22 +948,22 @@ function taskFocusMinutes(task,now=Date.now()){
   const upcoming=schedules.find(slot=>slot.start<=now&&slot.end>now)||schedules.find(slot=>slot.start>now)||schedules.at(-1);
   return upcoming?.minutes||task.estimate||[...(task.blocks||[])].sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time))[0]?.minutes;
 }
-function selectTaskForTimer(task){
+function selectTaskForTimer(task,minutes){
   const prior=state.timer,previous=focusedTask();
   state.activeTask=task.id;state.activeTaskDay=dayKey();
   pauseBundleForTask(task.id);
   if(prior.block||prior.sequence||prior.mistakeId||
-    prior.taskPlan?.taskId===task.id&&prior.taskPlan.stage!=='final'||
+    minutes===undefined&&prior.taskPlan?.taskId===task.id&&prior.taskPlan.stage!=='final'||
     prior.id&&prior.mode==='focus'&&previous?.id===task.id)return;
   const wasRunning=prior.status==='running'&&prior.mode==='focus';
   if(prior.id)record(state,'skipped');
-  if(!startTaskTiming(state,task.id,taskFocusMinutes(task))&&(prior.id||prior.mode!=='focus'||prior.taskPlan))reset(state,'focus');
+  if(!startTaskTiming(state,task.id,minutes??taskFocusMinutes(task))&&(prior.id||prior.mode!=='focus'||prior.taskPlan))reset(state,'focus');
   if(wasRunning)toggleFocusTimer(task);
 }
-function saveTaskSelection(task){
+function saveTaskSelection(task,minutes){
   checkCompletion();
   const {activeTask,activeTaskDay,activeBundle,timer}=state,length=state.history.length;
-  selectTaskForTimer(task);
+  selectTaskForTimer(task,minutes);
   if(persist())return true;
   Object.assign(state,{activeTask,activeTaskDay,activeBundle,timer});state.history.length=length;
   return false;
@@ -1036,6 +1043,21 @@ function render(){
   if(renderedBundle!==bundleText){bundleButton.textContent=bundleText;renderedBundle=bundleText;}
   focusNotes.update(task,workspace==='focus');
   renderReference(task,workspace==='focus');
+  const wrap=workspace==='focus'&&focusWrapUp(state,clock.getTime());
+  $('#focus-wrap-up').hidden=!wrap;
+  $('#wrap-save-next').hidden=!task;
+  $('#wrap-save-next').dataset.resumeId=task?.id||'';
+  const first=workspace==='focus'&&pinnedFirstTask(clock);
+  const firstPin=$('#first-task-pin');
+  firstPin.hidden=!first;
+  if(first){
+    const name=firstPin.querySelector('strong');
+    if(name.textContent!==first.text)name.textContent=first.text;
+    const choose=firstPin.querySelector('button');
+    choose.disabled=Boolean(t.id||t.block||t.sequence||task?.id===first.id);
+    const label=task?.id===first.id?'Current task':'Choose';
+    if(choose.textContent!==label)choose.textContent=label;
+  }
   const pause=currentFocusPause(t);
   $('#focus-pause-note').hidden=workspace!=='focus'||!pause;
   const pauseLabel=pause?.event.note?'Edit pause note':'Add pause note';
@@ -1136,7 +1158,16 @@ function checkCompletion(){
     notifyTimer('Focus overtime',text,state.timer.id+'-overtime');
     return;
   }
+  const wrapping=!completed&&state.timer.status==='running'&&focusWrapUp(state,now);
   const warning=completed?null:consumeTimerWarning(state,now);
+  if(wrapping&&!state.timer.wrapSent){
+    state.timer.wrapSent=true;
+    const message='Wrap-up time. Save your work and leave a next step.';
+    persist();toast(message);announce(message);
+    notifyTimer('Wrap up',message,state.timer.id+'-wrap');
+    return;
+  }
+  if(wrapping&&warning){persist();return;}
   if(!completed&&!warning)return;
   if(!completed){
     const label=warning.mode==='focus'?'Focus':'Break';
@@ -1239,6 +1270,14 @@ currentTaskButton.onclick=()=>{
 };
 finishTaskButton.onclick=()=>openPanel('finish-task',finishTaskButton);
 $('#focus-goal').onclick=()=>openPanel('focus-goal',$('#focus-goal'));
+$('#wrap-save-next').onclick=event=>{
+  if(focusedTask())openPanel('resume',event.currentTarget);
+};
+$('#first-task-pin button').onclick=()=>{
+  const task=pinnedFirstTask();
+  if(!task||state.timer.id||state.timer.block||state.timer.sequence||!saveTaskSelection(task))return;
+  refreshTasks();timerButton.focus({preventScroll:true});
+};
 $('#extend-running-block').onclick=event=>{
   checkCompletion();
   extensionPreview=planRunningBlockExtension(state,blockExtensionMinutes);
@@ -2164,11 +2203,15 @@ function energyOptions(value,emptyLabel){
 }
 function fitTaskResults(minutes){
   if(!Number.isInteger(minutes)||minutes<1||minutes>1440)return '<p>Enter the minutes you have available.</p>';
-  const tasks=tasksWithinTime(gardenFocusQueue(),minutes,fitEnergy);
-  const locked=state.timer.block||state.timer.mode==='focus'&&state.timer.id;
+  const tasks=tasksWithinTime(gardenFocusQueue(),minutes,fitEnergy,true);
+  const locked=state.timer.block||state.timer.sequence||state.timer.mistakeId||state.timer.mode==='focus'&&state.timer.id;
   if(!tasks.length)return `<p>No ready tasks fit this window${fitEnergy?' and energy level':''}.</p>`;
   return `${locked?'<p>Finish or reset the current focus timer to choose a different task.</p>':''}
-    <ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-fit-task="${escape(task.id)}" ${locked?'disabled':''}><strong>${escape(task.text)}</strong><small>${task.estimate} min · P${taskPriority(task)}${task.energy?` · ${taskEnergyLevels[task.energy]}`:''}</small></button></li>`).join('')}</ul>`;
+    <ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-fit-task="${escape(task.id)}" ${locked?'disabled':''}><strong>${escape(task.text)}</strong><small>${fitTimeLabel(task,minutes)} · P${taskPriority(task)}${task.energy?` · ${taskEnergyLevels[task.energy]}`:''}</small></button></li>`).join('')}</ul>`;
+}
+function fitTimeLabel(task,available){
+  const {minutes,partial}=taskTimeFit(task,available,true);
+  return partial?`${minutes} min for a useful start${task.estimate?` · ${task.estimate} min total`:''}`:`${minutes} min`;
 }
 
 function classFitLocked(){
@@ -2188,7 +2231,7 @@ function classFitResults(buffer,now=new Date()){
   return `<p><strong>${escape(event.title)}</strong> starts ${escape(when)}.</p><p>${minutesLabel(minutes)} available after your preparation buffer.</p>
     ${locked?'<p>Finish or reset the current timer to start another task.</p>':''}
     ${tasks.length?`<ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-class-fit-task="${escape(task.id)}" ${locked?'disabled':''}>
-      <strong>${escape(task.text)}</strong><small>Start focus · ${task.estimate} min</small></button></li>`).join('')}</ul>`:'<p>No ready tasks with an estimate fit this window.</p>'}`;
+      <strong>${escape(task.text)}</strong><small>Start focus · ${fitTimeLabel(task,minutes)}</small></button></li>`).join('')}</ul>`:'<p>No ready tasks fit this window.</p>'}`;
 }
 function updateClassFitResults(){
   const field=$('#class-buffer'),results=$('#class-fit-results');
@@ -2206,7 +2249,7 @@ function startClassFitTask(id,buffer){
   const {activeTask,activeTaskDay,activeBundle,timer}=state,oldBuffer=state.settings.classBuffer;
   state.activeTask=task.id;state.activeTaskDay=dayKey(now);pauseBundleForTask(task.id);
   state.settings.classBuffer=buffer;
-  startTaskTiming(state,task.id,task.estimate);
+  startTaskTiming(state,task.id,taskTimeFit(task,slot.minutes,true).minutes);
   toggleFocusTimer(task,+now);
   if(!persist()){
     Object.assign(state,{activeTask,activeTaskDay,activeBundle,timer});state.settings.classBuffer=oldBuffer;return;
@@ -2504,6 +2547,7 @@ function taskEditor(){
             <div class="task-editor-grid">
               <div><label class="field-label" for="task-repeat">Repeat</label><select id="task-repeat" name="repeat" aria-describedby="task-repeat-hint">${options}</select></div>
               <div><label class="field-label" for="task-estimate">Estimate (min)</label><input id="task-estimate" name="estimate" type="number" min="1" max="1440" step="1" value="${values.estimate??''}" placeholder="60"></div>
+              <div><label class="field-label" for="task-minimum-useful">Minimum useful (min)</label><input id="task-minimum-useful" name="minimumUsefulMinutes" type="number" min="1" max="1440" step="1" value="${values.minimumUsefulMinutes??''}" placeholder="Optional"></div>
               <div><label class="field-label" for="task-energy">Energy</label><select id="task-energy" name="energy">${energyOptions(values.energy,'Not set')}</select></div>
             </div>
             <div class="estimate-suggestion" data-estimate-suggestion hidden></div>
@@ -3204,7 +3248,7 @@ function panelContent(id){
   }
   if(id==='task-tradeoffs')return tradeoffsMarkup();
   if(id==='focus-replay')return focusReplayMarkup();
-  if(id==='pagoda')return `${header('SETTINGS','Timer')}<form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}<button type="button" class="text-button" id="open-break-ideas">Manage break ideas</button>${timerRoutines()}`;
+  if(id==='pagoda')return `${header('SETTINGS','Timer')}<form id="timer-settings"><div class="duration-fields"><div><label class="field-label" for="focus-minutes">Focus</label><div class="minute-field"><input id="focus-minutes" name="focus" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'focus'))}" required></div></div><div><label class="field-label" for="break-minutes">Rest</label><div class="minute-field"><input id="break-minutes" name="break" inputmode="numeric" maxlength="6" value="${formatDuration(duration(state,'break'))}" required></div></div></div><label class="field-label" for="wrap-minutes">Wrap-up minutes</label><input id="wrap-minutes" name="wrapMinutes" type="number" min="0" max="15" step="1" value="${wrapUpMinutes(state.settings.wrapMinutes)}" required><p class="panel-subtle">Use the last few minutes to save your work. Set 0 to turn this off.</p><label class="field-label" for="intention">What are you making space for?</label><input id="intention" name="intention" value="${escape(state.intention)}" placeholder="e.g. Understand a little more" maxlength="160"><p class="panel-subtle">${state.timer.id?'New durations apply to your next session.':'Choose a pace that works for you.'}</p><div class="panel-actions"><button class="panel-primary" type="submit">Save rhythm</button><button type="button" class="text-button" id="panel-timer-toggle">${state.timer.status==='running'?'Pause timer':state.timer.status==='paused'?'Continue timer':'Start timer'}</button></div></form>${timerNotificationControls()}<button type="button" class="text-button" id="open-break-ideas">Manage break ideas</button>${timerRoutines()}`;
   if(id==='task-editor')return taskEditor();
   if(id==='block-editor')return blockEditor();
   if(id==='capture')return `${header('QUICK CAPTURE','Leave a thought here.')}
@@ -4830,7 +4874,8 @@ function tomorrowBlockDefaults(task,date){
 }
 function planTomorrowMarkup(){
   const date=shiftDay(new Date(),1),day=dayKey(date),{unfinished,choices}=tomorrowChoices(date);
-  const selected=choices.find(task=>state.tomorrowPlan?.day===day&&task.id===state.tomorrowPlan.taskId)||choices[0];
+  const pin=state.tomorrowPin?.day===day?state.tomorrowPin:state.tomorrowPlan?.day===day?state.tomorrowPlan:null;
+  const selected=choices.find(task=>task.id===pin?.taskId)||choices[0];
   const {start,minutes}=tomorrowBlockDefaults(selected,date);
   return `${header(escape(date.toLocaleDateString([],{dateStyle:'full'})),'Plan tomorrow')}
     <div class="tomorrow-review"><h3>Unfinished today <span>${unfinished.length}</span></h3>
@@ -4845,8 +4890,22 @@ function planTomorrowMarkup(){
       </div>
       <button type="button" class="text-button" id="tomorrow-find-slot">Find open time</button>
       <p class="event-error" role="alert" ${start===null?'':'hidden'}>${start===null?'No open time fits that duration. Try a shorter block.':''}</p>
-      <div class="panel-actions"><button class="panel-primary">Reserve focus block</button></div>
+      <div class="panel-actions"><button type="button" class="text-button" id="pin-tomorrow-task">Pin first task</button><button class="panel-primary">Reserve focus block</button></div>
+      ${pin&&selected?.id===pin.taskId?`<p>First task pinned for ${escape(shortScheduleDate(day))}.</p>`:''}
     </form>`:'<p>Add a task in Planner to choose what to focus on tomorrow.</p>'}`;
+}
+function pinTomorrowTask(form){
+  const date=shiftDay(new Date(),1),day=dayKey(date),taskId=form.elements.taskId.value;
+  if(day!==form.dataset.day||!tomorrowChoices(date).choices.some(task=>task.id===taskId)){
+    toast('Reopen Plan tomorrow to choose an available task.');return;
+  }
+  const previous=state.tomorrowPin;
+  state.tomorrowPin={day,taskId};
+  if(!persist()){state.tomorrowPin=previous;return;}
+  refreshPanel();confirmChange('First task pinned for tomorrow.',latest=>{
+    if(latest.tomorrowPin?.day!==day||latest.tomorrowPin.taskId!==taskId)return false;
+    latest.tomorrowPin=previous;return true;
+  });
 }
 function updateTomorrowSlot(form,useDefaults){
   const date=new Date(form.dataset.day+'T00:00:00');
@@ -4862,6 +4921,7 @@ function updateTomorrowSlot(form,useDefaults){
 }
 function saveTomorrowPlan(form){
   const date=shiftDay(new Date(),1),previous=state.tomorrowPlan,error=form.querySelector('.event-error');
+  const previousPin=state.tomorrowPin,replacePin=previousPin?.day===dayKey(date);
   const fields=new FormData(form);
   const taskId=fields.get('taskId'),start=timeMinutes(fields.get('start')),minutes=Number(fields.get('minutes'));
   let result;
@@ -4873,8 +4933,10 @@ function saveTomorrowPlan(form){
   const updates=state.tasks.filter(task=>result.changes.has(task.id)).map(task=>[task,task.blocks,result.changes.get(task.id)]);
   for(const [task,,blocks] of updates)task.blocks=blocks;
   state.tomorrowPlan=result.plan;
+  if(replacePin)state.tomorrowPin=null;
   if(!persist()){
     state.tomorrowPlan=previous;
+    state.tomorrowPin=previousPin;
     for(const [task,blocks] of updates)task.blocks=blocks;
     return;
   }
@@ -4885,6 +4947,7 @@ function saveTomorrowPlan(form){
     if(tasks.some(([task,,after])=>!task||JSON.stringify(task.blocks)!==JSON.stringify(after)))return false;
     for(const [task,before] of tasks)task.blocks=before;
     latest.tomorrowPlan=previous;
+    if(replacePin&&!latest.tomorrowPin)latest.tomorrowPin=previousPin;
     return true;
   });
 }
@@ -5840,9 +5903,10 @@ root.addEventListener('click',e=>{
   const fit=e.target.closest('[data-fit-task]');
   if(fit){
     const minutes=Number($('#fit-minutes').value);
-    const task=tasksWithinTime(gardenFocusQueue(),minutes,fitEnergy).find(item=>item.id===fit.dataset.fitTask);
-    if(!task||state.timer.block||state.timer.mode==='focus'&&state.timer.id)return;
-    if(!saveTaskSelection(task))return;
+    const task=tasksWithinTime(gardenFocusQueue(),minutes,fitEnergy,true).find(item=>item.id===fit.dataset.fitTask);
+    if(!task||state.timer.block||state.timer.sequence||state.timer.mistakeId||state.timer.mode==='focus'&&state.timer.id)return;
+    const timing=taskTimeFit(task,minutes,true);
+    if(!saveTaskSelection(task,timing.minutes))return;
     closePanel(false);refreshTasks();timerButton.focus({preventScroll:true});
     announce(`Current task: ${task.text}`);return;
   }
@@ -5964,6 +6028,7 @@ root.addEventListener('click',e=>{
   }
   if(btn.id==='panel-timer-toggle')$('#toggle-timer').click();
   if(btn.id==='timer-notifications')toggleNotifications();
+  if(btn.id==='pin-tomorrow-task'){pinTomorrowTask(btn.form);return;}
   if(btn.id==='timer-open-sounds')openPanel('music',gardenToolAnchor('music'));
   if(btn.dataset.removeGardenPreset){
     state.gardenSchedule.presets=state.gardenSchedule.presets.filter(item=>item.time!==btn.dataset.removeGardenPreset);
@@ -6535,6 +6600,7 @@ root.addEventListener('submit',e=>{
     if(rest===null)return;
     state.settings.focus=focus/60000;
     state.settings.break=rest/60000;
+    state.settings.wrapMinutes=wrapUpMinutes(Number(e.target.elements.wrapMinutes.value));
     state.intention=$('#intention').value.trim();
     if(!state.timer.id&&!state.timer.sequence){
       const goal=state.timer.goal;
@@ -6610,7 +6676,7 @@ root.addEventListener('submit',e=>{
       description:fields.get('description').trim(),
       ...handoff,
       date:fields.get('date')||(repeat!=='none'||fields.get('time')?dayKey():''),
-      time:fields.get('time'), estimate:Number(fields.get('estimate'))||null,
+      time:fields.get('time'), estimate:Number(fields.get('estimate'))||null,minimumUsefulMinutes:Number(fields.get('minimumUsefulMinutes'))||null,
       energy:Object.hasOwn(taskEnergyLevels,fields.get('energy'))?fields.get('energy'):'',repeat,
       repeatEvery:Number(fields.get('repeatEvery'))||2,
       priority:priorityLevel!==4, priorityLevel,calendarColor:taskCalendarColor(fields.get('calendarColor')==='custom'?fields.get('customColor'):fields.get('calendarColor')),
