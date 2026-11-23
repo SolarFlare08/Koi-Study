@@ -26,6 +26,13 @@ export function gardenObjectSize(value){
   const {min,max,step}=gardenSizeBounds;
   return Number.isFinite(value)?Math.max(min,Math.min(max,Math.round(value/step)*step)):100;
 }
+export function gardenPropAngle(value){
+  if(!Number.isFinite(value))return 0;
+  const angle=Math.round(value)%360;
+  if(angle>180)return angle-360;
+  if(angle< -180)return angle+360;
+  return angle||0;
+}
 export const gardenPropCategories={plants:'Plants',water:'Water',structures:'Structures',details:'Details',sky:'Sky'};
 const sceneProps=(group,category,x,y)=>Object.fromEntries(
   Object.entries(gardenPieceOptions[group]).filter(([style])=>style!=='none').map(([style,name])=>
@@ -170,6 +177,9 @@ export function loadGardenProps(value){
     if(Number.isFinite(item.order))prop.order=Math.round(Math.max(bounds.y[0],Math.min(bounds.y[1],item.order)));
     if(item.hidden===true)prop.hidden=true;
     if(item.locked===true)prop.locked=true;
+    if(item.flipped===true)prop.flipped=true;
+    const rotation=gardenPropAngle(item.rotation);
+    if(rotation)prop.rotation=rotation;
     if(typeof item.groupId==='string'&&/^[a-z0-9_-]{1,80}$/i.test(item.groupId))prop.groupId=item.groupId;
     props.set(item.id,prop);
     if(props.size===gardenPropLimit)break;

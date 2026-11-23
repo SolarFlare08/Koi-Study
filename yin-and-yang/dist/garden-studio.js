@@ -2,7 +2,7 @@ import {gardenCameras,gardenPieceOptions,defaultGardenDesign,gardenStarterLayout
   gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds,
   gardenPropLayer,gardenPropPositionBounds,gardenPropTypes,gardenPropCategories,gardenPropLimit,gardenSizeBounds,gardenObjectSize,
   gardenPropBands,gardenPropBand,gardenPropStack,gardenPropsInOrder,moveGardenPropLayer,dropGardenPropLayer,
-  gardenPropMembers,gardenPropMoveBounds,duplicateGardenProps} from './garden-layout.js';
+  gardenPropMembers,gardenPropMoveBounds,duplicateGardenProps,gardenPropAngle} from './garden-layout.js';
 import {loadAppearance,seasonOptions,lightingOptions,gardenPalettes,weatherBySeason} from './garden-appearance.js';
 import {gardenLandmarkPositions,mountGardenPreview} from './scenery.js';
 import {gardenCourses,landmarkTypes} from './garden-growth.js';
@@ -95,6 +95,16 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
               <label>Vertical position<input type="range" name="y" min="${placementBounds.y[0]}" max="${placementBounds.y[1]}"></label>
               <small class="studio-foundation-note" data-studio-foundation hidden></small>
               ${sizeSlider('objectSize','Object size')}
+              <fieldset class="studio-orientation" hidden>
+                <legend>Orientation</legend>
+                <label><span>Rotation <output name="propRotationValue" for="studio-prop-rotation">0°</output></span>
+                  <input id="studio-prop-rotation" type="range" name="propRotation" min="-180" max="180" step="1" value="0">
+                </label>
+                <div class="studio-object-actions">
+                  <button type="button" data-studio="flip-prop" aria-pressed="false">Flip horizontally</button>
+                  <button type="button" data-studio="reset-orientation">Reset orientation</button>
+                </div>
+              </fieldset>
               <fieldset class="studio-layer-controls" hidden>
                 <legend>Layer</legend>
                 ${select('propBand','Scenery layer',gardenPropBands)}
@@ -405,6 +415,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const support=form.querySelector('[data-studio-foundation]');
     support.hidden=!building;
     if(!previewing)updateLayerControls(prop);
+    if(!previewing)updateOrientationControls(prop);
     form.querySelector('[data-studio="remove-prop"]').hidden=!prop;
     form.querySelector('[data-studio="remove-prop"]').disabled=locked;
     field('objectSize').disabled=locked;
@@ -427,6 +438,27 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       :moveLocked?'Unlock all selected props in Layers to move them.'
       :prop?.hidden?'This prop is hidden. Use Layers to show it.'
       :visible?'Drag to move. Arrow keys nudge the selected object.':'This object is outside the current view.';
+  }
+  function updateOrientationControls(prop){
+    form.querySelector('.studio-orientation').hidden=!prop;
+    if(!prop)return;
+    field('propRotation').value=prop.rotation||0;
+    field('propRotation').disabled=Boolean(prop.locked);
+    field('propRotationValue').value=(prop.rotation||0)+'°';
+    const flip=form.querySelector('[data-studio="flip-prop"]');
+    flip.setAttribute('aria-pressed',String(Boolean(prop.flipped)));
+    flip.disabled=Boolean(prop.locked);
+    form.querySelector('[data-studio="reset-orientation"]').disabled=Boolean(prop.locked||!(prop.rotation||prop.flipped));
+  }
+  function setOrientation(prop,{rotation=prop.rotation,flipped=prop.flipped}){
+    if(prop.locked)return;
+    const before=structuredClone(draft);
+    const angle=gardenPropAngle(rotation);
+    if(angle)prop.rotation=angle;
+    else delete prop.rotation;
+    if(flipped)prop.flipped=true;
+    else delete prop.flipped;
+    record(before);render();
   }
   function updateLayerControls(prop){
     const controls=form.querySelector('.studio-layer-controls');
@@ -709,6 +741,13 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(event.target===field('layoutName'))updateHistoryControls();
       if(event.target===field('stampSize')){field('stampSizeValue').value=event.target.value+'%';paintStamp();}
       if(event.target===field('objectSize'))field('objectSizeValue').value=event.target.value+'%';
+      if(event.target===field('propRotation')){
+        const prop=selectedProp();
+        if(!prop||prop.locked)return;
+        const rotation=gardenPropAngle(event.target.valueAsNumber);
+        field('propRotationValue').value=rotation+'°';
+        scene.querySelector(`[data-garden-prop="${prop.id}"]`)?.setAttribute('transform',gardenPropTransform({...prop,rotation}));
+      }
     });
     form.addEventListener('change',event=>{
       const {name,value}=event.target;
@@ -743,6 +782,11 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         return;
       }
       if(name==='landmark'){selected=value;updatePin();return;}
+      if(name==='propRotation'){
+        const prop=selectedProp();
+        if(prop)setOrientation(prop,{rotation:event.target.valueAsNumber});
+        return;
+      }
       if(name==='propBand'){
         const prop=selectedProp();
         if(!prop||prop.locked||gardenPropStack(prop)==='sky'||!Object.hasOwn(gardenPropBands,value)||gardenPropBand(prop)===value)return;
@@ -831,6 +875,16 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         case 'group-props':changeGrouping(true);break;
         case 'ungroup-props':changeGrouping(false);break;
         case 'duplicate-props':duplicateSelection();break;
+        case 'flip-prop':{
+          const prop=selectedProp();
+          if(prop)setOrientation(prop,{flipped:!prop.flipped});
+          break;
+        }
+        case 'reset-orientation':{
+          const prop=selectedProp();
+          if(prop)setOrientation(prop,{rotation:0,flipped:false});
+          break;
+        }
         case 'copy':writeCandidate({copy:true});break;
         case 'reset':{
           const before=structuredClone(draft);

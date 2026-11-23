@@ -690,7 +690,7 @@ test('Garden layer edits preserve position and survive backup and SVG rendering'
 test('Garden group copies keep spacing, scene layers, and stack order near an edge',()=>{
   const originals=loadGardenProps([
     {id:'lamp',kind:'beacon',x:1568,y:878,band:'front',size:125,groupId:'gate'},
-    {id:'bridge',kind:'bridge',x:1555,y:868,band:'back',size:70,groupId:'gate',locked:true},
+    {id:'bridge',kind:'bridge',x:1555,y:868,band:'back',size:70,groupId:'gate',locked:true,rotation:335,flipped:true},
     {id:'tree',kind:'cherry',x:1460,y:883,band:'front'}
   ]);
   assert.equal(gardenPropMoveBounds(originals.slice(0,2),originals[0]).x[1],1568);
@@ -701,6 +701,9 @@ test('Garden group copies keep spacing, scene layers, and stack order near an ed
   const [lamp,bridge]=saved.filter(prop=>prop.groupId==='copy-1');
   assert.deepEqual([lamp.x-bridge.x,lamp.y-bridge.y,lamp.size,bridge.size,lamp.band,bridge.band],[13,10,125,70,'front','back']);
   assert.equal(bridge.locked,undefined);
+  assert.equal(bridge.rotation,-25);
+  assert.equal(bridge.flipped,true);
+  assert.match(renderLandscape(loadGardenDesign({props:saved})),/data-garden-prop="copy-3"[^>]*rotate\(-25\) scale\(-[\d.]+ [\d.]+\)/);
   assert.deepEqual(gardenPropsInOrder(saved,'front').map(prop=>prop.id),['lamp','copy-2','tree']);
 });
 

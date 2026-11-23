@@ -172,9 +172,9 @@ export function gardenPropArtwork(kind,lights=false){
   }
   return (lights?propLights[kind]:props[kind])||'';
 }
-export function gardenPropTransform({x,y,size,kind}){
+export function gardenPropTransform({x,y,size,kind,rotation,flipped}){
   const scale=gardenPropLayer(kind)==='ground'?Math.round(size*(.79+(y-446)/1000))/100:size/100;
-  return `translate(${x} ${y}) scale(${scale})`;
+  return `translate(${x} ${y})${rotation?` rotate(${rotation})`:''} scale(${flipped?`${-scale} ${scale}`:scale})`;
 }
 export function renderGardenProps(items,stack='middle'){
   return gardenPropsInOrder(items,stack).filter(item=>!item.hidden).map(item=>{
