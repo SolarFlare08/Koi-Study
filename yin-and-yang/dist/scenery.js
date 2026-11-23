@@ -1,6 +1,6 @@
 export {blossomMarkup} from './landscape.js';
 import {daylight,blend,sunPosition} from './daylight.js';
-import {gardenFrame,gardenLandmarkKey,defaultGardenDesign} from './garden-layout.js';
+import {gardenFrame,gardenLandmarkKey,defaultGardenDesign,gardenScenery,gardenSceneryObject,gardenSceneryTransform} from './garden-layout.js';
 import {gardenPieces} from './garden-pieces.js';
 import {styledBoat} from './garden-ornaments.js';
 import {renderGardenProps} from './garden-props.js';
@@ -258,7 +258,15 @@ const seasonalBoatLights=()=>`<g transform="translate(${boatOrigin})">
 const boatPiece=(style,lights=false)=>style==='seasonal'?(lights?seasonalBoatLights():seasonalBoat()):
   `<g transform="translate(${boatOrigin})">${styledBoat(style,lights)}</g>`;
 const propPiece=stack=>({option:'props',key:design=>JSON.stringify(design.props||[]),render:items=>renderGardenProps(items||[],stack)});
+const scenicPiece=section=>({option:'scenery',key:design=>JSON.stringify(design.scenery||{}),render:(_,design)=>
+  Object.keys(gardenScenery).filter(id=>gardenScenery[id].section===section).map(id=>{
+    const item=gardenSceneryObject(design,id);
+    if(item.hidden)return '';
+    const art=item.kind==='shorepine'?shoreTree(0,0,1):item.kind==='boulder'?rock(0,0,1):sceneReeds(0,0);
+    return `<g data-garden-scenery="${id}" transform="${gardenSceneryTransform(item)}">${art}</g>`;
+  }).join('')});
 const scenePieces={...gardenPieces,props:propPiece('middle'),backProps:propPiece('back'),frontProps:propPiece('front'),skyProps:propPiece('sky'),
+  farScenery:scenicPiece('far'),westScenery:scenicPiece('west'),shoreScenery:scenicPiece('shore'),
   boat:{option:'boat',render:style=>boatPiece(style)},
   boatLights:{option:'boat',render:style=>boatPiece(style,true)}};
 const pieceKey=(piece,design)=>piece.key?.(design)||'';
@@ -380,8 +388,7 @@ ${pieceMarkup("backProps",design)}
   <path fill="#abc1a4" opacity=".7" d="M1060 622C1103 615 1132 601 1168 593C1226 578 1311 572 1375 571C1346 574 1316 581 1287 591C1208 610 1118 629 1060 622Z"/>
   <path d="M1058 631C1120 641 1209 631 1265 627M1364 623C1415 621 1460 626 1504 634" fill="none" stroke="#d3dbc2" stroke-width="1.4" stroke-linecap="round" opacity=".56"/>
   ${snowbank('far')}
-  ${rock(1059,625,.23,-1)}${rock(1074,628,.14)}
-  ${shoreTree(1142,611,.27)}${shoreTree(1311,584,.46)}${shoreTree(1352,583,.31)}${shoreTree(1431,579,.53)}${shoreTree(1471,585,.34)}
+  ${pieceMarkup("farScenery",design)}
   <path d="M1074 623C1101 619 1129 619 1149 611C1171 602 1187 600 1200 600C1180 611 1160 620 1132 624C1108 627 1092 625 1074 623Z" fill="var(--far-shore-detail,#759986)"/>
 </g>
 ${pieceMarkup("pavilion",design)}
@@ -389,11 +396,9 @@ ${pieceMarkup("pavilion",design)}
 <g id="garden-growth-lanterns"/>
 ${pieceMarkup("boat",design)}
 ${pieceMarkup("westBank",design)}
-${shoreTree(116,739,.64)}${shoreTree(176,767,1.04)}${shoreTree(216,767,.39)}
+${pieceMarkup("westScenery",design)}
 ${pieceMarkup("eastBank",design)}
-${rock(146,790,.83)}${rock(200,780,.43,-1)}${rock(218,784,.22)}
-${rock(1514,844,1.05,-1)}${rock(1462,850,.49)}${rock(1418,854,.33,-1)}
-${sceneReeds(1458,858)}
+${pieceMarkup("shoreScenery",design)}
 ${shoreDetails()}
 ${pieceMarkup("path",design)}
 ${pieceMarkup("props",design)}

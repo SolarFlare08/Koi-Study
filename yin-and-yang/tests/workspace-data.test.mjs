@@ -19,6 +19,7 @@ import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGr
 import {pavilionFoundation} from '../dist/garden-ornaments.js';
 import {gardenPieceOptions,gardenPropCategories,gardenPropTypes,gardenPropLimit,gardenPropsInOrder,moveGardenPropLayer,dropGardenPropLayer,gardenPropMoveBounds,duplicateGardenProps,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
 import {eveningCamera,renderLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
+import {gardenPropBounds,gardenScenery,gardenSceneryObject,snapGardenPoint} from '../dist/garden-layout.js';
 
 test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
   let history=earnGardenDetail([],'project','a','Project','2026-09-01',{zone:'east',group:'Fall'});
@@ -705,6 +706,23 @@ test('Garden group copies keep spacing, scene layers, and stack order near an ed
   assert.equal(bridge.flipped,true);
   assert.match(renderLandscape(loadGardenDesign({props:saved})),/data-garden-prop="copy-3"[^>]*rotate\(-25\) scale\(-[\d.]+ [\d.]+\)/);
   assert.deepEqual(gardenPropsInOrder(saved,'front').map(prop=>prop.id),['lamp','copy-2','tree']);
+});
+
+test('Garden snaps to nearby anchors and restores edited original scenery',()=>{
+  const targets=[{x:820,y:715},{x:821,y:510}];
+  assert.deepEqual(snapGardenPoint({x:825,y:751},gardenPropBounds,targets,10),{
+    point:{x:820,y:751},guides:{x:targets[0]}
+  });
+  const state=freshState();
+  state.gardenDesign=loadGardenDesign({scenery:{
+    'west-tree-2':{x:252,size:145},'east-reeds':{hidden:true},unknown:{hidden:true}
+  }});
+  const restored=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state.gardenDesign;
+  assert.deepEqual(restored.scenery,{'west-tree-2':{x:252,size:145},'east-reeds':{hidden:true}});
+  assert.equal(gardenSceneryObject(restored,'west-tree-2').y,gardenScenery['west-tree-2'].y);
+  const svg=renderLandscape(restored);
+  assert.match(svg,/data-garden-scenery="west-tree-2" transform="translate\(252 767\)/);
+  assert.doesNotMatch(svg,/data-garden-scenery="east-reeds"/);
 });
 
 test('Reading keeps standalone library books, fractional reviews and rereads in backups',()=>{

@@ -16,11 +16,48 @@ export const gardenCameras={
 };
 export const defaultPavilionPosition={x:1096,y:615};
 export const defaultGardenDesign={mountains:'classic',shoreline:'classic',pavilion:'pagoda',foundation:'auto',
-  boat:'seasonal',lantern:'classic',path:'none',camera:'wide',pavilionPosition:null,pavilionSize:100,placements:{},landmarkSizes:{},props:[]};
+  boat:'seasonal',lantern:'classic',path:'none',camera:'wide',pavilionPosition:null,pavilionSize:100,placements:{},landmarkSizes:{},props:[],scenery:{}};
 export const pavilionBounds={x:[90,1510],y:[557,848]};
 export const gardenPropBounds={x:[32,1568],y:[446,883]};
 const skyPropBounds={x:gardenPropBounds.x,y:[32,530]};
 export const gardenPropLimit=36;
+const scenic=(name,kind,section,x,y,scale,flip=1)=>({name,kind,section,x,y,scale,flip});
+export const gardenScenery={
+  'far-rock-1':scenic('Far shore rock 1','boulder','far',1059,625,.23,-1),
+  'far-rock-2':scenic('Far shore rock 2','boulder','far',1074,628,.14),
+  'far-tree-1':scenic('Far shore tree 1','shorepine','far',1142,611,.27),
+  'far-tree-2':scenic('Far shore tree 2','shorepine','far',1311,584,.46),
+  'far-tree-3':scenic('Far shore tree 3','shorepine','far',1352,583,.31),
+  'far-tree-4':scenic('Far shore tree 4','shorepine','far',1431,579,.53),
+  'far-tree-5':scenic('Far shore tree 5','shorepine','far',1471,585,.34),
+  'west-tree-1':scenic('West bank tree 1','shorepine','west',116,739,.64),
+  'west-tree-2':scenic('West bank tree 2','shorepine','west',176,767,1.04),
+  'west-tree-3':scenic('West bank tree 3','shorepine','west',216,767,.39),
+  'west-rock-1':scenic('West bank rock 1','boulder','shore',146,790,.83),
+  'west-rock-2':scenic('West bank rock 2','boulder','shore',200,780,.43,-1),
+  'west-rock-3':scenic('West bank rock 3','boulder','shore',218,784,.22),
+  'east-rock-1':scenic('East bank rock 1','boulder','shore',1514,844,1.05,-1),
+  'east-rock-2':scenic('East bank rock 2','boulder','shore',1462,850,.49),
+  'east-rock-3':scenic('East bank rock 3','boulder','shore',1418,854,.33,-1),
+  'east-reeds':scenic('East bank reeds','shorereeds','shore',1458,858,1)
+};
+export const gardenSceneryObject=(design,id)=>({id,...gardenScenery[id],size:100,...design.scenery?.[id]});
+export function gardenSceneryTransform({x,y,scale,flip,size}){
+  const sized=scale*size/100;
+  return `translate(${x} ${y}) scale(${sized*flip} ${sized})`;
+}
+
+export function snapGardenPoint(point,bounds,targets,tolerance){
+  const result=clampGardenPlacement(point.x,point.y,bounds),guides={};
+  for(const [axis,cross] of [['x','y'],['y','x']]){
+    const candidate=targets.filter(item=>item[axis]>=bounds[axis][0]&&item[axis]<=bounds[axis][1]
+      &&Math.abs(item[cross]-point[cross])<=160&&Math.abs(item[axis]-point[axis])<=tolerance)
+      .sort((a,b)=>Math.abs(a[axis]-point[axis])-Math.abs(b[axis]-point[axis])
+        ||Math.abs(a[cross]-point[cross])-Math.abs(b[cross]-point[cross]))[0];
+    if(candidate){result[axis]=candidate[axis];guides[axis]=candidate;}
+  }
+  return {point:result,guides};
+}
 export const gardenSizeBounds={min:25,max:200,step:5};
 export function gardenObjectSize(value){
   const {min,max,step}=gardenSizeBounds;
@@ -210,7 +247,15 @@ export function clampGardenPlacement(x,y,bounds=placementBounds){
   }));
 }
 export function loadGardenDesign(value){
-  const design={...defaultGardenDesign,placements:{},landmarkSizes:{},props:loadGardenProps(value?.props)};
+  const design={...defaultGardenDesign,placements:{},landmarkSizes:{},scenery:{},props:loadGardenProps(value?.props)};
+  for(const [id,item] of Object.entries(gardenScenery)){
+    const override=value?.scenery?.[id];
+    if(!override)continue;
+    const {x,y}=clampGardenPlacement(Number.isFinite(override.x)?override.x:item.x,Number.isFinite(override.y)?override.y:item.y,gardenPropBounds);
+    const size=gardenObjectSize(override.size);
+    const edits={...(x!==item.x?{x}:{}),...(y!==item.y?{y}:{}),...(size!==100?{size}:{}),...(override.hidden===true?{hidden:true}:{})};
+    if(Object.keys(edits).length)design.scenery[id]=edits;
+  }
   for(const [piece,options] of Object.entries(gardenPieceOptions)){
     if(Object.hasOwn(options,value?.[piece]))design[piece]=value[piece];
   }

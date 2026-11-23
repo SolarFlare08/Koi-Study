@@ -863,6 +863,8 @@ export const helpTopics = [
       'In Layers, check two or more placed props and choose Group selected. In Move, drag any member to move the whole group. Unlock all members before moving a locked group. To separate them, select any member in Layers and choose Ungroup.',
       'Select a prop in Layers and choose Duplicate or Duplicate group. Copies are offset when space allows and keep their sizes, visibility, and layers. Copies start unlocked so you can reposition them.',
       'Select a placed prop in Move and open Orientation. Use the Rotation slider to angle it around its placement point, or choose Flip horizontally to mirror it. Reset orientation restores its original direction. Both edits support Undo and Redo and are saved with layouts and copies.',
+      'Turn on Snap below the canvas while using Move or Props. Alignment guides appear when the object is close to lining up with nearby scenery. Turn Snap off or hold Alt for free placement.',
+      'In Move, click an original tree, rock, or reed on the canvas, or choose it under Built-in scenery in the Object list. Drag it or use the position and size sliders. Use Hide original to hide it, then find it again in Layers under Built-in scenery to show it.',
       'Save your layout. Props appear in the live Garden when you apply the layout and are included in postcards and backups.'],
     action:'garden-studio',actionLabel:'Open Garden Studio',related:['garden-studio','activity-layouts','garden-postcard']
   },
