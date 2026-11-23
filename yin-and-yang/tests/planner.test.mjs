@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from '../dist/planner-data.js';
 import {calendarBlocks} from '../dist/calendar.js';
 import {completeTask,freshState,loadState,recordTaskCompletion,settle,skipPhase,startPause,taskStatus} from '../dist/state.js';
-import {estimateAccuracy,reportCsv,reportEvents,reportMetrics} from '../dist/planner-report.js';
+import {estimateAccuracy,courseEstimateAccuracy,courseEstimateCsv,reportCsv,reportEvents,reportMetrics} from '../dist/planner-report.js';
 import {captureTaskChange,restoreDeletedTask} from '../dist/task-undo.js';
 
 test('Quick Add creates a timed project task that shows in the shared calendar and saved filters',()=>{
@@ -104,6 +104,10 @@ test('estimate accuracy assigns completed focus to separate occurrences and flag
   assert.equal(row.over,2);
   assert.equal(row.samples,3);
   assert.equal(row.consistent,true);
+  task.projectId='different';
+  const [course]=courseEstimateAccuracy(state,{project:'study',period:'1'},new Date(2026,10,10));
+  assert.deepEqual(course,{projectId:'study',samples:1,estimatedMs:20*60000,actualMs:15*60000});
+  assert.match(courseEstimateCsv([course],()=> 'Calculus'),/"Calculus","1","20","15","-5"/);
 });
 
 test('undo restores a task completion, a move, or a deleted task without replacing unrelated edits',()=>{

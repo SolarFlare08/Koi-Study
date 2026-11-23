@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.20.6',date:'2026-11-22',title:'Course estimates and a printable study summary',changes:[
+    'Compare planned estimates with actual focus time by course in Reporting. Filter by date or project and export the totals as CSV.',
+    'Print the selected Weekly Review with daily focus time, completed tasks, saved next steps, and open work.'
+  ]},
   {version:'5.20.5',date:'2026-11-22',title:'Quick tasks, focus setups, and session follow-up',changes:[
     'Capture a task in one line and review the parsed details before adding it.',
     'Save a timer routine, Garden layout, and soundtrack as a reusable focus setup.',

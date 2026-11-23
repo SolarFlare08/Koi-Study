@@ -1,7 +1,26 @@
-.week-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0 16px; }
+.week-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0 16px; }
 .week-tools nav { display: flex; border: 1px solid var(--planner-line); border-radius: 7px; }
 .week-tools button { min-height: 32px; padding: 4px 9px; border-radius: 5px; }
 .week-tools button:hover, .week-task > button:hover { background: var(--planner-tint); }
+#weekly-study-print { display: none; }
+@media print {
+  html:has(#weekly-study-print),body:has(> #weekly-study-print) { background: white; color: #151515; }
+  body:has(> #weekly-study-print) > :not(#weekly-study-print) { display: none !important; }
+  #weekly-study-print { display: block; padding: 8mm; color: #151515; font: 10.5pt/1.38 system-ui, sans-serif; overflow-wrap: anywhere; }
+  #weekly-study-print header { padding-bottom: 4mm; border-bottom: 1px solid #999; }
+  #weekly-study-print :is(h1,h2,h3,p,ul) { margin-block: 0 2mm; }
+  #weekly-study-print h1 { font-size: 23pt; }
+  #weekly-study-print h2 { font-size: 14pt; }
+  #weekly-study-print h3 { font-size: 11pt; }
+  #weekly-study-print section { margin-top: 4mm; }
+  #weekly-study-print :is(h2,h3) { break-after: avoid; }
+  #weekly-study-print :is(li,tr) { break-inside: avoid; }
+  #weekly-study-print small { color: #484848; }
+  #weekly-study-print table { width: 100%; border-collapse: collapse; text-align: left; }
+  #weekly-study-print :is(th,td) { padding: 1mm 2mm; border-bottom: 1px solid #bbb; }
+  #weekly-study-print td { font-variant-numeric: tabular-nums; }
+  #weekly-study-print .weekly-saved-steps p { white-space: pre-wrap; }
+}
 .week-capacity { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
 .week-capacity label { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .week-capacity input { width: 84px; padding: 5px 7px; border: 1px solid var(--planner-line); border-radius: 6px; color: inherit; background: var(--surface-field); }

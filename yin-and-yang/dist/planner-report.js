@@ -69,13 +69,18 @@ function* completedTaskWork(state){
   }
 }
 
-export function estimateAccuracy(state,filters={},now=new Date()){
+function* estimatedWork(state,filters,now){
   const visible=new Set(reportEvents(state,{...filters,type:'task'},now).map(event=>event.id));
-  const rows=new Map();
   for(const {event,actual} of completedTaskWork(state)){
     if(!Number.isInteger(event.estimate)||event.estimate<=0||!visible.has(event.id))continue;
+    yield {event,actual,estimated:event.estimate*60000};
+  }
+}
+
+export function estimateAccuracy(state,filters={},now=new Date()){
+  const rows=new Map();
+  for(const {event,actual,estimated} of estimatedWork(state,filters,now)){
     const row=rows.get(event.taskId)||{taskId:event.taskId,text:'',samples:0,over:0,estimatedMs:0,actualMs:0};
-    const estimated=event.estimate*60000;
     row.text=event.text;
     row.samples++;
     row.over+=Number(actual>estimated);
@@ -85,6 +90,19 @@ export function estimateAccuracy(state,filters={},now=new Date()){
   }
   return [...rows.values()].map(row=>({...row,consistent:row.over>=2&&row.over*2>row.samples}))
     .sort((a,b)=>Number(b.consistent)-Number(a.consistent)||b.over-a.over||a.text.localeCompare(b.text));
+}
+
+export function courseEstimateAccuracy(state,filters={},now=new Date()){
+  const rows=new Map();
+  for(const {event,actual,estimated} of estimatedWork(state,filters,now)){
+    const projectId=event.projectId||'';
+    const row=rows.get(projectId)||{projectId,samples:0,estimatedMs:0,actualMs:0};
+    row.samples++;
+    row.estimatedMs+=estimated;
+    row.actualMs+=actual;
+    rows.set(projectId,row);
+  }
+  return [...rows.values()].sort((a,b)=>b.estimatedMs-a.estimatedMs);
 }
 
 export function suggestTaskEstimate(state,task){
@@ -134,7 +152,7 @@ export function taskSplitSuggestion(state,task){
 function toCsv(rows){
   const cell=value=>{
     const text=String(value??'');
-    const safe=/^\s*[=+@-]/.test(text)?`'${text}`:text;
+    const safe=typeof value!=='number'&&/^\s*[=+@-]/.test(text)?`'${text}`:text;
     return `"${safe.replace(/"/g,'""')}"`;
   };
   return rows.map(row=>row.map(cell).join(',')).join('\r\n');
@@ -148,5 +166,11 @@ export function estimateCsv(rows){
   const average=(ms,samples)=>Math.round(ms/samples/6000)/10;
   return toCsv([['Task','Samples','Over estimate','Average estimate (min)','Average focus (min)','Consistently over'],...rows.map(row=>[
     row.text,row.samples,row.over,average(row.estimatedMs,row.samples),average(row.actualMs,row.samples),row.consistent?'Yes':''
+  ])]);
+}
+export function courseEstimateCsv(rows,projectName){
+  const minutes=ms=>Math.round(ms/6000)/10;
+  return toCsv([['Course or project','Samples','Planned minutes','Actual focus minutes','Difference (min)'],...rows.map(row=>[
+    projectName(row.projectId),row.samples,minutes(row.estimatedMs),minutes(row.actualMs),minutes(row.actualMs-row.estimatedMs)
   ])]);
 }

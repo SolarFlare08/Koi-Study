@@ -1,12 +1,12 @@
 import {blockProgressLabels,calendarBlocks,calendarTaskBlock,allDayEvents,calendarDragType,openFocusBlock,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
 import {parseCalendarImport} from './calendar-import.js';
-import {summarizeWeek,weeklyProjectProgress} from './weekly-planning.js';
+import {summarizeWeek,weeklyProjectProgress,weeklyStudySummary} from './weekly-planning.js';
 import {dayKey,taskPriority,taskColorAttributes,taskStatus,unfinishedPrerequisites} from './state.js';
 import {projectSessionTimeline} from './focus-replay.js';
 import {handoffLink} from './session-handoff.js';
 import {captureTaskChange} from './task-undo.js';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
-import {activityLabels,estimateAccuracy,estimateCsv,estimateSummary,reportCsv,reportEvents,reportMetrics,suggestTaskEstimate} from './planner-report.js';
+import {activityLabels,estimateAccuracy,estimateCsv,estimateSummary,courseEstimateAccuracy,courseEstimateCsv,reportCsv,reportEvents,reportMetrics,suggestTaskEstimate} from './planner-report.js';
 import {milestoneProgress,projectDecision,projectMilestone,remainingProjectWork} from './project-planning.js';
 import {exportCalendar} from './calendar-export.js';
 import {cleanCaptureContext} from './capture.js';
@@ -359,23 +359,39 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       ${rows.map(row=>`<tr><th scope="row">${taskIds.has(row.taskId)?`<button type="button" data-report-task="${escape(row.taskId)}">${escape(row.text)}</button>`:escape(row.text)}</th><td>${average(row.estimatedMs,row.samples)} min</td><td>${average(row.actualMs,row.samples)} min</td><td>${row.over}/${row.samples}${row.consistent?' <span class="planner-estimate-over">Consistently over</span>':''}</td></tr>`).join('')}
       </tbody></table></div>`:'<p class="planner-empty">Set a task estimate, finish a focus session with that task selected, then mark the task done to start comparing.</p>'}</section>`;
   }
+  function reportCourseEstimates(){
+    const rows=courseEstimateAccuracy(state(),report),minutes=ms=>Math.round(ms/6000)/10;
+    return `<section class="planner-estimates"><h3>Estimate accuracy by course</h3>
+      <p>Each Planner project is a course. Totals compare the estimates saved at completion with completed focus time for the same work.</p>
+      ${rows.length?`<div class="planner-estimates-scroll"><table><thead><tr><th scope="col">Course</th><th scope="col">Samples</th>
+      <th scope="col">Planned</th><th scope="col">Actual focus</th><th scope="col">Difference</th></tr></thead><tbody>
+      ${rows.map(row=>{
+        const delta=minutes(row.actualMs-row.estimatedMs);
+        return `<tr><th scope="row">${escape(reportProjectName(row.projectId))}</th><td>${row.samples}</td>
+          <td>${minutes(row.estimatedMs)} min</td><td>${minutes(row.actualMs)} min</td>
+          <td>${delta>0?'+':''}${delta} min${delta>0?' over':delta<0?' under':''}</td></tr>`;
+      }).join('')}
+      </tbody></table></div>`:'<p class="planner-empty">No completed tasks with both an estimate and logged focus in this range.</p>'}</section>`;
+  }
 
   function reportingMarkup() {
-    const events=report.mode==='accuracy'?[]:selectedReportEvents();
+    const events=['accuracy','course-accuracy'].includes(report.mode)?[]:selectedReportEvents();
     return `<div class="planner-report"><div class="planner-report-controls">
-      ${reportControl('mode','Report view',[['activity','Activity log'],['metrics','Metrics'],['accuracy','Estimate accuracy']])}
+      ${reportControl('mode','Report view',[['activity','Activity log'],['metrics','Metrics'],['accuracy','Estimate accuracy'],['course-accuracy','Estimate by course']])}
       ${reportControl('project','Report project',[['all','All projects'],['inbox','Inbox'],...state().projects.map(project=>[project.id,project.name]),['unassigned','Unassigned focus']])}
       ${report.mode==='activity'?reportControl('type','Activity type',[['all','All activity'],...Object.entries(activityLabels)]):''}
       ${reportControl('period','Date range',[['all','Any date'],['1','Today'],['7','Last 7 days'],['30','Last 30 days']])}
-      </div>${report.mode==='accuracy'?reportEstimates():report.mode==='metrics'?reportStatistics(events):reportActivity(events)||'<p class="planner-empty">No matching activity yet.</p>'}</div>`;
+      </div>${report.mode==='course-accuracy'?reportCourseEstimates():report.mode==='accuracy'?reportEstimates():report.mode==='metrics'?reportStatistics(events):reportActivity(events)||'<p class="planner-empty">No matching activity yet.</p>'}</div>`;
   }
 
   function exportReport() {
     const accuracy=report.mode==='accuracy';
-    const csv=accuracy?estimateCsv(estimateAccuracy(state(),report)):reportCsv(selectedReportEvents(),reportProjectName);
+    const course=report.mode==='course-accuracy';
+    const csv=course?courseEstimateCsv(courseEstimateAccuracy(state(),report),reportProjectName):
+      accuracy?estimateCsv(estimateAccuracy(state(),report)):reportCsv(selectedReportEvents(),reportProjectName);
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
     const link=document.createElement('a');
-    link.href=url; link.download=`yin-and-yang-${accuracy?'estimates':'activity'}-${dayKey()}.csv`;
+    link.href=url; link.download=`yin-and-yang-${course?'course-estimates':accuracy?'estimates':'activity'}-${dayKey()}.csv`;
     root.append(link); link.click(); link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
@@ -421,7 +437,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const week=summarizeWeek(state(),activeTasks(),reviewWeek);
     const hours=minutes=>`${Math.round(minutes/6)/10} h`;
     const header=`<div class="week-tools"><strong>${plainDate(week.first)} – ${plainDate(week.last)}</strong><nav aria-label="Review week">
-      <button type="button" data-review-step="-7" aria-label="Previous review week">‹</button><button type="button" data-review-step="0">This week</button><button type="button" data-review-step="7" aria-label="Next review week">›</button></nav></div>`;
+      <button type="button" data-review-step="-7" aria-label="Previous review week">‹</button><button type="button" data-review-step="0">This week</button><button type="button" data-review-step="7" aria-label="Next review week">›</button></nav>
+      ${view==='review'?'<button type="button" class="planner-primary" data-print-week>Print summary</button>':''}</div>`;
     if(view==='workload'){
       const capacity=state().studyCapacity;
       return header+`<form id="study-capacity-form" class="week-capacity"><label>Daily study capacity (minutes) <input name="minutes" type="number" min="15" max="1440" value="${capacity}" required></label><button class="planner-primary">Save capacity</button></form>
@@ -436,6 +453,29 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       ${listGroup('review-carried','Still open from earlier weeks',rows(week.carried.map(task=>({task,key:task.date||task.deadline})),true),{count:week.carried.length})}
       ${listGroup('review-unfinished','Open this week',rows(week.unfinished),{count:week.unfinished.length})}
       ${listGroup('review-next','Next week',rows(week.next),{count:week.next.length})}`;
+  }
+  function printWeeklySummary(){
+    const week=summarizeWeek(state(),activeTasks(),reviewWeek),data=weeklyStudySummary(state(),week);
+    const minutes=ms=>Math.round(ms/6000)/10;
+    const fullDate=key=>new Date(key+'T00:00:00').toLocaleDateString([],{dateStyle:'long'});
+    const page=document.createElement('article');
+    page.id='weekly-study-print';
+    page.innerHTML=`<header><h1>Weekly study summary</h1><p>${escape(fullDate(week.first))} – ${escape(fullDate(week.last))}</p></header>
+      <section><h2>Focus time</h2><p><strong>${minutes(data.focusMs)} minutes</strong> across ${week.focus.length} completed focus sessions.</p>
+      <table><thead><tr><th scope="col">Day</th><th scope="col">Focus minutes</th></tr></thead><tbody>
+      ${data.focusByDay.map(([day,ms])=>`<tr><th scope="row">${escape(reportDate(day))}</th><td>${minutes(ms)}</td></tr>`).join('')}
+      </tbody></table></section>
+      <section><h2>Completed tasks <small>(${data.completed.length})</small></h2>
+      ${data.completed.length?`<ul>${data.completed.map(task=>`<li>${escape(task.text)} <small>· ${escape(reportProjectName(task.projectId))} · ${escape(plainDate(task.day))}</small></li>`).join('')}</ul>`:'<p>No tasks completed this week.</p>'}</section>
+      <section><h2>Next steps</h2>
+      ${data.nextSteps.length?`<ul class="weekly-saved-steps">${data.nextSteps.map(item=>`<li><strong>${escape(item.title)}</strong>
+        ${item.location?`<small>${escape(item.location)}</small>`:''}${item.next?`<p>${escape(item.next)}</p>`:''}</li>`).join('')}</ul>`:'<p>No handoffs or next steps saved this week.</p>'}
+      ${data.upcoming.length?`<h3>Open work to carry forward</h3><ul>${data.upcoming.map(item=>`<li>${escape(item.title)} <small>· ${escape(plainDate(item.day))}</small></li>`).join('')}</ul>`:''}
+      </section>`;
+    document.getElementById(page.id)?.remove();
+    document.body.append(page);
+    window.addEventListener('afterprint',()=>page.remove(),{once:true});
+    window.print();
   }
 
   function healthMarkup(){
@@ -1126,6 +1166,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       reviewWeek=data.reviewStep==='0'?new Date():shiftDay(reviewWeek,Number(data.reviewStep));
       renderContent();content.querySelector(`[data-review-step="${data.reviewStep}"]`)?.focus();return;
     }
+    if(Object.hasOwn(data,'printWeek')&&view==='review'){printWeeklySummary();return;}
     if(data.reviewCarry){
       const task=state().tasks.find(item=>item.id===data.reviewCarry);
       if(!task)return;

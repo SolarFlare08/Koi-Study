@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {calendarBlocks,allDayEvents} from '../dist/calendar.js';
-import {summarizeWeek} from '../dist/weekly-planning.js';
+import {summarizeWeek,weeklyStudySummary} from '../dist/weekly-planning.js';
 import {freshState,loadState} from '../dist/state.js';
 import {loadGardenSchedule,scheduledAppearance} from '../dist/garden-appearance.js';
 
@@ -44,6 +44,26 @@ test('workload adds overlapping study blocks but counts overlapping commitments 
   assert.equal(result.carried[0].id,'earlier');
   assert.equal(result.next[0].task.id,'next');
   assert.equal(calendarBlocks(saved.tasks,day,saved.calendarEvents).filter(block=>block.event).length,2);
+});
+
+test('the printable week includes its focus, completed tasks, and latest saved next steps',()=>{
+  const day='2026-11-10',at=+new Date(day+'T11:00'),state=freshState();
+  state.tasks=[{id:'read',text:'Reading',done:true,repeat:'none',completedOn:day},
+    {id:'lab',text:'Lab notes',done:false,repeat:'none',date:'2026-11-17'}];
+  state.history=[
+    {id:'focus',taskId:'read',taskTitle:'Reading',mode:'focus',outcome:'completed',day,finishedAt:at,focusMs:1500000,
+      nextHandoff:{resumeNote:'Review the example'}},
+    {id:'early',taskId:'read',taskTitle:'Reading',mode:'focus',outcome:'skipped',day,finishedAt:at+60000,focusMs:60000,
+      nextHandoff:{resumeLocation:'Page 42',resumeNote:'Try problem 4'}},
+    {id:'later',taskId:'read',mode:'focus',outcome:'completed',day:'2026-11-17',finishedAt:at+604800000,focusMs:300000,
+      nextHandoff:{resumeNote:'A later week'}}
+  ];
+  const summary=weeklyStudySummary(state,summarizeWeek(state,state.tasks,new Date(at)));
+  assert.equal(summary.focusMs,1500000);
+  assert.equal(summary.focusByDay.find(([key])=>key===day)[1],1500000);
+  assert.deepEqual(summary.completed.map(task=>task.text),['Reading']);
+  assert.deepEqual(summary.nextSteps,[{title:'Reading',next:'Try problem 4',location:'Page 42'}]);
+  assert.deepEqual(summary.upcoming,[{title:'Lab notes',day:'2026-11-17'}]);
 });
 
 test('daily Garden presets use the most recent local start time, including the prior night',()=>{
