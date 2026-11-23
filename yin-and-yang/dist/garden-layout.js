@@ -91,16 +91,39 @@ export function gardenPropsInOrder(props,stack){
 
 export function moveGardenPropLayer(props,id,direction){
   const prop=props.find(item=>item.id===id);
-  if(!prop)return props;
+  if(!prop||prop.locked)return props;
   const ordered=gardenPropsInOrder(props,gardenPropStack(prop));
   const index=ordered.indexOf(prop),last=ordered.length-1;
   const destination={front:last,forward:index+1,backward:index-1,back:0}[direction];
   if(!Number.isInteger(destination)||destination<0||destination>last||destination===index)return props;
   ordered.splice(index,1);
   ordered.splice(destination,0,prop);
-  const [min,max]=gardenPropPositionBounds(prop.kind).y;
-  const ranks=new Map(ordered.map((item,slot)=>[item.id,Math.round(min+slot*(max-min)/last)]));
-  return props.map(item=>ranks.has(item.id)?{...item,order:ranks.get(item.id)}:item);
+  return rankGardenProps(props,ordered);
+}
+
+// Draw order runs back to front. A drop above a row paints after it.
+export function dropGardenPropLayer(props,id,stack,targetId,above){
+  const prop=props.find(item=>item.id===id);
+  if(!prop||prop.locked||id===targetId)return props;
+  const source=gardenPropStack(prop);
+  if(source==='sky'?stack!=='sky':!Object.hasOwn(gardenPropBands,stack))return props;
+  const previous=gardenPropsInOrder(props,stack);
+  const ordered=previous.filter(item=>item!==prop);
+  const target=ordered.findIndex(item=>item.id===targetId);
+  if(targetId&&target<0)return props;
+  const item={...prop};
+  if(stack==='middle')delete item.band;
+  else if(stack!=='sky')item.band=stack;
+  ordered.splice(targetId?target+Number(above):ordered.length,0,item);
+  if(source===stack&&ordered.every((entry,index)=>entry.id===previous[index].id))return props;
+  return rankGardenProps(props,ordered);
+}
+
+function rankGardenProps(props,ordered){
+  const [min,max]=gardenPropPositionBounds(ordered[0].kind).y;
+  const span=Math.max(1,ordered.length-1);
+  const ranked=new Map(ordered.map((item,index)=>[item.id,{...item,order:Math.round(min+index*(max-min)/span)}]));
+  return props.map(item=>ranked.get(item.id)||item);
 }
 export function loadGardenProps(value){
   const props=new Map();
@@ -111,6 +134,8 @@ export function loadGardenProps(value){
     const prop={id:item.id,kind:item.kind,...clampGardenPlacement(item.x,item.y,bounds),size:gardenObjectSize(item.size)};
     if(gardenPropLayer(item.kind)==='ground'&&['front','back'].includes(item.band))prop.band=item.band;
     if(Number.isFinite(item.order))prop.order=Math.round(Math.max(bounds.y[0],Math.min(bounds.y[1],item.order)));
+    if(item.hidden===true)prop.hidden=true;
+    if(item.locked===true)prop.locked=true;
     props.set(item.id,prop);
     if(props.size===gardenPropLimit)break;
   }

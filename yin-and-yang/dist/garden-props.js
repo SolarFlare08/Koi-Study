@@ -177,11 +177,11 @@ export function gardenPropTransform({x,y,size,kind}){
   return `translate(${x} ${y}) scale(${scale})`;
 }
 export function renderGardenProps(items,stack='middle'){
-  return gardenPropsInOrder(items,stack).map(item=>{
+  return gardenPropsInOrder(items,stack).filter(item=>!item.hidden).map(item=>{
     const art=gardenPropArtwork(item.kind);
     const lights=gardenPropArtwork(item.kind,true);
     const phase=gardenPropLayer(item.kind);
-    return art?`<g data-garden-prop="${item.id}" data-prop-type="${item.kind}" data-prop-phase="${phase}" transform="${gardenPropTransform(item)}">
+    return art?`<g data-garden-prop="${item.id}" data-prop-type="${item.kind}" data-prop-phase="${phase}"${item.locked?' data-prop-locked':''} transform="${gardenPropTransform(item)}">
       ${art}${lights?`<g class="garden-prop-light">${lights}</g>`:''}</g>`:'';
   }).join('');
 }

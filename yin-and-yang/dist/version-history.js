@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.19.0',date:'2026-11-22',title:'Visual Layers in Garden Studio',changes:[
+    'Browse placed props in front-to-back order with thumbnails. Select a prop from its row or drag its handle to reorder it.',
+    'Hide props while editing other scenery and lock finished placements against accidental edits. Visibility and locks save with layouts and backups.'
+  ]},
   {version:'5.18.0',date:'2026-11-21',title:'Layers in Garden Studio',changes:[
     'Move placed props forward or backward in their layer, or send them straight to the front or back.',
     'Put ground props behind, among, or in front of the built-in scenery. Sky props can overlap one another and stay behind the mountains.',

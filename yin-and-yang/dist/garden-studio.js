@@ -1,7 +1,7 @@
 import {gardenCameras,gardenPieceOptions,defaultGardenDesign,gardenStarterLayouts,gardenFrame,loadGardenDesign,loadGardenLayouts,
   gardenLandmarkKey,movableGardenLandmark,clampGardenPlacement,placementBounds,gardenActivities,defaultPavilionPosition,pavilionBounds,
   gardenPropLayer,gardenPropPositionBounds,gardenPropTypes,gardenPropCategories,gardenPropLimit,gardenSizeBounds,gardenObjectSize,
-  gardenPropBands,gardenPropBand,gardenPropStack,gardenPropsInOrder,moveGardenPropLayer} from './garden-layout.js';
+  gardenPropBands,gardenPropBand,gardenPropStack,gardenPropsInOrder,moveGardenPropLayer,dropGardenPropLayer} from './garden-layout.js';
 import {loadAppearance,seasonOptions,lightingOptions,gardenPalettes,weatherBySeason} from './garden-appearance.js';
 import {gardenLandmarkPositions,mountGardenPreview} from './scenery.js';
 import {gardenCourses,landmarkTypes} from './garden-growth.js';
@@ -12,11 +12,20 @@ import {gardenPieces} from './garden-pieces.js';
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const buildingTarget='building',propPrefix='prop:';
 const layerActions={forward:'Bring forward',backward:'Send backward',front:'Bring to front',back:'Send to back'};
+const layerStacks={sky:'Sky',front:gardenPropBands.front,middle:gardenPropBands.middle,back:gardenPropBands.back};
+const layerIcons={
+  grip:'M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01',
+  show:'M2 12q10-13 20 0-10 13-20 0zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+  hide:'m3 3 18 18M9 6q7-3 13 6l-4 4M6 7l-4 5q6 8 13 6',
+  lock:'M6 10h12v10H6zM8 10V7a4 4 0 0 1 8 0v3',
+  unlock:'M6 10h12v10H6zM8 10V7a4 4 0 0 1 7-3'
+};
 const pieceLabels={mountains:'Mountains',shoreline:'Shoreline',path:'Path',pavilion:'Building',
   foundation:'Building base',boat:'Boat',lantern:'Lantern'};
 const tools={
   select:['Move','M5 3l13 10-7 1-3 6L5 3z'],
   props:['Props','M12 3v18M3 12h18M5 5h14v14H5z'],
+  layers:['Layers','m3 8 9-5 9 5-9 5zM3 12l9 5 9-5M3 16l9 5 9-5'],
   scene:['Terrain','M2 19l7-11 4 6 3-4 6 9H2zM7 11l2 2 2-2'],
   light:['Light','M12 3v2m0 14v2m9-9h-2M5 12H3m15.4-6.4L17 7m-10 10-1.4 1.4m12.8 0L17 17M7 7 5.6 5.6M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z'],
   library:['Layouts','M3 6h7l2 2h9v11H3zM3 6V4h7l2 2h7v2']
@@ -44,10 +53,10 @@ const sizeSlider=(name,label)=>`<label>${label} <output name="${name}Value">100%
 
 export function createGardenStudio({getState,getAppearance,getDesign,commit,download,today}){
   let draft,form,selected='',scene=null,drag=null,tool='select',stamp='',stampPoint=null,zoom=1,terrainCategory='mountains';
-  let undo=[],redo=[],savedDraft='';
+  let undo=[],redo=[],savedDraft='',layerDrag='';
   function open(){
     draft={id:'',name:'',through:'',design:loadGardenDesign(getDesign()),appearance:getAppearance()};
-    selected='';drag=null;stamp='';stampPoint=null;undo=[];redo=[];zoom=1;tool='scene';terrainCategory='mountains';
+    selected='';drag=null;layerDrag='';stamp='';stampPoint=null;undo=[];redo=[];zoom=1;tool='scene';terrainCategory='mountains';
     savedDraft=fingerprint(draft);
   }
   function markup(){
@@ -93,6 +102,15 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
               <div class="studio-object-actions"><button type="button" data-studio="automatic">Reset position</button>
                 <button type="button" data-studio="remove-prop" hidden>Remove prop</button></div>
             </div>
+          </section>
+          <section id="studio-tool-layers" data-tool-panel="layers" hidden>
+            <h3>Layers</h3>
+            <p>Placed props are listed front to back within each section.</p>
+            <div class="studio-layer-actions studio-object-actions">
+              <button type="button" data-studio-layer="forward">Bring forward</button>
+              <button type="button" data-studio-layer="backward">Send backward</button>
+            </div>
+            <div class="studio-layer-list"></div>
           </section>
           <section id="studio-tool-props" data-tool-panel="props" hidden>
             <div class="studio-inspector-heading">
@@ -356,8 +374,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   function updatePin(point=pointForSelected(),previewing=false){
     const stage=form.querySelector('.studio-stage'),pin=scene.querySelector('.studio-pin');
     const [left,top,width,height]=gardenFrame(draft.design.camera);
-    const visible=tool==='select'&&point&&point.x>=left&&point.x<=left+width&&point.y>=top&&point.y<=top+height;
-    stage.toggleAttribute('data-placing',tool==='select'&&Boolean(point));pin.setAttribute('visibility',visible?'visible':'hidden');
+    const prop=selectedProp(),locked=Boolean(prop?.locked);
+    const visible=['select','layers'].includes(tool)&&!prop?.hidden&&point&&point.x>=left&&point.x<=left+width&&point.y>=top&&point.y<=top+height;
+    stage.toggleAttribute('data-placing',tool==='select'&&Boolean(point)&&!locked&&!prop?.hidden);pin.setAttribute('visibility',visible?'visible':'hidden');
     if(visible){
       pin.setAttribute('cx',point.x);pin.setAttribute('cy',point.y);
     }
@@ -366,9 +385,10 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const building=selected===buildingTarget;
     const support=form.querySelector('[data-studio-foundation]');
     support.hidden=!building;
-    const prop=selectedProp();
     if(!previewing)updateLayerControls(prop);
     form.querySelector('[data-studio="remove-prop"]').hidden=!prop;
+    form.querySelector('[data-studio="remove-prop"]').disabled=locked;
+    field('objectSize').disabled=locked;
     field('objectSize').value=selectedSize();field('objectSizeValue').value=selectedSize()+'%';
     if(building){
       const base=pavilionFoundation({...draft.design,pavilionPosition:previewing?point:draft.design.pavilionPosition});
@@ -377,29 +397,54 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     if(point){
       for(const axis of ['x','y']){
         const input=field(axis),[min,max]=selectedBounds()[axis];
-        input.min=min;input.max=max;input.value=point[axis];
+        input.min=min;input.max=max;input.value=point[axis];input.disabled=locked;
       }
-      form.querySelector('[data-studio="automatic"]').disabled=!(prop||(building?draft.design.pavilionPosition:Object.hasOwn(draft.design.placements,selected)));
+      form.querySelector('[data-studio="automatic"]').disabled=locked||!(prop||(building?draft.design.pavilionPosition:Object.hasOwn(draft.design.placements,selected)));
     }
     form.querySelector('[data-studio-placement-tip]').textContent=tool==='props'
       ?stamp?`Click the canvas to place ${gardenPropTypes[stamp].name.toLowerCase()}.${propLightingTip(gardenPropLayer(stamp))}`:'Choose a prop from the palette.'
       :tool!=='select'?'Changes are previewed on the canvas.'
       :!point?'Click an object or select it from the list.'
+      :locked?'This prop is locked. Unlock it in Layers to edit it.'
+      :prop?.hidden?'This prop is hidden. Use Layers to show it.'
       :visible?'Drag to move. Arrow keys nudge the selected object.':'This object is outside the current view.';
   }
   function updateLayerControls(prop){
     const controls=form.querySelector('.studio-layer-controls');
     controls.hidden=!prop;
-    if(!prop)return;
-    const stack=gardenPropStack(prop),order=gardenPropsInOrder(draft.design.props,stack),index=order.indexOf(prop);
-    const band=field('propBand');
-    band.parentElement.hidden=stack==='sky';
-    band.value=gardenPropBand(prop);
-    controls.querySelector('[data-studio-layer-position]').textContent=
-      `${stack==='sky'?'Sky · ':''}${index+1} of ${order.length}, back to front`;
-    for(const button of controls.querySelectorAll('[data-studio-layer]')){
-      button.disabled=['back','backward'].includes(button.dataset.studioLayer)?index===0:index===order.length-1;
+    const stack=prop?gardenPropStack(prop):'';
+    const order=gardenPropsInOrder(draft.design.props,stack),index=order.indexOf(prop);
+    if(prop){
+      const band=field('propBand');
+      band.parentElement.hidden=stack==='sky';
+      band.value=gardenPropBand(prop);
+      band.disabled=Boolean(prop.locked);
+      controls.querySelector('[data-studio-layer-position]').textContent=
+        `${stack==='sky'?'Sky · ':''}${index+1} of ${order.length}, back to front`;
     }
+    for(const button of form.querySelectorAll('[data-studio-layer]')){
+      button.disabled=!prop||Boolean(prop.locked)||(['back','backward'].includes(button.dataset.studioLayer)?index===0:index===order.length-1);
+    }
+    for(const button of form.querySelectorAll('[data-layer-action="select"]')){
+      button.setAttribute('aria-pressed',String(prop?.id===button.closest('[data-layer-id]').dataset.layerId));
+    }
+  }
+  function renderLayerList(propOptions){
+    form.querySelector('.studio-layer-list').innerHTML=draft.design.props.length?
+      Object.entries(layerStacks).map(([stack,label])=>{
+        const rows=gardenPropsInOrder(draft.design.props,stack).reverse().map(prop=>{
+          const name=escape(propOptions[propPrefix+prop.id]);
+          const toggle=(action,verb,icon)=>`<button type="button" data-layer-action="${action}" aria-label="${verb} ${name}" title="${verb} ${name}">${toolIcon(layerIcons[icon])}</button>`;
+          return `<li class="studio-layer-row" data-layer-id="${prop.id}"${prop.hidden?' data-layer-hidden':''}>
+            <span class="studio-layer-grip"${prop.locked?'':' draggable="true"'} aria-hidden="true">${toolIcon(layerIcons.grip)}</span>
+            <button type="button" data-layer-action="select" aria-pressed="false">${propSwatch(prop.kind)}<span>${name}</span></button>
+            ${toggle('hidden',prop.hidden?'Show':'Hide',prop.hidden?'hide':'show')}
+            ${toggle('locked',prop.locked?'Unlock':'Lock',prop.locked?'lock':'unlock')}
+          </li>`;
+        }).join('');
+        return `<div class="studio-layer-stack" data-layer-stack="${stack}">
+          <h4>${label}</h4>${rows?`<ol aria-label="${label}">${rows}</ol>`:'<p>No props here.</p>'}</div>`;
+      }).join(''):'<p>Choose Props to place your first object.</p>';
   }
   function propLightingTip(layer){
     if(layer==='day')return ' Visible in Day lighting.';
@@ -422,6 +467,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       (props.length?`<optgroup label="Props">${options(propOptions)}</optgroup>`:'')+
       options(Object.fromEntries(savedLandmarks.map(item=>[gardenLandmarkKey(item),landmarkTypes[item.kind].name+' · '+item.title])));
     field('landmark').value=selected;
+    renderLayerList(propOptions);
     scene=mountGardenPreview(form.querySelector('.studio-scene'),loadAppearance(draft.appearance),
       {history,courses,through:draft.through,design:draft.design});
     scene.insertAdjacentHTML('beforeend','<g class="studio-ghost" data-live-scenery visibility="hidden"></g><circle class="studio-pin" data-live-scenery visibility="hidden" r="5"/>');
@@ -441,7 +487,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   }
   function removeSelectedProp(){
     const prop=selectedProp();
-    if(!prop)return;
+    if(!prop||prop.locked)return;
     const before=structuredClone(draft);
     draft.design.props=draft.design.props.filter(item=>item!==prop);selected='';
     record(before);render();status(gardenPropTypes[prop.kind].name+' removed.');
@@ -499,6 +545,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         useHistory(event.key.toLowerCase()==='z'&&!event.shiftKey);return;
       }
       if(event.target!==stage||tool!=='select')return;
+      if(selectedProp()?.locked||selectedProp()?.hidden)return;
       if(event.key==='Delete'&&selectedProp()){event.preventDefault();removeSelectedProp();return;}
       const offset={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[event.key];
       const point=pointForSelected();
@@ -521,6 +568,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       const building=event.target.closest('[data-garden-piece="pavilion"]');
       const hit=propId?propPrefix+propId:building?buildingTarget:'';
       if(hit){selected=hit;field('landmark').value=hit;}
+      if(selectedProp()?.locked||selectedProp()?.hidden){updatePin();return;}
       const anchor=pointForSelected(),point=scenePoint(event);
       if(!anchor)return;
       drag={pointer:event.pointerId,dx:hit?point.x-anchor.x:0,dy:hit?point.y-anchor.y:0,before:structuredClone(draft)};
@@ -542,6 +590,54 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       drag=null;render();
     });
     stage.addEventListener('pointercancel',()=>{if(drag){drag=null;render();}});
+    const layerList=form.querySelector('.studio-layer-list');
+    function endLayerDrag(){
+      layerDrag='';
+      layerList.querySelector('[data-layer-drop]')?.removeAttribute('data-layer-drop');
+    }
+    function layerDropTarget(event){
+      const section=event.target.closest('[data-layer-stack]');
+      const prop=draft.design.props.find(item=>item.id===layerDrag);
+      if(!section||!prop||prop.locked)return;
+      const stack=section.dataset.layerStack;
+      if((gardenPropStack(prop)==='sky')!==(stack==='sky'))return;
+      const row=event.target.closest('[data-layer-id]');
+      if(row?.dataset.layerId===layerDrag)return;
+      const rect=row?.getBoundingClientRect();
+      const above=Boolean(rect&&event.clientY<rect.top+rect.height/2);
+      return {stack,row,section,above};
+    }
+    layerList.addEventListener('dragstart',event=>{
+      const grip=event.target.closest('[draggable="true"]');
+      if(!grip)return;
+      layerDrag=grip.closest('[data-layer-id]').dataset.layerId;
+      event.dataTransfer.effectAllowed='move';
+      event.dataTransfer.setData('text/plain',layerDrag);
+    });
+    layerList.addEventListener('dragover',event=>{
+      layerList.querySelector('[data-layer-drop]')?.removeAttribute('data-layer-drop');
+      const target=layerDropTarget(event);
+      if(!target)return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect='move';
+      (target.row||target.section).dataset.layerDrop=target.row?(target.above?'above':'below'):'section';
+    });
+    layerList.addEventListener('dragleave',event=>{
+      if(!layerList.contains(event.relatedTarget))layerList.querySelector('[data-layer-drop]')?.removeAttribute('data-layer-drop');
+    });
+    layerList.addEventListener('dragend',endLayerDrag);
+    layerList.addEventListener('drop',event=>{
+      const target=layerDropTarget(event),id=layerDrag;
+      endLayerDrag();
+      if(!target)return;
+      event.preventDefault();
+      const next=dropGardenPropLayer(draft.design.props,id,target.stack,target.row?.dataset.layerId,target.above);
+      if(next===draft.design.props)return;
+      const before=structuredClone(draft);
+      selected=propPrefix+id;
+      draft.design.props=next;
+      record(before);render();
+    });
     form.addEventListener('input',event=>{
       if(event.target===field('layoutName'))updateHistoryControls();
       if(event.target===field('stampSize')){field('stampSizeValue').value=event.target.value+'%';paintStamp();}
@@ -575,7 +671,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(name==='landmark'){selected=value;updatePin();return;}
       if(name==='propBand'){
         const prop=selectedProp();
-        if(!prop||gardenPropStack(prop)==='sky'||!Object.hasOwn(gardenPropBands,value)||gardenPropBand(prop)===value)return;
+        if(!prop||prop.locked||gardenPropStack(prop)==='sky'||!Object.hasOwn(gardenPropBands,value)||gardenPropBand(prop)===value)return;
         const before=structuredClone(draft);
         if(value==='middle')delete prop.band;
         else prop.band=value;
@@ -588,10 +684,10 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         if(!event.target.validity.valid)return;
         draft.through=value;
       }else if(name==='x'||name==='y'){
-        if(!selected)return;
+        if(!selected||selectedProp()?.locked)return;
         savePosition(clampGardenPlacement(Number(field('x').value),Number(field('y').value),selectedBounds()));
       }else if(name==='objectSize'){
-        if(!selected)return;
+        if(!selected||selectedProp()?.locked)return;
         const size=gardenObjectSize(Number(value)),prop=selectedProp();
         if(selected===buildingTarget)draft.design.pavilionSize=size;
         else if(prop)prop.size=size;
@@ -610,6 +706,22 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(toolButton){setTool(toolButton.dataset.studioTool);return;}
       const stampButton=event.target.closest('[data-studio-stamp]');
       if(stampButton){stamp=stampButton.dataset.studioStamp;syncStamp();updatePin();return;}
+      const layerAction=event.target.closest('[data-layer-action]');
+      if(layerAction){
+        const id=layerAction.closest('[data-layer-id]').dataset.layerId;
+        const action=layerAction.dataset.layerAction;
+        if(action==='select'){
+          selected=propPrefix+id;field('landmark').value=selected;updatePin();
+        }else{
+          const prop=draft.design.props.find(item=>item.id===id);
+          const before=structuredClone(draft);
+          if(prop[action])delete prop[action];
+          else prop[action]=true;
+          record(before);render();
+          layerList.querySelector(`[data-layer-id="${id}"] [data-layer-action="${action}"]`)?.focus({preventScroll:true});
+        }
+        return;
+      }
       const layerButton=event.target.closest('[data-studio-layer]');
       if(layerButton){
         const next=moveGardenPropLayer(draft.design.props,selectedProp()?.id,layerButton.dataset.studioLayer);
@@ -649,6 +761,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
           record(before);syncFields();render();status('Scenery reset in this draft.');break;
         }
         case 'automatic':{
+          if(selectedProp()?.locked)break;
           const before=structuredClone(draft);
           if(selected===buildingTarget)draft.design.pavilionPosition=null;
           else if(selected.startsWith(propPrefix)){

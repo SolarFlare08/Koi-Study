@@ -17,7 +17,7 @@ import {exportCalendar} from '../dist/calendar-export.js';
 import {parseCalendarImport} from '../dist/calendar-import.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,loadGardenGrowth} from '../dist/garden-growth.js';
 import {pavilionFoundation} from '../dist/garden-ornaments.js';
-import {gardenPieceOptions,gardenPropCategories,gardenPropTypes,gardenPropLimit,gardenPropsInOrder,moveGardenPropLayer,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
+import {gardenPieceOptions,gardenPropCategories,gardenPropTypes,gardenPropLimit,gardenPropsInOrder,moveGardenPropLayer,dropGardenPropLayer,loadGardenProps,defaultGardenDesign,gardenLandmarkKey,gardenViewport,loadGardenDesign,gardenActivityLayout,loadGardenActivityLayouts} from '../dist/garden-layout.js';
 import {eveningCamera,renderLandscape,gardenGrowthMarkup,gardenLandmarkPositions} from '../dist/scenery.js';
 
 test('landmark placement survives loading and keeps grouped landmarks in the same area',()=>{
@@ -675,6 +675,16 @@ test('Garden layer edits preserve position and survive backup and SVG rendering'
   const indices=['data-garden-prop="lake"','data-garden-piece="westBank"','data-garden-prop="lamp"',
     'data-garden-prop="tree"','data-garden-prop="rock"','id="garden-growth-cairns"','data-garden-prop="flowers"'].map(value=>svg.indexOf(value));
   assert.ok(indices.every((value,i)=>value>=0&&(!i||indices[i-1]<value)));
+  const dragged=dropGardenPropLayer(back,'tree','front','flowers',true);
+  assert.deepEqual(gardenPropsInOrder(dragged,'front').map(prop=>prop.id),['flowers','tree']);
+  assert.equal(dropGardenPropLayer(dragged,'tree','sky'),dragged);
+  const changed=dragged.map(prop=>prop.id==='tree'?{...prop,locked:true}:prop.id==='lamp'?{...prop,hidden:true}:prop);
+  assert.equal(dropGardenPropLayer(changed,'tree','back'),changed);
+  assert.equal(moveGardenPropLayer(changed,'tree','back'),changed);
+  state.gardenDesign={...state.gardenDesign,props:changed};
+  const saved=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state.gardenDesign;
+  assert.deepEqual(saved.props,changed);
+  assert.doesNotMatch(renderLandscape(saved),/data-garden-prop="lamp"/);
 });
 
 test('Reading keeps standalone library books, fractional reviews and rereads in backups',()=>{
