@@ -2,6 +2,9 @@
 .week-tools nav { display: flex; border: 1px solid var(--planner-line); border-radius: 7px; }
 .week-tools button { min-height: 32px; padding: 4px 9px; border-radius: 5px; }
 .week-tools button:hover, .week-task > button:hover { background: var(--planner-tint); }
+.weekly-print-controls { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.weekly-print-controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.weekly-print-controls input { margin: 0; accent-color: var(--planner-accent); }
 #weekly-study-print { display: none; }
 @media print {
   html:has(#weekly-study-print),body:has(> #weekly-study-print) { background: white; color: #151515; }

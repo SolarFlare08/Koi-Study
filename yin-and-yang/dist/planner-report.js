@@ -3,6 +3,24 @@ import {shiftDay} from './calendar.js';
 
 export const activityLabels={task:'Completed tasks',focus:'Completed focus sessions',skipped:'Skipped focus sessions'};
 
+function reportDateRange(period,now){
+  if(period==='all')return {first:'',last:''};
+  return {first:dayKey(shiftDay(now,1-Number(period))),last:dayKey(now)};
+}
+
+export function reportExportFilename(kind,period,days,now=new Date()){
+  let {first,last}=reportDateRange(period,now);
+  if(period==='all'){
+    for(const day of days){
+      if(!day)continue;
+      if(!first||day<first)first=day;
+      if(day>last)last=day;
+    }
+  }
+  const range=first?(first===last?first:`${first}-to-${last}`):'all-dates';
+  return `yin-and-yang-${kind}-${range}.csv`;
+}
+
 export function reportEvents(state,{period='all',project='all',type='all'}={},now=new Date()) {
   const taskActivity=state.taskActivity||[];
   const saved=new Set(taskActivity.map(event=>event.id));
@@ -20,9 +38,8 @@ export function reportEvents(state,{period='all',project='all',type='all'}={},no
     events.push({id:session.id,type:session.outcome==='completed'?'focus':'skipped',day:session.day||dayKey(new Date(session.finishedAt)),
       at:session.finishedAt,taskId:session.taskId,text:session.taskTitle||session.intention||'Focus session',projectId:session.projectId??null,ms:session.focusMs});
   }
-  const today=dayKey(now);
-  const first=period==='all'?'':dayKey(shiftDay(now,1-Number(period)));
-  return events.filter(event=>(period==='all'||event.day>=first&&event.day<=today)&&
+  const {first,last}=reportDateRange(period,now);
+  return events.filter(event=>(period==='all'||event.day>=first&&event.day<=last)&&
     (project==='all'||(project==='inbox'?event.projectId==='':project==='unassigned'?event.projectId===null:event.projectId===project))&&
     (type==='all'||event.type===type)).sort((a,b)=>b.day.localeCompare(a.day)||(b.at||0)-(a.at||0));
 }
@@ -75,6 +92,10 @@ function* estimatedWork(state,filters,now){
     if(!Number.isInteger(event.estimate)||event.estimate<=0||!visible.has(event.id))continue;
     yield {event,actual,estimated:event.estimate*60000};
   }
+}
+
+export function estimateReportDays(state,filters,now){
+  return Array.from(estimatedWork(state,filters,now),({event})=>dayKey(new Date(event.at)));
 }
 
 export function estimateAccuracy(state,filters={},now=new Date()){

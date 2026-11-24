@@ -290,6 +290,7 @@
 .course-estimate-difference { font-variant-numeric: tabular-nums; }
 .course-estimate-difference[data-over-estimate] strong { color: var(--surface-danger); }
 .course-estimate-difference small { display: block; margin-top: 3px; color: var(--planner-muted); }
+.course-single-sample { display: block; width: fit-content; margin-top: 4px; padding: 2px 5px; border-radius: 4px; background: var(--planner-tint); color: var(--planner-muted); font-size: 10px; font-weight: 500; }
 .planner-estimates tbody button { padding: 0; text-align: left; font-weight: 650; }
 .planner-estimates tbody button:hover { text-decoration: underline; }
 .planner-estimate-over { display: inline-block; margin-left: 4px; padding: 2px 5px; border-radius: 6px; background: var(--planner-tint); color: var(--surface-danger); white-space: nowrap; font-size: 10px; }

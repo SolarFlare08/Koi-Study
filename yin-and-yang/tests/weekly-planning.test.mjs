@@ -58,12 +58,15 @@ test('the printable week includes its focus, completed tasks, and latest saved n
     {id:'later',taskId:'read',mode:'focus',outcome:'completed',day:'2026-11-17',finishedAt:at+604800000,focusMs:300000,
       nextHandoff:{resumeNote:'A later week'}}
   ];
-  const summary=weeklyStudySummary(state,summarizeWeek(state,state.tasks,new Date(at)));
+  const week=summarizeWeek(state,state.tasks,new Date(at));
+  const summary=weeklyStudySummary(state,week);
   assert.equal(summary.focusMs,1500000);
   assert.equal(summary.focusByDay.find(([key])=>key===day)[1],1500000);
   assert.deepEqual(summary.completed.map(task=>task.text),['Reading']);
   assert.deepEqual(summary.nextSteps,[{title:'Reading',next:'Try problem 4',location:'Page 42'}]);
   assert.deepEqual(summary.upcoming,[{title:'Lab notes',day:'2026-11-17'}]);
+  const shared=weeklyStudySummary(state,week,{includeHandoffs:false});
+  assert.deepEqual(shared,{...summary,nextSteps:[]});
 });
 
 test('daily Garden presets use the most recent local start time, including the prior night',()=>{

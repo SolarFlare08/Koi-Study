@@ -4,13 +4,14 @@ import {countReadingChapters} from './reading-shelf.js';
 import {reportEvents} from './planner-report.js';
 import {sessionHandoff} from './session-handoff.js';
 
-export function weeklyStudySummary(state,week){
+export function weeklyStudySummary(state,week,{includeHandoffs=true}={}){
   const within=day=>day>=week.first&&day<=week.last;
   const completed=reportEvents(state,{type:'task'}).filter(event=>within(event.day));
   const focusByDay=new Map(week.timeline.map(({key})=>[key,0]));
   for(const session of week.focus)focusByDay.set(session.day,focusByDay.get(session.day)+session.focusMs);
   const nextSteps=new Map();
-  for(const session of [...state.history].sort((a,b)=>a.finishedAt-b.finishedAt)){
+  const sessions=includeHandoffs?[...state.history].sort((a,b)=>a.finishedAt-b.finishedAt):[];
+  for(const session of sessions){
     if(session.mode!=='focus'||!session.taskId||!within(session.day))continue;
     const handoff=sessionHandoff(session.nextHandoff);
     const next=session.review?.next||handoff?.resumeNote||'';

@@ -6,7 +6,7 @@ import {projectSessionTimeline} from './focus-replay.js';
 import {handoffLink} from './session-handoff.js';
 import {captureTaskChange} from './task-undo.js';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
-import {activityLabels,estimateAccuracy,estimateCsv,estimateSummary,courseEstimateAccuracy,courseEstimateCsv,reportCsv,reportEvents,reportMetrics,suggestTaskEstimate} from './planner-report.js';
+import {activityLabels,estimateAccuracy,estimateCsv,estimateReportDays,estimateSummary,courseEstimateAccuracy,courseEstimateCsv,reportCsv,reportEvents,reportExportFilename,reportMetrics,suggestTaskEstimate} from './planner-report.js';
 import {milestoneProgress,projectDecision,projectMilestone,remainingProjectWork} from './project-planning.js';
 import {exportCalendar} from './calendar-export.js';
 import {cleanCaptureContext} from './capture.js';
@@ -52,7 +52,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   const state=()=>getState();
   let view='today', selection='', layout='list', query='', date=new Date(), quick=null, expanded=new Set(), dialogAnchor=null;
   let parkedPlanner=null, calendarLayout='calendar', calendarProject='all';
-  let reviewWeek=new Date();
+  let reviewWeek=new Date(),includeWeeklyHandoffs=false;
   let projectOverviewMarkup='';
   let reminderMinute=-1;
   const layouts=new Map(), collapsed=new Set();
@@ -348,8 +348,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       ${days.length?`<table><thead><tr><th scope="col">Day</th><th scope="col">${metricNames[report.metric]}</th></tr></thead><tbody>${rows.join('')}</tbody></table>`:'<p class="planner-empty">No dated activity in this range.</p>'}`;
   }
 
-  function selectedReportEvents() {
-    return reportEvents(state(),{...report,type:report.mode==='metrics'?'all':report.type});
+  function selectedReportEvents(now=new Date()) {
+    return reportEvents(state(),{...report,type:report.mode==='metrics'?'all':report.type},now);
   }
   function reportEstimates(){
     const rows=estimateAccuracy(state(),report);
@@ -370,7 +370,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       <th scope="col">Planned</th><th scope="col">Actual focus</th></tr></thead><tbody>
       ${rows.map(row=>{
         const tasks=`${row.samples} ${row.samples===1?'task':'tasks'}`;
-        return `<tr><th scope="row">${escape(reportProjectName(row.projectId))}</th>
+        return `<tr><th scope="row">${escape(reportProjectName(row.projectId))}
+          ${row.samples===1?'<small class="course-single-sample">Single sample</small>':''}</th>
           <td class="course-estimate-difference" ${row.differenceMs>0?'data-over-estimate':''}>
             <strong>${difference(row.differenceMs)} across ${tasks}</strong>
             <small>Avg. ${difference(row.averageDifferenceMs)} per completed task</small>
@@ -391,13 +392,17 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   }
 
   function exportReport() {
+    const now=new Date();
     const accuracy=report.mode==='accuracy';
     const course=report.mode==='course-accuracy';
-    const csv=course?courseEstimateCsv(courseEstimateAccuracy(state(),report),reportProjectName):
-      accuracy?estimateCsv(estimateAccuracy(state(),report)):reportCsv(selectedReportEvents(),reportProjectName);
+    const kind=course?'course-estimates':accuracy?'estimates':'activity';
+    const events=accuracy||course?[]:selectedReportEvents(now);
+    const csv=course?courseEstimateCsv(courseEstimateAccuracy(state(),report,now),reportProjectName):
+      accuracy?estimateCsv(estimateAccuracy(state(),report,now)):reportCsv(events,reportProjectName);
+    const days=report.period!=='all'?[]:accuracy||course?estimateReportDays(state(),report,now):events.map(event=>event.day);
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
     const link=document.createElement('a');
-    link.href=url; link.download=`yin-and-yang-${course?'course-estimates':accuracy?'estimates':'activity'}-${dayKey()}.csv`;
+    link.href=url; link.download=reportExportFilename(kind,report.period,days,now);
     root.append(link); link.click(); link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
@@ -444,7 +449,10 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const hours=minutes=>`${Math.round(minutes/6)/10} h`;
     const header=`<div class="week-tools"><strong>${plainDate(week.first)} – ${plainDate(week.last)}</strong><nav aria-label="Review week">
       <button type="button" data-review-step="-7" aria-label="Previous review week">‹</button><button type="button" data-review-step="0">This week</button><button type="button" data-review-step="7" aria-label="Next review week">›</button></nav>
-      ${view==='review'?'<button type="button" class="planner-primary" data-print-week>Print summary</button>':''}</div>`;
+      ${view==='review'?`<div class="weekly-print-controls">
+        <label><input type="checkbox" id="weekly-include-handoffs" ${includeWeeklyHandoffs?'checked':''}> Include handoff notes</label>
+        <button type="button" class="planner-primary" data-print-week>Print summary</button>
+      </div>`:''}</div>`;
     if(view==='workload'){
       const capacity=state().studyCapacity;
       return header+`<form id="study-capacity-form" class="week-capacity"><label>Daily study capacity (minutes) <input name="minutes" type="number" min="15" max="1440" value="${capacity}" required></label><button class="planner-primary">Save capacity</button></form>
@@ -461,7 +469,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       ${listGroup('review-next','Next week',rows(week.next),{count:week.next.length})}`;
   }
   function printWeeklySummary(){
-    const week=summarizeWeek(state(),activeTasks(),reviewWeek),data=weeklyStudySummary(state(),week);
+    const week=summarizeWeek(state(),activeTasks(),reviewWeek),data=weeklyStudySummary(state(),week,{includeHandoffs:includeWeeklyHandoffs});
     const minutes=ms=>Math.round(ms/6000)/10;
     const fullDate=key=>new Date(key+'T00:00:00').toLocaleDateString([],{dateStyle:'long'});
     const page=document.createElement('article');
@@ -473,11 +481,11 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       </tbody></table></section>
       <section><h2>Completed tasks <small>(${data.completed.length})</small></h2>
       ${data.completed.length?`<ul>${data.completed.map(task=>`<li>${escape(task.text)} <small>· ${escape(reportProjectName(task.projectId))} · ${escape(plainDate(task.day))}</small></li>`).join('')}</ul>`:'<p>No tasks completed this week.</p>'}</section>
-      <section><h2>Next steps</h2>
+      ${includeWeeklyHandoffs?`<section><h2>Next steps</h2>
       ${data.nextSteps.length?`<ul class="weekly-saved-steps">${data.nextSteps.map(item=>`<li><strong>${escape(item.title)}</strong>
         ${item.location?`<small>${escape(item.location)}</small>`:''}${item.next?`<p>${escape(item.next)}</p>`:''}</li>`).join('')}</ul>`:'<p>No handoffs or next steps saved this week.</p>'}
-      ${data.upcoming.length?`<h3>Open work to carry forward</h3><ul>${data.upcoming.map(item=>`<li>${escape(item.title)} <small>· ${escape(plainDate(item.day))}</small></li>`).join('')}</ul>`:''}
-      </section>`;
+      </section>`:''}
+      ${data.upcoming.length?`<section><h2>Open work to carry forward</h2><ul>${data.upcoming.map(item=>`<li>${escape(item.title)} <small>· ${escape(plainDate(item.day))}</small></li>`).join('')}</ul></section>`:''}`;
     document.getElementById(page.id)?.remove();
     document.body.append(page);
     window.addEventListener('afterprint',()=>page.remove(),{once:true});
@@ -1272,6 +1280,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   });
   root.addEventListener('change',event=>{
     const input=event.target;
+    if(input.id==='weekly-include-handoffs'){includeWeeklyHandoffs=input.checked;return;}
     if(input.name==='scope'&&input.form?.dataset.manageForm==='calendar-export'){
       const project=input.value==='project';
       for(const field of input.form.querySelectorAll('[data-export-project]')){

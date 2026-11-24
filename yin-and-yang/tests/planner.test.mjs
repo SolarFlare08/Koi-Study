@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from '../dist/planner-data.js';
 import {calendarBlocks} from '../dist/calendar.js';
 import {completeTask,freshState,loadState,recordTaskCompletion,settle,skipPhase,startPause,taskStatus} from '../dist/state.js';
-import {estimateAccuracy,courseEstimateAccuracy,courseEstimateCsv,reportCsv,reportEvents,reportMetrics} from '../dist/planner-report.js';
+import {estimateAccuracy,estimateReportDays,courseEstimateAccuracy,courseEstimateCsv,reportCsv,reportEvents,reportExportFilename,reportMetrics} from '../dist/planner-report.js';
 import {captureTaskChange,restoreDeletedTask} from '../dist/task-undo.js';
 
 test('Quick Add creates a timed project task that shows in the shared calendar and saved filters',()=>{
@@ -109,6 +109,15 @@ test('estimate accuracy assigns completed focus to separate occurrences and flag
   assert.deepEqual(course,{projectId:'study',samples:1,estimatedMs:20*60000,actualMs:15*60000,
     differenceMs:-5*60000,averageDifferenceMs:-5*60000});
   assert.match(courseEstimateCsv([course],()=> 'Calculus'),/"Calculus","1","20","15","-5","-5"/);
+  assert.deepEqual(estimateReportDays(state,{project:'study',period:'1'},new Date(2026,10,10)),['2026-11-10']);
+});
+
+test('report CSV filenames use inclusive dates or the actual span of all dated rows',()=>{
+  const now=new Date(2027,0,3,14),days=['2026-10-10','','2027-01-01','2026-09-20'];
+  assert.equal(reportExportFilename('activity','7',days,now),'yin-and-yang-activity-2026-12-28-to-2027-01-03.csv');
+  assert.equal(reportExportFilename('estimates','1',[],now),'yin-and-yang-estimates-2027-01-03.csv');
+  assert.equal(reportExportFilename('course-estimates','all',days,now),'yin-and-yang-course-estimates-2026-09-20-to-2027-01-01.csv');
+  assert.equal(reportExportFilename('activity','all',[''],now),'yin-and-yang-activity-all-dates.csv');
 });
 
 test('course estimates rank total and per-task overruns separately',()=>{

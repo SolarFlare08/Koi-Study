@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.12',date:'2026-11-23',title:'Clearer report exports and shareable weekly summaries',changes:[
+    'Mark course estimates based on just one completed task.',
+    'Name reporting CSVs with the selected dates or the actual span covered by Any date.',
+    'Choose whether private handoff notes appear in a printed weekly summary.'
+  ]},
   {version:'5.21.11',date:'2026-11-23',title:'See where course estimates run over',changes:[
     'See the completed-task count beside each course’s total difference.',
     'Sort course estimates by the biggest total or per-task overrun.',

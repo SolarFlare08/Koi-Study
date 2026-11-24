@@ -595,7 +595,7 @@ export const helpTopics = [
       'Use the week arrows or `This week` to choose the period.',
       'Under Weekly project goals, choose `Set goals` on a project. Set focus minutes, chapters, or both. Select that project when you save a chapter log in Annotate.',
       'Review completed-task and focus totals, plus lists of still-open work from earlier weeks, open work this week, and next week’s tasks.',
-      'Choose Print summary to open a print-ready copy of the selected week. It includes daily focus time, completed tasks, saved next steps, and open work to carry forward. Choose a printer or Save as PDF in the print dialog.',
+      'Choose Print summary for daily focus time, completed tasks, and open work to carry forward. Check Include handoff notes before printing if you want saved stopping points and next steps in the copy. The checkbox starts unchecked. Choose a printer or Save as PDF in the print dialog.',
       'Use `Move to today` on eligible carried-over tasks to bring them back into today’s plan.'],
     action:'review', actionLabel:'Open Weekly review', related:['workload','reporting','tomorrow']
   },
@@ -633,6 +633,7 @@ export const helpTopics = [
     steps:['Open Planner → `Reporting`.',
       'Choose Activity log, Metrics, Estimate accuracy, or Estimate by course. Filter by project and date range as needed.',
       'Estimate by course treats each Planner project as a course. Difference shows the total over or under across the qualifying completed tasks and the average difference per task. The default sort is Biggest total overrun. Choose Biggest overrun per task to see which courses need larger estimate adjustments. Export CSV includes both figures in the selected order.',
+      'Single sample marks a course with only one qualifying completed task. CSV filenames include the selected date range. With Any date, they use the first and last dated results included in the export.',
       'Metrics shows focus minutes, completed tasks and sessions, skipped sessions, active days, averages, and completion rate. Choose a daily metric to compare days.',
       'For Estimate accuracy, set a task estimate, complete focus sessions with that task selected, and mark the task done. Use `Export CSV` to download the current report.'],
     tip:'Estimate accuracy compares the saved estimate with completed focus time for each completed occurrence. Repeated overruns are flagged when enough completed examples exist.',
