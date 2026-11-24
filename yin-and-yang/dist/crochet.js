@@ -34,7 +34,7 @@ function cleanProject(item){
     .map(point=>({id:point.id,at:point.at,note:clean(point.note,1000),rows:whole(point.rows),
       ...(point.photos?.length&&{photos:loadCheckpointPhotos(point.photos)}),
       counters:Array.isArray(point.counters)?point.counters.filter(counter=>clean(counter?.name,60))
-        .map(counter=>({name:clean(counter.name,60),count:whole(counter.count)})):[]})):[];
+        .map(counter=>({name:clean(counter.name,60),count:whole(counter.count),...(typeof counter.id==='string'&&{id:counter.id})})):[]})):[];
   const patternChanges=Array.isArray(item.patternChanges)?item.patternChanges.filter(change=>
     typeof change?.id==='string'&&Number.isFinite(change.at)&&clean(change.note,1000))
     .map(change=>({id:change.id,at:change.at,row:whole(change.row),note:clean(change.note,1000)})):[];
@@ -159,6 +159,9 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
     return `<p class="crochet-row-instruction"><strong>Row ${number(instruction.row)}</strong> · ${escape(instruction.text)}
       <small data-instruction-done ${count<instruction.row?'hidden':''}>Done</small></p>`;
   }
+  function checkpointMarkup(point,row){
+    return point?`<p class="crochet-counter-checkpoint"><span>Last checkpoint</span><strong>Row ${number(row)}</strong> · ${escape(point.note)}</p>`:'';
+  }
   function instructionFields(instruction){
     return `<fieldset class="crochet-instruction-fields"><legend>Next row instruction</legend>
       <label>Row number<input name="instructionRow" type="number" min="1" max="100000" step="1" value="${instruction?.row||''}" placeholder="Defaults to the next row"></label>
@@ -174,18 +177,24 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
     return `<article class="crochet-project" data-crochet-id="${escape(project.id)}">
       <div class="crochet-card-heading"><div><span class="crochet-status" data-status="${project.status}">${statuses[project.status]}</span><h3>${escape(project.name)}</h3></div><button type="button" class="crochet-link" data-crochet-edit="projects" aria-label="Edit ${escape(project.name)}">Edit</button></div>
       <div class="crochet-project-meta">${[project.hook?`Hook ${escape(project.hook)}`:'',project.pattern?`<a href="${escape(project.pattern)}" target="_blank" rel="noopener noreferrer">Pattern ↗</a>`:'',used?`${number(used)} g used`:''].filter(Boolean).join('<span aria-hidden="true"> · </span>')||'Project details'}</div>
-      <div class="crochet-counter"><div><span>Rows</span><output aria-label="Rows for ${escape(project.name)}">${number(project.rows)}${project.goal?` <small>/ ${number(project.goal)}</small>`:''}</output></div><div class="crochet-counter-buttons"><button type="button" data-row-step="-1" aria-label="Subtract a row from ${escape(project.name)}" ${project.rows?'':'disabled'}>−</button><button type="button" data-row-step="1" aria-label="Add a row to ${escape(project.name)}" ${project.rows>=100000?'disabled':''}>+</button></div></div>
+      <div class="crochet-counter"><div><span>Rows</span><output aria-label="Rows for ${escape(project.name)}">${number(project.rows)}${project.goal?` <small>/ ${number(project.goal)}</small>`:''}</output></div><div class="crochet-counter-buttons"><button type="button" data-row-step="-1" aria-label="Subtract a row from ${escape(project.name)}" ${project.rows?'':'disabled'}>−</button><button type="button" data-row-step="1" aria-label="Add a row to ${escape(project.name)}" ${project.rows>=100000?'disabled':''}>+</button></div><button type="button" class="crochet-link" data-counter-reset aria-label="Reset rows for ${escape(project.name)}" ${project.rows?'':'disabled'}>Reset</button></div>
       ${instructionMarkup(project.rowInstruction,project.rows)}
+      ${checkpointMarkup(checkpoint,checkpoint?.rows)}
       ${percent===null?'':`<progress aria-label="Row goal progress for ${escape(project.name)}" max="100" value="${percent}"></progress>`}
-      <div class="crochet-counters">${project.counters.map(counter=>`<div data-counter-id="${escape(counter.id)}"><div class="crochet-counter">
+      <div class="crochet-counters">${project.counters.map(counter=>{
+        const recorded=point=>point.counters.find(value=>value.id?value.id===counter.id:value.name===counter.name);
+        const point=project.checkpoints.findLast(recorded);
+        return `<div data-counter-id="${escape(counter.id)}"><div class="crochet-counter">
         <div><span>${escape(counter.name)}</span><output aria-label="${escape(counter.name)} count">${number(counter.count)}</output></div>
         <div class="crochet-counter-buttons"><button type="button" data-counter-step="-1" aria-label="Decrease ${escape(counter.name)}" ${counter.count?'':'disabled'}>−</button>
         <button type="button" data-counter-step="1" aria-label="Increase ${escape(counter.name)}" ${counter.count>=100000?'disabled':''}>+</button></div>
-        <button type="button" class="crochet-link" data-crochet-counter aria-label="Edit ${escape(counter.name)} counter">Edit</button></div>${instructionMarkup(counter.instruction,counter.count)}</div>`).join('')}</div>
+        <button type="button" class="crochet-link" data-crochet-counter aria-label="Edit ${escape(counter.name)} counter">Edit</button>
+        <button type="button" class="crochet-link" data-counter-reset aria-label="Reset ${escape(counter.name)} counter" ${counter.count?'':'disabled'}>Reset</button>
+        </div>${instructionMarkup(counter.instruction,counter.count)}${checkpointMarkup(point,point&&recorded(point).count)}</div>`;
+      }).join('')}</div>
       <div class="crochet-checkpoint-actions"><button type="button" class="crochet-link" data-crochet-counter>Add counter</button>
         <button type="button" class="crochet-link" data-crochet-checkpoint>${checkpoint?'Checkpoints':'Save checkpoint'}</button></div>
-      ${checkpoint?`<div class="crochet-resume"><strong>Resume here</strong><p>${escape(checkpoint.note)}</p><small>${escape(checkpointCounts(checkpoint))}</small>
-        ${checkpoint.photos?.length?`<details class="crochet-photo-details"><summary>Latest checkpoint photos (${checkpoint.photos.length})</summary>${checkpointGallery(checkpoint.photos)}</details>`:''}</div>`:''}
+      ${checkpoint?.photos?.length?`<div class="crochet-resume"><details class="crochet-photo-details"><summary>Latest checkpoint photos (${checkpoint.photos.length})</summary>${checkpointGallery(checkpoint.photos)}</details></div>`:''}
       <div class="crochet-worked"><span>Time worked <strong>${formatTime(worked)}</strong></span><button type="button" class="crochet-link" data-crochet-time aria-label="Log time for ${escape(project.name)}">Log time</button></div>
       <div class="crochet-worked"><span>Pattern changes <strong>${project.patternChanges.length}</strong></span>
         <button type="button" class="crochet-link" data-crochet-pattern>Log pattern change</button></div>
@@ -346,6 +355,47 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
     dialog.querySelector(kind==='time'?'[name="minutes"]':'input,textarea')?.focus();
   }
 
+  function openCounterReset(id,button){
+    const project=data.projects.find(item=>item.id===id);
+    const counterId=button.closest('[data-counter-id]')?.dataset.counterId;
+    const counter=project?.counters.find(item=>item.id===counterId);
+    const count=counterId===undefined?project?.rows:counter?.count;
+    if(!count)return;
+    const name=counter?.name??'Rows';
+    editor={kind:'reset',id,counterId,count};
+    anchor=button;
+    dialog.innerHTML=`<form><header><h3 id="crochet-dialog-title">Reset counter?</h3></header><div class="crochet-dialog-fields">
+      <p class="crochet-use-context"><strong>${escape(name)}</strong> will go from ${number(count)} to 0. Saved checkpoints will still show their recorded counts.</p>
+      <p role="alert" id="crochet-form-error" hidden></p></div>
+      <footer><button type="button" class="crochet-link" data-crochet-close autofocus>Cancel</button><button type="submit" class="crochet-primary">Reset to 0</button></footer></form>`;
+    dialog.setAttribute('aria-labelledby','crochet-dialog-title');
+    dialog.showModal();
+  }
+
+  function resetCounter({id,counterId,count}){
+    const next=loadCrochet(storage),project=next.projects.find(item=>item.id===id);
+    const counter=project?.counters.find(item=>item.id===counterId);
+    const current=counterId===undefined?project?.rows:counter?.count;
+    if(current!==count){
+      const error=$('#crochet-form-error');
+      error.textContent='This counter changed. Close this dialog to check the latest count.';
+      error.hidden=false;
+      return;
+    }
+    if(counter)counter.count=0;else project.rows=0;
+    if(!commit(next)){
+      const error=$('#crochet-form-error');
+      error.textContent='The reset could not be saved on this device.';
+      error.hidden=false;
+      return;
+    }
+    render();
+    const card=content.querySelector(`[data-crochet-id="${CSS.escape(id)}"]`);
+    anchor=counter?card?.querySelector(`[data-counter-id="${CSS.escape(counterId)}"] [data-counter-step="1"]`):card?.querySelector('[data-row-step="1"]');
+    dialog.close();
+    notify('Counter reset.');
+  }
+
   function saveEditor(form,remove,photos=[],fields=new FormData(form)){
     const {kind,id,counterId,checkpointId,initialPhotos}=editor;
     const next=structuredClone(data);
@@ -371,7 +421,7 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
           const note=clean(fields.get('note'),1000);
           if(!note)return fail('Enter a note about where to resume.');
           project.checkpoints.push({id:crypto.randomUUID(),at:Date.now(),note,rows:project.rows,
-            counters:project.counters.map(({name,count})=>({name,count})),...(photos.length&&{photos})});
+            counters:project.counters.map(({id,name,count})=>({id,name,count})),...(photos.length&&{photos})});
         }
       }else{
         const index=project.counters.findIndex(item=>item.id===counterId);
@@ -435,6 +485,7 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
     if ('crochetUse' in action) openEditor('use',id,button);
     if ('crochetTime' in action) openEditor('time',id,button);
     if ('crochetCounter' in action) openEditor('counter',id,button);
+    if ('counterReset' in action) return openCounterReset(id,button);
     if ('crochetCheckpoint' in action) openEditor('checkpoint',id,button);
     if(action.checkpointPhotos&&editor?.kind==='checkpoint')openEditor('checkpoint',editor.id,button,action.checkpointPhotos);
     if('checkpointList' in action&&editor?.kind==='checkpoint')openEditor('checkpoint',editor.id,button);
@@ -457,6 +508,7 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
       if(counter.instruction)row.querySelector('[data-instruction-done]').hidden=counter.count<counter.instruction.row;
       row.querySelector('[data-counter-step="-1"]').disabled=counter.count===0;
       row.querySelector('[data-counter-step="1"]').disabled=counter.count>=100000;
+      row.querySelector('[data-counter-reset]').disabled=counter.count===0;
       if(button.disabled)row.querySelector('[data-counter-step]:not(:disabled)')?.focus();
     }
     if (action.rowStep) {
@@ -471,6 +523,7 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
       if (progress) progress.value=Math.min(100,Math.floor(project.rows/project.goal*100));
       card.querySelector('[data-row-step="-1"]').disabled=project.rows===0;
       card.querySelector('[data-row-step="1"]').disabled=project.rows>=100000;
+      card.querySelector('[data-counter-reset]').disabled=project.rows===0;
       if (button.disabled) card.querySelector('[data-row-step]:not(:disabled)')?.focus();
     }
   });
@@ -488,6 +541,7 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
     event.preventDefault();
     const current=editor,form=event.target;
     if(!current||current.saving)return;
+    if(current.kind==='reset')return resetCounter(current);
     const fields=new FormData(form),files=fields.getAll('photos').filter(file=>file.name);
     if(!files.length){saveEditor(form,false,[],fields);return;}
     const error=$('#crochet-form-error');

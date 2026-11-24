@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.16',date:'2026-11-23',title:'Journal save confirmation and crochet checkpoints',changes:[
+    'See a brief Draft saved confirmation after editing a journal draft.',
+    'Confirm before resetting a Stitchbook row or custom counter to zero.',
+    'See the last saved count and resume note beside each crochet counter.'
+  ]},
   {version:'5.21.15',date:'2026-11-23',title:'Reading progress and journal draft position',changes:[
     'See your reading percentage and pages left together in book details.',
     'Copy a formatted chapter reference directly from a reading note.',

@@ -200,11 +200,12 @@ export function installJournal({root,storage,storageEvent=key=>key,projects,noti
         <details><summary>Save as template</summary><label>Template name<input id="journal-template-name" maxlength="80"></label>
           <button type="button" data-journal-template="save">Save current text as template</button></details></div>`}</div>
       <label class="journal-writing"><span class="sr-only">Entry</span><textarea name="body" placeholder="What stayed with you today?" required></textarea></label>
-      <div><p id="journal-error" role="alert" hidden></p><footer><span id="journal-word-count"></span><span id="journal-draft-status" role="status">${item?.draft?'Draft saved':''}</span>${entryId?'<button type="button" data-margin>Margin notes</button>':''}<button type="submit" value="save">${entryId?'Save completed entry':'Mark complete'}</button><button type="submit" value="delete" formnovalidate ${item?'':'hidden'}>${item?.draft?'Discard draft':'Delete entry'}</button></footer></div></form>`;
+      <div><p id="journal-error" role="alert" hidden></p><footer><div class="journal-editor-status"><span id="journal-word-count"></span><span id="journal-draft-status" role="status"></span></div>${entryId?'<button type="button" data-margin>Margin notes</button>':''}<button type="submit" value="save">${entryId?'Save completed entry':'Mark complete'}</button><button type="submit" value="delete" formnovalidate ${item?'':'hidden'}>${item?.draft?'Discard draft':'Delete entry'}</button></footer></div></form>`;
     const body=dialog.querySelector('[name="body"]');
+    const status=dialog.querySelector('#journal-draft-status');
     body.value=item?.body??'';
     const readCursor=()=>({start:body.selectionStart,end:body.selectionEnd,direction:body.selectionDirection,scrollTop:body.scrollTop});
-    let cursorTimer;
+    let cursorTimer,statusTimer;
     const saveCursor=()=>{
       clearTimeout(cursorTimer);
       const latest=loadJournal(storage);
@@ -214,7 +215,11 @@ export function installJournal({root,storage,storageEvent=key=>key,projects,noti
       if(JSON.stringify(cursor)===JSON.stringify(draft.cursor))return;
       save(latest.map(entry=>entry===draft?{...entry,cursor}:entry),false);
     };
-    flushDraftCursor=saveCursor;
+    flushDraftCursor=()=>{
+      clearTimeout(statusTimer);
+      status.textContent='';
+      saveCursor();
+    };
     const queueCursor=()=>{
       clearTimeout(cursorTimer);
       cursorTimer=setTimeout(saveCursor,150);
@@ -233,9 +238,10 @@ export function installJournal({root,storage,storageEvent=key=>key,projects,noti
         tags:journalLabels(data.get('tags')),themes:journalLabels(data.get('themes')),updatedAt:Date.now()};
       const next=loadJournal(storage).filter(entry=>entry.id!==draftId);
       next.push(record);
-      const status=dialog.querySelector('#journal-draft-status');
+      clearTimeout(statusTimer);
       if(save(next,false)){
         if(status.textContent!=='Draft saved')status.textContent='Draft saved';
+        statusTimer=setTimeout(()=>{status.textContent='';},2200);
         const discard=form.querySelector('[value="delete"]');
         discard.hidden=false;discard.textContent='Discard draft';delete discard.dataset.confirm;
       }

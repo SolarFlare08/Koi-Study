@@ -52,6 +52,9 @@
 .crochet-counter-buttons { display: flex; gap: 6px; }
 .crochet-counter-buttons button { width: 33px; height: 33px; border: 1px solid var(--stitch-line); border-radius: 7px; color: var(--stitch-accent); font-size: 19px; }
 .crochet-counter-buttons button:not(:disabled):hover, .crochet-counter-buttons button:last-child { background: #f3e2d9; }
+.crochet-counter > div:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.crochet-counter-checkpoint { margin: 4px 0 8px; padding: 6px 9px; border-inline-start: 2px solid var(--stitch-green); border-radius: 5px; color: var(--stitch-ink); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-line; }
+.crochet-counter-checkpoint span { display: block; color: var(--stitch-muted); font-size: 11px; }
 .crochet-project progress { display: block; width: 100%; height: 7px; margin-top: 8px; accent-color: #71866d; }
 .crochet-project-yarn { display: flex; flex-wrap: wrap; gap: 5px; list-style: none; padding: 0; margin: 10px 0 0; }
 .crochet-project-yarn li { display: flex; align-items: center; gap: 5px; padding: 3px 6px; border: 1px solid var(--stitch-line); border-radius: 7px; color: var(--stitch-muted); font-size: 11px; }

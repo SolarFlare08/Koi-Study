@@ -782,7 +782,7 @@ export const helpTopics = [
     steps:['Open Journal → `New entry`, or click a date’s Journal ritual in Calendar.',
       'Start blank or choose a template and select `Insert template`. Use `Save as template` to reuse the current draft text in another entry.',
       'Add a title and write your entry. Choose the date, optional mood, and an optional crochet project above the writing area. Add comma-separated tags and themes to make entries easier to find.',
-      'Your draft saves as you type. Reopen it from the library after closing or refreshing to return to your last cursor position or text selection. Choose `Mark complete` when you want it to count toward that date’s Journal ritual.',
+      'Your draft saves as you type. Look for `Draft saved` below the word count after an edit. It clears after a moment. Reopen a draft from the library to restore your cursor or selection. Choose `Mark complete` when you want it to count toward that date’s Journal ritual.',
       'Search the journal library or Ctrl+K to find an entry. Click its title to edit it. Deleting asks for confirmation and offers Undo after deletion.'],
     tip:'Drafts and completed entries are saved locally and included in backups.',
     action:'journal', actionLabel:'Open Journal', related:['daily-rituals','journal-patterns','journal-anniversaries','backup']
@@ -810,7 +810,8 @@ export const helpTopics = [
     steps:['Open Crochet → Projects → `New project`.',
       'Set a name, status, hook size, rows, optional row goal, pattern link, and notes. Link yarn already in your stash, then Save.',
       'Use the plus/minus row buttons as you work. Row goals show progress, and the status filter helps you find active or finished projects.',
-      'Choose `Add counter` for separate counts such as a sleeve or a stitch repeat. Save a checkpoint with a resume note to record the current row and counter values.',
+      'Choose `Add counter` for separate counts such as a sleeve or a stitch repeat. Save a checkpoint with a resume note to record the current row and counter values. Each counter shows its latest saved count and note on the project card.',
+      'Choose `Reset` beside a counter, then `Reset to 0` to confirm, or `Cancel` to keep the current count. Saved checkpoints keep their recorded counts.',
       'Use `Edit` on a counter, or edit the project for its main Rows counter. Under Next row instruction, enter what to do and optionally set the row number. A blank row number uses the count plus one. The card shows the instruction and marks it Done once you count that row.',
       'Choose `Log time` on a project, enter the date and minutes worked, and save. The project shows its total hours and minutes and the time dialog shows recent sessions.',
       'Choose `Log pattern change` to record a date, row, and change. Open the same dialog to see earlier changes.'],
@@ -822,7 +823,7 @@ export const helpTopics = [
     summary:'Keep a reference picture of a sleeve, seam, or stitch repeat with your resume note.',
     steps:['In Crochet, open a project’s Checkpoints. Add a resume note and choose up to three JPEG, PNG, or WebP photos before saving.',
       'For a saved checkpoint, choose Add photos or View / edit photos. Use Remove photo and Save photos to remove or replace an image.',
-      'On the project card, expand Latest checkpoint photos under Resume here to see the most recent checkpoint’s images.'],
+      'On the project card, expand `Latest checkpoint photos` to see the most recent checkpoint’s images.'],
     tip:'Photos are resized and stored on this device. Stitchbook backups include the resized copies.',
     action:'crochet',actionLabel:'Open Stitchbook',related:['crochet-projects','backup']
   },
