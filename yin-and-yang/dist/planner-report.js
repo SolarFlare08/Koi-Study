@@ -102,7 +102,11 @@ export function courseEstimateAccuracy(state,filters={},now=new Date()){
     row.actualMs+=actual;
     rows.set(projectId,row);
   }
-  return [...rows.values()].sort((a,b)=>b.estimatedMs-a.estimatedMs);
+  const sortKey={average:'averageDifferenceMs',planned:'estimatedMs'}[filters.courseSort]||'differenceMs';
+  return [...rows.values()].map(row=>{
+    const differenceMs=row.actualMs-row.estimatedMs;
+    return {...row,differenceMs,averageDifferenceMs:differenceMs/row.samples};
+  }).sort((a,b)=>b[sortKey]-a[sortKey]||b.samples-a.samples||a.projectId.localeCompare(b.projectId));
 }
 
 export function suggestTaskEstimate(state,task){
@@ -169,8 +173,8 @@ export function estimateCsv(rows){
   ])]);
 }
 export function courseEstimateCsv(rows,projectName){
-  const minutes=ms=>Math.round(ms/6000)/10;
-  return toCsv([['Course or project','Samples','Planned minutes','Actual focus minutes','Difference (min)'],...rows.map(row=>[
-    projectName(row.projectId),row.samples,minutes(row.estimatedMs),minutes(row.actualMs),minutes(row.actualMs-row.estimatedMs)
+  const minutes=ms=>Math.sign(ms)*Math.round(Math.abs(ms)/6000)/10;
+  return toCsv([['Course or project','Samples','Planned minutes','Actual focus minutes','Difference (min)','Average difference per completed task (min)'],...rows.map(row=>[
+    projectName(row.projectId),row.samples,minutes(row.estimatedMs),minutes(row.actualMs),minutes(row.differenceMs),minutes(row.averageDifferenceMs)
   ])]);
 }

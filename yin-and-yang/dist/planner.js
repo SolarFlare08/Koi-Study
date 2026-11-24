@@ -56,7 +56,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   let projectOverviewMarkup='';
   let reminderMinute=-1;
   const layouts=new Map(), collapsed=new Set();
-  const report={mode:'activity',period:'all',project:'all',type:'task',metric:'ms'};
+  const report={mode:'activity',period:'all',project:'all',type:'task',metric:'ms',courseSort:'total'};
   const layoutKey=()=>`${view}:${selection}`;
   const defaultLayout=()=>['upcoming','project'].includes(view)?'board':'list';
 
@@ -362,15 +362,19 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   }
   function reportCourseEstimates(){
     const rows=courseEstimateAccuracy(state(),report),minutes=ms=>Math.round(ms/6000)/10;
-    return `<section class="planner-estimates"><h3>Estimate accuracy by course</h3>
-      <p>Each Planner project is a course. Totals compare the estimates saved at completion with completed focus time for the same work.</p>
-      ${rows.length?`<div class="planner-estimates-scroll"><table><thead><tr><th scope="col">Course</th><th scope="col">Samples</th>
-      <th scope="col">Planned</th><th scope="col">Actual focus</th><th scope="col">Difference</th></tr></thead><tbody>
+    const difference=ms=>ms===0?'0 min':
+      `${minutes(Math.abs(ms))||'&lt;0.1'} min ${ms>0?'over':'under'}`;
+    return `<section class="planner-estimates planner-course-estimates"><h3>Estimate accuracy by course</h3>
+      <p>Each project is a course. Comparisons use completed tasks with a saved estimate and logged focus. Each completed occurrence of a repeating task counts separately.</p>
+      ${rows.length?`<div class="planner-estimates-scroll"><table><thead><tr><th scope="col">Course</th><th scope="col">Difference</th>
+      <th scope="col">Planned</th><th scope="col">Actual focus</th></tr></thead><tbody>
       ${rows.map(row=>{
-        const delta=minutes(row.actualMs-row.estimatedMs);
-        return `<tr><th scope="row">${escape(reportProjectName(row.projectId))}</th><td>${row.samples}</td>
-          <td>${minutes(row.estimatedMs)} min</td><td>${minutes(row.actualMs)} min</td>
-          <td>${delta>0?'+':''}${delta} min${delta>0?' over':delta<0?' under':''}</td></tr>`;
+        const tasks=`${row.samples} ${row.samples===1?'task':'tasks'}`;
+        return `<tr><th scope="row">${escape(reportProjectName(row.projectId))}</th>
+          <td class="course-estimate-difference" ${row.differenceMs>0?'data-over-estimate':''}>
+            <strong>${difference(row.differenceMs)} across ${tasks}</strong>
+            <small>Avg. ${difference(row.averageDifferenceMs)} per completed task</small>
+          </td><td>${minutes(row.estimatedMs)} min</td><td>${minutes(row.actualMs)} min</td></tr>`;
       }).join('')}
       </tbody></table></div>`:'<p class="planner-empty">No completed tasks with both an estimate and logged focus in this range.</p>'}</section>`;
   }
@@ -382,6 +386,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       ${reportControl('project','Report project',[['all','All projects'],['inbox','Inbox'],...state().projects.map(project=>[project.id,project.name]),['unassigned','Unassigned focus']])}
       ${report.mode==='activity'?reportControl('type','Activity type',[['all','All activity'],...Object.entries(activityLabels)]):''}
       ${reportControl('period','Date range',[['all','Any date'],['1','Today'],['7','Last 7 days'],['30','Last 30 days']])}
+      ${report.mode==='course-accuracy'?reportControl('courseSort','Sort course estimates',[['total','Biggest total overrun'],['average','Biggest overrun per task'],['planned','Most planned time']]):''}
       </div>${report.mode==='course-accuracy'?reportCourseEstimates():report.mode==='accuracy'?reportEstimates():report.mode==='metrics'?reportStatistics(events):reportActivity(events)||'<p class="planner-empty">No matching activity yet.</p>'}</div>`;
   }
 

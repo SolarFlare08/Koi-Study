@@ -632,7 +632,7 @@ export const helpTopics = [
     summary:'Inspect completed tasks, focus time, skipped sessions, and estimates.',
     steps:['Open Planner → `Reporting`.',
       'Choose Activity log, Metrics, Estimate accuracy, or Estimate by course. Filter by project and date range as needed.',
-      'Estimate by course treats each Planner project as a course and shows the number of samples, total planned minutes, actual completed focus minutes, and difference. Export CSV downloads the filtered course totals.',
+      'Estimate by course treats each Planner project as a course. Difference shows the total over or under across the qualifying completed tasks and the average difference per task. The default sort is Biggest total overrun. Choose Biggest overrun per task to see which courses need larger estimate adjustments. Export CSV includes both figures in the selected order.',
       'Metrics shows focus minutes, completed tasks and sessions, skipped sessions, active days, averages, and completion rate. Choose a daily metric to compare days.',
       'For Estimate accuracy, set a task estimate, complete focus sessions with that task selected, and mark the task done. Use `Export CSV` to download the current report.'],
     tip:'Estimate accuracy compares the saved estimate with completed focus time for each completed occurrence. Repeated overruns are flagged when enough completed examples exist.',

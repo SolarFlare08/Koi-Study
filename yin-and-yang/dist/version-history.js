@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.11',date:'2026-11-23',title:'See where course estimates run over',changes:[
+    'See the completed-task count beside each course’s total difference.',
+    'Sort course estimates by the biggest total or per-task overrun.',
+    'See the average difference per completed task in Reporting and CSV exports.'
+  ]},
   {version:'5.21.10',date:'2026-11-23',title:'Keep your place in tasks and Calendar',changes:[
     'Copy a task title from its menu.',
     'Return to the same scroll position after saving or closing a task editor.',

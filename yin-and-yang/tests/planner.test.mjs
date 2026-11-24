@@ -106,8 +106,31 @@ test('estimate accuracy assigns completed focus to separate occurrences and flag
   assert.equal(row.consistent,true);
   task.projectId='different';
   const [course]=courseEstimateAccuracy(state,{project:'study',period:'1'},new Date(2026,10,10));
-  assert.deepEqual(course,{projectId:'study',samples:1,estimatedMs:20*60000,actualMs:15*60000});
-  assert.match(courseEstimateCsv([course],()=> 'Calculus'),/"Calculus","1","20","15","-5"/);
+  assert.deepEqual(course,{projectId:'study',samples:1,estimatedMs:20*60000,actualMs:15*60000,
+    differenceMs:-5*60000,averageDifferenceMs:-5*60000});
+  assert.match(courseEstimateCsv([course],()=> 'Calculus'),/"Calculus","1","20","15","-5","-5"/);
+});
+
+test('course estimates rank total and per-task overruns separately',()=>{
+  const state=freshState(),now=new Date(2026,10,23,14),minute=60000;
+  const complete=(projectId,estimate,actual)=>{
+    const taskId='task-'+state.taskActivity.length;
+    state.taskActivity.push({id:taskId+':once',taskId,text:taskId,projectId,at:+now,estimate});
+    state.history.push({id:taskId,taskId,mode:'focus',outcome:'completed',finishedAt:+now-1,focusMs:actual*minute});
+  };
+  for(let index=0;index<8;index++)complete('calculus',20,index===0?30:20);
+  complete('physics',20,28);
+  complete('biology',200,195);
+  const totals=courseEstimateAccuracy(state,{},now);
+  const average=courseEstimateAccuracy(state,{courseSort:'average'},now);
+  assert.deepEqual(totals.map(row=>row.projectId),['calculus','physics','biology']);
+  assert.deepEqual(average.map(row=>row.projectId),['physics','calculus','biology']);
+  assert.equal(totals[0].samples,8);
+  assert.equal(totals[0].differenceMs,10*minute);
+  assert.equal(totals[0].averageDifferenceMs,1.25*minute);
+  const csv=courseEstimateCsv(totals,id=>id);
+  assert.match(csv,/"Average difference per completed task \(min\)"/);
+  assert.match(csv,/"calculus","8","160","170","10","1.3"/);
 });
 
 test('undo restores a task completion, a move, or a deleted task without replacing unrelated edits',()=>{
