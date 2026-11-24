@@ -45,8 +45,9 @@ import {createSpotifyEmbed,spotifyPath} from './spotify-embed.js';
 import {createYouTubeEmbed,youtubeContent,youtubeLinks} from './youtube-embed.js';
 import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
 import {installCommandPalette} from './command-palette.js';
+import {installCommandPrompt} from './command-prompt.js';
 import {installHelp} from './help.js';
-import {installVersionHistory} from './version-history.js';
+import {appVersion,installVersionHistory} from './version-history.js';
 import {canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,scheduleImpact,todayTradeoffs} from './scheduling.js';
 import {nextTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
@@ -70,6 +71,7 @@ const icons={
   list:'<path d="m4 7 1 1 2-2m-3 6 1 1 2-2m-3 6 1 1 2-2M10 7h10m-10 5h10m-10 5h10"/>',
   sidebar:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 5v14m-3-9h.1m-.1 4h.1"/>',
   journal:'<rect x="5" y="3" width="15" height="18" rx="2"/><path d="M8 3v18m3-12h6m-6 4h6"/>',
+  terminal:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/>',
   note:'<path d="M7 4h10a2 2 0 0 1 2 2v8l-5 6H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M14 20v-4a2 2 0 0 1 2-2h3M8 8h8m-8 3h6"/>',
   book:'<path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1v14M6 9h3m-3 4h3m6-4h3m-3 4h3"/>',
   sprout:'<path d="M12 20v-8m0 2c-5 0-8-3-8-7 5 0 8 3 8 7Zm0-2c0-5 3-8 8-8 0 5-3 8-8 8Z"/>',
@@ -546,6 +548,21 @@ installMiniTimer({launch:$('#open-mini-timer'),getState:()=>state,taskTitle:()=>
   capture:text=>{saveCapture(storage,text,currentCaptureContext());renderCaptures();},notify:toast});
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
 const openVersionHistory=installVersionHistory($('#version-history'));
+const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries:commandEntries,version:appVersion,
+  openHelp:()=>helpGuide.open('command-prompt'),
+  openWorkspace:name=>{visitWorkspace(name);return workspace===name;},
+  runTimer:runPromptTimer,
+  addTask:title=>{
+    if(title.length>300)return 'Use a task title of 300 characters or fewer.';
+    openTaskEditor(null,$('#prompt-input'),{text:title});
+    return 'Task editor opened. Save the task when it’s ready.';
+  },
+  capture:text=>{
+    if(text.length>1000)return 'Use a thought of 1,000 characters or fewer.';
+    try{saveCapture(storage,text);}catch{return 'Could not save this thought on this device.';}
+    renderCaptures();
+    return 'Saved to the Note inbox.';
+  }});
 $('#open-help').onclick=()=>helpGuide.open();
 document.querySelectorAll('[data-command-launch]').forEach(button=>button.onclick=()=>commandPalette.open());
 applyIcons();
@@ -674,6 +691,7 @@ function showWorkspace(next){
   $('#crochet-workspace').hidden=next!=='crochet';
   $('#journal-workspace').hidden=next!=='journal';
   $('#notes-workspace').hidden=next!=='notes';
+  $('#prompt-workspace').hidden=next!=='prompt';
   if(next!=='reading')reading.close();
   $('#reading-workspace').hidden=next!=='reading';
   if(next==='notes')stickyBoard.render();
@@ -707,6 +725,7 @@ $('#workspace-tabs').addEventListener('click',event=>{
   }
   showWorkspace(next);
   setTaskSidebar(next==='focus'&&desktopTasks.matches);
+  if(next==='prompt'&&!inMore){commandPrompt.focus();return;}
   (inMore?workspaceMore:button).focus({preventScroll:true});
 });
 
@@ -765,6 +784,7 @@ function commandEntries(includeArchived=false){
     run:()=>{visitWorkspace('journal');journal.openEntry(entry.id);}
   }));
   return [
+    action('Command Prompt','Open the workspace for typed app commands','terminal console command line prompt',()=>visitWorkspace('prompt')),
     action('Help','Browse searchable instructions and keyboard shortcuts','guide how to tutorial features',()=>helpGuide.open()),
     action('Admin sandbox','Open an isolated test workspace','admin sandbox test demo sample data',()=>runHelpAction('admin-sandbox')),
     action('Version history','See what changed in each release','versions updates changelog release notes',()=>runHelpAction('versions')),
@@ -813,7 +833,7 @@ function runHelpAction(action){
   if(action==='evening-lights'){openEveningLights();return;}
   if(closePanel(false)===false)return;
   closeTaskMenu(false);
-  const workspaces=['focus','planner','calendar','crochet','journal','notes','reading'];
+  const workspaces=['focus','planner','calendar','crochet','journal','notes','reading','prompt'];
   if(workspaces.includes(action)){visitWorkspace(action);return;}
   if(action==='search'){commandPalette.open();return;}
   if(action==='backup'){backup.open();return;}
@@ -1272,6 +1292,44 @@ async function toggleNotifications(){
   if(activePanel==='pagoda')refreshPanel();
 }
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
+function runPromptTimer(command,arg){
+  const timed=command==='focus'||command==='rest';
+  if(!timed&&arg)return `Use ${command} without an argument.`;
+  const units=timed?arg.match(/^(\d+)\s*([ms])$/i):null;
+  const ms=units?Number(units[1])*(units[2].toLowerCase()==='m'?60000:1000):/^\d{1,3}:[0-5]\d$/.test(arg)?parseDuration(arg):null;
+  if(timed&&(!ms||ms>10800000))return `Use ${command} with a duration from 1s to 180m, such as ${command} 5m or ${command} 05:00.`;
+  checkCompletion();
+  const timer=state.timer;
+  const kind=mode=>mode==='focus'?'Focus':'Rest';
+  if(command==='status'){
+    if(timer.status==='overtime')return `Focus overtime · +${formatDuration(overtimeElapsed(timer))}`;
+    return `${kind(timer.mode)} · ${timer.status==='idle'?'ready':timer.status} · ${formatDuration(remaining(state))}`;
+  }
+  if(timed&&(timer.status!=='idle'||timer.sequence||timer.taskPlan||timer.taskBreak||timer.mistakeId)){
+    return 'Finish the current session or plan in Garden before starting a different countdown.';
+  }
+  if(command==='pause'&&timer.status!=='running')return 'There’s no running countdown to pause.';
+  if(command==='start'&&timer.status==='running')return 'The countdown is already running.';
+  if(timer.status==='overtime')return 'Finish overtime in Garden before starting another countdown.';
+  const previous=structuredClone(timer);
+  if(timed){
+    const mode=command==='focus'?'focus':'break';
+    reset(state,mode);
+    state.timer.total=state.timer.remaining=ms;
+    if(timer.goal&&mode===timer.mode)state.timer.goal=timer.goal;
+  }
+  toggleFocusTimer(focusedTask());
+  if(state.timer.status!==(command==='pause'?'paused':'running')){
+    state.timer=previous;
+    return 'Choose a ready task for the current bundle in Garden before starting.';
+  }
+  if(!persist()){
+    state.timer=previous;
+    return 'Could not save the timer change.';
+  }
+  render();wake();
+  return `${kind(state.timer.mode)} ${command==='pause'?'paused':'started'} · ${formatDuration(remaining(state))}`;
+}
 function toggleFocusTimer(task,now=Date.now()){
   if(finishOvertime(state,now)){
     nextPenguinThought();

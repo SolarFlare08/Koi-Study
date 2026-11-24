@@ -110,14 +110,24 @@ export const helpTopics = [
   {
     id:'workspaces', group:'Start here', title:'Find your way around',
     summary:'What each workspace is for, and how to find features quickly.',
-    steps:['Use the bottom bar to switch between `Garden`, `Planner`, and `Calendar`. Notes, Reading, Journal, and Crochet are beside them on wide screens or under `More` on small screens.',
+    steps:['Use the bottom bar to switch between `Garden`, `Planner`, and `Calendar`. Notes, Reading, Journal, Crochet, and Prompt are beside them on wide screens or under `More` on small screens.',
       'In Garden, use `Tasks` at the top right to show or hide the sidebar below it. Use the chevron inside the sidebar to collapse only the task list. Choose `Today` for session totals, history, and the end-of-day recap. Choose `Landscape` to open Studio with your live design ready to edit.',
       'Open `Settings` in Garden to switch between Timer, Appearance, Music & video, and Backups. The sun and music-note buttons in the Garden toolbar open Appearance and Music & video directly.',
       'Use `Tools` to search for settings, Quick notes, Garden Studio, the Field Guide, and Help.',
       'Use Planner for task lists, projects, reviews, and reports. Calendar is the full schedule shared with Planner and the Garden’s 5-hour calendar.',
       'Choose `Search` or press `Ctrl+K` to search across tasks, sticky notes, books, and journal entries, or run a command.'],
     tip:'The filled tab marks your current workspace. On small screens, More stays highlighted while a workspace in its menu is active. Open Help with F1 or find it in Ctrl+K.',
-    related:['search','calendar','backup']
+    related:['search','command-prompt','calendar','backup']
+  },
+  {
+    id:'command-prompt', group:'Search & shortcuts', title:'Run typed commands in Command Prompt',
+    summary:'Control the timer, open workspaces, and capture thoughts from one tab.',
+    steps:['Choose `Prompt` in the bottom bar or under `More`. Type `help` to see command syntax, or select an example from Commands to fill the input. Press Enter or choose `Run`.',
+      'Use `status`, `start`, and `pause` for the current timer. Use `focus 25m` or `rest 5m` for a one-off countdown. Use minutes, seconds, or MM:SS. Finish an active countdown or plan in Garden before replacing it.',
+      'Try `open calendar` to switch workspaces or `find chapter 4` to search saved items. Select a search result to open it.',
+      'Type task followed by a title to prefill the task editor. Type capture followed by a thought to save it to the Note inbox.',
+      'Use the Up and Down arrows in the input to recall recent commands. Type `clear` to clear the transcript or `version` to see the build number. The transcript and command history last until you reload.'],
+    action:'prompt', actionLabel:'Open Command Prompt', related:['search','timer','capture-inbox']
   },
   {
     id:'timer', group:'Focus & rest', title:'Set, start, pause, and reset the timer',

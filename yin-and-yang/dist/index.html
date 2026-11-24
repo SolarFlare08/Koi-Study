@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="./help.css">
   <link rel="stylesheet" href="./garden-navigation.css">
   <link rel="stylesheet" href="./release-five.css">
+  <link rel="stylesheet" href="./command-prompt.css">
 </head>
 <body>
   <main id="app" data-workspace="focus" aria-label="Yin and Yang study garden">
@@ -239,6 +240,7 @@
     <section id="journal-workspace" aria-labelledby="journal-heading" hidden></section>
     <section id="notes-workspace" aria-labelledby="notes-heading" hidden></section>
     <section id="reading-workspace" aria-labelledby="reading-heading" hidden></section>
+    <section id="prompt-workspace" aria-labelledby="prompt-heading" hidden></section>
     <nav id="workspace-tabs" aria-label="Workspaces">
       <div class="workspace-primary" role="group" aria-label="Study and plan">
         <button type="button" data-workspace="focus" aria-pressed="true" title="Garden · Focus timer and today’s tasks"><span data-icon="sprout" aria-hidden="true"></span><span class="workspace-label">Garden</span></button>
@@ -251,6 +253,7 @@
         <button type="button" data-workspace="reading" aria-controls="reading-workspace" aria-pressed="false" title="Reading · Books, annotations, and reviews"><span data-icon="book" aria-hidden="true"></span><span class="workspace-label">Reading</span><small>Books, annotations, and reviews</small></button>
         <button type="button" data-workspace="journal" aria-controls="journal-workspace" aria-pressed="false" title="Journal · Entries and reflections"><span data-icon="journal" aria-hidden="true"></span><span class="workspace-label">Journal</span><small>Entries and reflections</small></button>
         <button type="button" data-workspace="crochet" aria-controls="crochet-workspace" aria-pressed="false" title="Crochet · Stitchbook projects and yarn"><span data-icon="yarn" aria-hidden="true"></span><span class="workspace-label">Crochet</span><small>Stitchbook projects and yarn</small></button>
+        <button type="button" data-workspace="prompt" aria-controls="prompt-workspace" aria-pressed="false" title="Command Prompt"><span data-icon="terminal" aria-hidden="true"></span><span class="workspace-label">Prompt</span><small>Run typed commands</small></button>
       </div>
     </nav>
     <div class="help-dock secondary">

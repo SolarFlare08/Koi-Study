@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.0',date:'2026-11-24',title:'Command Prompt workspace',changes:[
+    'Use typed commands to control the timer, open workspaces, search saved items, prefill a task, or capture a thought.',
+    'Browse command examples beside the prompt and recall recent commands with the arrow keys.'
+  ]},
   {version:'5.21.17',date:'2026-11-23',title:'Find button instructions and copy your version',changes:[
     'Search Help by button or menu name and jump to the matching step.',
     'Copy the running version number from the Version History header.'
