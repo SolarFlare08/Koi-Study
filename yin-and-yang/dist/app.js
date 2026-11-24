@@ -1165,6 +1165,12 @@ function render(){
   routineCaption.hidden=!phaseText;
   $('#end-routine').hidden=!phase;
   if(routineCaption.textContent!==phaseText)routineCaption.textContent=phaseText;
+  const nextPhase=sequence?.phases[sequence.index+1];
+  const nextCaption=$('#routine-next-phase');
+  const nextText=nextPhase?`Next · ${durationWords(nextPhase.ms)} ${/^(Focus|Rest)$/.test(nextPhase.name)?nextPhase.name.toLowerCase():nextPhase.name}`:'';
+  nextCaption.hidden=!nextPhase;
+  if(nextCaption.textContent!==nextText)nextCaption.textContent=nextText;
+  if(activePanel==='resume')updateHandoffEditor();
   const outcomeButton=$('#focus-goal'), outcomeText=t.id?(t.goal||'Set outcome'):'Warm up';
   outcomeButton.hidden=t.mode!=='focus'||Boolean(t.mistakeId);
   if(outcomeButton.textContent!==outcomeText)outcomeButton.textContent=outcomeText;
@@ -1512,6 +1518,20 @@ function readHandoff(form){
   fields.resumeResource.setCustomValidity(fields.resumeResource.value.trim()&&!resource?'Enter an http or https link.':'');
   if(!fields.resumeResource.reportValidity())return null;
   return {resumeNote:fields.resumeNote.value.trim(),resumeLocation:fields.resumeLocation.value.trim(),resumeResource:resource};
+}
+function currentHandoffSession(taskId){
+  const timer=state.timer;
+  return timer.mode==='focus'&&timer.id&&focusedTask()?.id===taskId?timer.id:'';
+}
+function updateHandoffEditor(){
+  const form=$('#resume-form');
+  if(!form)return;
+  const {sessionId,taskId}=form.dataset;
+  const canEnd=sessionId&&sessionId===currentHandoffSession(taskId);
+  const end=form.querySelector('[value=end]');
+  if(!canEnd&&document.activeElement===end)form.querySelector('.panel-primary').focus({preventScroll:true});
+  end.hidden=!canEnd;
+  form.querySelector('[data-handoff-ended]').hidden=!sessionId||!state.history.some(item=>item.id===sessionId);
 }
 function gardenLandmarkMarkup(){
   const item=state.gardenGrowth[selectedLandmark];
@@ -2234,10 +2254,12 @@ function updateQuickTask(form){
 }
 function focusSetupsMarkup(){
   const routine=[...builtinRoutines,...state.routines];
+  const recent=state.focusSetups.find(item=>item.id===state.lastFocusSetupId);
+  const setups=recent?[recent,...state.focusSetups.filter(item=>item!==recent)]:state.focusSetups;
   const options=items=>items.map(item=>`<option value="${escape(item.id)}">${escape(item.name)}</option>`).join('');
   return `${header('FOCUS','Focus setups')}
-    ${state.focusSetups.length?`<div class="routine-list">${state.focusSetups.map(item=>{
-      const parts=[routine.find(entry=>entry.id===item.routineId)?.name||'Unavailable routine',
+    ${setups.length?`<div class="routine-list">${setups.map(item=>{
+      const parts=[item===recent?'Last used':'',routine.find(entry=>entry.id===item.routineId)?.name||'Unavailable routine',
         state.gardenLayouts.find(entry=>entry.id===item.layoutId)?.name||'Current Garden',
         state.soundtracks.find(entry=>entry.id===item.soundtrackId)?.name].filter(Boolean);
       return `<div class="routine-row"><button type="button" data-start-focus-setup="${escape(item.id)}"><strong>${escape(item.name)}</strong><span>${parts.map(escape).join(' · ')}</span></button></div>`;
@@ -2260,7 +2282,7 @@ function startFocusSetup(id){
   if(!routine||setup.layoutId&&!layout||setup.soundtrackId&&!soundtrack){
     toast('A routine, layout, or soundtrack used by this setup is unavailable.');return;
   }
-  const {timer,mediaSource,spotify,youtube}=state;
+  const {timer,mediaSource,spotify,youtube,lastFocusSetupId}=state;
   const phases=routine.phases||[{name:'Focus',mode:'focus',ms:routine.focus},{name:'Rest',mode:'break',ms:routine.rest}];
   loadRoutinePhase(state,{name:routine.name,phases,...(layout?{setupLayoutId:layout.id}:{})});
   startPause(state,Date.now(),focusedTask()?.id);
@@ -2268,7 +2290,8 @@ function startFocusSetup(id){
     state.mediaSource=soundtrack.source;
     state[soundtrack.source]=soundtrack.link;
   }
-  if(!persist()){Object.assign(state,{timer,mediaSource,spotify,youtube});return;}
+  state.lastFocusSetupId=setup.id;
+  if(!persist()){Object.assign(state,{timer,mediaSource,spotify,youtube,lastFocusSetupId});return;}
   snapshotLayoutId='';snapshotThrough='';renderedGardenGrowth=null;updateGardenSnapshotLabel();
   closePanel(false);render();wake();
   if(soundtrack){
@@ -2831,7 +2854,7 @@ function extensionTime(timestamp){
     weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true
   });
 }
-function overlapDuration(ms){
+function durationWords(ms){
   const seconds=Math.round(ms/1000);
   if(!seconds)return 'less than 1 sec';
   const minutes=Math.floor(seconds/60),extra=seconds%60;
@@ -2848,7 +2871,7 @@ function calendarExtensionPreview(){
       ${plan.newFocusEnd!==plan.newPlannedEnd?`<div><dt>Timer ends</dt><dd>${extensionTime(plan.focusEnd)} → <strong>${extensionTime(plan.newFocusEnd)}</strong></dd></div>`:''}
     </dl>
     ${plan.conflicts.length?`<section class="calendar-resume-context"><h3>Overlaps in the extra time</h3><ul>${plan.conflicts.map(item=>
-      `<li><strong>${escape(item.title)} overlaps by ${overlapDuration(item.overlapMs)}</strong><small>${item.type} · ${extensionTime(item.start)} – ${extensionTime(item.end)}</small></li>`).join('')}</ul></section>`:'<p>No timed commitments overlap the extra ten minutes.</p>'}
+      `<li><strong>${escape(item.title)} overlaps by ${durationWords(item.overlapMs)}</strong><small>${item.type} · ${extensionTime(item.start)} – ${extensionTime(item.end)}</small></li>`).join('')}</ul></section>`:'<p>No timed commitments overlap the extra ten minutes.</p>'}
     <div class="panel-actions"><button type="button" class="text-button close-panel">Cancel</button><button type="button" class="panel-primary" id="confirm-block-extension">Extend 10 minutes</button></div>`;
 }
 
@@ -3391,11 +3414,13 @@ function panelContent(id){
   }
   if(id==='resume'){
     const task=state.tasks.find(item=>item.id===lastAnchor?.dataset.resumeId);
-    return task?`${header('SESSION HANDOFF',escape(task.text))}<form id="resume-form" data-task-id="${escape(task.id)}">
+    const sessionId=task&&currentHandoffSession(task.id);
+    return task?`${header('SESSION HANDOFF',escape(task.text))}<form id="resume-form" data-task-id="${escape(task.id)}" data-session-id="${escape(sessionId)}">
       ${handoffFields(task)}
       <label class="field-label" for="resume-text">Next step</label><textarea id="resume-text" name="resumeNote" maxlength="500" rows="3" placeholder="What should you do first next time?">${escape(task.resumeNote)}</textarea>
+      <p class="panel-subtle" data-handoff-ended role="status" hidden>Focus ended. You can finish writing and save this handoff.</p>
       <div class="panel-actions"><button class="panel-primary" aria-keyshortcuts="Control+Enter Meta+Enter" title="Save handoff (Ctrl+Enter)">Save handoff</button>
-      ${state.timer.mode==='focus'&&state.timer.id&&focusedTask()?.id===task.id?`<button class="text-button" type="submit" value="end">Save and end focus</button>`:''}</div></form>`:header('SESSION HANDOFF','Task unavailable');
+      <button class="text-button" type="submit" value="end" ${sessionId?'':'hidden'}>Save and end focus</button></div></form>`:header('SESSION HANDOFF','Task unavailable');
   }
   if(id==='project-context'){
     const task=focusedTask();
@@ -3615,6 +3640,7 @@ function refreshPanel(){
   if(!activePanel||activePanel==='music')return;
   const p=visiblePanel();
   if(!p)return;
+  if(activePanel==='resume'){updateHandoffEditor();return;}
   const focusId=p.contains(document.activeElement)?document.activeElement.id:null;
   const sandboxDataOpen=p.querySelector('.sandbox-data')?.open;
   p.innerHTML=panelContent(activePanel);
@@ -6747,26 +6773,33 @@ root.addEventListener('submit',e=>{
   }
   if(e.target.id==='resume-form'){
     checkCompletion();
-    const task=state.tasks.find(item=>item.id===e.target.dataset.taskId);
+    const {taskId,sessionId}=e.target.dataset;
+    const task=state.tasks.find(item=>item.id===taskId);
     if(!task)return;
     const handoff=readHandoff(e.target);
     if(!handoff)return;
     const previous=Object.fromEntries(Object.keys(handoff).map(key=>[key,task[key]]));
-    const priorTimer=state.timer, historyLength=state.history.length;
-    const end=e.submitter?.value==='end'&&priorTimer.mode==='focus'&&priorTimer.id&&focusedTask()?.id===task.id;
+    const priorTimer=state.timer,priorHistory=state.history,historyLength=priorHistory.length;
+    const session=sessionId&&sessionId===currentHandoffSession(taskId);
+    const end=e.submitter?.value==='end'&&session;
     Object.assign(task,handoff);
-    const session=priorTimer.mode==='focus'&&priorTimer.id&&focusedTask()?.id===task.id;
+    const nextHandoff=sessionHandoff(task);
     const savedHandoff=priorTimer.nextHandoff, savedHandoffTask=priorTimer.handoffTaskId;
-    if(session){priorTimer.nextHandoff=sessionHandoff(task);priorTimer.handoffTaskId=task.id;}
+    if(session){priorTimer.nextHandoff=nextHandoff;priorTimer.handoffTaskId=task.id;}
+    else if(sessionId&&priorHistory.some(item=>item.id===sessionId&&item.mode==='focus')){
+      state.history=priorHistory.map(item=>item.id===sessionId?
+        {...item,nextHandoff:nextHandoff||undefined,handoffTaskId:nextHandoff?task.id:undefined}:item);
+    }
     if(end){record(state,'completed',Date.now(),{early:true});reset(state,'break');}
     if(!persist()){
-      Object.assign(task,previous);state.timer=priorTimer;state.history.length=historyLength;
+      Object.assign(task,previous);state.timer=priorTimer;state.history=priorHistory;priorHistory.length=historyLength;
       if(session){priorTimer.nextHandoff=savedHandoff;priorTimer.handoffTaskId=savedHandoffTask;}
       return;
     }
     if(end)resumeTaskId=task.id;
+    const anchor=lastAnchor;
     closePanel();render();planner.refreshReporting();
-    if(end)timerButton.focus({preventScroll:true});
+    if(end||!anchor?.getClientRects().length)timerButton.focus({preventScroll:true});
     confirmChange(end?'Focus ended early. Your task is still open.':hasHandoff(task)?'Session handoff saved.':'Session handoff cleared.');
     return;
   }

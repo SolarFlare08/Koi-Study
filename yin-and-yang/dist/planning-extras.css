@@ -474,6 +474,7 @@ button.project-context-item:hover { color: var(--planner-accent); }
 .session-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: min(100%,360px); }
 .session-tools .resume-task { margin: 3px 0 0; max-width: 175px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .routine-phase-caption { margin: 7px 0 0; font-size: 11px; overflow-wrap: anywhere; }
+#routine-next-phase { margin-top: 2px; font-size: 10px; line-height: 1.4; }
 #add-routine-sequence { margin-top: 6px; font-size: 12px; }
 #routine-phases { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 7px; }
 .routine-phase-fields { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr) minmax(0,.8fr); gap: 7px; padding: 8px; border: 1px solid var(--surface-line); border-radius: 7px; font-size: 11px; }

@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.3',date:'2026-11-23',title:'Focus setup order and handoffs',changes:[
+    'Find your last-used focus setup at the top while other setups keep their order.',
+    'See the next routine phase and its length below the current phase.',
+    'Finish and save your handoff after focus ends without losing your text or its session link.'
+  ]},
   {version:'5.21.2',date:'2026-11-23',title:'See what fits around your timer',changes:[
     'See how many minutes and seconds each commitment overlaps before extending a calendar block.',
     'See your next timed calendar commitment beside the Garden timer.',

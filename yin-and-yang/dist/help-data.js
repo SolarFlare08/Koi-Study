@@ -5,7 +5,8 @@ export const helpTopics = [
       'Check the title, date, and estimate in the preview. Adjust the line if needed, then choose Add task. Add a time such as “at 9am” to put it on the calendar.'],related:['focus-queue']},
   {id:'focus-setups',group:'Focus & rest',title:'Save and start a focus setup',summary:'Keep a routine, layout, and soundtrack together.',
     steps:['In Garden, open Session tools → Focus setups. Name the setup, choose a routine, and optionally choose a saved Studio layout and soundtrack. Save it.',
-      'Click a saved setup to start its first phase. Its layout stays in use for the routine. If you chose a soundtrack, the player opens with it loaded. Press Play in the player.'],related:['timer','block-focus']},
+      'Click a saved setup to start its first phase. The last setup you started appears first next time, with the others in their original order.',
+      'The layout stays in use for the routine. If you chose a soundtrack, the player opens with it loaded. Press Play in the player.'],related:['timer','block-focus']},
   {id:'incomplete-focus',group:'Focus & rest',title:'Review incomplete sessions',summary:'See a stopping point and decide what to do next.',
     steps:['In Garden, open Session tools → Incomplete sessions. The list shows the latest interrupted, ended-early, or partial session for each open task.',
       'Resume to start another focus session, or Reschedule to open a new calendar block with a suggested duration. Close out dismisses the review and keeps the task and time logged.'],related:['resume','block-focus']},
@@ -151,7 +152,8 @@ export const helpTopics = [
       'Set Focus and Rest lengths and add a session intention under `What are you making space for?`. Choose `Save rhythm`.',
       'Use the routines section to apply Classic (25/5), Deep work (50/10), or a routine you saved.',
       'To save your own routine, give it a name and set its focus and rest lengths, then save it.',
-      'Choose `Create a multi-phase routine` to name, reorder, and save a sequence of focus and break phases. Select the saved routine to load it. Each phase is ready to start when the previous one ends.'],
+      'Choose `Create a multi-phase routine` to name, reorder, and save a sequence of focus and break phases. Select the saved routine to load it. Each phase is ready to start when the previous one ends.',
+      'Look below the current routine phase for the name and length of the next phase. The preview disappears on the last phase.'],
     tip:'When a session has already started, saved settings apply to the next session. Your current countdown is not silently replaced.',
     action:'settings', actionLabel:'Open timer settings', related:['timer','focus-mode']
   },
@@ -207,6 +209,7 @@ export const helpTopics = [
     steps:['Choose the task in Garden, then open `Session tools` and click `Leave a handoff` or `Edit handoff`.',
       'Enter where you stopped, the next step, and an optional web link to your resource. A local filename or path can go in Where you stopped.',
       'Choose `Save handoff` or press `Ctrl+Enter`. During focus, `Save and end focus` records the elapsed work, leaves the task open, and prepares a break.',
+      'If focus ends while the handoff is open, keep typing and save when you are ready. It saves to the same task and the focus session you were writing about.',
       'When the task is selected again in focus, its handoff appears in the Pick up here panel beside the timer. You can also edit it in the task editor.'],
     action:'focus', actionLabel:'Open Garden', related:['focus-queue','linked-notes']
   },

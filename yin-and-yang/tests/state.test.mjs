@@ -7,11 +7,14 @@ test('focus setup layouts persist through reload and into the next routine phase
   const state=freshState();
   state.gardenLayouts=[{id:'hills',name:'Hills',design:{mountains:'terraces'}}];
   state.focusSetups=loadFocusSetups([{id:'setup',name:' Deep Garden ',routineId:'deep',layoutId:'hills',soundtrackId:''}]);
+  state.lastFocusSetupId='setup';
   loadRoutinePhase(state,{name:'Deep work',setupLayoutId:'hills',
     phases:[{name:'Focus',mode:'focus',ms:3000000},{name:'Rest',mode:'break',ms:600000}]});
   startPause(state,1000000);
   const restored=loadState({getItem:()=>JSON.stringify(state)});
   assert.deepEqual(restored.focusSetups,state.focusSetups);
+  assert.equal(restored.lastFocusSetupId,'setup');
+  assert.equal(loadState({getItem:()=>JSON.stringify({...state,focusSetups:[]})}).lastFocusSetupId,'');
   assert.equal(restored.timer.sequence.setupLayoutId,'hills');
   settle(restored,restored.timer.endAt);
   assert.equal(restored.timer.mode,'break');
