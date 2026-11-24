@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.2',date:'2026-11-24',title:'Today and next in Command Prompt',changes:[
+    'Run today to see the next timed commitment, ready focus pins, and overdue work.',
+    'Run next to see the first ready focus task, its estimate, and its saved handoff.'
+  ]},
   {version:'6.0.1',date:'2026-11-24',title:'Classic Command Prompt styling',changes:[
     'The Prompt uses a black terminal screen with monospace text and an inline command line below the transcript.',
     'Open Commands in the terminal header to pick a runnable example.'

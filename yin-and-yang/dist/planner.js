@@ -5,7 +5,7 @@ import {dayKey,taskPriority,taskColorAttributes,taskStatus,unfinishedPrerequisit
 import {projectSessionTimeline} from './focus-replay.js';
 import {handoffLink} from './session-handoff.js';
 import {captureTaskChange} from './task-undo.js';
-import {importTodoistProject,matchesPlannerQuery,nextTaskDate,quickTask} from './planner-data.js';
+import {importTodoistProject,matchesPlannerQuery,nextTaskDate,overdueTaskDate as overdueDate,quickTask} from './planner-data.js';
 import {activityLabels,estimateAccuracy,estimateCsv,estimateReportDays,estimateSummary,courseEstimateAccuracy,courseEstimateCsv,reportCsv,reportEvents,reportExportFilename,reportMetrics,suggestTaskEstimate} from './planner-report.js';
 import {milestoneProgress,projectDecision,projectMilestone,remainingProjectWork} from './project-planning.js';
 import {exportCalendar} from './calendar-export.js';
@@ -90,11 +90,6 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   function projectFor(task) { return state().projects.find(project=>project.id===task.projectId); }
   function activeTasks() { return state().tasks.filter(task=>!projectFor(task)?.archived); }
   function todayDate(task,now) { return nextTaskDate(task,now,true)===dayKey(now)||calendarBlocks([task],now).length>0; }
-  function overdueDate(task,now) {
-    if (task.repeat!=='none'||task.done) return '';
-    const due=nextTaskDate(task,now);
-    return due<dayKey(now)?due:'';
-  }
   function timeLayout() { return Boolean(calendarLayouts[layout]); }
 
   function matchingTasks(now=new Date()) {

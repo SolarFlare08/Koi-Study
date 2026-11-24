@@ -26,6 +26,12 @@ export function nextTaskDate(task, start = new Date(), includeDone = false) {
   return '';
 }
 
+export function overdueTaskDate(task, now = new Date()) {
+  if (task.repeat !== 'none' || task.done) return '';
+  const due = nextTaskDate(task,now);
+  return due < dayKey(now) ? due : '';
+}
+
 export function quickTask(input, defaults = {}, projects = [], now = new Date()) {
   let date = defaults.date || '', time = '', estimate = null, repeat = 'none', repeatEvery = 2;
   let projectId = defaults.projectId || '', sectionId = defaults.sectionId || '', priorityLevel = 4, deadline = '';

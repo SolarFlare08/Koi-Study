@@ -12,9 +12,11 @@ const timerCommands={
 };
 const promptPath='Yin:\\Garden>';
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,addTask,capture,version,openHelp}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,today,next,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
+    today:['today','Show the next commitment, pinned focus tasks, and overdue work.'],
+    next:['next','Show the next ready task, estimate, and saved handoff.'],
     open:['open calendar','Switch to a workspace.'],
     find:['find ','Search tasks, notes, books, and journal entries.'],
     task:['task ','Open the task editor with a title filled in.'],
@@ -66,6 +68,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,add
 
   function execute(name,arg,entry){
     if(Object.hasOwn(timerCommands,name))return runTimer(name,arg);
+    if(name==='today'||name==='next')return arg?`Use ${name} without an argument.`:name==='today'?today():next();
     switch(name){
       case 'open': {
         const target=arg.toLowerCase();
@@ -76,7 +79,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,add
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
       case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, rest 5m.\nUse m for minutes, s for seconds, or MM:SS.\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, rest 5m.\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda. next shows the first ready focus task.\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }

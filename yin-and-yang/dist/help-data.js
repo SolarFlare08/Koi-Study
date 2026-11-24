@@ -125,6 +125,7 @@ export const helpTopics = [
     steps:['Choose `Prompt` in the bottom bar or under `More`. Type after the path shown in the terminal. Press Enter or choose `Run`.',
       'Type `help` for command syntax, or open `Commands` in the terminal header and choose an example to fill in the command line.',
       'Use `status`, `start`, and `pause` for the current timer. Use `focus 25m` or `rest 5m` for a one-off countdown. Use minutes, seconds, or MM:SS. Finish an active countdown or plan in Garden before replacing it.',
+      'Type `today` to see the next timed calendar commitment, ready focus tasks pinned for today, and Planner’s overdue work. Type `next` to see the first ready task in Garden’s focus order, its estimate, and any saved handoff.',
       'Try `open calendar` to switch workspaces or `find chapter 4` to search saved items. Select a search result to open it.',
       'Type task followed by a title to prefill the task editor. Type capture followed by a thought to save it to the Note inbox.',
       'Use the Up and Down arrows in the input to recall recent commands. Type `clear` to clear the transcript or `version` to see the build number. The transcript and command history last until you reload.'],

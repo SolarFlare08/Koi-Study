@@ -49,7 +49,7 @@ import {installCommandPrompt} from './command-prompt.js';
 import {installHelp} from './help.js';
 import {appVersion,installVersionHistory} from './version-history.js';
 import {canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,scheduleImpact,todayTradeoffs} from './scheduling.js';
-import {nextTaskDate} from './planner-data.js';
+import {nextTaskDate,overdueTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
 import {taskTemplate,projectResource} from './project-planning.js';
 import {validTemplateDay,loadDayTemplates,captureCalendarDay,previewCalendarDay,copyCalendarDay} from './calendar-day-templates.js';
@@ -552,6 +552,8 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   openHelp:()=>helpGuide.open('command-prompt'),
   openWorkspace:name=>{visitWorkspace(name);return workspace===name;},
   runTimer:runPromptTimer,
+  today:promptToday,
+  next:promptNext,
   addTask:title=>{
     if(title.length>300)return 'Use a task title of 300 characters or fewer.';
     openTaskEditor(null,$('#prompt-input'),{text:title});
@@ -886,12 +888,14 @@ function runHelpAction(action){
   }
 }
 
-function gardenFocusQueue(date=new Date(),tasks=gardenTasks(),tasksById=taskIndex()){
+function focusOrderPins(date){
   const day=dayKey(date);
   const first=state.tomorrowPin?.day===day?state.tomorrowPin.taskId:null;
   const pins=state.focusPins?.day===day&&state.focusPins.ids.length?state.focusPins.ids:state.tomorrowPlan?.day===day?[state.tomorrowPlan.taskId]:[];
-  if(first)return focusTaskQueue(tasks,date,[...new Set([first,...pins])],tasksById);
-  return focusTaskQueue(tasks,date,pins,tasksById);
+  return first?[...new Set([first,...pins])]:pins;
+}
+function gardenFocusQueue(date=new Date(),tasks=gardenTasks(),tasksById=taskIndex()){
+  return focusTaskQueue(tasks,date,focusOrderPins(date),tasksById);
 }
 function pinnedFirstTask(date=new Date()){
   const day=dayKey(date),pin=state.tomorrowPin?.day===day?state.tomorrowPin:state.tomorrowPlan?.day===day?state.tomorrowPlan:null;
@@ -1032,20 +1036,54 @@ function resumeProject(projectId){
   announce(`Current task: ${task.text}`);
 }
 
+function nextGardenCommitment(clock,tasks=state.tasks){
+  const events=visibleCalendarEvents(state.calendarEvents,state.calendars,state.hiddenCalendars);
+  return nextCalendarCommitment(tasks,events,clock,state.timer.block);
+}
+function commitmentTime(start,clock){
+  const time=clockFormat.format(start);
+  return dayKey(start)===dayKey(clock)?time:`${weekdayFormat.format(start)} ${time}`;
+}
+function promptToday(){
+  const now=new Date(),tasks=gardenTasks();
+  const commitment=nextGardenCommitment(now,tasks),pins=focusOrderPins(now);
+  const pinned=gardenFocusQueue(now,tasks).filter(task=>pins.includes(task.id));
+  const overdue=tasks.map(task=>({task,due:overdueTaskDate(task,now)})).filter(item=>item.due)
+    .sort((a,b)=>a.due.localeCompare(b.due));
+  return [
+    commitment?`Next commitment: ${commitment.title} · ${commitmentTime(new Date(commitment.start),now)}`:'No upcoming timed commitments in the next week.',
+    pinned.length?`Pinned focus tasks:\n${pinned.map(task=>`  - ${task.text}`).join('\n')}`:'No ready focus tasks pinned for today.',
+    overdue.length?`Overdue work:\n${overdue.map(({task,due})=>`  - ${task.text} · ${shortScheduleDate(due)}`).join('\n')}`:'No overdue tasks.'
+  ].join('\n\n');
+}
+function promptNext(){
+  const [task]=gardenFocusQueue();
+  if(!task)return 'No ready tasks in the focus queue.';
+  const resource=handoffLink(task.resumeResource);
+  const handoff=[
+    task.resumeLocation&&`  Where you stopped: ${task.resumeLocation}`,
+    task.resumeNote&&`  Next step: ${task.resumeNote}`,
+    resource&&`  Resource: ${resource}`
+  ].filter(Boolean);
+  return [
+    `Next ready task: ${task.text}`,
+    task.estimate?`Estimate: ${minutesLabel(task.estimate)}`:'No estimate set.',
+    handoff.length?`Last handoff:\n${handoff.join('\n')}`:'No handoff saved.'
+  ].join('\n');
+}
 function renderNextCommitment(clock){
   const label=$('#next-calendar-commitment');
   if(workspace!=='focus'){label.hidden=true;return;}
   const minute=Math.floor(+clock/60000),block=state.timer.block;
   if(commitmentPreview?.state!==state||commitmentPreview.minute!==minute||
     commitmentPreview.block!==block||commitmentPreview.next?.start<=clock){
-    const events=visibleCalendarEvents(state.calendarEvents,state.calendars,state.hiddenCalendars);
-    commitmentPreview={state,minute,block,next:nextCalendarCommitment(state.tasks,events,clock,block)};
+    commitmentPreview={state,minute,block,next:nextGardenCommitment(clock)};
   }
   const {next}=commitmentPreview;
   label.hidden=!next;
   if(!next)return;
   const start=new Date(next.start),minutes=Math.ceil((start-clock)/60000);
-  const time=clockFormat.format(start),when=dayKey(start)===dayKey(clock)?time:`${weekdayFormat.format(start)} ${time}`;
+  const when=commitmentTime(start,clock);
   const text=minutes<=60?`${next.title} in ${minutes} min`:`${next.title} · ${when}`;
   if(label.textContent!==text)label.textContent=text;
   label.title=`${next.title} · ${when}`;
