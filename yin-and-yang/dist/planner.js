@@ -1,4 +1,4 @@
-import {blockProgressLabels,calendarBlocks,calendarTaskBlock,allDayEvents,calendarDragType,openFocusBlock,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
+import {blockProgressLabels,calendarBlockTimeLabel,calendarBlocks,calendarTaskBlock,allDayEvents,calendarDragType,openFocusBlock,scheduledTaskTime,shiftDay,timeLabel,timeMinutes,weekDays} from './calendar.js';
 import {parseCalendarImport} from './calendar-import.js';
 import {summarizeWeek,weeklyProjectProgress,weeklyStudySummary} from './weekly-planning.js';
 import {dayKey,taskPriority,taskColorAttributes,taskStatus,unfinishedPrerequisites} from './state.js';
@@ -209,7 +209,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if (!blocks.length) return '';
     const row=block=>{
       const {status}=blockProgress(block);
-      return `<button type="button" class="planner-event" data-open-time data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-priority="${taskPriority(block.task)}" ${taskColorAttributes(block.task.calendarColor)} data-important="${taskPriority(block.task)===1}" aria-label="${escape(block.task.text)}${taskPriority(block.task)===1?', important':''}, ${timeLabel(block.start)}"><time>${timeLabel(block.start)} – ${timeLabel(block.end)}</time><span>${escape(block.task.text)}</span><small class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</small></button>`;
+      const time=calendarBlockTimeLabel(block);
+      return `<button type="button" class="planner-event" data-open-time data-task="${escape(block.task.id)}" data-block="${escape(block.blockId)}" data-occurrence="${block.occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-priority="${taskPriority(block.task)}" ${taskColorAttributes(block.task.calendarColor)} data-important="${taskPriority(block.task)===1}" aria-label="${escape(block.task.text)}${taskPriority(block.task)===1?', important':''}, ${time}"><time>${time}</time><span>${escape(block.task.text)}</span><small class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</small></button>`;
     };
     const now=new Date(), minute=now.getHours()*60+now.getMinutes();
     const past=splitPast?blocks.filter(block=>block.end<=minute):[];
@@ -410,7 +411,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
         ${view==='calendar'?(state().hiddenCalendars.includes('tasks')?'':monthRituals(day)):dailyRituals(key)}
         ${allDay.map(task=>`<button type="button" class="planner-month-task${taskStatus(task,day)==='done'?' all-day-done':''}" data-month-task ${taskColorAttributes(task.calendarColor)} data-important="${taskPriority(task)===1}" aria-label="${escape(task.text)}${taskPriority(task)===1?', important':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}
         ${allDayEvents(events,day).map(event=>`<button type="button" class="planner-month-event" ${eventAppearance(event)} data-calendar-event="${escape(event.id)}" data-event-day="${eventOccurrenceDay(event)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}
-        ${calendarBlocks([],day,events).map(block=>`<button type="button" class="planner-month-event" ${eventAppearance(block.event)} data-calendar-event="${escape(block.event.id)}" data-event-day="${eventOccurrenceDay(block.event)}" title="${escape(block.event.title)}">${timeLabel(block.start)} · ${escape(block.event.title)}</button>`).join('')}
+        ${calendarBlocks([],day,events).map(block=>`<button type="button" class="planner-month-event" ${eventAppearance(block.event)} data-calendar-event="${escape(block.event.id)}" data-event-day="${eventOccurrenceDay(block.event)}" title="${escape(block.event.title)} · ${calendarBlockTimeLabel(block)}">${timeLabel(block.start)} · ${escape(block.event.title)}</button>`).join('')}
         ${timeStack(tasks,key)}</section>`;
     }).join('');
     return `<div class="planner-month-grid">${headings}${cells}</div>`;

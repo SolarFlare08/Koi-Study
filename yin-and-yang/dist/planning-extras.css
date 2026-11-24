@@ -139,6 +139,7 @@
 .event-date-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .schedule-tomorrow { justify-self: start; display: inline-flex; align-items: center; min-height: 28px; margin: 4px 0; padding: 3px 9px; border: 1px solid var(--surface-line); border-radius: 6px; background: var(--surface-raised); color: var(--surface-ink); font-size: 11px; }
 .schedule-tomorrow:hover { background: var(--surface-field); }
+#minimum-useful-warning { margin: 6px 0 0; padding: 6px 8px; border-left: 2px solid var(--surface-danger); border-radius: 4px; color: var(--surface-danger); background: var(--surface-field); }
 #calendar-event-form .event-date-grid input { min-width: 0; }
 .event-all-day { display: flex; align-items: center; gap: 7px; font-size: 13px; }
 #calendar-event-form .event-all-day input { width: auto; margin: 0; }

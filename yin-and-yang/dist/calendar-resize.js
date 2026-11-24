@@ -1,4 +1,4 @@
-import {addTaskBlock,calendarBlocks,calendarTaskBlock,calendarEventOccurrences,eventOccurrenceDay,shiftDay,timeLabel,timeValue} from './calendar.js';
+import {addTaskBlock,calendarBlocks,calendarTaskBlock,calendarEventOccurrences,calendarClockLabel,eventOccurrenceDay,shiftDay,timeLabel,timeValue} from './calendar.js';
 import {dayKey,taskOccursOn} from './state.js';
 
 const midnight=day=>new Date(day+'T00:00:00');
@@ -30,6 +30,13 @@ export function resizePlacement(source,edge,columnDay,minuteInColumn){
   if(edge==='start')start=clamp(value,Math.max(0,end-1440),Math.min(1439,end-minimum));
   else end=clamp(value,start+minimum,start+1440);
   return {start,end};
+}
+
+export function resizeSummary(source,draft){
+  const edge=draft.start===source.start?'end':'start';
+  const delta=draft[edge]-source[edge];
+  const time=calendarClockLabel(midnight(source.date),draft[edge]);
+  return `${edge==='start'?'Starts':'Ends'} ${Math.abs(delta)} min ${delta>0?'later':'earlier'}, at ${time}.`;
 }
 
 export function resizeConflicts(state,source,draft,extra=()=>[]){
@@ -130,7 +137,7 @@ export function installCalendarResize(grid,{canResize,getState,previewExtra,save
     drag.block.style.setProperty('--start',Math.max(0,start-offset));
     drag.block.style.setProperty('--length',Math.max(1,Math.min(1440,end-offset)-Math.max(0,start-offset)));
     const conflicts=resizeConflicts(getState(),source,drag.draft,previewExtra);
-    tip.textContent=`${timeLabel(start)} – ${timeLabel(end%1440)}${end>=1440?' next day':''} · ${end-start} min · ${conflicts.length?'Overlaps '+conflicts.join(', '):'No timed overlaps'}`;
+    tip.textContent=`${timeLabel(start)}–${calendarClockLabel(midnight(source.date),end)} · ${end-start} min · ${conflicts.length?'Overlaps '+conflicts.join(', '):'No timed overlaps'}`;
     if(!tip.isConnected)document.body.append(tip);
     tip.style.left=Math.max(8,Math.min(event.clientX+14,innerWidth-tip.offsetWidth-8))+'px';
     tip.style.top=Math.max(8,Math.min(event.clientY+12,innerHeight-tip.offsetHeight-8))+'px';
@@ -143,7 +150,7 @@ export function installCalendarResize(grid,{canResize,getState,previewExtra,save
     const state=getState(),current=resizeSource(state,source);
     if(!current||current.start!==source.start||current.end!==source.end){notify('The calendar block changed. Try resizing it again.');return;}
     const result=resizedCalendarItem(state,current,draft);
-    if(result)save(result,draft);else notify('That time is unavailable. The block was not resized.');
+    if(result)save(result,resizeSummary(current,draft));else notify('That time is unavailable. The block was not resized.');
   });
   for(const name of ['pointercancel','lostpointercapture'])grid.addEventListener(name,event=>{if(event.pointerId===drag?.pointer)clear();});
   new MutationObserver(()=>{if(drag&&!drag.block.isConnected)clear();}).observe(grid,{childList:true});

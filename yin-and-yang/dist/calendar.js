@@ -23,6 +23,17 @@ export function timeLabel(minutes) {
   const fraction = minutes % 60;
   return `${hours % 12 || 12}${fraction ? ':' + String(fraction).padStart(2, '0') : ''} ${hours < 12 ? 'AM' : 'PM'}`;
 }
+const weekdayLabel=new Intl.DateTimeFormat('en-US',{weekday:'short'});
+const clockMinute=date=>date.getHours()*60+date.getMinutes();
+export function calendarClockLabel(date,minutes,showDay=minutes>=1440){
+  const time=timeLabel(minutes);
+  return showDay?`${time} ${weekdayLabel.format(shiftDay(date,Math.floor(minutes/1440)))}`:time;
+}
+export function calendarBlockTimeLabel(block,slot=block.event||(block.task&&calendarTaskBlock(block.task,block.blockId,block.occurrence))){
+  if(!slot)return `${timeLabel(block.start)}–${timeLabel(block.end)}`;
+  const start=new Date(slot.start),end=new Date(slot.end);
+  return `${timeLabel(clockMinute(start))}–${calendarClockLabel(end,clockMinute(end),dayKey(start)!==dayKey(end))}`;
+}
 
 export function scheduleTask(task, date, start) {
   task.date = date;
@@ -268,14 +279,10 @@ export function calendarBlocks(tasks, date, events=[]) {
   }
   const dayStart=new Date(date.getFullYear(),date.getMonth(),date.getDate()).getTime();
   const dayEnd=shiftDay(date,1).getTime();
-  const clockMinute=timestamp=>{
-    const local=new Date(timestamp);
-    return local.getHours()*60+local.getMinutes();
-  };
   for(const event of calendarEventOccurrences(events,date)){
     if(event.day||event.start>=dayEnd||Math.max(event.end,event.start+60000)<=dayStart)continue;
-    const start=event.start<=dayStart?0:clockMinute(event.start);
-    const end=event.end>=dayEnd?1440:Math.max(start+1,clockMinute(event.end));
+    const start=event.start<=dayStart?0:clockMinute(new Date(event.start));
+    const end=event.end>=dayEnd?1440:Math.max(start+1,clockMinute(new Date(event.end)));
     blocks.push({event,start,end,continues:event.start<dayStart});
   }
   return layoutBlocks(blocks);

@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.9',date:'2026-11-23',title:'Clearer estimates and calendar times',changes:[
+    'See an inline warning if a task’s minimum useful time exceeds its estimate.',
+    'Resize confirmations say which edge moved, by how much, and to what time.',
+    'Overnight calendar blocks show the full time range with the ending weekday.'
+  ]},
   {version:'5.21.8',date:'2026-11-23',title:'Clearer handoffs and task-fit results',changes:[
     'Read the last stopping point, next step, and resource link in the calendar block preview.',
     'See suggested work and spare time in Find a task by time and What fits before class.',

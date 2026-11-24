@@ -56,7 +56,7 @@ import {estimateSummary,suggestTaskEstimate,taskSplitSuggestion} from './planner
 import {loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime,taskTimeFit} from './calendar.js';
 import {calendarFocusWindow,focusWindowTasks,nextCalendarCommitment} from './calendar.js';
-import {calendarEntryOnDay,eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
+import {calendarBlockTimeLabel,calendarEntryOnDay,eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
 import {parseRubric,rubricPoints,rubricSummary} from './rubric.js';
 import {blockFlexibility,waitingForRecord} from './task-readiness.js';
 
@@ -1858,7 +1858,7 @@ function dayRecapMarkup(){
     return `<li>${entry(item.title,`${position(item.from)} → ${position(item.to)}`,link)}</li>`;
   });
   const upcoming=[...allDay.map(event=>`<li>${entry(event.title,'All day',blockTarget({event:event.id}))}</li>`),
-    ...blocks.map(block=>`<li>${entry(block.event?.title||block.task.text,`${timeLabel(block.start)}–${timeLabel(block.end)}`,
+    ...blocks.map(block=>`<li>${entry(block.event?.title||block.task.text,calendarBlockTimeLabel(block),
       blockTarget({event:block.event?.id,task:block.task?.id,block:block.blockId,occurrence:block.occurrence,taskDay:block.taskDay}))}</li>`),
     ...due.map(task=>`<li>${entry(task.text,task.deadline===tomorrow?'Deadline':'Dated task',taskTarget(task.id,tomorrow))}</li>`)];
   const thoughts=[...availableCaptures(),...state.captureArchive]
@@ -2746,10 +2746,11 @@ function taskEditor(){
             ${tomorrowScheduleButton()}
             <div class="task-editor-grid">
               <div><label class="field-label" for="task-repeat">Repeat</label><select id="task-repeat" name="repeat" aria-describedby="task-repeat-hint">${options}</select></div>
-              <div><label class="field-label" for="task-estimate">Estimate (min)</label><input id="task-estimate" name="estimate" type="number" min="1" max="1440" step="1" value="${values.estimate??''}" placeholder="60"></div>
-              <div><label class="field-label" for="task-minimum-useful">Minimum useful (min)</label><input id="task-minimum-useful" name="minimumUsefulMinutes" type="number" min="1" max="1440" step="1" value="${values.minimumUsefulMinutes??''}" placeholder="Optional"></div>
+              <div><label class="field-label" for="task-estimate">Estimate (min)</label><input id="task-estimate" name="estimate" type="number" min="1" max="1440" step="1" value="${values.estimate??''}" placeholder="60" aria-describedby="minimum-useful-warning"></div>
+              <div><label class="field-label" for="task-minimum-useful">Minimum useful (min)</label><input id="task-minimum-useful" name="minimumUsefulMinutes" type="number" min="1" max="1440" step="1" value="${values.minimumUsefulMinutes??''}" placeholder="Optional" aria-describedby="minimum-useful-warning"></div>
               <div><label class="field-label" for="task-energy">Energy</label><select id="task-energy" name="energy">${energyOptions(values.energy,'Not set')}</select></div>
             </div>
+            <p id="minimum-useful-warning" role="status" hidden></p>
             <div class="estimate-suggestion" data-estimate-suggestion hidden></div>
             <p id="task-repeat-hint" ${values.repeat&&values.repeat!=='none'?'':'hidden'}>The date sets the first occurrence. Leave it blank to start today.</p>
             <div id="task-interval-field" ${values.repeat==='interval'?'':'hidden'}><label class="field-label" for="task-interval">Days between occurrences</label><input id="task-interval" name="repeatEvery" type="number" min="2" max="365" value="${values.repeatEvery||2}" ${values.repeat==='interval'?'':'disabled'}></div>
@@ -2848,8 +2849,11 @@ function saveQuickTaskColor(button){
 
 function calendarBlockPreview(){
   const task=state.tasks.find(item=>item.id===lastAnchor.dataset.task);
+  const {block:blockId,occurrence}=lastAnchor.dataset;
+  const slot=task&&calendarTaskBlock(task,blockId,occurrence);
   const hasReference=Boolean(task?.reference),resume=hasHandoff(task)||hasReference;
   return `${header('CALENDAR BLOCK',escape(task?.text||'Task unavailable'))}
+    ${slot?`<p class="block-scheduled-time">${calendarBlockTimeLabel({task,blockId,occurrence},slot)}</p>`:''}
     <p id="block-focus-time"></p>
     <p id="block-actual-focus"></p>
     <p class="task-waiting" id="block-prerequisites" hidden></p>
@@ -3799,22 +3803,20 @@ compactCalendarRail.addEventListener('change',syncCalendarRail);
 syncCalendarRail();
 
 function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=block.end,mini=false){
-  const {task,blockId,start,end,lane,lanes,continues,occurrence}=block;
-  const time=`${timeLabel(start)} – ${timeLabel(end)}`;
+  const {task,blockId,lane,lanes,continues,occurrence}=block;
   const length=visibleEnd-visibleStart;
   const density=mini?` data-agenda-density="${length<14?'marker':length<28?'compact':'full'}"`:'';
   const placement=`--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}`;
-  let handles='';
-  if(!mini&&workspace==='calendar'&&!block.ritual&&(!block.event||block.event.manual)){
-    const slot=block.event||calendarTaskBlock(task,blockId,occurrence);
-    if(slot){
-      const finish=new Date(slot.end);
-      const endsHere=dayKey(finish)===dayKey(date)||visibleEnd===1440&&+finish===+shiftDay(date,1);
-      handles=`${continues?'':'<span data-resize-edge="start" aria-hidden="true"></span>'}
-        ${endsHere?'<span data-resize-edge="end" aria-hidden="true"></span>':''}`;
-    }
-  }
   if(block.ritual)return `<div class="calendar-block calendar-ritual-block" style="${placement}">${renderDailyRituals(dayKey(date),[block.ritual],false)}</div>`;
+  const slot=block.event||calendarTaskBlock(task,blockId,occurrence);
+  const time=calendarBlockTimeLabel(block,slot);
+  let handles='';
+  if(slot&&!mini&&workspace==='calendar'&&(!block.event||block.event.manual)){
+    const finish=new Date(slot.end);
+    const endsHere=dayKey(finish)===dayKey(date)||visibleEnd===1440&&+finish===+shiftDay(date,1);
+    handles=`${continues?'':'<span data-resize-edge="start" aria-hidden="true"></span>'}
+      ${endsHere?'<span data-resize-edge="end" aria-hidden="true"></span>':''}`;
+  }
   if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(block.event,placement)} data-calendar-event="${escape(block.event.id)}" data-event-day="${eventOccurrenceDay(block.event)}"${density} aria-haspopup="dialog" title="${escape(block.event.title)} · ${time}" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}"><strong>${escape(block.event.title)}</strong><span>${time}</span>${handles}</button>`;
   const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
   const done=!openFocusBlock(block);
@@ -3836,8 +3838,8 @@ function commitCalendarCopies(changes){
     refreshTasks();return true;
 }
 installCalendarResize(calendarGrid,{canResize:()=>workspace==='calendar'&&!actualCalendar&&!$('.brush-active'),getState:()=>state,
-  previewExtra:timedCalendarRituals,notify:toast,save:(result,draft)=>{
-    if(commitCalendarCopies(result.changes))confirmChange(`Block resized to ${minutesLabel(draft.end-draft.start)}.`,result.undo);
+  previewExtra:timedCalendarRituals,notify:toast,save:(result,message)=>{
+    if(commitCalendarCopies(result.changes))confirmChange(message,result.undo);
   }});
 function showBrushAction(stroke,redo,message){
   clearTimeout(undoTimeout);
@@ -4642,6 +4644,12 @@ function updateScheduleEditor(form){
   const markup=preview?.markup||'';
   if(region.innerHTML!==markup)region.innerHTML=markup;
   if(isTask){
+    const warning=form.querySelector('#minimum-useful-warning');
+    const {estimate,minimumUsefulMinutes}=fields;
+    const exceeds=estimate.validity.valid&&minimumUsefulMinutes.validity.valid&&minimumUsefulMinutes.valueAsNumber>estimate.valueAsNumber;
+    const warningText=exceeds?`${minimumUsefulMinutes.value} min to get started exceeds the ${estimate.value} min estimate.`:'';
+    warning.hidden=!exceeds;
+    if(warning.textContent!==warningText)warning.textContent=warningText;
     $('#task-plan-deadline').hidden=Boolean(fields.waitingFor.value.trim())||!canPlanDeadline({done:task?.done,estimate:Number(fields.estimate.value),deadline:fields.deadline.value,repeat:fields.repeat.value});
   }else{
     form.querySelector('button[type="submit"]').textContent=preview?.overlaps.length?'Save with overlap':'Save block';
@@ -6408,7 +6416,7 @@ root.addEventListener('input',e=>{
     $('#prerequisite-no-results').hidden=matches>0;
   }
   if(e.target.form?.matches('#task-editor-form,#block-editor-form')&&
-    ['date','time','estimate','minutes','deadline','repeat','title','labels'].includes(e.target.name))updateScheduleEditor(e.target.form);
+    ['date','time','estimate','minimumUsefulMinutes','minutes','deadline','repeat','title','labels'].includes(e.target.name))updateScheduleEditor(e.target.form);
   if(e.target.id==='focus-minutes'||e.target.id==='break-minutes')formatDurationInput(e);
   if(e.target.dataset.soundLevel)changeSound(e.target.dataset.soundLevel,Number(e.target.value));
   if(e.target.id==='notes-input')saveScratchpad(e.target.value);
@@ -6534,7 +6542,7 @@ root.addEventListener('change',event=>{
     form.querySelector('[type="submit"]').disabled=!slots.length;
   }
   if(form?.matches('#task-editor-form,#block-editor-form')&&
-    ['date','time','estimate','minutes','deadline','repeat'].includes(event.target.name))updateScheduleEditor(form);
+    ['date','time','estimate','minimumUsefulMinutes','minutes','deadline','repeat'].includes(event.target.name))updateScheduleEditor(form);
   if(event.target.name==='prerequisite')$('#prerequisite-error').hidden=true;
   if(form?.id==='replan-form')form.querySelector('[type="submit"]').disabled=!form.querySelector('input:checked');
   if(form?.id==='ritual-schedules-form'&&event.target.matches('[data-ritual-placement]')){
