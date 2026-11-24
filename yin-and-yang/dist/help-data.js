@@ -26,7 +26,7 @@ export const helpTopics = [
   {id:'pause-notes',group:'Focus & rest',title:'Remember why you paused',summary:'Save a short note at a specific pause in your focus session.',steps:['Pause a focus session and choose Add pause note in Garden or the mini timer. Save a short reason, or continue without adding one. You can edit the note until you resume.','In Calendar, switch to Actual, open the session, and read the reason on the matching Paused entry.'],related:['focus-replay','mini-focus']},
   {id:'focus-reference',group:'Focus & rest',title:'Pin a reference beside the timer',summary:'Keep a formula, worked example, or diagram in sight while you focus.',steps:['Choose a task in Garden and open Session tools → Pin reference. Paste text or add a PNG, JPEG, or WebP under 600 KB.','The pinned reference follows that task into the mini timer. In Garden, choose Copy to copy the reference text, or the diagram if the pin contains only an image. Choose Edit to change or unpin the reference.'],related:['mini-focus']},
   {id:'resize-calendar',group:'Calendar',title:'Resize calendar blocks by their edges',summary:'Stretch or shorten a timed block while checking overlaps.',steps:['In Calendar’s planned timeline, drag the top or bottom edge of a task block or an editable event. The preview shows the new time, length, and any timed overlaps.','Release to save or press Escape to cancel. The confirmation shows which edge moved, by how many minutes, and its new time. Use Undo to restore the previous time. Resizing a repeating item edits only that occurrence.'],related:['move-blocks','skip-calendar-date']},
-  {id:'skip-calendar-date',group:'Calendar',title:'Skip one calendar occurrence',summary:'Remove one date from a recurring series.',steps:['Right-click a repeating event or task occurrence in Calendar and select Skip this date. For an overnight event, the occurrence is identified by its start date.','The other occurrences and your focus history stay in place. Use Undo in the confirmation to bring back the skipped occurrence. For imported events, a skipped occurrence stays hidden after reimporting the same calendar.'],related:['move-blocks']},
+  {id:'skip-calendar-date',group:'Calendar',title:'Skip one calendar occurrence',summary:'Remove one date from a recurring series.',steps:['Right-click a repeating event or task occurrence in Calendar and select `Skip this date`. For an overnight event, the occurrence is identified by its start date.','The other occurrences and your focus history stay in place. Use Undo in the confirmation to bring back the skipped occurrence. For imported events, a skipped occurrence stays hidden after reimporting the same calendar.'],related:['move-blocks']},
   {id:'rubric-subtasks',group:'Planner',title:'Turn a rubric into assignment subtasks',summary:'See how many rubric points are still unfinished.',steps:['In a task editor, open Subtasks → Import rubric. Paste one criterion per line. Use Analysis | 25 or Citations (10 pts) to include scores.','Choose Preview items, select the criteria to keep, and edit their point values if needed. Save the task. Each score appears beside its subtask, and the Planner checklist totals the rubric points still unfinished.'],related:[]},
   {id:'office-retry',group:'Planner',title:'Retry an office-hours question independently',summary:'Practice the original question before comparing answers.',steps:['Open the project’s Office-hours sheet. If needed, turn on Show answered, then choose Try it myself beside a saved answer.','Garden shows the original question and any reference. Work through the problem and choose Solved independently or Still stuck. After recording the result, you can reveal the meeting answer. Your latest result appears on the question sheet.'],related:['office-sheet']},
   {id:'waiting-decision',group:'Planner',title:'Set a fallback decision for a waiting task',summary:'Bring a decision back on the day you need it.',steps:['In a task editor, fill in Waiting for, Decide on, and Fallback if still waiting. You can also set a separate follow-up date.','On or after the date, find the decision at the top of Planner → Waiting for. Choose Use fallback to save it as the next step and mark the task ready. Keep waiting by leaving the task on hold or editing the date. Use Mark ready if the original blocker cleared.'],related:[]},
@@ -80,9 +80,17 @@ export const helpTopics = [
     related:['backup','versions','shortcuts']
   },
   {
+    id:'help-search', group:'Start here', title:'Find instructions by button name',
+    summary:'Jump to the step that explains a control you see in the app.',
+    steps:['Open Help and type the name of the button or menu item you want to find.',
+      'Choose a result or press `Enter` to open the first one. Help shows the matching step when the label appears in the instructions.'],
+    related:['versions','shortcuts']
+  },
+  {
     id:'versions', group:'Start here', title:'See version history',
     summary:'Browse the current release and past updates.',
     steps:['Open Help → `Version history`, or search for Version history with `Ctrl+K`.',
+      'Choose `Copy version number` next to the heading to copy the current app version, even while browsing an older release.',
       'Search by version number or feature, or filter by version series. Select a release to read its notes. Choose Latest release to clear the filters and return to the newest entry. Version 1.0.0 groups earlier updates by date.'],
     tip:'Patch versions cover fixes and documentation, minor versions add compatible features, and major versions mark intentionally incompatible changes.',
     action:'versions', actionLabel:'Open version history', related:['workspaces','backup']
@@ -595,7 +603,7 @@ export const helpTopics = [
       'Use the week arrows or `This week` to choose the period.',
       'Under Weekly project goals, choose `Set goals` on a project. Set focus minutes, chapters, or both. Select that project when you save a chapter log in Annotate.',
       'Review completed-task and focus totals, plus lists of still-open work from earlier weeks, open work this week, and next week’s tasks.',
-      'Choose Print summary for daily focus time, completed tasks, and open work to carry forward. Check Include handoff notes before printing if you want saved stopping points and next steps in the copy. The checkbox starts unchecked. Choose a printer or Save as PDF in the print dialog.',
+      'Choose `Print summary` for daily focus time, completed tasks, and open work to carry forward. Check `Include handoff notes` before printing if you want saved stopping points and next steps in the copy. The checkbox starts unchecked. Choose a printer or Save as PDF in the print dialog.',
       'Check Hide zero-focus days to omit empty dates from the focus table. Printed next steps show the project or Inbox beside the task name.',
       'Use `Move to today` on eligible carried-over tasks to bring them back into today’s plan.'],
     action:'review', actionLabel:'Open Weekly review', related:['workload','reporting','tomorrow']
@@ -978,13 +986,18 @@ export const helpTopics = [
 ];
 
 const normalize=value=>String(value).normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase();
-export function searchHelp(query){
-  const phrase=normalize(query).trim(),words=phrase.split(/\s+/).filter(Boolean);
+const searchText=value=>normalize(value).replace(/`/g,'').replace(/[’‘]/g,"'").trim().replace(/\s+/g,' ');
+export function searchHelpResults(query){
+  const phrase=searchText(query).replace(/^["“](.*)["”]$/,'$1'),words=phrase.split(' ').filter(Boolean);
   return helpTopics.flatMap(topic=>{
-    const content=normalize([topic.title,topic.group,topic.summary,...(topic.steps||[]),topic.tip,topic.keywords,...(topic.shortcuts||[]).flat()].join(' '));
+    const steps=topic.steps||[];
+    const content=searchText([topic.title,topic.group,topic.summary,...steps,topic.tip,topic.keywords,topic.actionLabel,...(topic.shortcuts||[]).flat()].join(' '));
     if(!words.every(word=>content.includes(word)))return [];
-    const title=normalize(topic.title),brief=normalize([topic.title,topic.summary,topic.keywords].join(' '));
-    const score=!words.length?0:title===phrase?4:title.includes(phrase)?3:words.every(word=>title.includes(word))?2:words.every(word=>brief.includes(word))?1:0;
-    return [{topic,score}];
-  }).sort((a,b)=>b.score-a.score).map(({topic})=>topic);
+    const title=searchText(topic.title),brief=searchText([topic.title,topic.summary,topic.keywords].join(' '));
+    const labelStep=steps.findIndex(step=>[...step.matchAll(/`([^`]+)`/g)].some(([,label])=>searchText(label)===phrase));
+    const phraseStep=words.length>1?steps.findIndex(step=>searchText(step).includes(phrase)):-1;
+    const exactLabel=labelStep!==-1||!!topic.actionLabel&&searchText(topic.actionLabel)===phrase;
+    const score=!words.length?0:exactLabel?6:title===phrase?5:phraseStep!==-1?4:title.includes(phrase)?3:words.every(word=>title.includes(word))?2:words.every(word=>brief.includes(word))?1:0;
+    return [{topic,step:labelStep===-1?phraseStep:labelStep,score}];
+  }).sort((a,b)=>b.score-a.score);
 }

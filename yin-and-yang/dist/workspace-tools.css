@@ -98,7 +98,10 @@
 #version-history { width:min(900px,calc(100vw - 24px)); height:min(710px,calc(100dvh - 32px)); max-height:none; padding:0; overflow:hidden; }
 #version-history[open] { display:flex; flex-direction:column; }
 .version-header { padding:20px 24px 14px; }
-.version-header p { margin-top:5px; }
+.version-build { display:flex; align-items:center; flex-wrap:wrap; gap:5px 8px; margin-top:5px; color:var(--surface-muted); font-size:12px; }
+#version-history .version-copy { padding:4px 8px; border:1px solid var(--surface-line); border-radius:6px; color:var(--surface-accent); font-size:11px; }
+.version-copy:hover { background:var(--surface-raised); }
+.version-copy-status { color:var(--surface-accent); }
 .version-filters { display:flex; gap:9px; padding:0 24px 14px; border-bottom:1px solid var(--surface-line); }
 .version-filters label:first-child { flex:1; min-width:0; }
 .version-filters input { width:100%; padding:8px 11px; border:1px solid var(--surface-line); border-radius:8px; color:var(--surface-ink); background:var(--surface-field); }

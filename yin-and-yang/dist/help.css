@@ -51,6 +51,7 @@
 .help-lead { color: var(--surface-muted); margin: 0 0 23px; line-height: 1.65; }
 .help-steps { padding: 0; margin: 0 0 24px; list-style: none; counter-reset: help-step; }
 .help-steps li { position: relative; padding-left: 34px; margin: 17px 0; overflow-wrap: anywhere; }
+.help-steps .help-matched-step { border-radius: 5px; background: var(--surface-raised); scroll-margin-block: 12px; }
 .help-steps li::before { counter-increment: help-step; content: counter(help-step); position: absolute; left: 0; top: 1px; display: grid; place-items: center; width: 23px; height: 23px; border: 1px solid var(--surface-line); border-radius: 50%; color: var(--surface-accent); font-size: 11px; }
 #help-guide code,#help-guide kbd { padding: 1px 4px; border: 1px solid var(--surface-line); border-radius: 4px; background: var(--surface-field); color: var(--surface-ink); font: .89em/1.5 'DM Sans',system-ui,sans-serif; overflow-wrap: anywhere; }
 .help-tip { margin: 20px 0; padding: 13px 16px; border-left: 2px solid var(--surface-accent); border-radius: 0 8px 8px 0; background: var(--surface-field); }

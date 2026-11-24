@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'5.21.17',date:'2026-11-23',title:'Find button instructions and copy your version',changes:[
+    'Search Help by button or menu name and jump to the matching step.',
+    'Copy the running version number from the Version History header.'
+  ]},
   {version:'5.21.16',date:'2026-11-23',title:'Journal save confirmation and crochet checkpoints',changes:[
     'See a brief Draft saved confirmation after editing a journal draft.',
     'Confirm before resetting a Stitchbook row or custom counter to zero.',
@@ -531,7 +535,9 @@ export function installVersionHistory(dialog){
   const formatDate=new Intl.DateTimeFormat(undefined,{dateStyle:'long',timeZone:'UTC'});
   const date=value=>value?`<time datetime="${value}">${formatDate.format(new Date(value))}</time>`:'';
   const items=changes=>`<ul>${changes.map(change=>`<li>${change}</li>`).join('')}</ul>`;
-  dialog.innerHTML=`<header class="version-header"><div><h2 id="version-title">Version history</h2><p>Yin and Yang · v${latest.version}</p></div><button type="button" aria-label="Close version history">×</button></header>
+  dialog.innerHTML=`<header class="version-header"><div><h2 id="version-title">Version history</h2><div class="version-build">
+      <span>Yin and Yang · v${appVersion}</span><button type="button" class="version-copy">Copy version number</button><span class="version-copy-status" role="status"></span>
+    </div></div><button type="button" class="version-close" aria-label="Close version history">×</button></header>
     <div class="version-filters">
       <label><span class="sr-only">Search releases</span><input type="search" placeholder="Search releases" autofocus></label>
       <label><span class="sr-only">Version series</span><select><option value="">All versions</option><option value="${currentSeries}">Version ${currentSeries}.x</option>${series.map(major=>`<option value="${major}">Version ${major}.x</option>`).join('')}</select></label>
@@ -571,7 +577,20 @@ export function installVersionHistory(dialog){
     list.scrollTop=0;
     show(matches.includes(selected)?selected:matches[0]);
   }
-  dialog.querySelector('.version-header button').onclick=()=>dialog.close();
+  const copyStatus=dialog.querySelector('.version-copy-status');
+  let copyStatusTimer;
+  dialog.querySelector('.version-copy').onclick=async()=>{
+    clearTimeout(copyStatusTimer);
+    try{
+      await navigator.clipboard.writeText(appVersion);
+      copyStatus.textContent='Copied';
+    }catch{
+      copyStatus.textContent='Couldn’t copy';
+    }
+    clearTimeout(copyStatusTimer);
+    copyStatusTimer=setTimeout(()=>{copyStatus.textContent='';},2400);
+  };
+  dialog.querySelector('.version-close').onclick=()=>dialog.close();
   dialog.querySelector('.version-latest').onclick=()=>{
     selected=latest;search.value='';filter.value='';update();list.querySelector('[aria-current]')?.focus();
   };
