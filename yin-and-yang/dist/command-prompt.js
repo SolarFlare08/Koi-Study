@@ -30,7 +30,7 @@ function promptTime(value){
   return (period?hour%12+(period==='pm'?12:0):hour)*60+Number(match[2]||0);
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,today,next,fit,handoff,stuck,schedule,snooze,getBooks,getCounters,read,row,addTask,capture,version,openHelp}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,today,next,fit,handoff,stuck,schedule,snooze,getBooks,getCounters,read,row,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
     namedFocus:['focus "LinAlg" 40m','Select a task by name and start its timer.'],
@@ -43,6 +43,8 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     snooze:['snooze "Order yarn" until Friday','Hide a task from focus until the selected date.'],
     read:['read "Golden Son" p143','Save a reading position and show pages left.'],
     row:['row "Left sleeve" +2','Adjust a Stitchbook counter and show its last checkpoint.'],
+    review:['review week','Show this week’s focus time, completed tasks, and open next steps.'],
+    play:['play "Deep work"','Load a saved soundtrack in Music & video.'],
     open:['open calendar','Switch to a workspace.'],
     find:['find ','Search tasks, notes, books, and journal entries.'],
     task:['task ','Open the task editor with a title filled in.'],
@@ -107,7 +109,8 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         entry.replaceChildren();
         const response=run(item);
         if(response)entry.textContent=response;
-        (entry.querySelector('button')||input).focus();
+        const first=entry.querySelector('button');
+        if(first||document.activeElement===document.body)(first||input).focus();
       }
     })));
     return '';
@@ -192,6 +195,15 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       return name==='handoff'?handoff(message):stuck(message);
     }
     switch(name){
+      case 'review':return arg.toLowerCase()==='week'?reviewWeek():'Use review week.';
+      case 'play': {
+        const quoted=/^(?:"([^"]*)"|“([^”]*)”)$/.exec(arg);
+        const query=(quoted?(quoted[1]??quoted[2]):/^["“]/.test(arg)?'':arg).trim();
+        if(!query)return 'Use play "Deep work".';
+        const tracks=getSoundtracks();
+        if(!tracks.length)return 'No soundtracks saved. Save one in Garden → Music & video.';
+        return chooseMatch(query,tracks,entry,({id})=>play(id),'saved soundtrack','load');
+      }
       case 'fit': {
         const minutes=promptDuration(arg)/60000;
         return Number.isInteger(minutes)&&minutes>0&&minutes<=1440?fit(minutes):'Use fit with whole minutes, such as fit 20m (up to 1440m).';
@@ -205,7 +217,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
       case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m.\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m.\nHide from focus: snooze "Order yarn" until Friday.\nCurrent task: handoff "next step", stuck "question".\nLog progress: read "Golden Son" p143, row "Left sleeve" +2.\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m.\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m.\nHide from focus: snooze "Order yarn" until Friday.\nCurrent task: handoff "next step", stuck "question".\nLog progress: read "Golden Son" p143, row "Left sleeve" +2.\nWeekly totals and handoffs: review week.\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }

@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.7',date:'2026-11-24',title:'Weekly review and saved soundtracks in Prompt',changes:[
+    'Use review week to see this week’s focus time, completed tasks, and next steps for open work.',
+    'Use play with a soundtrack name to load it in Music & video.'
+  ]},
   {version:'6.0.6',date:'2026-11-24',title:'Reading and Stitchbook progress in Prompt',changes:[
     'Save a book’s reading position and see pages left with read.',
     'Adjust a Stitchbook row counter and see its last checkpoint with row.'

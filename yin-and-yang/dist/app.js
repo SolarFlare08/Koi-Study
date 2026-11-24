@@ -46,6 +46,7 @@ import {createYouTubeEmbed,youtubeContent,youtubeLinks} from './youtube-embed.js
 import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
 import {installCommandPalette} from './command-palette.js';
 import {installCommandPrompt} from './command-prompt.js';
+import {summarizeWeek,weeklyStudySummary} from './weekly-planning.js';
 import {installHelp} from './help.js';
 import {appVersion,installVersionHistory} from './version-history.js';
 import {canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,scheduleImpact,todayTradeoffs} from './scheduling.js';
@@ -567,6 +568,9 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
     ...project.counters.map(counter=>({projectId:project.id,counterId:counter.id,title:counter.name,context:project.name}))
   ]),
   read:savePromptReadingPosition,
+  reviewWeek:promptReviewWeek,
+  getSoundtracks:()=>state.soundtracks.map(({id,name,source})=>({id,title:name,context:source==='youtube'?'YouTube':'Spotify'})),
+  play:openPromptSoundtrack,
   row:({projectId,counterId},step)=>{
     const result=crochet.adjustCounter(projectId,counterId,step);
     if(result.error)return result.error;
@@ -1104,6 +1108,22 @@ function promptTaskChoices(tasks){
 }
 function promptPlanningTasks(){
   return gardenTasks().filter(task=>!task.done);
+}
+function promptReviewWeek(){
+  const tasks=gardenTasks(),week=summarizeWeek(state,tasks,new Date());
+  const open=new Set(tasks.filter(task=>!task.done).map(task=>task.id));
+  const {focusMs,completed,nextSteps,upcoming}=weeklyStudySummary(state,week,{openTaskIds:open});
+  const projects=new Map(state.projects.map(project=>[project.id,project.name]));
+  const done=completed.map(item=>`  - ${item.text} · ${projects.get(item.projectId)||'Inbox'} · ${shortScheduleDate(item.day)}`);
+  const steps=nextSteps.map(item=>`  - ${item.title} · ${projects.get(item.projectId)||'Inbox'}${item.location?` · ${item.location}`:''}${item.next?`\n    ${item.next}`:''}`);
+  const queued=upcoming.map(item=>`  - ${item.title} · ${shortScheduleDate(item.day)}`);
+  const time=focusMs?durationWords(focusMs):'0 min';
+  return [`Weekly review · ${shortScheduleDate(week.first)}–${shortScheduleDate(week.last)}`,
+    `Focus time: ${time} across ${week.focus.length} completed ${week.focus.length===1?'session':'sessions'}.`,
+    '',`Completed tasks (${done.length}):`,...(done.length?done:['  No tasks completed this week.']),
+    '', 'Open next steps:',...(steps.length?steps:['  No next steps saved for this week’s open work.']),
+    ...(queued.length?['','Open work to carry forward:',...queued]:[])
+  ].join('\n');
 }
 function promptBooks(){
   return readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks);
@@ -6158,14 +6178,30 @@ function applySoundtrack(id){
   const item=state.soundtracks.find(track=>track.id===id);
   $('#remove-soundtrack').disabled=!item;
   if(!item)return;
+  const changed=selectSoundtrack(item);
+  if(changed===null){renderSoundtracks();return;}
+  if(changed){mountMedia();renderSoundtracks(id);positionPanel(visiblePanel(),lastAnchor);}
+}
+function selectSoundtrack(item){
   const previous=state[item.source],source=state.mediaSource;
-  if(previous===item.link&&source===item.source)return;
+  if(previous===item.link&&source===item.source)return false;
   state[item.source]=item.link;state.mediaSource=item.source;
   if(!persist()){
-    state[item.source]=previous;state.mediaSource=source;renderSoundtracks();
-    return;
+    state[item.source]=previous;state.mediaSource=source;
+    return null;
   }
-  mountMedia();renderSoundtracks(id);positionPanel(visiblePanel(),lastAnchor);
+  return true;
+}
+function openPromptSoundtrack(id){
+  const item=state.soundtracks.find(track=>track.id===id);
+  if(!item)return 'This soundtrack is no longer saved.';
+  const changed=selectSoundtrack(item);
+  if(changed===null)return 'Could not load the soundtrack on this device.';
+  if(changed&&$('#music-panel'))mountMedia();
+  openPanel('music',$('#prompt-input'));
+  renderSoundtracks(id);
+  const source=item.source==='youtube'?'YouTube':'Spotify';
+  return `Loaded ${item.name} · ${source}. Press Play in the player.`;
 }
 function saveSoundtrack(form){
   const field=form.elements.name,name=field.value.trim(),source=state.mediaSource,link=$('#media-link').value.trim();

@@ -4,7 +4,7 @@ import {countReadingChapters} from './reading-shelf.js';
 import {reportEvents} from './planner-report.js';
 import {sessionHandoff} from './session-handoff.js';
 
-export function weeklyStudySummary(state,week,{includeHandoffs=true,hideZeroFocus=false}={}){
+export function weeklyStudySummary(state,week,{includeHandoffs=true,hideZeroFocus=false,openTaskIds}={}){
   const within=day=>day>=week.first&&day<=week.last;
   const completed=reportEvents(state,{type:'task'}).filter(event=>within(event.day));
   const focusByDay=new Map(week.timeline.map(({key})=>[key,0]));
@@ -13,7 +13,7 @@ export function weeklyStudySummary(state,week,{includeHandoffs=true,hideZeroFocu
   const sessions=includeHandoffs?[...state.history].sort((a,b)=>a.finishedAt-b.finishedAt):[];
   const tasks=new Map(state.tasks.map(task=>[task.id,task]));
   function saveNextStep(session,taskId,next,location=''){
-    if(!taskId||(!next&&!location))return;
+    if(!taskId||(!next&&!location)||(openTaskIds&&!openTaskIds.has(taskId)))return;
     const task=tasks.get(taskId),sessionTask=taskId===session.taskId;
     nextSteps.set(taskId,{
       title:(sessionTask&&session.taskTitle)||task?.text||'Focus task',
@@ -27,6 +27,15 @@ export function weeklyStudySummary(state,week,{includeHandoffs=true,hideZeroFocu
     const handoffTaskId=session.handoffTaskId||session.taskId,reviewNext=session.review?.next||'';
     if(handoffTaskId!==session.taskId)saveNextStep(session,session.taskId,reviewNext);
     saveNextStep(session,handoffTaskId,(handoffTaskId===session.taskId&&reviewNext)||handoff?.resumeNote||'',handoff?.resumeLocation);
+  }
+  if(includeHandoffs&&openTaskIds){
+    for(const task of [...week.carried,...week.unfinished.map(({task})=>task)]){
+      if(!openTaskIds.has(task.id)||nextSteps.has(task.id))continue;
+      const handoff=sessionHandoff(task);
+      if(handoff?.resumeNote||handoff?.resumeLocation)nextSteps.set(task.id,{
+        title:task.text,projectId:task.projectId||'',next:handoff.resumeNote,location:handoff.resumeLocation
+      });
+    }
   }
   const upcoming=new Map();
   for(const {task,key} of [...week.next,...week.unfinished,...week.carried.map(task=>({task,key:task.date||task.deadline}))]){
