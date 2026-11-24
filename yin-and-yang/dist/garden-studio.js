@@ -56,9 +56,9 @@ const options=values=>Object.entries(values).map(([key,label])=>`<option value="
 const select=(name,label,values)=>`<label>${label}<select name="${name}">${options(values)}</select></label>`;
 const sizeSlider=(name,label)=>`<label>${label} <output name="${name}Value">100%</output><input type="range" name="${name}" min="${gardenSizeBounds.min}" max="${gardenSizeBounds.max}" step="${gardenSizeBounds.step}" value="100"></label>`;
 
-export function createGardenStudio({getState,getAppearance,getDesign,commit,download,today}){
+export function createGardenStudio({getState,getAppearance,getDesign,commit,rememberPropCategory,download,today}){
   let draft,form,selected='',scene=null,drag=null,tool='select',stamp='',stampPoint=null,zoom=1,terrainCategory='mountains';
-  let undo=[],redo=[],savedDraft='',layerDrag='',beforeLayout;
+  let undo=[],redo=[],savedDraft='',layerDrag='',beforeLayout,listedArrangements;
   let snapEnabled=false,stampFree=false,unfilteredOriginalsOpen=null;
   const marked=new Set();
   function open(){
@@ -165,7 +165,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
               <div class="studio-arrangement-fields">
                 <label>Arrangement name<input name="arrangementName" maxlength="70" placeholder="e.g. Lantern walk"></label>
                 <button type="button" data-studio="save-arrangement">Save selection</button>
-                <label>Saved arrangement<select name="arrangement"></select></label>
+                <fieldset class="studio-saved-arrangements"><legend>Saved arrangements</legend>
+                  <div data-studio-arrangement-list></div>
+                </fieldset>
                 <button type="button" data-studio="place-arrangement">Place in view</button>
                 <p data-studio-arrangement-hint></p>
               </div>
@@ -188,7 +190,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
             <div class="studio-prop-library">${Object.entries(gardenPropCategories).map(([key,label])=>{
               const items=Object.entries(gardenPropTypes).filter(([,item])=>item.category===key)
                 .sort(([,a],[,b])=>a.name.localeCompare(b.name,'en'));
-              return `<details class="studio-prop-group">
+              return `<details class="studio-prop-group" name="studio-prop-category" data-studio-prop-category="${key}" ${getState().settings.studioPropCategory===key?'open':''}>
                 <summary><span class="studio-prop-group-label">${label}<span>${items.length} props</span></span></summary>
                 <div class="studio-prop-palette" role="group" aria-label="${label}">
                   ${items.map(([kind,item])=>
@@ -657,13 +659,29 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     return marked.size?draft.design.props.filter(prop=>marked.has(prop.id)):selectedMembers();
   }
   function chosenArrangement(){
-    return getState().gardenArrangements.find(item=>item.id===field('arrangement').value);
+    const selected=form.querySelector('[name="arrangement"]:checked');
+    return getState().gardenArrangements.find(item=>item.id===selected?.value);
   }
-  function updateArrangementChoices(){
-    const select=field('arrangement'),current=select.value,arrangements=getState().gardenArrangements;
-    select.innerHTML='<option value="">Choose an arrangement</option>'+
-      options(Object.fromEntries(arrangements.map(item=>[item.id,`${item.name} · ${item.props.length} props`])));
-    select.value=arrangements.some(item=>item.id===current)?current:'';
+  function arrangementThumbnail(props){
+    const x=props.map(prop=>prop.x),y=props.map(prop=>prop.y);
+    const padding=Math.max(...props.map(prop=>prop.size))*1.25;
+    const bounds=[Math.min(...x)-padding,Math.min(...y)-padding,Math.max(...x)-Math.min(...x)+2*padding,Math.max(...y)-Math.min(...y)+2*padding];
+    const layers=Object.keys(layerStacks).filter(stack=>stack!=='sky').reverse();
+    const art=['sky',...layers].flatMap(stack=>gardenPropsInOrder(props,stack)).map(prop=>
+      `<g transform="${gardenPropTransform(prop)}"${prop.hidden?' opacity=".35"':''}>${gardenPropArtwork(prop.kind)}</g>`).join('');
+    return `<svg viewBox="${bounds.join(' ')}" aria-hidden="true">${art}</svg>`;
+  }
+  function updateArrangementChoices(current=chosenArrangement()?.id){
+    const arrangements=getState().gardenArrangements;
+    if(arrangements!==listedArrangements){
+      listedArrangements=arrangements;
+      form.querySelector('[data-studio-arrangement-list]').innerHTML=arrangements.length?arrangements.map(item=>
+        `<label class="studio-arrangement-card">
+          <input class="sr-only" type="radio" name="arrangement" value="${escape(item.id)}" ${item.id===current?'checked':''}>
+          ${arrangementThumbnail(item.props)}
+          <span><strong>${escape(item.name)}</strong><small>${item.props.length} ${item.props.length===1?'prop':'props'}</small></span>
+        </label>`).join(''):'<p>No saved arrangements yet.</p>';
+    }
     updateArrangementControls();
   }
   function updateArrangementControls(){
@@ -681,7 +699,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const arrangements=loadGardenArrangements([...state.gardenArrangements,{id,name,props}]);
     if(!commit(state.gardenLayouts,null,undefined,arrangements)){status('Could not save the arrangement.');return;}
     field('arrangementName').value='';
-    updateArrangementChoices();field('arrangement').value=id;updateArrangementControls();
+    updateArrangementChoices(id);
     status('Prop arrangement saved.');
   }
   function placeArrangement(){
@@ -894,7 +912,12 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
   function mount(element){
     form=element;
     if(!form)return;
+    listedArrangements=null;
     populate();
+    form.addEventListener('toggle',event=>{
+      const category=event.target.dataset?.studioPropCategory;
+      if(category&&event.target.open)rememberPropCategory(category);
+    },true);
     const stage=form.querySelector('.studio-stage');
     const compare=form.querySelector('[data-studio="compare"]');
     compare.addEventListener('pointerdown',event=>{

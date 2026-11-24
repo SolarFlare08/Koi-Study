@@ -1,6 +1,6 @@
 import {spotifyPath} from './spotify-embed.js';
 import {youtubeContent} from './youtube-embed.js';
-import {loadGardenDesign,loadGardenLayouts,loadGardenActivityLayouts,loadGardenArrangements} from './garden-layout.js';
+import {gardenPropCategories,loadGardenDesign,loadGardenLayouts,loadGardenActivityLayouts,loadGardenArrangements} from './garden-layout.js';
 import {loadPostcardViewpoints} from './postcard-viewpoints.js';
 import {taskReference} from './focus-reference.js';
 import {loadAppearance,loadGardenLooks} from './garden-appearance.js';
@@ -327,6 +327,7 @@ export function loadState(storage) {
     base.gardenGrowth=loadGardenGrowth(raw.gardenGrowth);
     base.finishedBooks=loadFinishedBooks(raw.finishedBooks,base.gardenGrowth,base.dailyRituals,base.readingNotes);
     base.settings.taskBoardCollapsed=raw.settings?.taskBoardCollapsed===true;
+    if(Object.hasOwn(gardenPropCategories,raw.settings?.studioPropCategory))base.settings.studioPropCategory=raw.settings.studioPropCategory;
     if(Number.isInteger(raw.settings?.fitMinutes)&&raw.settings.fitMinutes>=1&&raw.settings.fitMinutes<=1440)base.settings.fitMinutes=raw.settings.fitMinutes;
     base.settings.wrapMinutes=wrapUpMinutes(raw.settings?.wrapMinutes);
     if(Number.isInteger(raw.settings?.classBuffer)&&raw.settings.classBuffer>=0&&raw.settings.classBuffer<=180)base.settings.classBuffer=raw.settings.classBuffer;

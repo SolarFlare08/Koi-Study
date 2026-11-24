@@ -460,6 +460,7 @@ export const helpTopics = [
     summary:'Use the full calendar, the task shelf, or Garden’s 5-hour view.',
     steps:['Open the Calendar tab. Use Day, 3 days, Week, or Month to choose the view.',
       'Use the date picker, Today, and previous/next controls to move through dates. Timed views open near the current time. Week views also scroll horizontally.',
+      'When editing a task, block, or event, choose Tomorrow beside the date fields to keep the current start time and duration. Review the draft and save. Planner’s overdue Reschedule dialog and Calendar’s Move blocks also have a Tomorrow shortcut.',
       'Open `Task shelf` to find a task. Drag it onto a time slot, or choose it to set its schedule. A task without an estimate defaults to a one-hour block.',
       'Garden’s 5-hour calendar sits below your tasks. Collapse the Tasks list to make more room. Use the arrows to browse, Now to return, or Open calendar for the full view. Select a short block or colored marker to see its full details.'],
     tip:'Overlapping blocks are supported. Planner and Calendar share your tasks and bookings.',
@@ -878,7 +879,7 @@ export const helpTopics = [
   {
     id:'garden-props',group:'Make it yours',title:'Place props in the Garden',
     summary:'Arrange bridges, plants, water details, and stone lanterns in a Studio layout.',
-    steps:['Open Garden → Landscape and choose Props in the toolbar. Expand Plants, Water, Structures, Details, or Sky. Copy scenery such as cherry blossom trees, boulders, reeds, lotus pads, and cairns. Structures includes every building and path style, and Details includes hanging lanterns on posts.',
+    steps:['Open Garden → Landscape and choose Props in the toolbar. Expand Plants, Water, Structures, Details, or Sky. Studio reopens the last category you expanded, even after a reload. Copy scenery such as cherry blossom trees, boulders, reeds, lotus pads, and cairns. Structures includes every building and path style, and Details includes hanging lanterns on posts.',
       'Use Sky to place clouds, swallows, stars, or a crescent moon behind the mountains. Swallows appear in Day lighting. Stars and crescents appear when stars are out and are decorative.',
       'Pick a thumbnail and set Placement size above the palette. Click or tap the canvas to place it. The pointer preview shows where the prop will land and how large it will be. Keep clicking for more copies, or use Place in view from the keyboard.',
       'Switch to Move, then click the prop on the canvas or choose it from the Object list. Drag or use the position sliders to move it. With the canvas focused, use arrow keys for fine nudges or Shift + arrow keys for larger moves. Use Object size or Remove prop to edit it.',
@@ -892,7 +893,7 @@ export const helpTopics = [
       'Select a placed prop in Move and open Orientation. Use the Rotation slider for any angle or choose −45°, 0°, or 45°. Flip horizontally mirrors the prop. Reset orientation clears both rotation and mirroring. These edits support Undo and Redo and are saved with layouts and copies.',
       'Turn on Snap below the canvas while using Move or Props. Alignment guides appear when the object is close to lining up with nearby scenery. Turn Snap off or hold Alt for free placement.',
       'In Move, click an original tree, rock, or reed on the canvas, or choose it under Built-in scenery in the Object list. Drag it or use the position and size sliders. Use Hide original to hide it, then find it again in Layers under Built-in scenery to show it.',
-      'In Layers, select a group or check the props you want to reuse. Open Prop arrangements, name the arrangement, and choose Save selection. In another layout, choose the arrangement and Place in view. Drag any member in Move to reposition the whole arrangement.',
+      'In Layers, select a group or check the props you want to reuse. Open Prop arrangements, name the arrangement, and choose Save selection. Pick a saved arrangement by its thumbnail, name, and prop count, then choose Place in view. Drag any member in Move to reposition the whole arrangement.',
       'Hold Before at the top of Studio to preview the last saved version of the layout. For a new draft, it shows the starting scene. Release to return to the draft. You can also focus Before and hold Space or Enter.',
       'Save your layout. Props appear in the live Garden when you apply the layout and are included in postcards and backups.'],
     action:'garden-studio',actionLabel:'Open Garden Studio',related:['garden-studio','activity-layouts','garden-postcard']

@@ -4,8 +4,15 @@ import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, calen
 import {freshState, loadState, record, reset, settle, startBlockFocus} from '../dist/state.js';
 import {exportCalendar} from '../dist/calendar-export.js';
 import {ritualComplete} from '../dist/daily-rituals.js';
-import {calendarTaskBlock,calendarBlockDurationChange,planRunningBlockExtension} from '../dist/calendar.js';
+import {calendarTaskBlock,calendarBlockDurationChange,calendarEntryOnDay,planRunningBlockExtension} from '../dist/calendar.js';
 import {extendCalendarTimer} from '../dist/state.js';
+
+test('moving an overnight or all-day entry to a new date preserves its span',()=>{
+  const entry={startDay:'2026-11-10',endDay:'2026-11-11',startTime:'23:30',endTime:'01:00',allDay:false};
+  assert.deepEqual(calendarEntryOnDay(entry,'2026-12-31'),{startDay:'2026-12-31',endDay:'2027-01-01',endTime:'01:00'});
+  assert.deepEqual(calendarEntryOnDay({...entry,allDay:true,endDay:'2026-11-12'},'2026-12-31'),
+    {startDay:'2026-12-31',endDay:'2027-01-02',endTime:'01:00'});
+});
 
 test('extending a running recurring block previews overnight conflicts and updates only its occurrence',()=>{
   const minute=60000,day='2026-11-10',next='2026-11-11',start=+new Date(day+'T23:30');

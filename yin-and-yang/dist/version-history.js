@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.7',date:'2026-11-23',title:'Faster prop browsing and rescheduling',changes:[
+    'Studio remembers the last Prop library category you opened.',
+    'Saved arrangements show a thumbnail of the props and their count.',
+    'Choose Tomorrow while rescheduling tasks, blocks, or events to keep the time and duration.'
+  ]},
   {version:'5.21.6',date:'2026-11-23',title:'More precise Studio placement',changes:[
     'Set a prop to −45°, 0°, or 45° with a button beside the Rotation slider.',
     'Use Arrow keys for fine nudges or Shift + Arrow for larger moves when the canvas is focused in Move.',

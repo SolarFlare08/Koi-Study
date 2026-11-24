@@ -1,4 +1,4 @@
-import {calendarBlocks,calendarTaskBlock,applyCalendarReplan,timeLabel,timeValue,openFocusBlock,allDayEvents} from './calendar.js';
+import {calendarBlocks,calendarTaskBlock,applyCalendarReplan,timeLabel,timeValue,openFocusBlock,allDayEvents,shiftDay} from './calendar.js';
 import {dayKey} from './state.js';
 
 const dateOf=day=>new Date(day+'T00:00:00');
@@ -58,6 +58,7 @@ export function installBatchMove({button,getState,visibleTasks,visibleEvents,sta
   dialog.innerHTML=`<header><h2 id="batch-title">Move blocks together</h2><button type="button" aria-label="Close">×</button></header>
     <label>From day<input type="date" name="source"></label><fieldset><legend>Choose scheduled blocks</legend><button type="button" id="batch-afternoon">Select afternoon · noon–6 PM</button><div id="batch-list"></div></fieldset>
     <div class="batch-fields"><label>Destination day<input type="date" name="target"></label><label>Shift by minutes<input type="number" name="offset" step="1" value="30"></label></div>
+    <button type="button" class="schedule-tomorrow" id="batch-tomorrow">Tomorrow</button>
     <h3>Preview</h3><div id="batch-preview" aria-live="polite"></div><button class="workspace-primary" id="batch-save">Move selected blocks</button>`;
   document.body.append(dialog);
   const find=s=>dialog.querySelector(s),source=find('[name=source]'),target=find('[name=target]'),offset=find('[name=offset]'),list=find('#batch-list'),preview=find('#batch-preview'),submit=find('#batch-save');
@@ -99,6 +100,7 @@ export function installBatchMove({button,getState,visibleTasks,visibleEvents,sta
     render();
   };
   source.onchange=()=>{target.value=source.value;populate();};
+  find('#batch-tomorrow').onclick=()=>{target.value=dayKey(shiftDay(new Date(),1));offset.value='0';render();};
   target.oninput=offset.oninput=list.onchange=render;
   submit.onclick=()=>{
     const result=calculate();

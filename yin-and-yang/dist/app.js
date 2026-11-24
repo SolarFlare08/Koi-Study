@@ -56,7 +56,7 @@ import {estimateSummary,suggestTaskEstimate,taskSplitSuggestion} from './planner
 import {loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime,taskTimeFit} from './calendar.js';
 import {calendarFocusWindow,focusWindowTasks,nextCalendarCommitment} from './calendar.js';
-import {eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
+import {calendarEntryOnDay,eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
 import {parseRubric,rubricPoints,rubricSummary} from './rubric.js';
 import {blockFlexibility,waitingForRecord} from './task-readiness.js';
 
@@ -127,6 +127,12 @@ let gardenFrom='',gardenThrough='',snapshotThrough='',selectedCourse='';
 let seasonPreview='',comparisonDates=null,snapshotLayoutId='',paintedGardenDesign;
 let renderedGardenDesign;
 const studio=createGardenStudio({getState:()=>state,getAppearance:()=>effectiveAppearance,getDesign:sceneGardenDesign,commit:saveStudioLayouts,
+  rememberPropCategory:category=>{
+    const previous=state.settings.studioPropCategory;
+    if(previous===category)return;
+    state.settings.studioPropCategory=category;
+    if(!persist())state.settings.studioPropCategory=previous;
+  },
   today:()=>dayKey(),download:async(scene,caption)=>{
     const blob=await postcardPng(scene,caption);
     savePostcard(blob,'garden-studio-'+dayKey()+'.png');
@@ -2044,6 +2050,7 @@ function blockEditor(){
         <div><label class="field-label" for="block-date">Date</label><input id="block-date" name="date" type="date" value="${escape(block?.date||blockDraft?.date||task.date||dayKey())}" required></div>
         <div><label class="field-label" for="block-time">Time</label><input id="block-time" name="time" type="time" value="${escape(block?.time||blockDraft?.time||task.time||'09:00')}" required></div>
       </div>
+      ${tomorrowScheduleButton()}
       <label class="field-label" for="block-minutes">Duration (min)</label>
       <input id="block-minutes" name="minutes" type="number" min="1" max="1440" value="${block?.minutes||blockDraft?.minutes||task.estimate||60}" required>
       <div class="estimate-suggestion" data-estimate-suggestion hidden></div>
@@ -2729,6 +2736,7 @@ function taskEditor(){
               <div><label class="field-label" for="task-date">Date</label><input id="task-date" name="date" type="date" value="${escape(values.date)}"></div>
               <div><label class="field-label" for="task-time">Time</label><input id="task-time" name="time" type="time" value="${escape(values.time)}"></div>
             </div>
+            ${tomorrowScheduleButton()}
             <div class="task-editor-grid">
               <div><label class="field-label" for="task-repeat">Repeat</label><select id="task-repeat" name="repeat" aria-describedby="task-repeat-hint">${options}</select></div>
               <div><label class="field-label" for="task-estimate">Estimate (min)</label><input id="task-estimate" name="estimate" type="number" min="1" max="1440" step="1" value="${values.estimate??''}" placeholder="60"></div>
@@ -4584,6 +4592,22 @@ function previewTaskSchedule(task,replacing){
   const date=nextTaskDate(task,new Date(task.date+'T00:00:00'),true);
   return date?schedulePreview({date,start:timeMinutes(task.time),minutes:task.estimate||60,replacing}):null;
 }
+function tomorrowScheduleButton(){
+  return '<button type="button" class="schedule-tomorrow" data-schedule-tomorrow>Tomorrow</button>';
+}
+function setScheduleTomorrow(form){
+  const fields=form.elements,tomorrow=dayKey(shiftDay(new Date(),1));
+  if(form.id==='calendar-event-form'){
+    const values={startDay:fields.startDay.value,endDay:fields.endDay.value,
+      startTime:fields.startTime.value,endTime:fields.endTime.value,allDay:fields.allDay.checked};
+    for(const [key,value] of Object.entries(calendarEntryOnDay(values,tomorrow)))fields[key].value=value;
+    syncCalendarEntry(form);
+  }else{
+    fields.date.value=tomorrow;
+    updateScheduleEditor(form);
+  }
+  announce('Date set to tomorrow. Save to confirm.');
+}
 function updateScheduleEditor(form){
   const fields=form.elements;
   const isTask=form.id==='task-editor-form';
@@ -5496,6 +5520,7 @@ function calendarEventEditor(){
         <label class="event-field" data-event-end-date ${allDay&&type==='task'?'hidden':''}><span data-event-end-label>${allDay?'Last day':'End date'}</span><input name="endDay" type="date" value="${endDay}" required ${allDay&&type==='task'?'disabled':''}></label>
         ${timeField('endTime',time(end),'End time')}
       </div>
+      ${tomorrowScheduleButton()}
       <div class="event-date-grid">
         <label class="event-field">Repeat<select name="repeat">${Object.entries(taskFrequencies).map(([value,label])=>`<option value="${value}" ${value===repeat?'selected':''}>${label}</option>`).join('')}</select></label>
         <label class="event-field" data-event-interval ${repeat==='interval'?'':'hidden'}>Days between<input name="repeatEvery" type="number" min="2" max="365" value="${repeatEvery}" ${repeat==='interval'?'':'disabled'}></label>
@@ -5879,6 +5904,8 @@ function changeSound(key,value){
 }
 
 root.addEventListener('click',e=>{
+  const tomorrow=e.target.closest('[data-schedule-tomorrow]');
+  if(tomorrow){setScheduleTomorrow(tomorrow.form);return;}
   const setup=e.target.closest('[data-start-focus-setup]');
   if(setup){startFocusSetup(setup.dataset.startFocusSetup);return;}
   const incomplete=e.target.closest('[data-incomplete-action]');

@@ -362,6 +362,13 @@
 .studio-arrangement-fields { display: grid; gap: 6px; padding: 0 10px 10px; }
 .studio-arrangement-fields button { justify-self: start; min-height: 30px; padding: 4px 8px; border: 1px solid var(--studio-line); border-radius: 6px; background: var(--studio-frame); font-size: 11px; }
 .studio-arrangement-fields button:hover:enabled { background: var(--studio-highlight); }
+.studio-saved-arrangements [data-studio-arrangement-list] { display: grid; gap: 5px; max-height: 230px; overflow: auto; }
+#garden-studio-form .studio-arrangement-card { grid-template-columns: 68px minmax(0,1fr); align-items: center; gap: 8px; padding: 4px; border: 1px solid var(--studio-line); border-radius: 6px; background: var(--studio-frame); cursor: pointer; }
+.studio-arrangement-card svg { width: 68px; height: 46px; border-radius: 4px; background: #d4e3d6; }
+.studio-arrangement-card strong { display: block; color: var(--studio-ink); overflow-wrap: anywhere; }
+.studio-arrangement-card small { display: block; font-size: 11px; }
+#garden-studio-form .studio-arrangement-card:has(:checked) { border-color: var(--studio-accent); background: var(--studio-highlight); }
+.studio-arrangement-card:has(:focus-visible) { outline: 2px solid var(--studio-accent); outline-offset: -2px; }
 .studio-layer-list { display: grid; gap: 12px; min-width: 0; }
 .studio-settings:has(#studio-tool-layers:not([hidden])) { overflow-anchor: none; }
 .studio-layer-stack { min-width: 0; padding: 8px; border: 1px solid var(--studio-line); border-radius: 9px; background: var(--studio-bg); }

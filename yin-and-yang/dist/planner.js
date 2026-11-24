@@ -916,7 +916,8 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
       title=id?'Edit label':'Add label'; fields=`<label>Label name<input name="name" maxlength="40" required value="${escape(id)}"></label>`;
       if (id) extra='<button type="submit" value="remove" formnovalidate>Remove label</button>';
     } else {
-      title='Reschedule overdue tasks'; fields=`<label>New date<input name="date" type="date" required min="${dayKey()}" value="${dayKey()}"></label>`;
+      title='Reschedule overdue tasks'; fields=`<label>New date<input name="date" type="date" required min="${dayKey()}" value="${dayKey()}"></label>
+        <button type="button" class="schedule-tomorrow" data-planner-tomorrow>Tomorrow</button>`;
     }
     dialog.innerHTML=`<form data-manage-form="${type}" data-value="${escape(id)}"><header><h3 id="planner-dialog-title">${title}</h3><button type="button" data-dialog-close aria-label="Close dialog">×</button></header>${fields}<footer>${extra}<button class="planner-primary" type="submit" value="save">${type==='reschedule'?'Reschedule':type==='calendar-export'?'Download .ics':type.endsWith('import')?'Import':'Save'}</button></footer></form>`;
     dialog.setAttribute('aria-labelledby','planner-dialog-title');
@@ -1113,6 +1114,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     }
     if (!button) return;
     const data=button.dataset;
+    if('plannerTomorrow' in data){button.form.elements.date.value=dayKey(shiftDay(new Date(),1));return;}
     if(data.useFallback){
       const task=state().tasks.find(item=>item.id===data.useFallback);
       if(!task||!waitingDecisionDue(task.waitingFor,dayKey()))return;

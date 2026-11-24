@@ -63,6 +63,19 @@ export function calendarEventFromFields(fields, id) {
   return {...event, start, end,...calendarPlanningBuffers(fields)};
 }
 
+export function calendarEntryOnDay({startDay,endDay,startTime,endTime,allDay},day){
+  // Date-only ISO values measure calendar days independent of daylight saving changes.
+  const days=(Date.parse(endDay)-Date.parse(startDay))/86400000;
+  const span=Number.isInteger(days)&&days>0?days:0;
+  const newStart=new Date(`${day}T${startTime}:00`);
+  const duration=Date.parse(`${endDay}T${endTime}:00`)-Date.parse(`${startDay}T${startTime}:00`);
+  if(!allDay&&duration>0&&timeValue(newStart.getHours()*60+newStart.getMinutes())===startTime){
+    const newEnd=new Date(+newStart+duration);
+    return {startDay:day,endDay:dayKey(newEnd),endTime:timeValue(newEnd.getHours()*60+newEnd.getMinutes())};
+  }
+  return {startDay:day,endDay:dayKey(shiftDay(new Date(`${day}T00:00:00`),span)),endTime};
+}
+
 export function calendarPlanningBuffers(fields){
   const result={};
   for(const key of ['bufferBefore','bufferAfter']){
