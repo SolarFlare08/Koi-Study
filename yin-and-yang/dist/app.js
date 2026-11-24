@@ -55,7 +55,7 @@ import {validTemplateDay,loadDayTemplates,captureCalendarDay,previewCalendarDay,
 import {estimateSummary,suggestTaskEstimate,taskSplitSuggestion} from './planner-report.js';
 import {loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime,taskTimeFit} from './calendar.js';
-import {calendarFocusWindow,focusWindowTasks} from './calendar.js';
+import {calendarFocusWindow,focusWindowTasks,nextCalendarCommitment} from './calendar.js';
 import {eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
 import {parseRubric,rubricPoints,rubricSummary} from './rubric.js';
 import {blockFlexibility,waitingForRecord} from './task-readiness.js';
@@ -144,7 +144,12 @@ const youtubeEmbed=createYouTubeEmbed(updateMediaPlayback,setMediaStatus);
 const undoToast=$('#undo-toast'),undoButton=$('#undo-action');
 const dismissBrushButton=$('#dismiss-brush-action');
 let pendingUndo,undoTimeout,undoReturn,pendingBrush;
+let commitmentPreview;
+const clockFormat=new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+const secondsClockFormat=new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
+const weekdayFormat=new Intl.DateTimeFormat('en-US',{weekday:'short'});
 function persist(){
+  commitmentPreview=null;
   const previous=state.scheduleMoves, schedule=snapshotSchedule(state);
   const replay=state.timer.replay;
   if(state.timer.mode==='focus'&&state.timer.replay?.length)replayTaskSwitch(state.timer,focusedTask(),Date.now());
@@ -990,6 +995,24 @@ function resumeProject(projectId){
   announce(`Current task: ${task.text}`);
 }
 
+function renderNextCommitment(clock){
+  const label=$('#next-calendar-commitment');
+  if(workspace!=='focus'){label.hidden=true;return;}
+  const minute=Math.floor(+clock/60000),block=state.timer.block;
+  if(commitmentPreview?.state!==state||commitmentPreview.minute!==minute||
+    commitmentPreview.block!==block||commitmentPreview.next?.start<=clock){
+    const events=visibleCalendarEvents(state.calendarEvents,state.calendars,state.hiddenCalendars);
+    commitmentPreview={state,minute,block,next:nextCalendarCommitment(state.tasks,events,clock,block)};
+  }
+  const {next}=commitmentPreview;
+  label.hidden=!next;
+  if(!next)return;
+  const start=new Date(next.start),minutes=Math.ceil((start-clock)/60000);
+  const time=clockFormat.format(start),when=dayKey(start)===dayKey(clock)?time:`${weekdayFormat.format(start)} ${time}`;
+  const text=minutes<=60?`${next.title} in ${minutes} min`:`${next.title} · ${when}`;
+  if(label.textContent!==text)label.textContent=text;
+  label.title=`${next.title} · ${when}`;
+}
 function render(){
   syncFocusMode();
   if(app.dataset.calendarTheme!==state.calendarTheme){app.dataset.calendarTheme=state.calendarTheme;$('#calendar-theme').value=state.calendarTheme;}
@@ -1040,6 +1063,8 @@ function render(){
   $('#wall-clock').innerHTML=hour+'<small>'+period+'</small>';
 
   $('#wall-clock').dateTime=clock.toISOString();
+  renderNextCommitment(clock);
+  if(!$('#duration-form').hidden)renderDurationFinish(clock);
   if(planner.checkReminders(clock))persist();
   const task=focusedTask(clock);
   const bundle=activeBundleStatus(clock),bundleButton=$('#focus-bundle');
@@ -2806,6 +2831,12 @@ function extensionTime(timestamp){
     weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true
   });
 }
+function overlapDuration(ms){
+  const seconds=Math.round(ms/1000);
+  if(!seconds)return 'less than 1 sec';
+  const minutes=Math.floor(seconds/60),extra=seconds%60;
+  return [minutes&&`${minutes} min`,extra&&`${extra} sec`].filter(Boolean).join(' ');
+}
 function calendarExtensionPreview(){
   const plan=extensionPreview;
   if(!plan)return `${header('CALENDAR BLOCK','Extend block')}<p>This running block is no longer available to extend.</p>`;
@@ -2817,7 +2848,7 @@ function calendarExtensionPreview(){
       ${plan.newFocusEnd!==plan.newPlannedEnd?`<div><dt>Timer ends</dt><dd>${extensionTime(plan.focusEnd)} → <strong>${extensionTime(plan.newFocusEnd)}</strong></dd></div>`:''}
     </dl>
     ${plan.conflicts.length?`<section class="calendar-resume-context"><h3>Overlaps in the extra time</h3><ul>${plan.conflicts.map(item=>
-      `<li><strong>${escape(item.title)}</strong><small>${item.type} · ${extensionTime(item.start)} – ${extensionTime(item.end)}</small></li>`).join('')}</ul></section>`:'<p>No timed commitments overlap the extra ten minutes.</p>'}
+      `<li><strong>${escape(item.title)} overlaps by ${overlapDuration(item.overlapMs)}</strong><small>${item.type} · ${extensionTime(item.start)} – ${extensionTime(item.end)}</small></li>`).join('')}</ul></section>`:'<p>No timed commitments overlap the extra ten minutes.</p>'}
     <div class="panel-actions"><button type="button" class="text-button close-panel">Cancel</button><button type="button" class="panel-primary" id="confirm-block-extension">Extend 10 minutes</button></div>`;
 }
 
@@ -7046,6 +7077,16 @@ checkCompletion();render();wake();
 setInterval(()=>{checkCompletion();render();},500);
 
 const editDuration=$('#edit-duration'),durationForm=$('#duration-form'),typed=$('#typed-duration');
+function renderDurationFinish(now=new Date()){
+  const output=$('#duration-finish-preview');
+  const ms=parseDuration($('#typed-duration').value);
+  const finish=ms&&new Date(+now+ms);
+  const time=finish&&(ms%60000?secondsClockFormat:clockFormat).format(finish);
+  const day=finish&&dayKey(finish)!==dayKey(now)?` ${weekdayFormat.format(finish)}`:'';
+  const text=finish?`Ends at ${time}${day} if started now`:'';
+  output.hidden=!finish;
+  if(output.textContent!==text)output.textContent=text;
+}
 function readDuration(input){
   const ms=parseDuration(input.value);
   if(ms===null){
@@ -7076,9 +7117,10 @@ editDuration.onclick=()=>{
   durationForm.hidden=false;
   typed.focus({preventScroll:true});
   typed.setSelectionRange(0,typed.value.length);
+  renderDurationFinish();
 };
 $('#cancel-duration').onclick=()=>finishEdit();
-typed.oninput=formatDurationInput;
+typed.oninput=event=>{formatDurationInput(event);renderDurationFinish();};
 typed.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();finishEdit();}};
 durationForm.onsubmit=e=>{
   e.preventDefault();

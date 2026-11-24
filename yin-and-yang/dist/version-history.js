@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.2',date:'2026-11-23',title:'See what fits around your timer',changes:[
+    'See how many minutes and seconds each commitment overlaps before extending a calendar block.',
+    'See your next timed calendar commitment beside the Garden timer.',
+    'Preview the finish time as you type a new countdown duration.'
+  ]},
   {version:'5.21.1',date:'2026-11-23',title:'Countdown and pinned reference shortcuts',changes:[
     'Open the countdown editor with the entire displayed time selected.',
     'See how much time is reserved for wrap-up before you start focusing.',

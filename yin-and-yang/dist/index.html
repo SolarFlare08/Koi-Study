@@ -50,11 +50,13 @@
             <button type="submit" title="Save duration (Enter)">Set</button>
             <button type="button" id="cancel-duration">Cancel</button>
           </div>
+          <output id="duration-finish-preview" for="typed-duration" aria-live="off" hidden></output>
         </form>
       </div>
       <div class="mode-tabs" aria-label="Timer mode"><button data-mode="focus" aria-pressed="true">Focus</button><button data-mode="break" aria-pressed="false">Rest</button></div>
       <div class="timer-actions"><button id="reset-timer" class="icon-button" title="Reset timer" aria-label="Reset timer"><span data-icon="reset"></span></button><button id="toggle-timer" class="start-button" aria-keyshortcuts="Space" aria-describedby="focus-wrap-preview" title="Start or pause (Space)"><span data-icon="play"></span><span>Begin focus</span></button><button id="skip-timer" class="icon-button" title="Skip session" aria-label="Skip session"><span data-icon="skip"></span></button></div>
       <p id="focus-wrap-preview" hidden></p>
+      <p id="next-calendar-commitment" aria-label="Next calendar commitment" hidden></p>
       <div class="sky-task">
         <button id="current-task" type="button" aria-haspopup="dialog" aria-expanded="false">
           <span data-icon="target" class="current-task-icon"></span>

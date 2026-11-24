@@ -15,7 +15,9 @@ test('extending a running recurring block previews overnight conflicts and updat
   startBlockFocus(state,task.id,30*minute,false,start,day);
   const original=state.timer,now=start+3*minute;
   const plan=planRunningBlockExtension(state,10,now);
-  assert.deepEqual(plan.conflicts.map(row=>[row.title,row.type]),[['Review','Task block'],['Class','Event buffer']]);
+  assert.deepEqual(plan.conflicts.map(row=>[row.title,row.type,row.overlapMs]),[
+    ['Review','Task block',7*minute],['Class','Event buffer',3*minute]
+  ]);
   assert.equal(state.timer,original);
   assert.equal(extendCalendarTimer(state,10*minute,now),true);
   Object.assign(task,calendarBlockDurationChange(task,null,day,plan.minutes));
@@ -24,6 +26,22 @@ test('extending a running recurring block previews overnight conflicts and updat
   const restored=loadState({getItem:()=>JSON.stringify(state)}).tasks[0];
   assert.equal(calendarTaskBlock(restored,null,day).minutes,40);
   assert.equal(calendarTaskBlock(restored,null,next).minutes,30);
+});
+
+test('extension overlap counts shared time once and excludes gaps and time already scheduled',()=>{
+  const minute=60000,day='2026-11-10',start=+new Date(day+'T09:00'),end=start+30*minute;
+  const state=freshState(),task={id:'read',text:'Read',date:day,time:'09:00',estimate:30};
+  state.tasks=[task];
+  state.calendarEvents=[
+    {id:'existing',title:'Existing conflict',start:end-5*minute,end},
+    {id:'lab',title:'Lab',start:end+6*minute,end:end+9*minute},
+    {id:'later',title:'Later',start:end+12*minute,end:end+18*minute}
+  ];
+  startBlockFocus(state,task.id,30*minute,false,start,day);
+  const overlaps=()=>planRunningBlockExtension(state,10,start+minute).conflicts.map(row=>[row.title,row.overlapMs/minute]);
+  assert.deepEqual(overlaps(),[['Lab',3]]);
+  state.timer.endAt=end+15*minute;
+  assert.deepEqual(overlaps(),[['Lab',3],['Later',3]]);
 });
 
 test('extending a split calendar session keeps its current phase and adds time after the queued phases',()=>{

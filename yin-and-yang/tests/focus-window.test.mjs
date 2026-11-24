@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {calendarFocusWindow,focusWindowTasks,taskTimeFit} from '../dist/calendar.js';
+import {calendarFocusWindow,focusWindowTasks,nextCalendarCommitment,taskTimeFit} from '../dist/calendar.js';
 import {focusWrapUp,focusWrapUpDuration,freshState,loadState,startPause} from '../dist/state.js';
 import {currentFocusPause,editFocusPause,loadReplay} from '../dist/focus-replay.js';
 
@@ -22,6 +22,22 @@ test('minimum useful time fits a partial session without changing the full estim
   assert.equal(taskTimeFit(assignment,14,true),null);
   assert.deepEqual(taskTimeFit(assignment,100,true),{minutes:90,partial:false});
   assert.equal(assignment.estimate,90);
+});
+
+test('the next commitment considers future task blocks and recurring events',()=>{
+  const now=new Date('2026-11-18T13:00'),today='2026-11-18',tomorrow='2026-11-19';
+  const tasks=[{id:'read',text:'Read',blocks:[{id:'block',date:today,time:'13:15',minutes:30}]},
+    {id:'done',text:'Finished',done:true,date:today,time:'13:05',estimate:20}];
+  const events=[
+    {id:'ongoing',title:'Already started',start:+new Date(today+'T12:50'),end:+new Date(today+'T13:20')},
+    {id:'all-day',title:'All day',day:today,endDay:tomorrow},
+    {id:'class',title:'Class',manual:true,repeat:'daily',start:+new Date('2026-11-17T13:18'),end:+new Date('2026-11-17T14:00')}
+  ];
+  assert.deepEqual(nextCalendarCommitment(tasks,events,now),{title:'Read',start:+new Date(today+'T13:15')});
+  const active={taskId:'read',blockId:'block',occurrence:today};
+  assert.deepEqual(nextCalendarCommitment(tasks,events,now,active),{title:'Class',start:+new Date(today+'T13:18')});
+  events[2].excludedDays=[today];
+  assert.deepEqual(nextCalendarCommitment(tasks,events,now,active),{title:'Class',start:+new Date(tomorrow+'T13:18')});
 });
 
 test('wrap-up uses the last focus minutes and a dated first-task pin survives reload',()=>{

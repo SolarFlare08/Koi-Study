@@ -138,10 +138,16 @@ export function planRunningBlockExtension(state,addMinutes,now=Date.now()){
   const minutes=slot.minutes+addMinutes;
   const revised=calendarTaskBlock({...task,...calendarBlockDurationChange(task,blockId,occurrence,minutes)},blockId,occurrence);
   const plannedEnd=+slot.end,newPlannedEnd=+revised.end,focusEnd=t.endAt+t.block.left,newFocusEnd=focusEnd+extra;
-  const ranges=[[plannedEnd,newPlannedEnd],[focusEnd,newFocusEnd]];
+  const ranges=[[plannedEnd,newPlannedEnd],[focusEnd,newFocusEnd]]
+    .filter(([from,to])=>from<to).sort((a,b)=>a[0]-b[0]);
+  if(ranges.length===2&&ranges[1][0]<=ranges[0][1]){
+    ranges[0][1]=Math.max(ranges[0][1],ranges[1][1]);
+    ranges.pop();
+  }
   const conflicts=new Map();
   const add=(key,title,start,end,type)=>{
-    if(ranges.some(([from,to])=>from<end&&to>start))conflicts.set(key,{title,start,end,type});
+    const overlapMs=ranges.reduce((total,[from,to])=>total+Math.max(0,Math.min(to,end)-Math.max(from,start)),0);
+    if(overlapMs)conflicts.set(key,{title,start,end,type,overlapMs});
   };
   const days=new Set(ranges.flatMap(([from,to])=>{
     const result=[];
@@ -160,9 +166,8 @@ export function planRunningBlockExtension(state,addMinutes,now=Date.now()){
       const end=Math.max(event.end,event.start+60000);
       const key=JSON.stringify([event.id,event.start]);
       add(key,event.title,event.start,end,'Event');
-      if(!conflicts.has(key)&&(event.bufferBefore||event.bufferAfter)){
-        add(key,event.title,event.start-(event.bufferBefore||0)*60000,end+(event.bufferAfter||0)*60000,'Event buffer');
-      }
+      if(event.bufferBefore)add(key+'-before',event.title,event.start-event.bufferBefore*60000,event.start,'Event buffer');
+      if(event.bufferAfter)add(key+'-after',event.title,end,end+event.bufferAfter*60000,'Event buffer');
     }
   }
   return {timerId:t.id,taskId,blockId,occurrence,minutes,plannedEnd,newPlannedEnd,focusEnd,newFocusEnd,
@@ -306,6 +311,28 @@ export function calendarFocusWindow(events,buffer,now=new Date()){
       event.start<+shiftDay(day,1)&&(event.start>=+day||key===dayKey(now)))
       .sort((a,b)=>a.start-b.start)[0];
     if(next)return {event:next,ongoing:next.start<=time,minutes:Math.max(0,Math.floor((next.start-time)/60000)-buffer)};
+  }
+  return null;
+}
+
+export function nextCalendarCommitment(tasks,events,now=new Date(),activeBlock=null){
+  for(let offset=0;offset<=7;offset++){
+    const day=shiftDay(now,offset),dayEnd=+shiftDay(day,1);
+    let next=null;
+    const consider=(title,start)=>{
+      if(start>now&&start>=day&&start<dayEnd&&(!next||start<next.start))next={title,start};
+    };
+    for(const event of calendarEventOccurrences(events,day)){
+      if(!event.day)consider(event.title||'Event',event.start);
+    }
+    for(const block of calendarBlocks(tasks,day)){
+      if(block.continues||!openFocusBlock(block))continue;
+      if(activeBlock?.taskId===block.task.id&&activeBlock.occurrence===block.occurrence&&
+        (activeBlock.blockId||null)===(block.blockId||null))continue;
+      const slot=calendarTaskBlock(block.task,block.blockId,block.occurrence);
+      if(slot)consider(block.task.text,+slot.start);
+    }
+    if(next)return next;
   }
   return null;
 }

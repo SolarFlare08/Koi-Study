@@ -90,6 +90,8 @@ export const helpTopics = [
     steps:['In Garden, choose `+ Add task` in the Tasks panel. Enter a task name and choose `Save task`.',
       'Click `Current task` beneath the timer and select what you want to work on.',
       'Click the large countdown to select the entire time. Type over it, then press `Enter` to set it. For 25 minutes, type `2500`.',
+      'While editing, check the projected finish time below Set and Cancel. It updates as you type and shows when the current countdown would end if you started now.',
+      'Below the timer, see the next timed event or unfinished task block within the coming week. When it is an hour or less away, the label shows the minutes remaining.',
       'Press `Space` or choose `Begin focus`. Use Pause when you need to stop temporarily.'],
     tip:'You can close Help and come back at any time. The timer keeps running while you browse the guide.',
     action:'focus', actionLabel:'Open Garden', related:['timer','focus-queue','shortcuts']
@@ -513,7 +515,7 @@ export const helpTopics = [
       'Choose Start focus or Resume focus in its panel. The linked task is selected automatically, and its saved handoff and pinned reference appear beside the timer.',
       'The countdown uses the time still available before the block ends. If you start before the block, its full planned duration is available.',
       'Blocks longer than an hour use focus periods of up to 50 minutes with 10-minute breaks. Click a block later to inspect its recorded focus time and status.',
-      'While the timer is running, choose Extend block in Garden and review the new end times and any overlapping task blocks, events, or event buffers. Choose Extend 10 minutes to update both the timer and this calendar occurrence. Existing breaks stay in place.'],
+      'While the timer is running, choose Extend block in Garden. The preview lists the new end times and how much of each task, event, or event buffer overlaps the extension. Choose Extend 10 minutes to update the timer and this calendar occurrence. Existing breaks stay in place.'],
     tip:'Blocks can show focused, partly done, or missed. A completed focus session and a completed task are separate records; check off the task when the work itself is finished.',
     action:'calendar', actionLabel:'Open Calendar', related:['timer','reporting','replan']
   },
