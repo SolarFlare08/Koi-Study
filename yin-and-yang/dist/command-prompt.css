@@ -1,5 +1,8 @@
 #app[data-workspace="prompt"] > .topbar { display: none; }
 #prompt-workspace {
+  --prompt-green: #a7efba;
+  --prompt-green-muted: #91bda0;
+  --prompt-green-edge: #3d5145;
   position: absolute;
   inset: 0 0 62px;
   z-index: 4;
@@ -17,9 +20,9 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  border: 1px solid #414146;
+  border: 1px solid var(--prompt-green-edge);
   border-radius: 8px;
-  background: #0c0c0d;
+  background: #0b0d0c;
   box-shadow: 0 12px 34px #0005;
 }
 .prompt-heading {
@@ -43,7 +46,7 @@
   font-size: 13px;
   font-weight: 600;
 }
-.prompt-heading h2 svg { width: 17px; height: 17px; color: #e9c58a; }
+.prompt-heading h2 svg { width: 17px; height: 17px; color: var(--prompt-green); }
 .prompt-tools { display: flex; align-items: center; gap: 3px; }
 .prompt-tools summary, .prompt-tools > button {
   padding: 6px 8px;
@@ -71,16 +74,20 @@
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  scrollbar-color: #57575e #141416;
+  scrollbar-color: var(--prompt-green-edge) #141416;
   padding: clamp(10px,1.7vw,22px);
   font: 15px/1.45 Consolas, "Liberation Mono", monospace;
   overflow-wrap: anywhere;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 3px, #baffce04 3px 4px),
+    radial-gradient(ellipse at 15% 0, #1530224d, transparent 68%);
 }
 .prompt-screen code, .prompt-form input { font: inherit; }
 .prompt-log p { margin: 0; }
-.prompt-log .prompt-banner { margin-bottom: .85em; color: #d0cccb; }
+.prompt-log .prompt-banner { margin-bottom: .85em; color: var(--prompt-green-muted); }
 .prompt-log > div { margin-top: .85em; }
 .prompt-echo, .prompt-output { white-space: pre-wrap; }
+.prompt-echo { color: #bee5c9; }
 .prompt-output { color: #d0cccb; }
 .prompt-form {
   display: flex;
@@ -88,12 +95,12 @@
   gap: 0;
   margin-top: .85em;
 }
-.prompt-form > span { flex: none; }
+.prompt-form > span { flex: none; color: var(--prompt-green-muted); }
 .prompt-form input {
   flex: 1;
   min-width: 0;
   color: inherit;
-  caret-color: #e9c58a;
+  caret-color: var(--prompt-green);
   padding: 1px 3px;
   border: 0;
   border-bottom: 1px dotted #59595e;
@@ -101,7 +108,7 @@
   background: transparent;
 }
 .prompt-form input:focus { border-bottom-color: transparent; outline: 0; }
-.prompt-form:focus-within > span { color: #e9c58a; }
+.prompt-form:focus-within > span { color: var(--prompt-green); text-shadow: 0 0 7px #7ef6a94d; }
 .prompt-form button {
   margin-inline-start: 8px;
   padding: 3px 8px;
@@ -121,10 +128,10 @@
 }
 .prompt-reference ul, .prompt-results { list-style: none; margin: 0; padding: 0; }
 .prompt-reference button { width: 100%; display: grid; gap: 2px; padding: 6px 7px; border-radius: 4px; text-align: left; }
-.prompt-reference code { color: #e9c58a; font-size: 13px; }
+.prompt-reference code { color: var(--prompt-green); font-size: 13px; }
 .prompt-reference span { color: #d5d2ce; font-size: 12px; }
 .prompt-results button { padding: 2px 0; color: #b6d8dd; text-align: left; text-decoration: underline; overflow-wrap: anywhere; }
-#prompt-workspace :is(button,summary,.prompt-screen):focus-visible { outline: 2px solid #e9c58a; outline-offset: -2px; }
+#prompt-workspace :is(button,summary,.prompt-screen):focus-visible { outline: 2px solid var(--prompt-green); outline-offset: -2px; }
 @media (max-width:480px) {
   .prompt-screen { font-size: 14px; }
   .prompt-form input { font-size: 16px; }

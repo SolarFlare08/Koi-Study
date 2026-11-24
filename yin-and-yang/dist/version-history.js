@@ -1,4 +1,7 @@
 export const releases = [
+  {version:'6.0.8',date:'2026-11-24',title:'Green accents for Command Prompt',changes:[
+    'Prompt keeps its classic CMD layout with green accents, faint scanlines, and a soft glow on the focused command line.'
+  ]},
   {version:'6.0.7',date:'2026-11-24',title:'Weekly review and saved soundtracks in Prompt',changes:[
     'Use review week to see this week’s focus time, completed tasks, and next steps for open work.',
     'Use play with a soundtrack name to load it in Music & video.'
