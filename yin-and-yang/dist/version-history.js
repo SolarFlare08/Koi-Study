@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.5',date:'2026-11-23',title:'Find and name Studio objects',changes:[
+    'Filter Layers to hidden props and built-in scenery so you can show them again.',
+    'Give individual props their own names and find them in Layers search.',
+    'Name groups and find all their members by that name.'
+  ]},
   {version:'5.21.4',date:'2026-11-23',title:'Remember task windows and find Studio layers',changes:[
     'Find a task by time remembers the last valid window across reloads.',
     'Studio Layers keeps its scroll position when you hide, lock, or reorder objects.',

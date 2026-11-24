@@ -728,8 +728,8 @@ test('Garden snaps to nearby anchors and restores edited original scenery',()=>{
 test('Saved Garden arrangements round-trip and retain spacing and layers on placement',()=>{
   const state=freshState();
   state.gardenArrangements=loadGardenArrangements([{id:'walk',name:' Lantern walk ',props:[
-    {id:'stone',kind:'ford',x:800,y:690,band:'back'},
-    {id:'lamp',kind:'beacon',x:850,y:700,band:'front',size:135,rotation:-15}
+    {id:'stone',kind:'ford',x:800,y:690,band:'back',groupId:'bank',groupName:' East bank '},
+    {id:'lamp',kind:'beacon',x:850,y:700,band:'front',size:135,rotation:-15,name:' Path lantern ',groupId:'bank'}
   ]}]);
   const restored=readBackup(JSON.stringify(createBackup(state,memoryStorage(),[]))).state;
   assert.deepEqual(restored.gardenArrangements,state.gardenArrangements);
@@ -740,6 +740,12 @@ test('Saved Garden arrangements round-trip and retain spacing and layers on plac
   assert.deepEqual([lamp.x-stone.x,lamp.y-stone.y,lamp.size,lamp.rotation],[50,10,135,-15]);
   assert.deepEqual([stone.band,lamp.band],['back','front']);
   assert.equal(stone.groupId,lamp.groupId);
+  assert.equal(lamp.name,'Path lantern');
+  assert.deepEqual([stone.groupName,lamp.groupName],['East bank','East bank']);
+  const [single]=loadGardenProps([lamp]);
+  assert.equal(single.groupId,undefined);
+  assert.equal(single.groupName,undefined);
+  assert.equal(single.name,'Path lantern');
   assert.equal(placeGardenArrangement(Array(gardenPropLimit-1),restored.gardenArrangements[0],{x:100,y:700}),null);
 });
 

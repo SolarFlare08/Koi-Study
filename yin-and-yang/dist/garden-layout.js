@@ -129,6 +129,7 @@ export const gardenPropBands={back:'Behind scenery',middle:'Among scenery',front
 export const gardenPropBand=prop=>prop.band||'middle';
 export const gardenPropStack=prop=>gardenPropLayer(prop.kind)==='ground'?gardenPropBand(prop):'sky';
 export const gardenPropMembers=(props,prop)=>prop.groupId?props.filter(item=>item.groupId===prop.groupId):[prop];
+export const gardenLayerName=value=>typeof value==='string'?value.trim().slice(0,70):'';
 
 export function gardenPropMoveBounds(members,anchor){
   return Object.fromEntries(['x','y'].map(axis=>{
@@ -217,13 +218,27 @@ export function loadGardenProps(value){
     if(item.flipped===true)prop.flipped=true;
     const rotation=gardenPropAngle(item.rotation);
     if(rotation)prop.rotation=rotation;
+    const name=gardenLayerName(item.name),groupName=gardenLayerName(item.groupName);
+    if(name)prop.name=name;
     if(typeof item.groupId==='string'&&/^[a-z0-9_-]{1,80}$/i.test(item.groupId))prop.groupId=item.groupId;
+    if(prop.groupId&&groupName)prop.groupName=groupName;
     props.set(item.id,prop);
     if(props.size===gardenPropLimit)break;
   }
   const items=[...props.values()],groups=new Map();
-  for(const {groupId} of items)if(groupId)groups.set(groupId,(groups.get(groupId)||0)+1);
-  for(const prop of items)if(groups.get(prop.groupId)===1)delete prop.groupId;
+  for(const prop of items){
+    if(!prop.groupId)continue;
+    const members=groups.get(prop.groupId)||[];
+    members.push(prop);
+    groups.set(prop.groupId,members);
+  }
+  for(const members of groups.values()){
+    const name=members.find(prop=>prop.groupName)?.groupName;
+    for(const prop of members){
+      if(members.length===1){delete prop.groupId;delete prop.groupName;}
+      else if(name)prop.groupName=name;
+    }
+  }
   return items;
 }
 export function loadGardenArrangements(value){
@@ -245,10 +260,15 @@ export function placeGardenArrangement(props,arrangement,position,makeId=()=>cry
   }));
   const target=clampGardenPlacement(position.x,position.y,gardenPropMoveBounds(source,center));
   const dx=target.x-center.x,dy=target.y-center.y,groupId=source.length>1?makeId():'';
+  const originalGroup=source[0].groupId;
+  const groupName=groupId&&originalGroup&&source.every(prop=>prop.groupId===originalGroup)?source[0].groupName:'';
   const copies=new Map(source.map(prop=>{
     const copy={...prop,id:makeId(),x:prop.x+dx,y:prop.y+dy};
     delete copy.locked;
     if(groupId)copy.groupId=groupId;
+    else delete copy.groupId;
+    if(groupName)copy.groupName=groupName;
+    else delete copy.groupName;
     return [prop.id,copy];
   }));
   let next=[...props,...copies.values()];
