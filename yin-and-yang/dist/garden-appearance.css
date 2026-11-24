@@ -352,6 +352,7 @@
 .studio-settings .studio-orientation { padding: 9px 10px 10px; background: var(--studio-bg); }
 .studio-orientation label span { display: flex; justify-content: space-between; }
 .studio-orientation output { font-variant-numeric: tabular-nums; color: var(--studio-accent); }
+.studio-rotation-presets button { min-width: 44px; min-height: 32px; font-variant-numeric: tabular-nums; }
 .studio-layer-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
 .studio-layer-actions button { min-height: 31px; background: var(--studio-frame); }
 #garden-studio-form .studio-hidden-filter { display: flex; align-items: center; gap: 7px; width: fit-content; color: var(--studio-ink); }
@@ -425,6 +426,7 @@
 .studio-status { grid-area:status; min-width:0; min-height:47px; display:flex; align-items:center; gap:12px; padding:5px 14px; border-top:1px solid var(--studio-line); background:var(--studio-frame); }
 .studio-status p { margin: 0; font-size: 11px; line-height: 1.25; }
 .studio-status [data-studio-status]:not(:empty) { color: var(--studio-accent); }
+.studio-status [data-studio-status] { overflow-wrap: anywhere; }
 .studio-view { display: flex; gap: 10px; align-items: end; margin-left: auto; }
 .studio-inspector-toggle { flex:none; min-height:34px; padding:4px 8px; border:1px solid var(--studio-line); border-radius:7px; color:var(--studio-ink); white-space:nowrap; font-size:11px; }
 .studio-inspector-toggle:hover { background:var(--surface-raised); }

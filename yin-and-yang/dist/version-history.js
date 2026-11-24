@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.6',date:'2026-11-23',title:'More precise Studio placement',changes:[
+    'Set a prop to −45°, 0°, or 45° with a button beside the Rotation slider.',
+    'Use Arrow keys for fine nudges or Shift + Arrow for larger moves when the canvas is focused in Move.',
+    'See which object or setting changed when you undo or redo a Studio edit.'
+  ]},
   {version:'5.21.5',date:'2026-11-23',title:'Find and name Studio objects',changes:[
     'Filter Layers to hidden props and built-in scenery so you can show them again.',
     'Give individual props their own names and find them in Layers search.',

@@ -16,6 +16,8 @@ const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<'
 const buildingTarget='building',propPrefix='prop:',scenicPrefix='scenery:';
 const layerActions={forward:'Bring forward',backward:'Send backward',front:'Bring to front',back:'Send to back'};
 const layerStacks={sky:'Sky',front:gardenPropBands.front,middle:gardenPropBands.middle,back:gardenPropBands.back};
+const rotationPresets=[-45,0,45];
+const nudges={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
 const layerIcons={
   grip:'M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01',
   show:'M2 12q10-13 20 0-10 13-20 0zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
@@ -90,7 +92,8 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         `<button type="button" data-studio-tool="${key}" aria-controls="studio-tool-${key}" aria-pressed="false">${toolIcon(path)}<span>${label}</span></button>`).join('')}</nav>
       <div class="studio-workspace">
         <div class="studio-board">
-          <div class="studio-stage" tabindex="0" aria-label="Landscape canvas" aria-describedby="studio-canvas-tip">
+          <div class="studio-stage" tabindex="0" aria-label="Landscape canvas" aria-describedby="studio-canvas-tip"
+            aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Shift+ArrowLeft Shift+ArrowRight Shift+ArrowUp Shift+ArrowDown">
             <div class="garden-scene-preview studio-scene" aria-hidden="true"></div>
             <div class="studio-before" aria-hidden="true" hidden>
               <div class="garden-scene-preview"></div><span>Before</span>
@@ -112,6 +115,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
                 <label><span>Rotation <output name="propRotationValue" for="studio-prop-rotation">0°</output></span>
                   <input id="studio-prop-rotation" type="range" name="propRotation" min="-180" max="180" step="1" value="0">
                 </label>
+                <div class="studio-object-actions studio-rotation-presets" role="group" aria-label="Rotation presets">
+                  ${rotationPresets.map(angle=>`<button type="button" data-studio-rotation="${angle}" aria-pressed="false">${String(angle).replace('-','−')}°</button>`).join('')}
+                </div>
                 <div class="studio-object-actions">
                   <button type="button" data-studio="flip-prop" aria-pressed="false">Flip horizontally</button>
                   <button type="button" data-studio="reset-orientation">Reset orientation</button>
@@ -278,19 +284,21 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     form.querySelector('[data-studio="undo"]').disabled=!undo.length;
     form.querySelector('[data-studio="redo"]').disabled=!redo.length;
   }
-  function record(before){
+  function record(before,action){
     if(fingerprint(before)===fingerprint(draft))return;
-    undo.push(before);
+    undo.push({snapshot:before,action});
     if(undo.length>40)undo.shift();
     redo=[];
   }
   function useHistory(backwards){
     const source=backwards?undo:redo,destination=backwards?redo:undo;
-    const previous=source.pop();
-    if(!previous)return;
-    destination.push(structuredClone(draft));
-    Object.assign(draft,{design:previous.design,appearance:previous.appearance,through:previous.through});
+    const entry=source.pop();
+    if(!entry)return;
+    const {snapshot,action}=entry;
+    destination.push({snapshot:structuredClone(draft),action});
+    Object.assign(draft,{design:snapshot.design,appearance:snapshot.appearance,through:snapshot.through});
     syncFields();render();
+    status(`${backwards?'Undid':'Redid'} ${action}.`);
   }
   function setTool(key){
     tool=key;
@@ -535,7 +543,13 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       :!point?'Click an object or select it from the list.'
       :moveLocked?'Unlock all selected props in Layers to move them.'
       :hidden?'This object is hidden. Use Layers to show it.'
-      :visible?'Drag to move. Arrow keys nudge the selected object.':'This object is outside the current view.';
+      :visible?'Drag to move. With the canvas focused, use arrows for fine nudges or Shift + arrows for larger moves.':'This object is outside the current view.';
+  }
+  function syncRotationPresets(angle,locked){
+    for(const button of form.querySelectorAll('[data-studio-rotation]')){
+      button.setAttribute('aria-pressed',String(Number(button.dataset.studioRotation)===angle));
+      button.disabled=locked;
+    }
   }
   function updateOrientationControls(prop){
     form.querySelector('.studio-orientation').hidden=!prop;
@@ -543,12 +557,13 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     field('propRotation').value=prop.rotation||0;
     field('propRotation').disabled=Boolean(prop.locked);
     field('propRotationValue').value=(prop.rotation||0)+'°';
+    syncRotationPresets(prop.rotation||0,Boolean(prop.locked));
     const flip=form.querySelector('[data-studio="flip-prop"]');
     flip.setAttribute('aria-pressed',String(Boolean(prop.flipped)));
     flip.disabled=Boolean(prop.locked);
     form.querySelector('[data-studio="reset-orientation"]').disabled=Boolean(prop.locked||!(prop.rotation||prop.flipped));
   }
-  function setOrientation(prop,{rotation=prop.rotation,flipped=prop.flipped}){
+  function setOrientation(prop,{rotation=prop.rotation,flipped=prop.flipped},action='rotating'){
     if(prop.locked)return;
     const before=structuredClone(draft);
     const angle=gardenPropAngle(rotation);
@@ -556,7 +571,16 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     else delete prop.rotation;
     if(flipped)prop.flipped=true;
     else delete prop.flipped;
-    record(before);render();
+    record(before,`${action} ${propName(prop)}`);render();
+  }
+  function propName(prop,count=draft.design.props.filter(item=>item.kind===prop.kind).findIndex(item=>item.id===prop.id)+1){
+    return prop.name||gardenPropTypes[prop.kind].name+(count>1?' '+count:'');
+  }
+  function objectName(includeGroup=false){
+    const prop=selectedProp();
+    if(prop)return includeGroup&&prop.groupId?(prop.groupName||`the group containing ${propName(prop)}`):propName(prop);
+    if(selected===buildingTarget)return 'the building';
+    return selectedScenery()?.name||field('landmark').selectedOptions[0]?.textContent||'the object';
   }
   function updateLayerControls(prop){
     const controls=form.querySelector('.studio-layer-controls');
@@ -619,13 +643,14 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     if(editor.hidden||editor.dataset.propId!==prop?.id)return;
     const group=Boolean(editor.dataset.groupId);
     const key=group?'groupName':'name',name=gardenLayerName(field('layerName').value);
+    const label=group?(prop.groupName||'the group'):propName(prop);
     const before=structuredClone(draft);
     for(const member of group?selectedMembers(prop):[prop]){
       if(name)member[key]=name;
       else delete member[key];
     }
     closeLayerName();
-    record(before);render();
+    record(before,`renaming ${label}`);render();
     status(group?'Group name updated.':'Prop name updated.');
   }
   function arrangementMembers(){
@@ -669,7 +694,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const before=structuredClone(draft);
     draft.design.props=result.props;
     selected=propPrefix+result.id;marked.clear();
-    record(before);render();setTool('select');
+    record(before,`placing ${item.name}`);render();setTool('select');
     form.querySelector('[data-studio-tool="select"]').focus();
     status('Arrangement placed. Drag it to reposition.');
   }
@@ -742,7 +767,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     const propOptions=Object.fromEntries(props.map(prop=>{
       const count=(counts.get(prop.kind)||0)+1;
       counts.set(prop.kind,count);
-      return [propPrefix+prop.id,prop.name||gardenPropTypes[prop.kind].name+(count>1?' '+count:'')];
+      return [propPrefix+prop.id,propName(prop,count)];
     }));
     form.querySelector('[data-studio-prop-count]').textContent=props.length?`${props.length} / ${gardenPropLimit} props`:'No props placed yet.';
     field('landmark').innerHTML='<option value="">Choose what to move</option>'+
@@ -777,20 +802,22 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     draft.design.props.push({id,...stampCandidate(position,free)});
     stampPoint=null;
     selected=propPrefix+id;
-    record(before);render();status(gardenPropTypes[stamp].name+' placed.');
+    record(before,`placing ${propName(selectedProp())}`);render();status(gardenPropTypes[stamp].name+' placed.');
   }
   function removeSelectedProp(){
     const prop=selectedProp();
     if(!prop||prop.locked)return;
+    const name=propName(prop);
     const before=structuredClone(draft);
     draft.design.props=draft.design.props.filter(item=>item!==prop);selected='';
     const remaining=selectedMembers(prop);
     if(prop.groupId&&remaining.length===1){delete remaining[0].groupId;delete remaining[0].groupName;}
-    record(before);render();status(gardenPropTypes[prop.kind].name+' removed.');
+    record(before,`removing ${name}`);render();status(`${name} removed.`);
   }
   function changeGrouping(group){
     const members=group?draft.design.props.filter(prop=>marked.has(prop.id)&&!prop.groupId):selectedMembers();
     if(members.length<2)return;
+    const action=group?`grouping ${members.length} props`:`ungrouping ${members[0].groupName||'the selected props'}`;
     const before=structuredClone(draft),groupId=group?crypto.randomUUID():'';
     for(const prop of members){
       if(groupId)prop.groupId=groupId;
@@ -798,7 +825,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     }
     marked.clear();
     selected=propPrefix+members[0].id;
-    record(before);render();
+    record(before,action);render();
     form.querySelector(`[data-layer-id="${members[0].id}"] [data-layer-action="select"]`)?.focus({preventScroll:true});
     status(group?`Grouped ${members.length} props. Use Move to reposition the group.`:`Ungrouped ${members.length} props.`);
   }
@@ -811,7 +838,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
     draft.design.props=result.props;
     selected=propPrefix+result.id;
     marked.clear();
-    record(before);render();
+    record(before,`duplicating ${prop.groupId?(prop.groupName||'the group'):propName(prop)}`);render();
     form.querySelector(`[data-layer-id="${result.id}"] [data-layer-action="select"]`)?.focus({preventScroll:true});
     status(prop.groupId?'Group duplicated.':'Prop duplicated.');
   }
@@ -918,17 +945,20 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         event.preventDefault();event.stopPropagation();
         useHistory(event.key.toLowerCase()==='z'&&!event.shiftKey);return;
       }
-      if(event.target!==stage||tool!=='select')return;
-      if(selectedProp()?.locked||selectedProp()?.hidden)return;
+      if(event.target!==stage||tool!=='select'||drag)return;
+      if(selectedProp()?.locked||selectedProp()?.hidden||selectedScenery()?.hidden)return;
       if(event.key==='Delete'&&selectedProp()){event.preventDefault();removeSelectedProp();return;}
       if(groupMoveLocked())return;
-      const offset={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[event.key];
+      const offset=nudges[event.key];
       const point=pointForSelected();
-      if(!offset||!point)return;
+      if(!offset||!point||event.ctrlKey||event.metaKey||event.altKey)return;
       event.preventDefault();
-      const before=structuredClone(draft),distance=event.shiftKey?16:3;
-      savePosition(clampGardenPlacement(point.x+offset[0]*distance,point.y+offset[1]*distance,selectedBounds()));
-      record(before);render();
+      const distance=event.shiftKey?16:3;
+      const next=clampGardenPlacement(point.x+offset[0]*distance,point.y+offset[1]*distance,selectedBounds());
+      if(next.x===point.x&&next.y===point.y)return;
+      const before=structuredClone(draft);
+      savePosition(next);
+      record(before,`nudging ${objectName(true)}`);render();
     }
     const scenePoint=event=>new DOMPoint(event.clientX,event.clientY).matrixTransform(scene.getScreenCTM().inverse());
     const eventPoint=event=>{
@@ -971,7 +1001,10 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(drag?.pointer!==event.pointerId)return;
       if(drag.moved){
         const next=eventPoint(event),previous=pointForSelected();
-        if(previous.x!==next.x||previous.y!==next.y){savePosition(next);record(drag.before);}
+        if(previous.x!==next.x||previous.y!==next.y){
+          savePosition(next);
+          record(drag.before,`moving ${objectName(true)}`);
+        }
       }
       drag=null;render();
     });
@@ -1021,8 +1054,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(next===draft.design.props)return;
       const before=structuredClone(draft);
       selected=propPrefix+id;
+      const name=objectName();
       draft.design.props=next;
-      record(before);render();
+      record(before,`reordering ${name}`);render();
     });
     form.addEventListener('input',event=>{
       if(event.target===field('layerFilter')||event.target===field('hiddenLayersOnly')){filterLayers();return;}
@@ -1035,6 +1069,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         if(!prop||prop.locked)return;
         const rotation=gardenPropAngle(event.target.valueAsNumber);
         field('propRotationValue').value=rotation+'°';
+        syncRotationPresets(rotation,false);
         scene.querySelector(`[data-garden-prop="${prop.id}"]`)?.setAttribute('transform',gardenPropTransform({...prop,rotation}));
       }
     });
@@ -1084,16 +1119,19 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         if(value==='middle')delete prop.band;
         else prop.band=value;
         delete prop.order;
-        record(before);render();
+        record(before,`changing the layer of ${propName(prop)}`);render();
         return;
       }
       const before=structuredClone(draft);
+      let action;
       if(name==='through'){
         if(!event.target.validity.valid)return;
         draft.through=value;
+        action='changing the snapshot date';
       }else if(name==='x'||name==='y'){
         if(!selected||groupMoveLocked())return;
         savePosition(clampGardenPlacement(Number(field('x').value),Number(field('y').value),selectedBounds()));
+        action=`moving ${objectName(true)}`;
       }else if(name==='objectSize'){
         if(!selected||selectedProp()?.locked)return;
         const size=gardenObjectSize(Number(value)),prop=selectedProp(),original=selectedScenery();
@@ -1102,12 +1140,17 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         else if(original)editScenery(original.id,{size});
         else if(size===100)delete draft.design.landmarkSizes[selected];
         else draft.design.landmarkSizes[selected]=size;
-      }else if(name==='camera')draft.design.camera=value;
+        action=`resizing ${objectName()}`;
+      }else if(name==='camera'){
+        draft.design.camera=value;
+        action='changing the canvas view';
+      }
       else if(['season','lighting','palette','weather'].includes(name)){
         draft.appearance=loadAppearance({...draft.appearance,[name]:value});
         if(name==='season')weatherOptions();
+        action=`changing the ${name}`;
       }else return;
-      record(before);render();
+      record(before,action);render();
     });
     form.addEventListener('keydown',handleKey);
     form.addEventListener('click',event=>{
@@ -1115,6 +1158,12 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(toolButton){setTool(toolButton.dataset.studioTool);return;}
       const stampButton=event.target.closest('[data-studio-stamp]');
       if(stampButton){stamp=stampButton.dataset.studioStamp;syncStamp();updatePin();return;}
+      const rotationButton=event.target.closest('[data-studio-rotation]');
+      if(rotationButton){
+        const prop=selectedProp();
+        if(prop)setOrientation(prop,{rotation:Number(rotationButton.dataset.studioRotation)});
+        return;
+      }
       const sceneryAction=event.target.closest('[data-scenery-action]');
       if(sceneryAction){
         const id=sceneryAction.closest('[data-scenery-id]').dataset.sceneryId;
@@ -1122,8 +1171,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
           selected=scenicPrefix+id;field('landmark').value=selected;updatePin();
         }else{
           const before=structuredClone(draft);
-          editScenery(id,{hidden:!gardenSceneryObject(draft.design,id).hidden});
-          record(before);render();
+          const original=gardenSceneryObject(draft.design,id);
+          editScenery(id,{hidden:!original.hidden});
+          record(before,`${original.hidden?'showing':'hiding'} ${original.name}`);render();
           (form.querySelector(`[data-scenery-id="${id}"]:not([hidden]) [data-scenery-action="toggle"]`)||field('hiddenLayersOnly')).focus({preventScroll:true});
         }
         return;
@@ -1137,9 +1187,10 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         }else{
           const prop=draft.design.props.find(item=>item.id===id);
           const before=structuredClone(draft);
+          const edit=action==='hidden'?(prop.hidden?'showing':'hiding'):(prop.locked?'unlocking':'locking');
           if(prop[action])delete prop[action];
           else prop[action]=true;
-          record(before);render();
+          record(before,`${edit} ${propName(prop)}`);render();
           (layerList.querySelector(`[data-layer-id="${id}"]:not([hidden]) [data-layer-action="${action}"]`)||field('hiddenLayersOnly')).focus({preventScroll:true});
         }
         return;
@@ -1149,8 +1200,9 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         const next=moveGardenPropLayer(draft.design.props,selectedProp()?.id,layerButton.dataset.studioLayer);
         if(next!==draft.design.props){
           const before=structuredClone(draft);
+          const name=objectName();
           draft.design.props=next;
-          record(before);render();
+          record(before,`reordering ${name}`);render();
         }
         return;
       }
@@ -1160,7 +1212,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
       if(style){
         const before=structuredClone(draft);
         draft.design[style.dataset.studioPiece]=style.dataset.studioStyle;
-        record(before);render();return;
+        record(before,`changing the ${pieceLabels[style.dataset.studioPiece].toLowerCase()}`);render();return;
       }
       const button=event.target.closest('[data-studio]');
       if(!button)return;
@@ -1175,7 +1227,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
           if(!original)break;
           const before=structuredClone(draft);
           editScenery(original.id,{hidden:!original.hidden});
-          record(before);render();break;
+          record(before,`${original.hidden?'showing':'hiding'} ${original.name}`);render();break;
         }
         case 'toggle-settings':setSettingsVisible(form.querySelector('#studio-settings').hidden);break;
         case 'undo':useHistory(true);break;
@@ -1197,19 +1249,19 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
         case 'duplicate-props':duplicateSelection();break;
         case 'flip-prop':{
           const prop=selectedProp();
-          if(prop)setOrientation(prop,{flipped:!prop.flipped});
+          if(prop)setOrientation(prop,{flipped:!prop.flipped},'flipping');
           break;
         }
         case 'reset-orientation':{
           const prop=selectedProp();
-          if(prop)setOrientation(prop,{rotation:0,flipped:false});
+          if(prop)setOrientation(prop,{rotation:0,flipped:false},'resetting the orientation of');
           break;
         }
         case 'copy':writeCandidate({copy:true});break;
         case 'reset':{
           const before=structuredClone(draft);
           draft.design=loadGardenDesign();
-          record(before);syncFields();render();status('Scenery reset in this draft.');break;
+          record(before,'resetting the scenery');syncFields();render();status('Scenery reset in this draft.');break;
         }
         case 'automatic':{
           if(groupMoveLocked())break;
@@ -1221,7 +1273,7 @@ export function createGardenStudio({getState,getAppearance,getDesign,commit,down
             const {id}=selectedScenery(),{x,y}=gardenScenery[id];
             savePosition({x,y});
           }else if(selected)delete draft.design.placements[selected];
-          record(before);render();field('landmark').focus();break;
+          record(before,`resetting the position of ${objectName(true)}`);render();field('landmark').focus();break;
         }
         case 'export':exportDraft(button);break;
         case 'delete':
