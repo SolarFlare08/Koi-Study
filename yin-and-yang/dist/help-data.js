@@ -596,6 +596,7 @@ export const helpTopics = [
       'Under Weekly project goals, choose `Set goals` on a project. Set focus minutes, chapters, or both. Select that project when you save a chapter log in Annotate.',
       'Review completed-task and focus totals, plus lists of still-open work from earlier weeks, open work this week, and next week’s tasks.',
       'Choose Print summary for daily focus time, completed tasks, and open work to carry forward. Check Include handoff notes before printing if you want saved stopping points and next steps in the copy. The checkbox starts unchecked. Choose a printer or Save as PDF in the print dialog.',
+      'Check Hide zero-focus days to omit empty dates from the focus table. Printed next steps show the project or Inbox beside the task name.',
       'Use `Move to today` on eligible carried-over tasks to bring them back into today’s plan.'],
     action:'review', actionLabel:'Open Weekly review', related:['workload','reporting','tomorrow']
   },
@@ -692,7 +693,7 @@ export const helpTopics = [
     summary:'Keep the original context beside your focus timer.',
     steps:['In the Notes tab, use a note’s link control to choose tasks, books, projects, or journal entries and save the links. Open the original sticky note from a linked book, project, or journal entry.',
       'To create a task from a note, select text or place the cursor on a line, then choose `Create task from note text`.',
-      'Review the new task in its editor and save it. The original note is linked automatically.',
+      'Review the new task in its editor and save it. The original note is linked automatically, and the note regains focus with the same selection or cursor position so you can keep going.',
       'Select the linked task in Garden and open `Session tools` → `Task notes` to open the notes beside the timer.'],
     action:'notes', actionLabel:'Open sticky notes', related:['sticky-notes','focus-queue','resume']
   },

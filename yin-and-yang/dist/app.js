@@ -491,7 +491,7 @@ const journal=installJournal({root:$('#journal-workspace'),storage,storageEvent:
   onChange:()=>{if(inSchedule())renderCalendar();}
 });
 const stickyBoard=installStickyNotes({root:$('#notes-workspace'),getNotes:()=>state.stickyNotes,getTasks:gardenTasks,getRelated:relatedNoteTargets,saveNotes:saveStickyNotes,
-  createTask:(noteId,text,anchor)=>openTaskEditor(null,anchor,{noteId,text:text.split(/\r?\n/)[0].trim().slice(0,160),description:text.slice(0,2000)}),
+  createTask:(noteId,text,anchor,noteSelection)=>openTaskEditor(null,anchor,{noteId,noteSelection,text:text.split(/\r?\n/)[0].trim().slice(0,160),description:text.slice(0,2000)}),
   notify:confirmChange});
 const focusNotes=installFocusNotes({
   button:$('#focus-linked-notes'),stackButton:$('#focus-note-stacks'),panel:$('#focus-notes-panel'),getNotes:()=>state.stickyNotes,
@@ -6992,6 +6992,7 @@ root.addEventListener('submit',e=>{
     if(existing&&['date','time','repeat','repeatEvery'].some(key=>task[key]!==existing[key]))task.occurrenceTimes={};
     const captureKey=!existing&&taskDraft?.captureKey;
     const noteId=!existing&&taskDraft?.noteId;
+    const noteSelection=taskDraft?.noteSelection;
     const linkedNote=noteId&&state.stickyNotes.find(note=>note.id===noteId);
     if(noteId&&!linkedNote){toast('The original note is unavailable.');return;}
     if(captureKey&&state.processedCaptures.includes(captureKey)){toast('This thought was already filed.');return;}
@@ -7020,18 +7021,19 @@ root.addEventListener('submit',e=>{
     const restoreScroll=taskEditorScroll;
     closePanel(false);refreshTasks();
     if(captureKey&&returnToCaptureInbox){restoreScroll?.();finishCaptureFiling('Thought filed as a task.');return;}
+    let noteField;
+    if(linkedNote){
+      stickyBoard.render();
+      noteField=stickyBoard.restoreSelection(noteId,noteSelection);
+    }
     if(e.submitter?.value==='plan-deadline'&&!waitingFor&&canPlanDeadline(task)){
-      const anchor=inSchedule()?$('#planner-heading'):taskButton(task.id)||$('#sidebar-add-task');
+      const anchor=noteField||(inSchedule()?$('#planner-heading'):taskButton(task.id)||$('#sidebar-add-task'));
       restoreScroll?.();openDeadlinePlanner(task.id,anchor);return;
     }
     if(status==='upcoming'&&workspace==='focus')$('.task-upcoming')?.setAttribute('open','');
     if(fromCurrentTask)currentTaskButton.focus({preventScroll:true});
     else if(inSchedule())$('#planner-heading').focus({preventScroll:true});
-    else if(linkedNote){
-      stickyBoard.render();
-      $(`[data-sticky-id="${CSS.escape(noteId)}"] [data-note-action="task"]`)?.focus({preventScroll:true});
-    }
-    else taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus({preventScroll:true});
+    else if(!linkedNote)taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus({preventScroll:true});
     restoreScroll?.();
     const move=finishMove?.();
     if(move)confirmChange('Task moved.',restoreActiveTask(move,before,state.activeTask));

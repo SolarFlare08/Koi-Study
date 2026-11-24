@@ -23,6 +23,7 @@
   #weekly-study-print :is(th,td) { padding: 1mm 2mm; border-bottom: 1px solid #bbb; }
   #weekly-study-print td { font-variant-numeric: tabular-nums; }
   #weekly-study-print .weekly-saved-steps p { white-space: pre-wrap; }
+  #weekly-study-print .weekly-handoff-location { display: block; }
 }
 .week-capacity { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
 .week-capacity label { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }

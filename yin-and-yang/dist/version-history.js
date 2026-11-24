@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.13',date:'2026-11-23',title:'Compact weekly prints and smoother note-to-task creation',changes:[
+    'Optionally hide days with zero focus time in printed weekly summaries.',
+    'Put each task’s project beside its printed next step.',
+    'Restore sticky-note text selection and cursor position after creating a task.'
+  ]},
   {version:'5.21.12',date:'2026-11-23',title:'Clearer report exports and shareable weekly summaries',changes:[
     'Mark course estimates based on just one completed task.',
     'Name reporting CSVs with the selected dates or the actual span covered by Any date.',

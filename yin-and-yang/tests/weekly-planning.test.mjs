@@ -48,13 +48,16 @@ test('workload adds overlapping study blocks but counts overlapping commitments 
 
 test('the printable week includes its focus, completed tasks, and latest saved next steps',()=>{
   const day='2026-11-10',at=+new Date(day+'T11:00'),state=freshState();
-  state.tasks=[{id:'read',text:'Reading',done:true,repeat:'none',completedOn:day},
+  state.tasks=[{id:'read',text:'Reading',done:true,repeat:'none',completedOn:day,projectId:'new-course'},
+    {id:'other-read',text:'Reading',done:false,repeat:'none',projectId:'physics'},
     {id:'lab',text:'Lab notes',done:false,repeat:'none',date:'2026-11-17'}];
   state.history=[
     {id:'focus',taskId:'read',taskTitle:'Reading',mode:'focus',outcome:'completed',day,finishedAt:at,focusMs:1500000,
       nextHandoff:{resumeNote:'Review the example'}},
-    {id:'early',taskId:'read',taskTitle:'Reading',mode:'focus',outcome:'skipped',day,finishedAt:at+60000,focusMs:60000,
+    {id:'early',taskId:'read',taskTitle:'Reading',projectId:'calculus',mode:'focus',outcome:'skipped',day,finishedAt:at+60000,focusMs:60000,
       nextHandoff:{resumeLocation:'Page 42',resumeNote:'Try problem 4'}},
+    {id:'switch',taskId:'read',taskTitle:'Reading',projectId:'calculus',mode:'focus',outcome:'skipped',day,
+      finishedAt:at+120000,focusMs:60000,handoffTaskId:'other-read',nextHandoff:{resumeNote:'Review the lecture'}},
     {id:'later',taskId:'read',mode:'focus',outcome:'completed',day:'2026-11-17',finishedAt:at+604800000,focusMs:300000,
       nextHandoff:{resumeNote:'A later week'}}
   ];
@@ -63,10 +66,16 @@ test('the printable week includes its focus, completed tasks, and latest saved n
   assert.equal(summary.focusMs,1500000);
   assert.equal(summary.focusByDay.find(([key])=>key===day)[1],1500000);
   assert.deepEqual(summary.completed.map(task=>task.text),['Reading']);
-  assert.deepEqual(summary.nextSteps,[{title:'Reading',next:'Try problem 4',location:'Page 42'}]);
+  assert.deepEqual(summary.nextSteps,[
+    {title:'Reading',projectId:'calculus',next:'Try problem 4',location:'Page 42'},
+    {title:'Reading',projectId:'physics',next:'Review the lecture',location:''}
+  ]);
   assert.deepEqual(summary.upcoming,[{title:'Lab notes',day:'2026-11-17'}]);
   const shared=weeklyStudySummary(state,week,{includeHandoffs:false});
   assert.deepEqual(shared,{...summary,nextSteps:[]});
+  assert.equal(summary.focusByDay.length,7);
+  const compact=weeklyStudySummary(state,week,{hideZeroFocus:true});
+  assert.deepEqual(compact,{...summary,focusByDay:[[day,1500000]]});
 });
 
 test('daily Garden presets use the most recent local start time, including the prior night',()=>{

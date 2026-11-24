@@ -304,10 +304,11 @@ ${escape(note.body)}</textarea>
     }
     if(action==='task'){
       const card=button.closest('.sticky-note');
-      const field=card.querySelector('textarea');
-      const text=selectedNoteText(field.value,field.selectionStart,field.selectionEnd);
+      const field=card.querySelector('[data-note-field="body"]');
+      const {value,selectionStart:start,selectionEnd:end,selectionDirection:direction,scrollTop,scrollLeft}=field;
+      const text=selectedNoteText(value,start,end);
       if(!text){notify('Select note text or place the cursor on a line.');field.focus();return;}
-      createTask(card.dataset.stickyId,text,button);
+      createTask(card.dataset.stickyId,text,button,{value,start,end,direction,scrollTop,scrollLeft});
       return;
     }
     if(action==='link'){
@@ -415,7 +416,19 @@ ${escape(note.body)}</textarea>
     if(update(note.id,rect)){setRect(card,rect);sizeBoard();card.scrollIntoView({block:'nearest',inline:'nearest'});}
   });
   render();
-  return {newNote,render,focusNote(id){
+  return {newNote,render,restoreSelection(id,selection){
+    const field=cardFor(id)?.querySelector('[data-note-field="body"]');
+    if(!field||root.hidden)return;
+    field.focus({preventScroll:true});
+    if(selection){
+      const {value,start,end,direction,scrollTop,scrollLeft}=selection;
+      // A note edited elsewhere may place different text at the saved offsets.
+      field.setSelectionRange(start,field.value===value?end:start,direction);
+      field.scrollTop=scrollTop;
+      field.scrollLeft=scrollLeft;
+    }
+    return field;
+  },focusNote(id){
     const note=getNotes().find(n=>n.id===id);
     if(note?.stackId){
       const group=noteStacks(getNotes()).find(g=>g.id===note.stackId);
