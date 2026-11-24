@@ -122,7 +122,8 @@ export const helpTopics = [
   {
     id:'command-prompt', group:'Search & shortcuts', title:'Run typed commands in Command Prompt',
     summary:'Control the timer, open workspaces, and capture thoughts from one tab.',
-    steps:['Choose `Prompt` in the bottom bar or under `More`. Type `help` to see command syntax, or select an example from Commands to fill the input. Press Enter or choose `Run`.',
+    steps:['Choose `Prompt` in the bottom bar or under `More`. Type after the path shown in the terminal. Press Enter or choose `Run`.',
+      'Type `help` for command syntax, or open `Commands` in the terminal header and choose an example to fill in the command line.',
       'Use `status`, `start`, and `pause` for the current timer. Use `focus 25m` or `rest 5m` for a one-off countdown. Use minutes, seconds, or MM:SS. Finish an active countdown or plan in Garden before replacing it.',
       'Try `open calendar` to switch workspaces or `find chapter 4` to search saved items. Select a search result to open it.',
       'Type task followed by a title to prefill the task editor. Type capture followed by a thought to save it to the Note inbox.',

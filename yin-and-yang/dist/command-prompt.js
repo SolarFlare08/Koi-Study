@@ -10,6 +10,7 @@ const timerCommands={
   focus:['focus 25m','Start a timed focus session.'],
   rest:['rest 5m','Start a timed break.']
 };
+const promptPath='Yin:\\Garden>';
 
 export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,addTask,capture,version,openHelp}){
   const commands={
@@ -22,18 +23,28 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,add
     help:['help','See command syntax and examples.'],
     clear:['clear','Clear the session transcript.']
   };
-  root.innerHTML=`<div class="prompt-wrap"><header class="prompt-heading">
-    <h2 id="prompt-heading">Command Prompt</h2><button type="button" data-prompt-help>Help guide</button></header>
-    <div class="prompt-layout"><div class="prompt-console">
-      <div class="prompt-log" role="log" aria-label="Command output" tabindex="0"><p>Type <code>help</code> for syntax, or pick a command to try.</p></div>
-      <form class="prompt-form"><span aria-hidden="true">❯</span><label for="prompt-input" class="sr-only">Enter an app command</label>
-        <input id="prompt-input" type="text" maxlength="1040" placeholder="Type a command…" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="prompt-history-hint">
+  root.innerHTML=`<div class="prompt-wrap"><div class="prompt-console">
+    <header class="prompt-heading">
+      <h2 id="prompt-heading"><span data-icon="terminal" aria-hidden="true"></span>Command Prompt</h2>
+      <div class="prompt-tools">
+        <details class="prompt-commands"><summary>Commands</summary><div class="prompt-reference">
+          <ul>${Object.values(commands).map(([example,detail])=>`<li><button type="button" data-prompt-example="${example}"><code>${example.trim()}</code><span>${detail}</span></button></li>`).join('')}</ul>
+        </div></details>
+        <button type="button" data-prompt-help>Help guide</button>
+      </div>
+    </header>
+    <div class="prompt-screen" role="region" aria-label="Terminal" tabindex="0">
+      <div class="prompt-log" role="log" aria-label="Command output"><p class="prompt-banner"></p><p>Type <code>help</code> for available commands.</p></div>
+      <form class="prompt-form"><span aria-hidden="true">${promptPath}</span><label for="prompt-input" class="sr-only">Enter an app command</label>
+        <input id="prompt-input" type="text" maxlength="1040" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="prompt-history-hint">
         <button type="submit">Run</button>
       </form>
-      <p class="prompt-hint" id="prompt-history-hint"><kbd>Enter</kbd> run · <kbd>↑</kbd> <kbd>↓</kbd> history</p>
-    </div><aside class="prompt-reference" aria-labelledby="prompt-reference-title"><h3 id="prompt-reference-title">Commands</h3>
-      <ul>${Object.values(commands).map(([example,detail])=>`<li><button type="button" data-prompt-example="${example}"><code>${example.trim()}</code><span>${detail}</span></button></li>`).join('')}</ul></aside></div></div>`;
+    </div>
+    <footer class="prompt-hint" id="prompt-history-hint"><kbd>Enter</kbd> run · <kbd>↑</kbd> <kbd>↓</kbd> history</footer>
+  </div></div>`;
   const form=root.querySelector('form'),input=root.querySelector('input'),log=root.querySelector('.prompt-log');
+  const screen=root.querySelector('.prompt-screen'),reference=root.querySelector('.prompt-commands');
+  log.querySelector('.prompt-banner').textContent=`Yin and Yang [Version ${version}]`;
   const history=[];
   let historyIndex=0,draft='';
 
@@ -81,13 +92,13 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,add
     historyIndex=history.length;draft='';input.value='';
     if(name==='clear'){log.replaceChildren();input.focus();return;}
     const group=document.createElement('div'),command=document.createElement('code'),entry=document.createElement('div');
-    command.className='prompt-echo';command.textContent='❯ '+line;
+    command.className='prompt-echo';command.textContent=promptPath+line;
     entry.className='prompt-output';group.append(command,entry);
     const response=execute(name,arg,entry);
     if(response)entry.textContent=response;
     log.append(group);
     if(log.children.length>60)log.firstElementChild.remove();
-    log.scrollTop=log.scrollHeight;
+    screen.scrollTop=screen.scrollHeight;
     if(!root.hidden&&(form.contains(document.activeElement)||document.activeElement===document.body))input.focus();
   });
   input.addEventListener('keydown',event=>{
@@ -103,6 +114,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,add
     if(!button)return;
     if('promptHelp' in button.dataset){openHelp();return;}
     if(!button.dataset.promptExample)return;
+    reference.open=false;
     historyIndex=history.length;
     input.value=button.dataset.promptExample;
     input.focus();

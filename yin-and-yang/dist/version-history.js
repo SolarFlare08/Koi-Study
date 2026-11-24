@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.1',date:'2026-11-24',title:'Classic Command Prompt styling',changes:[
+    'The Prompt uses a black terminal screen with monospace text and an inline command line below the transcript.',
+    'Open Commands in the terminal header to pick a runnable example.'
+  ]},
   {version:'6.0.0',date:'2026-11-24',title:'Command Prompt workspace',changes:[
     'Use typed commands to control the timer, open workspaces, search saved items, prefill a task, or capture a thought.',
     'Browse command examples beside the prompt and recall recent commands with the arrow keys.'
