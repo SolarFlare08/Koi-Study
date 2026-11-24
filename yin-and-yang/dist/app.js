@@ -22,7 +22,7 @@ import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
 import {ratingTier,radiantRatingLabels} from './reading-progress.js';
-import {annotationContext,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingShelf,saveLibraryBook} from './reading-shelf.js';
+import {annotationContext,bookPageCount,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingShelf,saveLibraryBook} from './reading-shelf.js';
 import {installBackup,restoreBackup} from './backup.js';
 import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
@@ -561,6 +561,19 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   stuck:savePromptQuestion,
   schedule:previewPromptSchedule,
   snooze:snoozePromptTask,
+  getBooks:()=>promptBooks().map(book=>({id:book.id,title:book.title,context:book.author})),
+  getCounters:()=>loadCrochet(storage).projects.flatMap(project=>[
+    {projectId:project.id,counterId:null,title:'Rows',context:project.name},
+    ...project.counters.map(counter=>({projectId:project.id,counterId:counter.id,title:counter.name,context:project.name}))
+  ]),
+  read:savePromptReadingPosition,
+  row:({projectId,counterId},step)=>{
+    const result=crochet.adjustCounter(projectId,counterId,step);
+    if(result.error)return result.error;
+    const {name,project,count,checkpoint}=result;
+    return `${name} · ${project} · ${count.toLocaleString()} ${count===1?'row':'rows'}\n`+
+      (checkpoint?`Last checkpoint: Row ${checkpoint.row.toLocaleString()} · ${checkpoint.note}`:'No checkpoint saved for this counter.');
+  },
   addTask:title=>{
     if(title.length>300)return 'Use a task title of 300 characters or fewer.';
     openTaskEditor(null,$('#prompt-input'),{text:title});
@@ -1091,6 +1104,20 @@ function promptTaskChoices(tasks){
 }
 function promptPlanningTasks(){
   return gardenTasks().filter(task=>!task.done);
+}
+function promptBooks(){
+  return readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks);
+}
+function savePromptReadingPosition(id,page){
+  const book=promptBooks().find(item=>item.id===id);
+  if(!book)return 'This book is no longer on the shelf.';
+  const total=bookPageCount(book);
+  if(total&&page>total)return `${book.title} has ${total.toLocaleString()} pages. Enter a page within the book.`;
+  const result=saveReadingChanges(manageShelfBook(state,id,'bookmark',{action:'position',page}));
+  if(result.error)return result.error;
+  const left=total?total-page:null;
+  const remaining=left===null?'Add a page count in Reading to see pages left.':`${left.toLocaleString()} ${left===1?'page':'pages'} left.`;
+  return `Saved ${book.title} at page ${page.toLocaleString()}. ${remaining}`;
 }
 function previewPromptSchedule(id,placement,reviewed){
   const {date,start,minutes}=placement;

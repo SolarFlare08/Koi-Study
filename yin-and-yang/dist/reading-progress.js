@@ -59,6 +59,7 @@ export function pageBookmark(value){
   const page=n=>Number.isInteger(n)&&n>0&&n<=100000;
   const active=value?.active;
   const last=value?.last;
+  const position=value?.position;
   const bookmark={};
   if(page(active?.page)&&Number.isSafeInteger(active.startedAt)&&active.startedAt>=0){
     bookmark.active={page:active.page,startedAt:active.startedAt};
@@ -67,7 +68,16 @@ export function pageBookmark(value){
     bookmark.last={from:last.from,to:last.to,duration:last.duration,
       ...(Number.isSafeInteger(last.finishedAt)&&last.finishedAt>0?{finishedAt:last.finishedAt}:{})};
   }
+  if(page(position?.page)&&Number.isSafeInteger(position.savedAt)&&position.savedAt>0&&position.savedAt<=8.64e15){
+    bookmark.position={page:position.page,savedAt:position.savedAt};
+  }
   return bookmark;
+}
+
+export function currentPageBookmark(bookmark){
+  const {active,last,position}=bookmark||{};
+  const sitting=active?{page:active.page,at:active.startedAt}:last?{page:last.to,at:last.finishedAt}:null;
+  return position&&position.savedAt>=(sitting?.at||0)?{page:position.page,at:position.savedAt}:sitting;
 }
 
 export function updatePageBookmark(value,action,page,maximum,now=Date.now()){
@@ -77,6 +87,7 @@ export function updatePageBookmark(value,action,page,maximum,now=Date.now()){
     return bookmark;
   }
   if(!Number.isInteger(page)||page<1||page>(maximum||100000))return null;
+  if(action==='position')return {...bookmark,position:{page,savedAt:now}};
   if(action==='start'&&!bookmark.active)return {...bookmark,active:{page,startedAt:now}};
   if(action==='finish'&&bookmark.active&&page>=bookmark.active.page){
     return {last:{from:bookmark.active.page,to:page,duration:Math.max(0,now-bookmark.active.startedAt),finishedAt:now}};

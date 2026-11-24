@@ -30,7 +30,7 @@ function promptTime(value){
   return (period?hour%12+(period==='pm'?12:0):hour)*60+Number(match[2]||0);
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,today,next,fit,handoff,stuck,schedule,snooze,addTask,capture,version,openHelp}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,today,next,fit,handoff,stuck,schedule,snooze,getBooks,getCounters,read,row,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
     namedFocus:['focus "LinAlg" 40m','Select a task by name and start its timer.'],
@@ -41,6 +41,8 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     stuck:['stuck "Why does this boundary term vanish?"','Save an office-hours question for the current task.'],
     schedule:['schedule "Lab report" tomorrow 3pm 45m','Preview a task block and review overlaps before placing it.'],
     snooze:['snooze "Order yarn" until Friday','Hide a task from focus until the selected date.'],
+    read:['read "Golden Son" p143','Save a reading position and show pages left.'],
+    row:['row "Left sleeve" +2','Adjust a Stitchbook counter and show its last checkpoint.'],
     open:['open calendar','Switch to a workspace.'],
     find:['find ','Search tasks, notes, books, and journal entries.'],
     task:['task ','Open the task editor with a title filled in.'],
@@ -94,16 +96,16 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     return '';
   }
 
-  function chooseTask(query,tasks,entry,run,taskType,action){
-    const matches=matchCommands(tasks,query);
-    if(!matches.length)return `No ${taskType} task matches “${query}”.`;
-    if(matches.length===1)return run(matches[0].id);
-    entry.append(`Several ${taskType} tasks match. Choose one to ${action}:`);
-    appendChoices(entry,matches.map(({id,title,context})=>({
-      label:[title,context].filter(Boolean).join(' · '),
+  function chooseMatch(query,items,entry,run,noun,action){
+    const matches=matchCommands(items,query);
+    if(!matches.length)return `No ${noun} matches “${query}”.`;
+    if(matches.length===1)return run(matches[0]);
+    entry.append(`Several ${noun}s match. Choose one to ${action}:`);
+    appendChoices(entry,matches.map(item=>({
+      label:[item.title,item.context].filter(Boolean).join(' · '),
       run:()=>{
         entry.replaceChildren();
-        const response=run(id);
+        const response=run(item);
         if(response)entry.textContent=response;
         (entry.querySelector('button')||input).focus();
       }
@@ -118,7 +120,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     if(!named)return runTimer('focus',ms);
     const query=(named[1]??named[2]).trim();
     if(!query)return focusUsage;
-    return chooseTask(query,getFocusTasks(),entry,id=>runTimer('focus',ms,id),'ready focus','start focus');
+    return chooseMatch(query,getFocusTasks(),entry,({id})=>runTimer('focus',ms,id),'ready focus task','start focus');
   }
 
   function showSchedule(entry,result){
@@ -148,13 +150,28 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       const until=/^until\s+(.+)$/i.exec(rest);
       const date=until&&plannerDate(until[1]);
       if(!date||date<=dayKey())return usage+' Choose a future date.';
-      return chooseTask(query,getTasks(),entry,id=>snooze(id,date),'open','snooze');
+      return chooseMatch(query,getTasks(),entry,({id})=>snooze(id,date),'open task','snooze');
     }
     const fields=/^(.+?)\s+(\d{1,2}(?::\d{2})?(?:\s*[ap]m)?)\s+(.+)$/i.exec(rest);
     if(!fields)return usage;
     const date=plannerDate(fields[1]),start=promptTime(fields[2]),minutes=promptDuration(fields[3])/60000;
     if(!date||start<0||!Number.isInteger(minutes)||minutes<1||minutes>1440)return usage+' Use a valid date, start time, and whole-minute length.';
-    return chooseTask(query,getTasks(),entry,id=>showSchedule(entry,schedule(id,{date,start,minutes})),'open','schedule');
+    return chooseMatch(query,getTasks(),entry,({id})=>showSchedule(entry,schedule(id,{date,start,minutes})),'open task','schedule');
+  }
+
+  function runProgress(name,arg,entry){
+    const named=/^(?:"([^"]+)"|“([^”]+)”)\s+(.+)$/.exec(arg);
+    const query=(named?.[1]??named?.[2]??'').trim();
+    const usage=`Use ${commands[name][0]}.`;
+    if(!query)return usage;
+    if(name==='read'){
+      const page=Number(/^(?:p\.?\s*)?(\d+)$/i.exec(named[3])?.[1]);
+      if(!Number.isInteger(page)||page<1||page>100000)return usage+' Enter a positive page number.';
+      return chooseMatch(query,getBooks(),entry,({id})=>read(id,page),'book','update');
+    }
+    const step=Number(/^[+-]\d+$/.exec(named[3])?.[0]);
+    if(!Number.isSafeInteger(step)||step===0||Math.abs(step)>100000)return usage+' Enter a signed whole number.';
+    return chooseMatch(query,getCounters(),entry,item=>row(item,step),'counter','update');
   }
 
   function execute(name,arg,entry){
@@ -166,6 +183,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     if(Object.hasOwn(timerCommands,name))return arg?`Use ${name} without an argument.`:runTimer(name);
     if(name==='today'||name==='next')return arg?`Use ${name} without an argument.`:name==='today'?today():next();
     if(name==='schedule'||name==='snooze')return runTaskPlanning(name,arg,entry);
+    if(name==='read'||name==='row')return runProgress(name,arg,entry);
     if(name==='handoff'||name==='stuck'){
       const example=commands[name][0];
       const quoted=/^(?:"([\s\S]*)"|“([\s\S]*)”)$/.exec(arg);
@@ -187,7 +205,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
       case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m.\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m.\nHide from focus: snooze "Order yarn" until Friday.\nCurrent task: handoff "next step", stuck "question".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m.\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m.\nHide from focus: snooze "Order yarn" until Friday.\nCurrent task: handoff "next step", stuck "question".\nLog progress: read "Golden Son" p143, row "Left sleeve" +2.\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }

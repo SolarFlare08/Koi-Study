@@ -1,6 +1,6 @@
 import {bookendArt,bookendDesigns} from './reading-bookends.js';
 import {installReadingDiscussion} from './reading-discussion.js';
-import {pageBookmark,updatePageBookmark,readingPassages} from './reading-progress.js';
+import {pageBookmark,currentPageBookmark,updatePageBookmark,readingPassages} from './reading-progress.js';
 import {borrowedReturnStatus,collectionKinds,loadReadingCollections,readingDay,relinkReadingCollections,rereadRecord,reviewChapter,validReadingDay,bookRating,ratingTier,radiantRatingLabels} from './reading-progress.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -11,6 +11,7 @@ const bookKey=(title='',author='')=>JSON.stringify([normalized(title),normalized
 export const libraryStatuses={want:'Want to read',reading:'Reading'};
 const cleanText=(value,limit)=>typeof value==='string'?value.trim().slice(0,limit):'';
 const pageCount=value=>Number.isInteger(value)&&value>=1&&value<=100000?value:null;
+export const bookPageCount=book=>book.finished?.totalPages||book.library?.totalPages||book.entries.find(entry=>entry.totalPages)?.totalPages;
 
 export function loadLibraryBooks(value){
   const books=new Map();
@@ -285,7 +286,7 @@ export function manageShelfBook(state,id,action,targetId){
     return {bookId:id,changes:{libraryBooks}};
   }
   if(action==='bookmark'){
-    const maximum=book.finished?.totalPages||book.library?.totalPages||book.entries.find(entry=>entry.totalPages)?.totalPages;
+    const maximum=bookPageCount(book);
     const bookmark=updatePageBookmark(book.library?.bookmark,targetId.action,targetId.page,maximum);
     if(!bookmark)return {error:'Enter a valid page. The ending page must be at or after the starting page.'};
     update(book,{bookmark});
@@ -354,14 +355,13 @@ export function countReadingChapters(rituals){
 }
 
 export function readingForecast(book){
-  const total=book.library?.totalPages||book.entries.find(entry=>entry.totalPages)?.totalPages;
+  const total=bookPageCount(book);
   const logs=book.entries.flatMap(entry=>{
     const match=normalized(entry.position).match(/^(?:page\s+|p\.?\s*)?(\d{1,6})$/);
     return match?[{page:Number(match[1]),date:entry.date}]:[];
   });
-  const logsPage=logs[0]?.page,bookmark=book.library?.bookmark;
-  const bookmarkPage=bookmark?.active?.page??bookmark?.last?.to;
-  const bookmarkAt=bookmark?.active?.startedAt??bookmark?.last?.finishedAt;
+  const logsPage=logs[0]?.page;
+  const {page:bookmarkPage,at:bookmarkAt}=currentPageBookmark(book.library?.bookmark)||{};
   const newerBookmark=bookmarkAt&&(!logs[0]?.date||readingDay(new Date(bookmarkAt))>=logs[0].date);
   const page=newerBookmark?bookmarkPage:logsPage??bookmarkPage;
   if(!total||page===undefined)return null;
@@ -567,15 +567,16 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
 
   function bookmarkMarkup(book){
     const {active,last}=book.library?.bookmark||{};
-    const maximum=book.finished?.totalPages||book.library?.totalPages||book.entries.find(entry=>entry.totalPages)?.totalPages||100000;
+    const maximum=bookPageCount(book)||100000;
     const fromLog=book.last?.chapter.match(/^(?:page\s+|p\.?\s*)(\d+)$/i)?.[1];
-    const current=active?.page||last?.to||Number(fromLog)||1;
+    const bookmark=currentPageBookmark(book.library?.bookmark);
+    const current=bookmark?.page||Number(fromLog)||1;
     const minutes=last?Math.round(last.duration/60000):0;
     const duration=minutes?minutes+' min':'Less than a minute';
     return `<section class="reading-resume reading-bookmark"><h4>Reading bookmark</h4>
-      ${active||last?`<strong>Resume at page ${active?.page||last.to}</strong>`:''}
+      ${bookmark?`<strong>Resume at page ${bookmark.page}</strong>`:''}
       ${last?`<span>Last sitting · ${duration} · pages ${last.from}–${last.to}</span>`:''}
-      <form id="reading-bookmark-form"><label>${active?'Ending page':'Starting page'}<input name="page" type="number" min="${active?.page||1}" max="${maximum}" value="${Math.min(current,maximum)}" required></label>
+      <form id="reading-bookmark-form"><label>${active?'Ending page':'Starting page'}<input name="page" type="number" min="${active?.page||1}" max="${maximum}" value="${Math.min(Math.max(current,active?.page||1),maximum)}" required></label>
         <button value="${active?'finish':'start'}">${active?'End sitting':'Start sitting'}</button>
         ${active?'<button value="cancel" formnovalidate>Cancel sitting</button>':''}
       </form><p role="alert" data-bookmark-error hidden></p></section>`;

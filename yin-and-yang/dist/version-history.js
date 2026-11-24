@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.6',date:'2026-11-24',title:'Reading and Stitchbook progress in Prompt',changes:[
+    'Save a book’s reading position and see pages left with read.',
+    'Adjust a Stitchbook row counter and see its last checkpoint with row.'
+  ]},
   {version:'6.0.5',date:'2026-11-24',title:'Schedule and snooze tasks from Prompt',changes:[
     'Preview a new calendar block and its overlaps before placing it with schedule.',
     'Use snooze to hide a task from the focus queue until a chosen date while keeping its deadline.'

@@ -131,6 +131,8 @@ export const helpTopics = [
       'Type `handoff "Resume at problem 4b"` to update the current task’s next step without changing its saved location or resource. Type `stuck "Why does this boundary term vanish?"` to file a question on the task project’s Office-hours sheet, or on the General sheet for an Inbox task. Both commands leave the current timer running.',
       'Type `schedule "Lab report" tomorrow 3pm 45m` and review the proposed calendar block and any overlaps. Choose `Schedule block` or `Schedule with overlap` to place it, or `Cancel` to discard the preview.',
       'Type `snooze "Order yarn" until Friday` to hide a task from the focus queue until that date. Its deadline and calendar blocks stay in place. Both commands accept an ISO date such as 2026-11-27, and ask you to choose a task when several match.',
+      'Type `read "Golden Son" p143` to save a page in a book’s Reading bookmark without starting or ending a sitting. Prompt shows pages left when the book has a page count.',
+      'Type `row "Left sleeve" +2` to add two rows to a Stitchbook counter, or use a negative number to subtract. Prompt shows the new count and last checkpoint. Use `row "Rows" +2` for a project’s main row count. Choose an item if several books or counters match.',
       'Try `open calendar` to switch workspaces or `find chapter 4` to search saved items. Select a search result to open it.',
       'Type task followed by a title to prefill the task editor. Type capture followed by a thought to save it to the Note inbox.',
       'Use the Up and Down arrows in the input to recall recent commands. Type `clear` to clear the transcript or `version` to see the build number. The transcript and command history last until you reload.'],
