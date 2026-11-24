@@ -727,8 +727,8 @@ export const helpTopics = [
       'Choose Find pages on Open Library in the book editor. Search by title and author for a typical page count or use ISBN for a specific edition. Select a result and save. You can enter pages manually.',
       'In an unfinished book, use Edit library entry to change its information or shelf, or Mark book finished to move it to Finished.',
       'If a typo split a book, open the duplicate and choose `Merge duplicate book`. Pick the book you want to keep. Logs, chapter notes, and sticky links move there. If both are finished, their review text is combined and the kept book’s completion and lantern take priority.',
-      'Read `Where you left off`, chapters annotated, and the dated history of your logs. Enter total pages and page numbers in your Annotate logs to get a pace forecast. When recent progress varies, Reading shows a range of sittings.',
-      'Use `Add chapter note` on a book to save a question, quote, or insight. Choose `Schedule review` on a note to see it again in three days.',
+      'Read `Where you left off`, chapters annotated, and the dated history of your logs. Add a total page count and log your page in Annotate or the reading bookmark to see your percentage and pages left. When recent annotation progress varies, Reading shows a range of sittings.',
+      'Use `Add chapter note` on a book to save a question, quote, or insight. Use `Copy chapter reference` on a note to copy a reference like Golden Son · Ch. 14. Choose `Schedule review` on a note to see it again in three days.',
       'Use Calendar and the daily Annotate item to add your next log or goal. Ctrl+K can also find a book and open its history directly.'],
     tip:'Your library saves to this browser profile and site address. If books are missing after switching ports or browsers, reopen the original address and export a backup from there.',
     action:'reading', actionLabel:'Open Reading', related:['reading-collections','chapter-reviews','reading-discussion','finished-books','reading-goal','search']
@@ -782,7 +782,7 @@ export const helpTopics = [
     steps:['Open Journal → `New entry`, or click a date’s Journal ritual in Calendar.',
       'Start blank or choose a template and select `Insert template`. Use `Save as template` to reuse the current draft text in another entry.',
       'Add a title and write your entry. Choose the date, optional mood, and an optional crochet project above the writing area. Add comma-separated tags and themes to make entries easier to find.',
-      'Your draft saves as you type. Reopen it from the library after closing or refreshing. Choose `Mark complete` when you want it to count toward that date’s Journal ritual.',
+      'Your draft saves as you type. Reopen it from the library after closing or refreshing to return to your last cursor position or text selection. Choose `Mark complete` when you want it to count toward that date’s Journal ritual.',
       'Search the journal library or Ctrl+K to find an entry. Click its title to edit it. Deleting asks for confirmation and offers Undo after deletion.'],
     tip:'Drafts and completed entries are saved locally and included in backups.',
     action:'journal', actionLabel:'Open Journal', related:['daily-rituals','journal-patterns','journal-anniversaries','backup']

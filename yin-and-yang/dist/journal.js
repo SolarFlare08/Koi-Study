@@ -9,6 +9,13 @@ const builtInTemplates=[
   {id:'reflection',name:'Daily reflection',body:'What went well?\n\nWhat got in the way?\n\nWhat will I try tomorrow?'},
   {id:'study',name:'Study recap',body:'What did I learn?\n\nWhat still needs practice?\n\nWhat will I study next?'}
 ];
+function draftCursor(cursor,length){
+  if(!Number.isInteger(cursor?.start)||!Number.isInteger(cursor?.end))return null;
+  const start=Math.max(0,Math.min(length,cursor.start));
+  return {start,end:Math.max(start,Math.min(length,cursor.end)),
+    direction:['forward','backward'].includes(cursor.direction)?cursor.direction:'none',
+    scrollTop:Number.isFinite(cursor.scrollTop)?Math.max(0,cursor.scrollTop):0};
+}
 export function loadJournal(storage){
   try{
     const items=JSON.parse(storage.getItem(JOURNAL_KEY));
@@ -165,12 +172,13 @@ export function installJournal({root,storage,storageEvent=key=>key,projects,noti
         <button type="button" data-journal-reflection="edit">${reflection?'Edit reflection':'Write reflection'}</button></div>`}
       ${items.length&&!editingReflection?`<details class="journal-week-list"><summary>All entries this week</summary><ul class="journal-week-entries">${links(items.map(entry=>({entry})))}</ul></details>`:''}`;
   }
-  let anchor, returnFocus;
+  let anchor, returnFocus, flushDraftCursor;
   function templateOptions(){
     return '<option value="">Blank entry</option>'+[...builtInTemplates,...getTemplates()].map(template=>
       `<option value="${esc(template.id)}">${esc(template.name)}</option>`).join('');
   }
   function open(item,trigger,date=dayKey(),restore){
+    flushDraftCursor?.();
     if(item&&!item.draft)item=entries.find(entry=>entry.draftFor===item.id)||item;
     anchor=trigger;
     returnFocus=restore;
@@ -191,9 +199,27 @@ export function installJournal({root,storage,storageEvent=key=>key,projects,noti
         <button type="button" data-journal-template="remove" hidden>Remove template</button>
         <details><summary>Save as template</summary><label>Template name<input id="journal-template-name" maxlength="80"></label>
           <button type="button" data-journal-template="save">Save current text as template</button></details></div>`}</div>
-      <label class="journal-writing"><span class="sr-only">Entry</span><textarea name="body" placeholder="What stayed with you today?" required>${esc(item?.body)}</textarea></label>
+      <label class="journal-writing"><span class="sr-only">Entry</span><textarea name="body" placeholder="What stayed with you today?" required></textarea></label>
       <div><p id="journal-error" role="alert" hidden></p><footer><span id="journal-word-count"></span><span id="journal-draft-status" role="status">${item?.draft?'Draft saved':''}</span>${entryId?'<button type="button" data-margin>Margin notes</button>':''}<button type="submit" value="save">${entryId?'Save completed entry':'Mark complete'}</button><button type="submit" value="delete" formnovalidate ${item?'':'hidden'}>${item?.draft?'Discard draft':'Delete entry'}</button></footer></div></form>`;
     const body=dialog.querySelector('[name="body"]');
+    body.value=item?.body??'';
+    const readCursor=()=>({start:body.selectionStart,end:body.selectionEnd,direction:body.selectionDirection,scrollTop:body.scrollTop});
+    let cursorTimer;
+    const saveCursor=()=>{
+      clearTimeout(cursorTimer);
+      const latest=loadJournal(storage);
+      const draft=latest.find(entry=>entry.id===draftId&&entry.draft);
+      if(!draft||draft.body!==body.value)return;
+      const cursor=readCursor();
+      if(JSON.stringify(cursor)===JSON.stringify(draft.cursor))return;
+      save(latest.map(entry=>entry===draft?{...entry,cursor}:entry),false);
+    };
+    flushDraftCursor=saveCursor;
+    const queueCursor=()=>{
+      clearTimeout(cursorTimer);
+      cursorTimer=setTimeout(saveCursor,150);
+    };
+    for(const type of ['select','keyup','pointerup','scroll'])body.addEventListener(type,queueCursor);
     const updateWordCount=()=>{
       const count=body.value.match(/\S+/g)?.length||0;
       dialog.querySelector('#journal-word-count').textContent=`${count} ${count===1?'word':'words'}`;
@@ -202,7 +228,7 @@ export function installJournal({root,storage,storageEvent=key=>key,projects,noti
       if(!event.target.name)return;
       if(event.target===body)updateWordCount();
       const form=event.currentTarget,data=new FormData(form);
-      const record={id:draftId,draft:true,draftFor:entryId||'',title:data.get('title'),body:data.get('body'),
+      const record={id:draftId,draft:true,draftFor:entryId||'',title:data.get('title'),body:body.value,cursor:readCursor(),
         date:data.get('date')||form.dataset.date,mood:data.get('mood'),projectId:data.get('projectId'),
         tags:journalLabels(data.get('tags')),themes:journalLabels(data.get('themes')),updatedAt:Date.now()};
       const next=loadJournal(storage).filter(entry=>entry.id!==draftId);
@@ -219,6 +245,11 @@ export function installJournal({root,storage,storageEvent=key=>key,projects,noti
     dialog.setAttribute('aria-labelledby','journal-editor-title');
     dialog.showModal();
     (item?body:dialog.querySelector('[name="title"]')).focus();
+    if(item?.draft){
+      const cursor=draftCursor(item.cursor,body.value.length);
+      body.setSelectionRange(cursor?.start??body.value.length,cursor?.end??body.value.length,cursor?.direction);
+      if(cursor)body.scrollTop=cursor.scrollTop;
+    }
   }
   add.onclick=()=>open(null,add);
   $('#journal-search').oninput=event=>{query=event.target.value.trim().toLowerCase();render();};
@@ -382,10 +413,13 @@ export function installJournal({root,storage,storageEvent=key=>key,projects,noti
     }:null);
   });
   dialog.addEventListener('close',()=>{
+    flushDraftCursor?.();
+    flushDraftCursor=null;
     render();
     if(returnFocus)returnFocus();
     else (anchor?.isConnected?anchor:add).focus({preventScroll:true});
   });
+  window.addEventListener('pagehide',()=>{if(dialog.open)flushDraftCursor?.();});
   window.addEventListener('storage',event=>{const key=storageEvent(event.key);if(key===JOURNAL_KEY||key===null){entries=loadJournal(storage);render();onChange();}});
   window.addEventListener('focus',()=>{if(!root.hidden)render();});
   new MutationObserver(()=>{if(!root.hidden)render();}).observe(root,{attributes:true,attributeFilter:['hidden']});

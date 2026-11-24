@@ -49,11 +49,18 @@ export function annotationContext(rituals,date,book){
 }
 
 const noteKinds={question:'Question',quote:'Quote',insight:'Insight'};
+const numberedChapter=/^(?:ch(?:apters?)?\.?\s*)?(\d+)(?:\s*[-–—]\s*(\d+))?(\s*[:·].*)?$/i;
 
 export function withinCutoff(chapter,limit){
   if(!limit)return true;
-  const match=String(chapter).trim().match(/^(?:ch(?:apters?)?\.?\s*)?(\d+)(?:\s*[-–—]\s*(\d+))?(?:\s*[:·].*)?$/i);
+  const match=String(chapter).trim().match(numberedChapter);
   return !!match&&Math.max(Number(match[1]),Number(match[2]||0))<=limit;
+}
+
+export function chapterReference({bookTitle,chapter}){
+  const name=chapter.trim(),match=name.match(numberedChapter);
+  const reference=match?`Ch. ${match[1]}${match[2]?'–'+match[2]:''}${match[3]||''}`:name;
+  return `${bookTitle.trim()} · ${reference}`;
 }
 
 export function loadReadingNotes(value){
@@ -348,13 +355,18 @@ export function countReadingChapters(rituals){
 
 export function readingForecast(book){
   const total=book.library?.totalPages||book.entries.find(entry=>entry.totalPages)?.totalPages;
-  const pages=book.entries.flatMap(entry=>{
+  const logs=book.entries.flatMap(entry=>{
     const match=normalized(entry.position).match(/^(?:page\s+|p\.?\s*)?(\d{1,6})$/);
-    return match?[Number(match[1])]:[];
+    return match?[{page:Number(match[1]),date:entry.date}]:[];
   });
-  const current=pages[0];
-  if(!total||current===undefined)return null;
-  const remaining=Math.max(0,total-current);
+  const logsPage=logs[0]?.page,bookmark=book.library?.bookmark;
+  const bookmarkPage=bookmark?.active?.page??bookmark?.last?.to;
+  const bookmarkAt=bookmark?.active?.startedAt??bookmark?.last?.finishedAt;
+  const newerBookmark=bookmarkAt&&(!logs[0]?.date||readingDay(new Date(bookmarkAt))>=logs[0].date);
+  const page=newerBookmark?bookmarkPage:logsPage??bookmarkPage;
+  if(!total||page===undefined)return null;
+  const current=Math.min(total,page),remaining=total-current;
+  const pages=logs.map(item=>item.page);
   const advances=pages.slice(0,-1).map((page,index)=>page-pages[index+1]).filter(delta=>delta>0).slice(0,5);
   const pace=advances.length?advances.reduce((sum,value)=>sum+value,0)/advances.length:0;
   const range=advances.length>1&&remaining?[Math.ceil(remaining/Math.max(...advances)),Math.ceil(remaining/Math.min(...advances))]:null;
@@ -365,11 +377,13 @@ function forecastMarkup(book){
   const forecast=readingForecast(book);
   if(!forecast)return '';
   const {current,total,remaining,sittings,pace,samples,range}=forecast;
+  const percentage=remaining?Math.min(99,Math.round(current/total*100)):100;
   const prediction=!remaining?'Finished':sittings===null?'Log another page position to estimate your pace.':
     range&&range[0]!==range[1]?`About ${range[0]}–${range[1]} sittings left, based on your fastest and slowest recent advances.`:
     `About ${sittings} ${sittings===1?'sitting':'sittings'} left at ${Math.round(pace)} pages per log.`;
-  return `<section class="reading-forecast"><h4>Reading pace</h4><p>Page ${current} of ${total} · ${remaining} pages left</p>
-    <p>${prediction}${samples&&remaining?` Based on ${samples} recent ${samples===1?'advance':'advances'} between page logs.`:''}</p></section>`;
+  return `<section class="reading-forecast"><h4>Reading progress</h4>
+    <p class="reading-progress-summary"><strong>${percentage}% read</strong> · ${remaining} ${remaining===1?'page':'pages'} left</p>
+    <p>Page ${current} of ${total}${prediction?' · '+prediction:''}${samples&&remaining?` Based on ${samples} recent ${samples===1?'advance':'advances'} between page logs.`:''}</p></section>`;
 }
 
 const tierBadges={
@@ -602,6 +616,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
       <p class="reading-note-text">${escape(note.text)}</p>
       ${note.queued?`<p>${note.reviewDue&&note.reviewDue>readingDay()?`Due ${formatDay(note.reviewDue)}`:'Due now'}</p>`:''}
       <div class="reading-note-actions">
+        <button type="button" data-copy-chapter-reference="${escape(note.id)}">Copy chapter reference</button>
         ${showBook?`<button type="button" data-review-result="again" data-note-review="${escape(note.id)}">Again tomorrow</button>
           <button type="button" data-review-result="remembered" data-note-review="${escape(note.id)}">Remembered</button>`:''}
         <button type="button" data-note-review="${escape(note.id)}" data-review-result="${note.queued?'remove':'schedule'}">${note.queued?'Remove from queue':'Schedule review'}</button>
@@ -703,6 +718,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
         ${stars(rating)}
         ${!current.finished&&current.library?.totalPages?`<p>${current.library.totalPages} pages</p>`:''}
       </div></header>
+      ${current.finished?'':forecastMarkup(current)}
       ${bookmarkMarkup(current)}
       ${current.library?.lender?`<div class="reading-resume"><strong>Borrowed from ${escape(current.library.lender)}</strong><span>${current.library.returnBy?(current.library.returnBy<readingDay()?'Overdue since ':'Due ')+formatDay(current.library.returnBy):'No return date'}</span><button type="button" data-shelf-action="return">Mark returned</button></div>`:''}
       <div class="reading-note-actions reading-shelf-actions">
@@ -732,7 +748,6 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
       ${current.finished?rereadsMarkup(current.finished):''}
       ${current.finished?.rereads?.length?rereadComparison(current):''}
       ${current.last?`<div class="reading-resume"><span>Where you left off</span><strong>${escape(current.last.chapter)}</strong><time datetime="${current.last.date}">${escape(formatDay(current.last.date))}</time></div>`:''}
-      ${current.finished?'':forecastMarkup(current)}
       ${chips?`<h4>Chapters annotated</h4><ul class="reading-chapters">${chips}</ul>`:''}
       ${linkedNotes(current.id)}
       <details class="reading-merge"><summary>Spoiler cutoff · ${current.library?.cutoff?'Chapter '+current.library.cutoff:'Off'}</summary>
@@ -997,9 +1012,27 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     const reread=book?.finished?.rereads?.find(item=>item.id===event.target.value);
     if(reread)history.querySelector('#reading-compare-result').innerHTML=comparisonColumns(book,reread);
   });
-  history.addEventListener('click',event=>{
+  history.addEventListener('click',async event=>{
     const button=event.target.closest('button');
     if(!button)return;
+    if(button.dataset.copyChapterReference){
+      const note=getNotes().find(item=>item.id===button.dataset.copyChapterReference);
+      if(!note)return;
+      button.disabled=true;
+      try{
+        await navigator.clipboard.writeText(chapterReference(note));
+        status.textContent='Chapter reference copied.';
+        button.textContent='Copied';
+      }catch{
+        status.textContent='Could not copy the chapter reference.';
+        button.textContent='Copy failed';
+      }
+      setTimeout(()=>{
+        button.textContent='Copy chapter reference';
+        button.disabled=false;
+      },1800);
+      return;
+    }
     if(button.dataset.bookStars){
       const form=button.closest('form');form.elements.rating.value=button.dataset.bookStars;refreshStars(form);return;
     }

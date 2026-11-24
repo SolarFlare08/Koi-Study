@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.15',date:'2026-11-23',title:'Reading progress and journal draft position',changes:[
+    'See your reading percentage and pages left together in book details.',
+    'Copy a formatted chapter reference directly from a reading note.',
+    'Reopen a journal draft at your previous cursor position or text selection.'
+  ]},
   {version:'5.21.14',date:'2026-11-23',title:'Find older notes and upcoming book returns',changes:[
     'See when a sticky note’s text or title was last edited from its options menu.',
     'Turn on Include archived in search to find archived captured thoughts.',

@@ -64,7 +64,8 @@ export function pageBookmark(value){
     bookmark.active={page:active.page,startedAt:active.startedAt};
   }
   if(page(last?.from)&&page(last.to)&&last.to>=last.from&&Number.isSafeInteger(last.duration)&&last.duration>=0){
-    bookmark.last={from:last.from,to:last.to,duration:last.duration};
+    bookmark.last={from:last.from,to:last.to,duration:last.duration,
+      ...(Number.isSafeInteger(last.finishedAt)&&last.finishedAt>0?{finishedAt:last.finishedAt}:{})};
   }
   return bookmark;
 }
@@ -78,7 +79,7 @@ export function updatePageBookmark(value,action,page,maximum,now=Date.now()){
   if(!Number.isInteger(page)||page<1||page>(maximum||100000))return null;
   if(action==='start'&&!bookmark.active)return {...bookmark,active:{page,startedAt:now}};
   if(action==='finish'&&bookmark.active&&page>=bookmark.active.page){
-    return {last:{from:bookmark.active.page,to:page,duration:Math.max(0,now-bookmark.active.startedAt)}};
+    return {last:{from:bookmark.active.page,to:page,duration:Math.max(0,now-bookmark.active.startedAt),finishedAt:now}};
   }
   return null;
 }
