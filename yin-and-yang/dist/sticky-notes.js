@@ -4,6 +4,13 @@ const bounds={minWidth:200,maxWidth:720,minHeight:150,maxHeight:680,maxOffset:60
 const clamp=(value,min,max)=>Number.isFinite(value)?Math.max(min,Math.min(max,Math.round(value))):min;
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const relatedKinds={book:'Books',project:'Projects',journal:'Journal entries'};
+const editedFormat=new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'});
+const validEditedAt=value=>Number.isFinite(value)&&value>0&&value<=8.64e15;
+function editedTimeMarkup(value){
+  if(!validEditedAt(value))return 'Not recorded';
+  const date=new Date(value);
+  return `<time datetime="${date.toISOString()}">${escape(editedFormat.format(date))}</time>`;
+}
 
 export function noteRelatedItems(note){
   if(!Array.isArray(note.related))return [];
@@ -38,6 +45,7 @@ export function loadStickyNotes(value,scratch=''){
     related:noteRelatedItems(note),
     ...(typeof note.stackId==='string'&&note.stackId&&typeof note.stackName==='string'&&note.stackName.trim()?
       {stackId:note.stackId,stackName:note.stackName.trim().slice(0,80)}:{}),
+    ...(validEditedAt(note.editedAt)?{editedAt:note.editedAt}:{}),
     x:clamp(note.x||0,0,bounds.maxOffset),y:clamp(note.y||0,0,bounds.maxOffset),
     width:clamp(note.width||252,bounds.minWidth,bounds.maxWidth),
     height:clamp(note.height||216,bounds.minHeight,bounds.maxHeight),
@@ -107,6 +115,7 @@ function stackPager(container,{getNotes,saveNotes,onEdit,onSpread}){
         <span>${index+1} of ${notes.length}</span><button type="button" data-stack-step="1" ${index===notes.length-1?'disabled':''}>Next</button></div>
         <label>Title<input data-stack-field="title" maxlength="100" value="${escape(note.title)}"></label>
         <label>Note<textarea data-stack-field="body" rows="6">\n${escape(note.body)}</textarea></label>
+        <details class="sticky-stack-edit-info"><summary>Note options</summary><p>Last edited <span data-note-edited></span></p></details>
         ${onSpread?'<button type="button" data-spread>Spread out on board</button>':''}`:'<p>No note stacks yet.</p>';
     }else if(note){
       for(const field of container.querySelectorAll('[data-stack-field]')){
@@ -114,6 +123,7 @@ function stackPager(container,{getNotes,saveNotes,onEdit,onSpread}){
         if(field!==document.activeElement&&field.value!==value)field.value=value;
       }
     }
+    if(note)container.querySelector('[data-note-edited]').innerHTML=editedTimeMarkup(note.editedAt);
   }
   container.addEventListener('change',event=>{
     if(!event.target.matches('[data-stack-select]'))return;
@@ -132,7 +142,7 @@ function stackPager(container,{getNotes,saveNotes,onEdit,onSpread}){
     if(!field)return;
     const note=noteStacks(getNotes()).find(g=>g.id===selected)?.notes[index];
     if(!note)return;
-    if(saveNotes(getNotes().map(n=>n===note?{...n,[field]:event.target.value}:n)))onEdit?.();
+    if(saveNotes(getNotes().map(n=>n===note?{...n,[field]:event.target.value}:n))){render();onEdit?.();}
   });
   return {render,open(id,indexToShow=0){selected=id;index=indexToShow;render();}};
 }
@@ -243,7 +253,10 @@ export function installStickyNotes({root,getNotes,getTasks,getRelated=()=>[],sav
       return `<article class="sticky-note${group?' sticky-stack':''}" data-sticky-id="${escape(note.id)}" data-color="${note.color}"
         aria-label="${escape(note.title||'Untitled note')}" style="left:${note.x}px;top:${note.y}px;width:${note.width}px;height:${note.height}px;z-index:${layer+1}">
       <header>${control('move','Move note (arrow keys)')}${group?`<button type="button" data-note-action="open-stack">${escape(group.name)} · ${group.notes.length}</button>`:
-        `<input type="text" aria-label="Note title" data-note-field="title" maxlength="100" placeholder="Untitled note" value="${escape(note.title)}">${control('delete','Delete note')}`}</header>
+        `<input type="text" aria-label="Note title" data-note-field="title" maxlength="100" placeholder="Untitled note" value="${escape(note.title)}">`}
+        <details class="sticky-note-menu"><summary title="Note options" aria-label="Note options">⋯</summary>
+          <div class="sticky-note-options"><p>Last edited <span data-note-edited></span></p>${group?'':control('delete','Delete note')}</div>
+        </details></header>
       <textarea aria-label="Note text" data-note-field="body" placeholder="Write something here…" spellcheck="true">
 ${escape(note.body)}</textarea>
       <footer><div class="sticky-layer">${group?'':control('back','Send note to back')+control('front','Bring note to front')}${control('stack','Stack with another note')}${control('link','Link note to task, book, project, or journal entry')}${control('task','Create task from note text')}</div>
@@ -265,7 +278,7 @@ ${escape(note.body)}</textarea>
       y=Math.min(bounds.maxOffset,18+Math.floor(index/columns)*(height+18));
       if(!notes.some(note=>x<note.x+note.width+8&&x+width+8>note.x&&y<note.y+note.height+8&&y+height+8>note.y))break;
     }
-    return {id:crypto.randomUUID(),title,body,taskId:'',x,y,width,height,color:colors[notes.length%colors.length]};
+    return {id:crypto.randomUUID(),title,body,taskId:'',editedAt:Date.now(),x,y,width,height,color:colors[notes.length%colors.length]};
   }
   function update(id,changes){
     return saveNotes(getNotes().map(note=>note.id===id?{...note,...changes}:note));
@@ -291,7 +304,22 @@ ${escape(note.body)}</textarea>
     const field=event.target.dataset.noteField;
     if(!field)return;
     const card=event.target.closest('.sticky-note');
-    if(update(card.dataset.stickyId,{[field]:event.target.value})&&field==='title')card.setAttribute('aria-label',event.target.value||'Untitled note');
+    if(!update(card.dataset.stickyId,{[field]:event.target.value}))return;
+    if(field==='title')card.setAttribute('aria-label',event.target.value||'Untitled note');
+    if(card.querySelector('.sticky-note-menu').open)updateMenuTimestamp(card);
+  });
+  function updateMenuTimestamp(card){
+    const note=getNotes().find(item=>item.id===card.dataset.stickyId);
+    card.querySelector('[data-note-edited]').innerHTML=editedTimeMarkup(note?.editedAt);
+  }
+  function openMenus(){return board.querySelectorAll('.sticky-note-menu[open]');}
+  board.addEventListener('toggle',({target})=>{
+    if(!target.matches('.sticky-note-menu[open]'))return;
+    for(const menu of openMenus())if(menu!==target)menu.open=false;
+    updateMenuTimestamp(target.closest('[data-sticky-id]'));
+  },true);
+  document.addEventListener('pointerdown',event=>{
+    for(const menu of openMenus())if(!menu.contains(event.target))menu.open=false;
   });
   board.addEventListener('click',event=>{
     const button=event.target.closest('[data-note-action]');
@@ -404,6 +432,10 @@ ${escape(note.body)}</textarea>
   board.addEventListener('pointercancel',event=>stopGesture(event,false));
   board.addEventListener('lostpointercapture',event=>stopGesture(event,false));
   board.addEventListener('keydown',event=>{
+    const menu=event.target.closest('.sticky-note-menu[open]');
+    if(menu&&event.key==='Escape'){
+      event.preventDefault();event.stopPropagation();menu.open=false;menu.querySelector('summary').focus({preventScroll:true});return;
+    }
     const direction={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[event.key];
     const action=event.target.dataset.noteAction;
     if(!direction||!['move','resize'].includes(action))return;

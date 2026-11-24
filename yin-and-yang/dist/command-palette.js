@@ -15,9 +15,11 @@ export function installCommandPalette({dialog,getEntries}){
   dialog.innerHTML=`<header><h2 id="command-title">Find or do anything</h2><button type="button" aria-label="Close command palette">×</button></header>
     <label class="sr-only" for="command-query">Search tasks, notes, books, journal entries, and actions</label>
     <input id="command-query" type="search" role="combobox" aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" autocomplete="off" placeholder="Search or type an action…" autofocus>
+    <label class="command-archive-filter"><input id="command-include-archived" type="checkbox"> Include archived</label>
     <p id="command-status" role="status"></p><ul id="command-results" role="listbox" aria-label="Search results"></ul>
     <footer><kbd>↑</kbd> <kbd>↓</kbd> to move <span>·</span> <kbd>Enter</kbd> to open <span>·</span> <kbd>Esc</kbd> to close</footer>`;
   const input=dialog.querySelector('#command-query'),list=dialog.querySelector('#command-results'),status=dialog.querySelector('#command-status');
+  const includeArchived=dialog.querySelector('#command-include-archived');
   let all=[],results=[],selected=0;
   function select(index){
     selected=index;
@@ -55,6 +57,7 @@ export function installCommandPalette({dialog,getEntries}){
     entry.run();
   }
   input.addEventListener('input',render);
+  includeArchived.addEventListener('change',()=>{all=getEntries(includeArchived.checked);render();});
   input.addEventListener('keydown',event=>{
     if(event.isComposing||!results.length)return;
     if(event.key==='ArrowDown'||event.key==='ArrowUp'){
@@ -72,7 +75,7 @@ export function installCommandPalette({dialog,getEntries}){
   return {
     open(){
       if(dialog.open){dialog.close();return;}
-      all=getEntries();input.value='';
+      includeArchived.checked=false;all=getEntries(false);input.value='';
       dialog.showModal();render();input.focus();
     }
   };

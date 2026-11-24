@@ -1,11 +1,12 @@
 import {bookendArt,bookendDesigns} from './reading-bookends.js';
 import {installReadingDiscussion} from './reading-discussion.js';
 import {pageBookmark,updatePageBookmark,readingPassages} from './reading-progress.js';
-import {collectionKinds,loadReadingCollections,readingDay,relinkReadingCollections,rereadRecord,reviewChapter,validReadingDay,bookRating,ratingTier,radiantRatingLabels} from './reading-progress.js';
+import {borrowedReturnStatus,collectionKinds,loadReadingCollections,readingDay,relinkReadingCollections,rereadRecord,reviewChapter,validReadingDay,bookRating,ratingTier,radiantRatingLabels} from './reading-progress.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const normalized=value=>String(value??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
 const formatDay=day=>new Date(day+'T12:00:00').toLocaleDateString([],{dateStyle:'medium'});
+const shelfDateFormat=new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric'});
 const bookKey=(title='',author='')=>JSON.stringify([normalized(title),normalized(author)]);
 export const libraryStatuses={want:'Want to read',reading:'Reading'};
 const cleanText=(value,limit)=>typeof value==='string'?value.trim().slice(0,limit):'';
@@ -654,10 +655,18 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     list.classList.toggle('reading-spatial-shelf',arranged);
     list.classList.toggle('reading-shelf-empty',!arranged&&!books.length);
     visibleBooks=books;
-    const bookMarkup=book=>`<button type="button" class="reading-spine-button" ${bookAttributes(book)} style="--book-width:${spineWidth(book)}px" data-reading-book="${escape(book.id)}"
-      draggable="${arranged}" aria-label="${escape([book.title,book.author,book.finished?.rating?`${book.finished.rating}/5 · ${tierBadges[ratingTier(book.finished.rating)].label}`:null].filter(Boolean).join(' · '))}" aria-haspopup="dialog">
-      <span class="reading-spine"><span>${escape(book.title)}</span>${tierBadge(ratingTier(book.finished?.rating))}</span>
-      <span class="reading-spine-preview" aria-hidden="true">${coverArt(book)}</span></button>`;
+    const now=new Date();
+    const bookMarkup=book=>{
+      const status=borrowedReturnStatus(book.library,now),day=book.library?.returnBy;
+      const due=status?`${status==='overdue'?'Overdue since':'Due'} ${formatDay(day)}${status==='week'?' · This week':''}`:'';
+      const rating=book.finished?.rating?`${book.finished.rating}/5 · ${tierBadges[ratingTier(book.finished.rating)].label}`:'';
+      const label=[book.title,book.author,rating,due].filter(Boolean).join(' · ');
+      return `<button type="button" class="reading-spine-button" ${bookAttributes(book)} style="--book-width:${spineWidth(book)}px" data-reading-book="${escape(book.id)}"
+        ${status?`data-loan-due="${status}"`:''} draggable="${arranged}" aria-label="${escape(label)}" aria-haspopup="dialog">
+        <span class="reading-spine"><span>${escape(book.title)}</span>${tierBadge(ratingTier(book.finished?.rating))}
+          ${status?`<time class="reading-return-date" datetime="${escape(day)}" title="${escape(due)}">${escape(shelfDateFormat.format(new Date(day+'T12:00:00')))}</time>`:''}</span>
+        <span class="reading-spine-preview" aria-hidden="true">${coverArt(book)}</span></button>`;
+    };
     list.innerHTML=arranged?Array.from({length:rows},(_,row)=>`<div class="reading-shelf-row" role="group" aria-label="Shelf ${row+1}">
       ${Array.from({length:booksPerShelf},(_,index)=>{
         const position=row*booksPerShelf+index,book=slots.get(position);

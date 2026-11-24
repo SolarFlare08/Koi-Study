@@ -10,6 +10,12 @@ export function validReadingDay(value){
   return Number.isFinite(+date)&&date.toISOString().slice(0,10)===value;
 }
 
+export function borrowedReturnStatus(book,now=new Date()){
+  if(!book?.lender||!validReadingDay(book.returnBy))return '';
+  const today=readingDay(now),sunday=readingDay(now,(7-now.getDay())%7);
+  return book.returnBy<today?'overdue':book.returnBy<=sunday?'week':'later';
+}
+
 const reviewGaps=[3,7,14,30,60];
 export function reviewChapter(note,action,now=new Date()){
   if(action==='remove')return {...note,queued:false,reviewDue:'',reviewLevel:0};

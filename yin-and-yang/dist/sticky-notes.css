@@ -54,6 +54,14 @@
 }
 .sticky-note button:hover { color: var(--note-ink); background: color-mix(in srgb,var(--note-edge) 38%,transparent); }
 .sticky-note button svg { width: 17px; height: 17px; }
+.sticky-note-menu { position: relative; flex: none; }
+.sticky-note-menu summary { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 6px; list-style: none; cursor: pointer; }
+.sticky-note-menu summary::-webkit-details-marker { display: none; }
+.sticky-note-menu[open] summary,.sticky-note-menu summary:hover { background: color-mix(in srgb,var(--note-edge) 38%,transparent); }
+.sticky-note:has(.sticky-note-menu[open]) { z-index: 100 !important; }
+.sticky-note-options { position: absolute; inset-inline-end: 0; top: calc(100% + 3px); display: flex; align-items: center; gap: 6px; width: max-content; max-width: 184px; padding: 6px 8px; border: 1px solid var(--note-edge); border-radius: 8px; background: var(--note-paper); box-shadow: 0 8px 16px #0c1f2a55; }
+.sticky-note-options p { margin: 0; font-size: 11px; line-height: 1.35; color: var(--note-muted); }
+.sticky-note-options [data-note-edited] { display: block; color: var(--note-ink); }
 .sticky-layer { display: flex; }
 .sticky-note [data-note-action="move"] { cursor: grab; touch-action: none; }
 .sticky-note [data-note-action="resize"] { cursor: nwse-resize; touch-action: none; }

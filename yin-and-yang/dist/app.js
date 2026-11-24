@@ -552,7 +552,11 @@ applyIcons();
 
 function saveStickyNotes(notes){
   const previous=state.stickyNotes, scratch=state.notes;
-  state.stickyNotes=notes;
+  const oldById=new Map(previous.map(note=>[note.id,note])),now=Date.now();
+  state.stickyNotes=notes.map(note=>{
+    const old=oldById.get(note.id);
+    return !old||old.title!==note.title||old.body!==note.body?{...note,editedAt:now}:note;
+  });
   state.notes=notes.find(note=>note.id===scratchNoteId)?.body||'';
   if(persist())return true;
   state.stickyNotes=previous;
@@ -734,7 +738,7 @@ document.addEventListener('click',event=>{
   button.closest('dialog[open]')?.close();
   visitWorkspace('notes');stickyBoard.focusNote(id);
 });
-function commandEntries(){
+function commandEntries(includeArchived=false){
   const action=(title,detail,search,run)=>({kind:'Action',title,detail,search,run});
   const tasks=state.tasks.map(task=>({
     kind:'Task',title:task.text,detail:state.projects.find(project=>project.id===task.projectId)?.name||'Inbox',
@@ -745,6 +749,12 @@ function commandEntries(){
     kind:'Note',title:note.title||note.body.trim().split(/\r?\n/)[0]?.slice(0,85)||'Untitled note',
     detail:note.body.trim().replace(/\s+/g,' ').slice(0,100),search:note.body,
     run:()=>{visitWorkspace('notes');stickyBoard.focusNote(note.id);}
+  }));
+  const captures=[...availableCaptures(),...(includeArchived?state.captureArchive:[])].map(note=>({
+    kind:note.archivedAt?'Archived note':'Captured note',
+    title:note.text.trim().split(/\r?\n/)[0].slice(0,85)||'Untitled note',
+    detail:note.archivedAt?'Note inbox · Archive':'Note inbox · Unsorted',search:note.text,
+    run:()=>openCapturedThought(note.key)
   }));
   const books=readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks).map(book=>({
     kind:'Book',title:book.title,detail:book.author,search:book.chapters.join(' '),
@@ -790,7 +800,7 @@ function commandEntries(){
       visitWorkspace('planner');$('[data-plan-tomorrow]')?.click();
     }),
     action('Add task','Create a task in Planner','new create inbox',()=>openTaskEditor(null,visitWorkspace('planner'))),
-    ...tasks,...notes,...books,...entries
+    ...tasks,...notes,...captures,...books,...entries
   ];
 }
 
@@ -2522,6 +2532,13 @@ function renderCaptures(){
 function openCaptureInbox(resetTab=true){
   if(resetTab){captureInboxTab='inbox';captureInboxIndex=0;}
   openPanel('capture-inbox',$('#open-capture-inbox'));
+}
+function openCapturedThought(key){
+  visitWorkspace('notes');
+  captureInboxTab=state.captureArchive.some(note=>note.key===key)?'archive':'inbox';
+  openCaptureInbox(false);
+  captureInboxIndex=[...root.querySelectorAll('#capture-inbox-list .capture-card')].findIndex(card=>card.dataset.captureKey===key);
+  captureInboxFocus();
 }
 function captureInboxList(){
   if(captureInboxTab==='inbox')return captureCards(true)||'<p>Your note inbox is clear.</p>';
@@ -6102,13 +6119,8 @@ root.addEventListener('click',e=>{
     recapOrigin=lastAnchor;
     if(recapTask)openTaskEditor(recapTask,recap);
     else if(recap.hasAttribute('data-recap-block'))openCalendarBlock(recap);
-    else if(recapCapture){
-      visitWorkspace('notes');
-      captureInboxTab=state.captureArchive.some(note=>note.key===recapCapture)?'archive':'inbox';
-      openCaptureInbox(false);
-      captureInboxIndex=[...root.querySelectorAll('#capture-inbox-list .capture-card')].findIndex(card=>card.dataset.captureKey===recapCapture);
-      captureInboxFocus();
-    }else if(recapRitual==='journal'){visitWorkspace('journal');journal.openDate(date);}
+    else if(recapCapture)openCapturedThought(recapCapture);
+    else if(recapRitual==='journal'){visitWorkspace('journal');journal.openDate(date);}
     else if(recapRitual)visitWorkspace(recapRitual==='crochet'?'crochet':'reading');
     return;
   }

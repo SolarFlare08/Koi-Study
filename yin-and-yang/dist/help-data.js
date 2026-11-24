@@ -44,7 +44,7 @@ export const helpTopics = [
   {id:'mini-focus',group:'Focus & rest',title:'Keep a mini timer over your work',summary:'Use Garden while reading or watching a lecture.',steps:['In Garden, open Session tools → Mini timer. Drag or resize the window. Windows and browsers with document picture-in-picture keep it on top. Other browsers open a regular popup.','Start, pause, extend an eligible session by five minutes, or save a quick thought to the note inbox. Keep the main Garden open.'],related:['timer']},
   {id:'move-blocks',group:'Calendar',title:'Move several calendar blocks together',summary:'Preview a group move before saving.',steps:['In the planned calendar timeline choose Move blocks. Pick the source day and check the timed tasks and editable events to move.','Choose the destination day and a shift in minutes. Use a negative number for earlier or zero to keep the times on another day. Review overlaps before saving. Recurring items move for that occurrence only. Imported events remain commitments in the preview.'],related:[]},
   {id:'split-task',group:'Planner',title:'Split a task that overruns its estimate',summary:'Use logged focus to plan smaller steps.',steps:['Open an estimated task and look under Subtasks. A suggestion appears after repeated overruns on completed occurrences, or once three completed focus sessions on the current task exceed its estimate.','Choose Draft subtasks, replace the part names with concrete steps, and save the task.'],related:[]},
-  {id:'borrowed-shelf',group:'Reading',title:'Track and return borrowed books',summary:'Keep a shelf for outstanding loans.',steps:['Choose Add a book or Edit library entry. Enter the lender and an optional return date.','Choose Borrowed to see outstanding loans. Open a book for the due date or Mark returned. Finishing a book and returning it are separate actions.'],related:[]},
+  {id:'borrowed-shelf',group:'Reading',title:'Track and return borrowed books',summary:'Keep a shelf for outstanding loans.',steps:['Choose Add a book or Edit library entry. Enter the lender and an optional return date.','Return dates appear on book spines. Dates due from today through Sunday are highlighted in amber, and overdue dates have their own highlight. Choose Borrowed to see outstanding loans.','Open a book and choose Mark returned when you give it back. Finishing a book and returning it are separate actions.'],related:[]},
   {id:'weekly-postcards',group:'Garden',title:'Export a weekly Garden postcard',summary:'Save a landscape with seven days of focus.',steps:['Open Export postcard and enable Include the last seven days of focus. A historical view uses the week ending on its selected date.','Choose a milestone or a line from a completed journal entry under Weekly highlight, or type a caption. Download PNG includes your selected text, date range, completed session count, and focus minutes.'],related:[]},
   {id:'focus-compass',group:'Focus & rest',title:'Progress ring, chimes, and daily goal',
     summary:'See where your session is headed without opening a panel.',
@@ -683,9 +683,9 @@ export const helpTopics = [
     id:'sticky-notes', group:'Thoughts & notes', title:'Arrange sticky notes',
     summary:'Create movable, resizable notes with editable stacking order.',
     steps:['Open the Notes tab and choose `New note`.',
-      'Type a title and note text. Edits save immediately.',
+      'Type a title and note text. Edits save immediately. Open the note’s ⋯ menu to see when its text or title was last edited.',
       'Drag the move handle to arrange the note. Drag its resize handle to change its size. Use Bring to front or Send to back to change the layer.',
-      'For keyboard control, focus the move or resize handle and use the arrow keys. Use the delete control to remove a note and Undo when available to restore it.'],
+      'For keyboard control, focus the move or resize handle and use the arrow keys. Use Delete note in the ⋯ menu and Undo when available to restore it.'],
     action:'notes', actionLabel:'Open sticky notes', related:['linked-notes','search']
   },
   {
@@ -939,6 +939,7 @@ export const helpTopics = [
     summary:'Find saved work or run an action without switching through tabs.',
     steps:['Press `Ctrl+K` (or `Command+K` on Mac). The magnifying-glass button in Garden, Planner, and Calendar opens it too.',
       'Type words from a task, note, book, or journal entry. Note and journal text are searchable, not just titles.',
+      'Check Include archived to search captured thoughts in the Note inbox Archive. Choose a result to open it in the archive.',
       'Use up/down arrows and `Enter` to open a result, or click it. The app opens the matching workspace and item.',
       'Search for actions such as `Start timer`, `Replan today`, `Plan tomorrow`, `Add task`, or `Help`. Press Escape to close the palette.'],
     tip:'Planner’s own Search tasks view is focused on tasks. Use Ctrl+K for a search across workspaces. Close a modal editor before opening the palette.',

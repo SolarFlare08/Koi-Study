@@ -57,7 +57,7 @@ test('course skies connect earned exams in date order and keep legacy and standa
 });
 import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from '../dist/day-recap.js';
 import {remainingProjectWork} from '../dist/project-planning.js';
-import {reviewChapter,ratingTier} from '../dist/reading-progress.js';
+import {borrowedReturnStatus,reviewChapter,ratingTier} from '../dist/reading-progress.js';
 import {needsRetry} from '../dist/mistake-notebook.js';
 import {bundleProgress,loadTaskBundles} from '../dist/task-bundles.js';
 import {entriesInWeek,journalAnniversaries,journalFacets,journalLabels,journalWeek,matchingJournal} from '../dist/journal-patterns.js';
@@ -311,7 +311,8 @@ test('a backup restores linked notes, journal, projects, settings and pending ca
   const state=freshState();
   state.settings.focus=45;
   state.tasks.push({id:'read',text:'Read the book',done:false});
-  state.stickyNotes.push({id:'quote',title:'Quote',body:'A passage',taskId:'read'});
+  const editedAt=+new Date('2026-11-10T14:30:00Z');
+  state.stickyNotes.push({id:'quote',title:'Quote',body:'A passage',taskId:'read',editedAt});
   const journal=[{id:'journal',title:'Evening',body:'Read two chapters',date:'2026-11-10'}];
   const crochet={projects:[{id:'socks',name:'Socks'}],yarn:[],usage:[],timeLog:[]};
   const day=dayKey();
@@ -326,12 +327,25 @@ test('a backup restores linked notes, journal, projects, settings and pending ca
   const restored=loadState(target);
   assert.equal(restored.settings.focus,45);
   assert.equal(restored.tasks[0].id,restored.stickyNotes[0].taskId);
+  assert.equal(restored.stickyNotes[0].editedAt,editedAt);
   assert.deepEqual(loadJournal(target),journal);
   assert.equal(loadCrochet(target).projects[0].name,'Socks');
   assert.deepEqual(loadCrochet(target).timeLog,crochet.timeLog);
   assert.deepEqual(readCaptures(target).map(note=>note.text),['Read chapter 3']);
   assert.equal(target.getItem(CAPTURE_PREFIX+'old'),null);
   assert.equal(target.getItem('unrelated'),'keep');
+});
+
+test('borrowed shelf distinguishes overdue loans and the end of the current local week',()=>{
+  const now=new Date(2026,10,25,14);
+  const loan=returnBy=>({lender:'Campus library',returnBy});
+  assert.equal(borrowedReturnStatus(loan('2026-11-24'),now),'overdue');
+  assert.equal(borrowedReturnStatus(loan('2026-11-25'),now),'week');
+  assert.equal(borrowedReturnStatus(loan('2026-11-29'),now),'week');
+  assert.equal(borrowedReturnStatus(loan('2026-11-30'),now),'later');
+  assert.equal(borrowedReturnStatus(loan('2026-11-30'),new Date(2026,10,29,23)),'later');
+  assert.equal(borrowedReturnStatus(loan(''),now),'');
+  assert.equal(borrowedReturnStatus({returnBy:'2026-11-25'},now),'');
 });
 
 test('failed writes roll back the previous backup data and invalid files fail validation',()=>{
