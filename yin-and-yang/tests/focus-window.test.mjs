@@ -17,10 +17,12 @@ test('class fit uses the next timed occurrence and subtracts preparation and mid
 
 test('minimum useful time fits a partial session without changing the full estimate',()=>{
   const assignment={estimate:90,minimumUsefulMinutes:15};
-  assert.deepEqual(taskTimeFit(assignment,20,true),{minutes:20,partial:true});
+  assert.deepEqual(taskTimeFit(assignment,20,true),{minutes:20,partial:true,restMs:0,spareMs:0});
   assert.deepEqual(focusWindowTasks([assignment],20),[assignment]);
   assert.equal(taskTimeFit(assignment,14,true),null);
-  assert.deepEqual(taskTimeFit(assignment,100,true),{minutes:90,partial:false});
+  assert.deepEqual(taskTimeFit(assignment,100,true),{minutes:90,partial:false,restMs:9*60000,spareMs:60000});
+  assert.deepEqual(taskTimeFit({estimate:20},25,true),{minutes:20,partial:false,restMs:0,spareMs:5*60000});
+  assert.deepEqual(taskTimeFit({estimate:75},85,true),{minutes:75,partial:false,restMs:450000,spareMs:150000});
   assert.equal(assignment.estimate,90);
 });
 

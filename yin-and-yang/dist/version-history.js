@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.8',date:'2026-11-23',title:'Clearer handoffs and task-fit results',changes:[
+    'Read the last stopping point, next step, and resource link in the calendar block preview.',
+    'See suggested work and spare time in Find a task by time and What fits before class.',
+    'See the minimum useful time and the full estimate together, separate from the suggested session length.'
+  ]},
   {version:'5.21.7',date:'2026-11-23',title:'Faster prop browsing and rescheduling',changes:[
     'Studio remembers the last Prop library category you opened.',
     'Saved arrangements show a thumbnail of the props and their count.',

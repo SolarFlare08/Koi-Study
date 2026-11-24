@@ -195,6 +195,11 @@
 .calendar-resume-context p { margin: 4px 0; }
 .calendar-resume-context ul { display: grid; gap: 8px; margin: 6px 0 0; padding: 0; list-style: none; }
 .calendar-resume-context li small { display: block; color: var(--surface-muted); }
+.calendar-handoff { overflow-wrap: anywhere; }
+.calendar-handoff h3 { color: var(--surface-accent); }
+.calendar-handoff p { margin: 8px 0 0; line-height: 1.5; }
+.calendar-handoff .handoff-field-label { display: block; margin-bottom: 2px; color: var(--surface-muted); font-size: 11px; font-weight: 650; }
+.calendar-handoff .block-reference-hint { color: var(--surface-muted); font-size: 11px; }
 .calendar-extension-times { display: grid; gap: 8px; margin: 10px 0; }
 .calendar-extension-times dt { font-size: 11px; color: var(--surface-muted); }
 .calendar-extension-times dd { margin: 2px 0 0; }

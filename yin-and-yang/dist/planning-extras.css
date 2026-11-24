@@ -487,9 +487,11 @@ button.project-context-item:hover { color: var(--planner-accent); }
 .focus-review-choices input { width: auto; }
 .session-review-detail { display: block; margin-top: 4px; overflow-wrap: anywhere; }
 .fit-task-results { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
-.fit-task-results button { width: 100%; display: flex; justify-content: space-between; gap: 10px; text-align: left; border: 1px solid var(--surface-line); border-radius: 7px; padding: 7px; }
+.fit-task-results button { width: 100%; display: grid; gap: 4px; text-align: left; border: 1px solid var(--surface-line); border-radius: 7px; padding: 8px 10px; overflow-wrap: anywhere; }
 .fit-task-results button:not(:disabled):hover { background: var(--surface-raised); }
-.fit-task-results small { flex: none; color: var(--surface-muted); }
+.fit-task-results small { color: var(--surface-muted); line-height: 1.35; }
+.fit-task-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 10px; }
+.fit-time-window { font-size: 12px; line-height: 1.4; }
 .weekly-project-goals { margin: 16px 0; }
 .weekly-project-goals h3 { margin: 0 0 8px; font-size: 15px; }
 .weekly-project-goals article { padding: 9px 0; border-top: 1px solid var(--planner-line); }

@@ -1505,10 +1505,10 @@ function gardenCourseMarkup(){
     <button type="button" class="text-button" data-garden-history-open>Garden Field Guide</button>`;
 }
 function hasHandoff(task){return Boolean(task?.resumeNote||task?.resumeLocation||task?.resumeResource||nextFocusSubtask(task));}
-function handoffDetails(task){
+function handoffDetails(task,showLabels=false){
   const resource=handoffLink(task.resumeResource),next=nextFocusSubtask(task);
-  return `${task.resumeLocation?`<p><strong>${escape(task.resumeLocation)}</strong></p>`:''}
-    ${task.resumeNote?`<p class="handoff-note">${escape(task.resumeNote)}</p>`:''}
+  return `${task.resumeLocation?`<p>${showLabels?'<span class="handoff-field-label">Where you stopped</span>':''}<strong>${escape(task.resumeLocation)}</strong></p>`:''}
+    ${task.resumeNote?`<p class="handoff-note">${showLabels?'<span class="handoff-field-label">Next step</span>':''}${escape(task.resumeNote)}</p>`:''}
     ${next?`<p class="handoff-note">Next unfinished subtask · ${escape(next.text)}</p>`:''}
     ${resource?`<a class="handoff-resource" href="${escape(resource)}" target="_blank" rel="noopener noreferrer">Open resource ${icon('external')}</a>`:''}`;
 }
@@ -2399,11 +2399,17 @@ function fitTaskResults(minutes){
   const locked=state.timer.block||state.timer.sequence||state.timer.mistakeId||state.timer.mode==='focus'&&state.timer.id;
   if(!tasks.length)return `<p>No ready tasks fit this window${fitEnergy?' and energy level':''}.</p>`;
   return `${locked?'<p>Finish or reset the current focus timer to choose a different task.</p>':''}
-    <ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-fit-task="${escape(task.id)}" ${locked?'disabled':''}><strong>${escape(task.text)}</strong><small>${fitTimeLabel(task,minutes)} · P${taskPriority(task)}${task.energy?` · ${taskEnergyLevels[task.energy]}`:''}</small></button></li>`).join('')}</ul>`;
+    <ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-fit-task="${escape(task.id)}" ${locked?'disabled':''}>
+      <span class="fit-task-heading"><strong>${escape(task.text)}</strong><small>P${taskPriority(task)}${task.energy?` · ${taskEnergyLevels[task.energy]}`:''}</small></span>
+      ${fitTimeDetails(task,minutes)}</button></li>`).join('')}</ul>`;
 }
-function fitTimeLabel(task,available){
-  const {minutes,partial}=taskTimeFit(task,available,true);
-  return partial?`${minutes} min for a useful start${task.estimate?` · ${task.estimate} min total`:''}`:`${minutes} min`;
+function fitTimeDetails(task,available){
+  const {minutes,restMs,spareMs}=taskTimeFit(task,available,true);
+  const spare=spareMs?durationWords(spareMs):'0 min';
+  const minimum=task.minimumUsefulMinutes,estimate=task.estimate;
+  return `<span class="fit-time-window">${minutes} min of work · ${spare} spare</span>
+    ${minimum?`<small>${minimum} min to get started${estimate?` · ${estimate} min total`:''}</small>`:''}
+    ${restMs?`<small>${durationWords(restMs)} of planned rest</small>`:''}`;
 }
 
 function classFitLocked(){
@@ -2423,7 +2429,8 @@ function classFitResults(buffer,now=new Date()){
   return `<p><strong>${escape(event.title)}</strong> starts ${escape(when)}.</p><p>${minutesLabel(minutes)} available after your preparation buffer.</p>
     ${locked?'<p>Finish or reset the current timer to start another task.</p>':''}
     ${tasks.length?`<ul class="fit-task-results">${tasks.map(task=>`<li><button type="button" data-class-fit-task="${escape(task.id)}" ${locked?'disabled':''}>
-      <strong>${escape(task.text)}</strong><small>Start focus · ${fitTimeLabel(task,minutes)}</small></button></li>`).join('')}</ul>`:'<p>No ready tasks fit this window.</p>'}`;
+      <span class="fit-task-heading"><strong>${escape(task.text)}</strong><small>Start focus</small></span>
+      ${fitTimeDetails(task,minutes)}</button></li>`).join('')}</ul>`:'<p>No ready tasks fit this window.</p>'}`;
 }
 function updateClassFitResults(){
   const field=$('#class-buffer'),results=$('#class-fit-results');
@@ -2846,16 +2853,17 @@ function calendarBlockPreview(){
     <p id="block-focus-time"></p>
     <p id="block-actual-focus"></p>
     <p class="task-waiting" id="block-prerequisites" hidden></p>
-    ${resume?`<section class="calendar-resume-context" aria-label="Saved focus context">
-      ${hasHandoff(task)?`<h3>Last handoff</h3>${handoffDetails(task)}`:''}
-      ${hasReference?'<p>Pinned reference will open beside the timer.</p>':''}
+    ${resume?`<section class="calendar-resume-context calendar-handoff" aria-labelledby="block-handoff-title">
+      <h3 id="block-handoff-title">${hasHandoff(task)?'Last handoff':'Pinned reference'}</h3>
+      ${hasHandoff(task)?handoffDetails(task,true):''}
+      ${hasReference?'<p class="block-reference-hint">Pinned reference will open beside the timer.</p>':''}
     </section>`:''}
-    ${task?taskColorPicker(task):''}
     <div class="panel-actions calendar-block-actions">
       <button class="panel-primary" type="button" id="start-block-focus">${icon('play')} ${resume?'Resume focus':'Start focus'}</button>
       <button type="button" class="text-button" id="edit-calendar-block">${lastAnchor.dataset.block?'Edit block':'Edit task'}</button>
       ${lastAnchor.dataset.block?'<button type="button" class="text-button" id="edit-calendar-task">Edit task</button>':''}
-    </div>`;
+    </div>
+    ${task?taskColorPicker(task):''}`;
 }
 function extensionTime(timestamp){
   return new Date(timestamp).toLocaleString([],{

@@ -502,11 +502,13 @@ function loadTaskTiming(plan,tasks){
     Number.isInteger(plan.totalMs)&&plan.totalMs>=60000&&plan.totalMs<=86400000
     ?{taskId:plan.taskId,totalMs:plan.totalMs,stage:plan.stage}:null;
 }
+const firstTaskHalfMs=totalMs=>Math.ceil(totalMs/2000)*1000;
+export const taskIntervalRestMs=totalMs=>Math.round(firstTaskHalfMs(totalMs)/5000)*1000;
 export function resetTaskTiming(state,plan){
-  const {totalMs,stage}=plan,first=Math.ceil(totalMs/2000)*1000;
+  const {totalMs,stage}=plan,first=firstTaskHalfMs(totalMs);
   const rest=stage==='interval'||stage==='final';
   const length=stage==='first'?(totalMs>3600000?first:totalMs):stage==='second'?totalMs-first:
-    Math.round((stage==='interval'?first:totalMs)/5000)*1000;
+    stage==='interval'?taskIntervalRestMs(totalMs):Math.round(totalMs/5000)*1000;
   reset(state,rest?'break':'focus');
   Object.assign(state.timer,{remaining:length,total:length,taskPlan:{...plan}});
 }

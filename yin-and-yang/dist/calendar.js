@@ -1,4 +1,4 @@
-import {canExtendCalendarTimer,dayKey, repeatSettings, taskOccursOn, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
+import {canExtendCalendarTimer,dayKey, repeatSettings, taskIntervalRestMs, taskOccursOn, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
 import {unavailableRanges} from './availability.js';
 
 const minutesPerDay = 24 * 60;
@@ -302,13 +302,16 @@ export function focusTaskQueue(tasks,date=new Date(),pinnedIds=[],tasksById=new 
 
 export function taskTimeFit(task,available,includeRest=false){
   const estimate=task.estimate||0;
-  const cost=minutes=>minutes+(includeRest&&minutes>60?Math.round(minutes*60/2/5)/60:0);
-  if(estimate>0&&cost(estimate)<=available)return {minutes:estimate,partial:false};
+  const capacity=available*60000;
+  const rest=minutes=>includeRest&&minutes>60?taskIntervalRestMs(minutes*60000):0;
+  const cost=minutes=>minutes*60000+rest(minutes);
+  const fit=(minutes,partial)=>({minutes,partial,restMs:rest(minutes),spareMs:capacity-cost(minutes)});
+  if(estimate>0&&cost(estimate)<=capacity)return fit(estimate,false);
   const minimum=task.minimumUsefulMinutes;
-  if(!minimum||cost(minimum)>available)return null;
+  if(!minimum||cost(minimum)>capacity)return null;
   let minutes=Math.min(available,estimate||available);
-  while(minutes>minimum&&cost(minutes)>available)minutes--;
-  return {minutes,partial:true};
+  while(minutes>minimum&&cost(minutes)>capacity)minutes--;
+  return fit(minutes,true);
 }
 export function tasksWithinTime(queue,minutes,energy='',includeRest=false){
   return queue.filter(task=>!energy||task.energy===energy).map(task=>({task,fit:taskTimeFit(task,minutes,includeRest)}))
