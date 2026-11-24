@@ -212,7 +212,7 @@ export function loadSoundtracks(value){
   return [...records.values()];
 }
 export function freshState() {
-  return { settings: { focus:25, break:5, savesInlineDuration:true, taskBoardCollapsed:false }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], calendars:loadCalendars(), hiddenCalendars:[], calendarTheme:'day', calendarDayTemplates:[], dailyRituals:{}, ritualSchedules:loadRitualSchedules(), studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
+  return { settings: { focus:25, break:5, savesInlineDuration:true, taskBoardCollapsed:false, fitMinutes:20 }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], calendars:loadCalendars(), hiddenCalendars:[], calendarTheme:'day', calendarDayTemplates:[], dailyRituals:{}, ritualSchedules:loadRitualSchedules(), studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], libraryBooks:[], readingShelfRows:loadShelfRows(), readingBookends:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
     shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],studyQuestions:[],
     taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],gardenArrangements:[],gardenActivityLayouts:{},focusSetups:[],lastFocusSetupId:'',postcardViewpoints:[],breakIdeas:[],
@@ -327,6 +327,7 @@ export function loadState(storage) {
     base.gardenGrowth=loadGardenGrowth(raw.gardenGrowth);
     base.finishedBooks=loadFinishedBooks(raw.finishedBooks,base.gardenGrowth,base.dailyRituals,base.readingNotes);
     base.settings.taskBoardCollapsed=raw.settings?.taskBoardCollapsed===true;
+    if(Number.isInteger(raw.settings?.fitMinutes)&&raw.settings.fitMinutes>=1&&raw.settings.fitMinutes<=1440)base.settings.fitMinutes=raw.settings.fitMinutes;
     base.settings.wrapMinutes=wrapUpMinutes(raw.settings?.wrapMinutes);
     if(Number.isInteger(raw.settings?.classBuffer)&&raw.settings.classBuffer>=0&&raw.settings.classBuffer<=180)base.settings.classBuffer=raw.settings.classBuffer;
     if(Number.isInteger(raw.settings?.dailyFocusGoal)&&raw.settings.dailyFocusGoal>=5&&raw.settings.dailyFocusGoal<=720)base.settings.dailyFocusGoal=raw.settings.dailyFocusGoal;

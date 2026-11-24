@@ -359,6 +359,7 @@
 .studio-arrangement-fields button { justify-self: start; min-height: 30px; padding: 4px 8px; border: 1px solid var(--studio-line); border-radius: 6px; background: var(--studio-frame); font-size: 11px; }
 .studio-arrangement-fields button:hover:enabled { background: var(--studio-highlight); }
 .studio-layer-list { display: grid; gap: 12px; min-width: 0; }
+.studio-settings:has(#studio-tool-layers:not([hidden])) { overflow-anchor: none; }
 .studio-layer-stack { min-width: 0; padding: 8px; border: 1px solid var(--studio-line); border-radius: 9px; background: var(--studio-bg); }
 .studio-layer-stack h4 { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: var(--studio-accent); }
 .studio-layer-stack ol { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }

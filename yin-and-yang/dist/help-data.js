@@ -164,7 +164,8 @@ export const helpTopics = [
       'Select a task to focus on. Drag rows or use their up/down arrows to pin a custom order for today.',
       'Choose `Use calendar order` to restore automatic ordering. Calendar blocks come first, followed by unscheduled tasks in priority order.',
       'Use the finish-current-task control beside the task to end early. Choose `Take a break` or `Keep going` to continue with the next task.',
-      'Set a task’s estimate and optional `Energy` in the task editor. In Garden, choose `Find a task by time`, enter your available minutes, and pick Light, Moderate, Demanding, or Any energy level. Garden shows ready tasks that fit, with higher priorities first.'],
+      'Set a task’s estimate and optional `Energy` in the task editor. In Garden, choose `Find a task by time`, enter your available minutes, and pick Light, Moderate, Demanding, or Any energy level. Garden shows ready tasks that fit, with higher priorities first.',
+      'The finder remembers the last valid window you entered, including after a reload.'],
     tip:'Your pinned order is for today. A session started from a calendar block keeps that block’s task selected.',
     action:'focus', actionLabel:'Open Garden', related:['resume','tomorrow','block-focus','task-bundles']
   },
@@ -883,6 +884,7 @@ export const helpTopics = [
       'Switch to Move, then click the prop on the canvas or choose it from the Object list. Drag or use the position sliders to move it. Use Object size or Remove prop to edit it.',
       'In Move, use Layer to bring a placed prop forward or send it backward. Bring to front and Send to back move it to the ends of its current layer. Choose Behind scenery, Among scenery, or In front of scenery to move a ground prop between layers. Sky props share their own layer behind the mountains. Use the Object list to select a covered prop.',
       'Open Layers in the toolbar to see thumbnail rows front to back. Select a row, drag its handle, or use Bring forward and Send backward. Ground props can be dropped into a different ground section.',
+      'Use Filter by name to narrow the list of placed props and built-in scenery. Clear the field or press Escape in it to see all layers again. Hiding, locking, and reordering keep your scroll position.',
       'Use the eye to hide a prop and the padlock to protect it from moving, resizing, reordering, or removal. Use the same buttons to show or unlock it. Hidden props stay in the layout and are left out of the scene and postcards. Undo and Redo work for layer changes, visibility, and locks.',
       'In Layers, check two or more placed props and choose Group selected. In Move, drag any member to move the whole group. Unlock all members before moving a locked group. To separate them, select any member in Layers and choose Ungroup.',
       'Select a prop in Layers and choose Duplicate or Duplicate group. Copies are offset when space allows and keep their sizes, visibility, and layers. Copies start unlocked so you can reposition them.',

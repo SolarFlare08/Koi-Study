@@ -2061,7 +2061,7 @@ function timerRoutines(){
   </section>`;
 }
 
-let editingRoutineId=null, fitMinutes=20, goalTimer=null;
+let editingRoutineId=null, goalTimer=null;
 function phaseFields(phase={name:'',mode:'focus',ms:5*60000}){
   return `<li class="routine-phase-fields">
     <label>Phase name<input name="phase-name" maxlength="40" required value="${escape(phase.name)}"></label>
@@ -3321,9 +3321,9 @@ function panelContent(id){
   }
   if(id==='fit-task')return `${header('CURRENT TASK','Find a task by time')}
     <label class="field-label" for="fit-minutes">Minutes available</label>
-    <input id="fit-minutes" type="number" min="1" max="1440" value="${fitMinutes}">
+    <input id="fit-minutes" type="number" min="1" max="1440" value="${state.settings.fitMinutes}">
     <label class="field-label" for="fit-energy">Energy level</label><select id="fit-energy">${energyOptions(fitEnergy,'Any energy level')}</select>
-    <div id="fit-results" aria-live="polite">${fitTaskResults(fitMinutes)}</div>`;
+    <div id="fit-results" aria-live="polite">${fitTaskResults(state.settings.fitMinutes)}</div>`;
   if(id==='capture-project'){
     const projects=state.projects.filter(project=>!project.archived);
     return `${header('CAPTURED THOUGHT','Attach to a project')}${projects.length?`<form id="capture-project-form"><label class="field-label" for="capture-project-id">Project</label><select id="capture-project-id" required>${projects.map(project=>`<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('')}</select><div class="panel-actions"><button class="panel-primary">Attach thought</button></div></form>`:'<p>Create a project in Planner to attach a thought.</p>'}`;
@@ -6354,8 +6354,12 @@ root.addEventListener('input',e=>{
     if(results)results.hidden=true;
   }
   if(e.target.id==='fit-minutes'){
-    const minutes=Number(e.target.value);
-    if(e.target.validity.valid&&minutes>0)fitMinutes=minutes;
+    const minutes=e.target.valueAsNumber;
+    const previous=state.settings.fitMinutes;
+    if(e.target.validity.valid&&Number.isInteger(minutes)&&minutes!==previous){
+      state.settings.fitMinutes=minutes;
+      if(!persist())state.settings.fitMinutes=previous;
+    }
     $('#fit-results').innerHTML=fitTaskResults(minutes);
   }
   if(e.target.id==='quick-task-line')updateQuickTask(e.target.form);

@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.4',date:'2026-11-23',title:'Remember task windows and find Studio layers',changes:[
+    'Find a task by time remembers the last valid window across reloads.',
+    'Studio Layers keeps its scroll position when you hide, lock, or reorder objects.',
+    'Filter Layers by the name of a placed prop or built-in scenery.'
+  ]},
   {version:'5.21.3',date:'2026-11-23',title:'Focus setup order and handoffs',changes:[
     'Find your last-used focus setup at the top while other setups keep their order.',
     'See the next routine phase and its length below the current phase.',
