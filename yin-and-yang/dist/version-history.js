@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.1',date:'2026-11-23',title:'Countdown and pinned reference shortcuts',changes:[
+    'Open the countdown editor with the entire displayed time selected.',
+    'See how much time is reserved for wrap-up before you start focusing.',
+    'Copy pinned reference text or a diagram directly from the card in Garden.'
+  ]},
   {version:'5.20.6',date:'2026-11-22',title:'Course estimates and a printable study summary',changes:[
     'Compare planned estimates with actual focus time by course in Reporting. Filter by date or project and export the totals as CSV.',
     'Print the selected Weekly Review with daily focus time, completed tasks, saved next steps, and open work.'

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {calendarFocusWindow,focusWindowTasks,taskTimeFit} from '../dist/calendar.js';
-import {focusWrapUp,freshState,loadState,startPause} from '../dist/state.js';
+import {focusWrapUp,focusWrapUpDuration,freshState,loadState,startPause} from '../dist/state.js';
 import {currentFocusPause,editFocusPause,loadReplay} from '../dist/focus-replay.js';
 
 test('class fit uses the next timed occurrence and subtracts preparation and mid-session rest',()=>{
@@ -29,6 +29,10 @@ test('wrap-up uses the last focus minutes and a dated first-task pin survives re
   state.tasks=[{id:'study',text:'Study',done:false,minimumUsefulMinutes:15}];
   state.tomorrowPin={day:'2026-11-23',taskId:'study'};
   state.settings.wrapMinutes=3;
+  assert.equal(focusWrapUpDuration(state),180000);
+  state.timer.total=90000;
+  assert.equal(focusWrapUpDuration(state),30000);
+  state.timer.total=1500000;
   startPause(state,start);
   assert.equal(focusWrapUp(state,state.timer.endAt-180001),false);
   assert.equal(focusWrapUp(state,state.timer.endAt-180000),true);
@@ -37,6 +41,9 @@ test('wrap-up uses the last focus minutes and a dated first-task pin survives re
   assert.equal(restored.tasks[0].minimumUsefulMinutes,15);
   restored.settings.wrapMinutes=0;
   assert.equal(focusWrapUp(restored,restored.timer.endAt-60000),false);
+  restored.settings.wrapMinutes=3;
+  restored.timer.mode='break';
+  assert.equal(focusWrapUpDuration(restored),0);
 });
 
 test('pause notes persist on the intended replay event and a stale editor cannot edit a later pause',()=>{

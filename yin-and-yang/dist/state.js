@@ -459,10 +459,14 @@ export function consumeTimerWarning(state,now=Date.now()) {
 export function wrapUpMinutes(value){
   return Number.isInteger(value)&&value>=0&&value<=15?value:3;
 }
+export function focusWrapUpDuration(state){
+  const {timer,settings}=state;
+  if(timer.mode!=='focus')return 0;
+  return Math.max(0,Math.min(wrapUpMinutes(settings.wrapMinutes)*60000,timer.total-60000));
+}
 export function focusWrapUp(state,now=Date.now()){
   const {timer}=state,left=remaining(state,now);
-  const reserved=Math.min(wrapUpMinutes(state.settings.wrapMinutes)*60000,timer.total-60000);
-  return Boolean(timer.mode==='focus'&&timer.id&&['running','paused'].includes(timer.status)&&left>0&&left<=reserved);
+  return Boolean(timer.id&&['running','paused'].includes(timer.status)&&left>0&&left<=focusWrapUpDuration(state));
 }
 export function startPause(state, now=Date.now(), taskId=state.activeTask) {
   const t=state.timer;

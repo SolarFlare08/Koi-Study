@@ -27,7 +27,7 @@ import {installBackup,restoreBackup} from './backup.js';
 import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
 import {installFocusCompass,focusCompass,focusWeek} from './focus-compass.js';
-import {timerProgress,extendTimer,canExtendCalendarTimer,extendCalendarTimer,focusWrapUp,wrapUpMinutes} from './state.js';
+import {timerProgress,extendTimer,canExtendCalendarTimer,extendCalendarTimer,focusWrapUp,focusWrapUpDuration,wrapUpMinutes} from './state.js';
 import {calendarBlockDurationChange,planRunningBlockExtension} from './calendar.js';
 import {quickTask} from './planner-data.js';
 import {incompleteFocusSessions,loadFocusSetups} from './state.js';
@@ -521,6 +521,7 @@ $('#stuck-now').onclick=$('#focus-stuck').onclick=installOfficeHours({getState:(
   startRetry:startOfficeRetry,
   save:questions=>{const previous=state.studyQuestions;state.studyQuestions=questions;if(persist())return true;state.studyQuestions=previous;return false;}});
 const renderReference=installReferenceEditor({button:$('#pin-focus-reference'),card:$('#focus-reference'),getTask:focusedTask,
+  notify:message=>{toast(message);announce(message);},
   save:(id,reference)=>{
     const task=state.tasks.find(item=>item.id===id);if(!task)return false;
     const previous=task.reference;task.reference=reference;
@@ -1047,6 +1048,11 @@ function render(){
   if(renderedBundle!==bundleText){bundleButton.textContent=bundleText;renderedBundle=bundleText;}
   focusNotes.update(task,workspace==='focus');
   renderReference(task,workspace==='focus');
+  const wrapPreview=$('#focus-wrap-preview');
+  const reserve=workspace==='focus'&&t.status==='idle'?focusWrapUpDuration(state):0;
+  const wrapPreviewText=reserve?`Last ${reserve%60000===0?`${reserve/60000} min`:formatDuration(reserve)} for wrap-up`:'';
+  wrapPreview.hidden=!reserve;
+  if(wrapPreview.textContent!==wrapPreviewText)wrapPreview.textContent=wrapPreviewText;
   const wrap=workspace==='focus'&&focusWrapUp(state,clock.getTime());
   $('#focus-wrap-up').hidden=!wrap;
   $('#wrap-save-next').hidden=!task;
@@ -7063,7 +7069,14 @@ function formatDurationInput(event){
   input.setSelectionRange(caret,caret);
 }
 function finishEdit(focusTarget=editDuration){durationForm.hidden=true;editDuration.hidden=false;focusTarget.focus({preventScroll:true});}
-editDuration.onclick=()=>{typed.value=formatDuration(state.timer.sequence?state.timer.total:duration(state));typed.setCustomValidity('');editDuration.hidden=true;durationForm.hidden=false;typed.focus();typed.select();};
+editDuration.onclick=()=>{
+  typed.value=formatDuration(remaining(state)||state.timer.total);
+  typed.setCustomValidity('');
+  editDuration.hidden=true;
+  durationForm.hidden=false;
+  typed.focus({preventScroll:true});
+  typed.setSelectionRange(0,typed.value.length);
+};
 $('#cancel-duration').onclick=()=>finishEdit();
 typed.oninput=formatDurationInput;
 typed.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();finishEdit();}};

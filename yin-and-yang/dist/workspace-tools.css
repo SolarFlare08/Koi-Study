@@ -200,6 +200,7 @@
 .calendar-extension-times dd { margin: 2px 0 0; }
 #extend-running-block { margin: 5px 0; }
 .focus-timer-context { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: min(300px,85vw); margin: 5px 0; padding: 6px 9px; border: 1px solid var(--surface-line); border-radius: 8px; background: var(--surface-paper); color: var(--surface-ink); text-align: left; text-shadow: none; font-size: 11px; }
+#focus-wrap-preview { margin: 5px 0; font-size: 11px; line-height: 1.4; }
 .focus-timer-context > span { min-width: 0; }
 .focus-timer-context strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .focus-timer-context small { display: block; font-size: 10px; color: var(--surface-muted); }

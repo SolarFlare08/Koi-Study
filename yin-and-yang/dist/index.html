@@ -45,7 +45,7 @@
         <button id="edit-duration" type="button" title="Type a duration and press Enter" aria-label="Edit countdown duration"><span id="countdown" role="timer" aria-label="Focus time remaining">25<span>:</span>00</span></button>
         <form id="duration-form" hidden>
           <input id="typed-duration" aria-label="Duration, minutes and seconds" inputmode="numeric" aria-describedby="duration-hint" placeholder="00:00" enterkeyhint="done" required maxlength="6">
-          <span id="duration-hint" class="sr-only">Type digits from right to left. For one minute type 100.</span>
+          <span id="duration-hint" class="sr-only">The whole duration is selected. Type digits from right to left. For one minute type 100.</span>
           <div class="duration-actions">
             <button type="submit" title="Save duration (Enter)">Set</button>
             <button type="button" id="cancel-duration">Cancel</button>
@@ -53,7 +53,8 @@
         </form>
       </div>
       <div class="mode-tabs" aria-label="Timer mode"><button data-mode="focus" aria-pressed="true">Focus</button><button data-mode="break" aria-pressed="false">Rest</button></div>
-      <div class="timer-actions"><button id="reset-timer" class="icon-button" title="Reset timer" aria-label="Reset timer"><span data-icon="reset"></span></button><button id="toggle-timer" class="start-button" aria-keyshortcuts="Space" title="Start or pause (Space)"><span data-icon="play"></span><span>Begin focus</span></button><button id="skip-timer" class="icon-button" title="Skip session" aria-label="Skip session"><span data-icon="skip"></span></button></div>
+      <div class="timer-actions"><button id="reset-timer" class="icon-button" title="Reset timer" aria-label="Reset timer"><span data-icon="reset"></span></button><button id="toggle-timer" class="start-button" aria-keyshortcuts="Space" aria-describedby="focus-wrap-preview" title="Start or pause (Space)"><span data-icon="play"></span><span>Begin focus</span></button><button id="skip-timer" class="icon-button" title="Skip session" aria-label="Skip session"><span data-icon="skip"></span></button></div>
+      <p id="focus-wrap-preview" hidden></p>
       <div class="sky-task">
         <button id="current-task" type="button" aria-haspopup="dialog" aria-expanded="false">
           <span data-icon="target" class="current-task-icon"></span>
@@ -100,7 +101,16 @@
     </section>
     <aside id="focus-retry" class="focus-retry-card" aria-label="Mistake retry" hidden></aside>
     <aside id="focus-handoff" aria-labelledby="focus-handoff-title" hidden></aside>
-    <aside id="focus-reference" aria-label="Pinned reference" hidden><header><strong>Pinned reference</strong><button type="button" aria-haspopup="dialog">Edit</button></header><div data-reference-text></div><img alt="Pinned diagram" hidden></aside>
+    <aside id="focus-reference" aria-label="Pinned reference" hidden>
+      <header>
+        <strong>Pinned reference</strong>
+        <div class="reference-actions">
+          <button type="button" data-copy-reference>Copy</button>
+          <button type="button" data-edit-reference aria-haspopup="dialog">Edit</button>
+        </div>
+      </header>
+      <div data-reference-text></div><img alt="Pinned diagram" hidden>
+    </aside>
     <aside id="focus-notes-panel" aria-labelledby="focus-notes-title" hidden>
       <header><h2 id="focus-notes-title">Task notes</h2><button type="button" data-focus-notes-close aria-label="Close notes">×</button></header>
       <div class="focus-notes-list"></div>
