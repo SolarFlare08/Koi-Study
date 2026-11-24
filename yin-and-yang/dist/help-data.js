@@ -129,6 +129,8 @@ export const helpTopics = [
       'Type `fit 20m` to list tasks that fit the window, including useful first steps on longer tasks. Results show time for work, planned rest when needed, and time left over.',
       'Type `focus "LinAlg" 40m` to start a timer for a ready task. Put the task name or part of it in quotes. If several tasks match, choose one from the results. Longer task sessions use Garden’s usual split timing. Finish or reset an active session before starting another.',
       'Type `handoff "Resume at problem 4b"` to update the current task’s next step without changing its saved location or resource. Type `stuck "Why does this boundary term vanish?"` to file a question on the task project’s Office-hours sheet, or on the General sheet for an Inbox task. Both commands leave the current timer running.',
+      'Type `schedule "Lab report" tomorrow 3pm 45m` and review the proposed calendar block and any overlaps. Choose `Schedule block` or `Schedule with overlap` to place it, or `Cancel` to discard the preview.',
+      'Type `snooze "Order yarn" until Friday` to hide a task from the focus queue until that date. Its deadline and calendar blocks stay in place. Both commands accept an ISO date such as 2026-11-27, and ask you to choose a task when several match.',
       'Try `open calendar` to switch workspaces or `find chapter 4` to search saved items. Select a search result to open it.',
       'Type task followed by a title to prefill the task editor. Type capture followed by a thought to save it to the Note inbox.',
       'Use the Up and Down arrows in the input to recall recent commands. Type `clear` to clear the transcript or `version` to see the build number. The transcript and command history last until you reload.'],

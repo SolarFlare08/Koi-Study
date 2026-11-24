@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.5',date:'2026-11-24',title:'Schedule and snooze tasks from Prompt',changes:[
+    'Preview a new calendar block and its overlaps before placing it with schedule.',
+    'Use snooze to hide a task from the focus queue until a chosen date while keeping its deadline.'
+  ]},
   {version:'6.0.4',date:'2026-11-24',title:'Handoffs and office-hours questions in Prompt',changes:[
     'Save the current task’s next step with handoff while staying in Prompt.',
     'Use stuck to file a question against the current task on its Office-hours sheet.'

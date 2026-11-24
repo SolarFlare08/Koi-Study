@@ -552,12 +552,15 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   openHelp:()=>helpGuide.open('command-prompt'),
   openWorkspace:name=>{visitWorkspace(name);return workspace===name;},
   runTimer:runPromptTimer,
-  getFocusTasks:promptFocusTasks,
+  getFocusTasks:()=>promptTaskChoices(gardenFocusQueue()),
+  getTasks:()=>promptTaskChoices(promptPlanningTasks()),
   today:promptToday,
   next:promptNext,
   fit:promptFit,
   handoff:savePromptHandoff,
   stuck:savePromptQuestion,
+  schedule:previewPromptSchedule,
+  snooze:snoozePromptTask,
   addTask:title=>{
     if(title.length>300)return 'Use a task title of 300 characters or fewer.';
     openTaskEditor(null,$('#prompt-input'),{text:title});
@@ -1075,9 +1078,9 @@ function promptNext(){
     handoff.length?`Last handoff:\n${handoff.join('\n')}`:'No handoff saved.'
   ].join('\n');
 }
-function promptFocusTasks(){
+function promptTaskChoices(tasks){
   const now=new Date();
-  return gardenFocusQueue(now).map(task=>{
+  return tasks.map(task=>{
     const day=nextTaskDate(task,now);
     return {id:task.id,title:task.text,context:[
       state.projects.find(project=>project.id===task.projectId)?.name||'Inbox',
@@ -1085,6 +1088,55 @@ function promptFocusTasks(){
       task.estimate&&minutesLabel(task.estimate)
     ].filter(Boolean).join(' · ')};
   });
+}
+function promptPlanningTasks(){
+  return gardenTasks().filter(task=>!task.done);
+}
+function previewPromptSchedule(id,placement,reviewed){
+  const {date,start,minutes}=placement;
+  const tasks=promptPlanningTasks(),task=tasks.find(item=>item.id===id);
+  if(!task||!openFocusBlock({task,occurrence:date}))return {text:'That task is unavailable or already complete for this date.'};
+  const impact=scheduleImpact(tasks,state.calendarEvents,placement,new Date(),schedulingCutoff());
+  if(!impact)return {text:'That date, time, or duration is unavailable.'};
+  const {overlaps}=impact;
+  const end=start+minutes,endDate=end>=1440?dayKey(shiftDay(new Date(date+'T00:00:00'),1)):date;
+  const time=`${shortScheduleDate(date)} · ${timeLabel(start)}–${timeLabel(end%1440)}${endDate===date?'':` ${shortScheduleDate(endDate)}`}`;
+  const lines=overlaps.map(item=>`  - ${item.title} · ${minutesLabel(item.end-item.start)} overlap${item.date===date?'':` · ${shortScheduleDate(item.date)}`}`);
+  const preview=[`Schedule ${task.text}`,`${time} · ${minutesLabel(minutes)}`,
+    ...(lines.length?['Overlaps:',...lines]:['No timed overlaps.'])].join('\n');
+  const signature=JSON.stringify([task.text,overlaps]);
+  if(reviewed!==signature)return {
+    text:(reviewed?'The schedule changed. Review the updated block.\n\n':'')+preview,
+    label:overlaps.length?'Schedule with overlap':'Schedule block',
+    confirm:()=>previewPromptSchedule(id,placement,signature)
+  };
+  const finishUndo=captureTaskChange(task,['blocks']);
+  addTaskBlock(task,date,timeValue(start),minutes);
+  const undo=finishUndo();
+  if(!persist()){
+    undo?.(state);
+    return {text:'Could not schedule the block on this device.'};
+  }
+  refreshTasks();
+  confirmChange('Block scheduled.',undo);
+  return {text:`Scheduled ${task.text} · ${time}.`};
+}
+function snoozePromptTask(id,date){
+  if(date<=dayKey())return 'Choose a future date to snooze the task.';
+  const task=promptPlanningTasks().find(item=>item.id===id);
+  if(!task)return 'That task is no longer open.';
+  const message=`Snoozed ${task.text} until ${shortScheduleDate(date)}.`;
+  if(task.snoozedUntil===date)return message;
+  const finishUndo=captureTaskChange(task,['snoozedUntil']);
+  task.snoozedUntil=date;
+  const undo=finishUndo();
+  if(!persist()){
+    undo?.(state);
+    return 'Could not snooze the task on this device.';
+  }
+  refreshTasks();
+  confirmChange(message,undo);
+  return message;
 }
 function promptFit(available){
   const fits=tasksWithinTime(gardenFocusQueue(),available,'',true);
