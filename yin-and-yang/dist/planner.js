@@ -244,7 +244,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
   function column({key,title,tasks,day='',sectionId='',overdue=false,allowAdd=true,scheduleTasks=tasks}) {
     const dateForTask=task=>day||nextTaskDate(task,new Date(),true);
     const cards=sortTasks(tasks).map(task=>card(task,dateForTask(task))).join('');
-    return `<section class="planner-column" ${day?`data-board-day="${day}"`:view==='project'?`data-board-section="${escape(sectionId)}"`:''}>
+    return `<section class="planner-column" data-board-key="${escape(key)}" ${day?`data-board-day="${day}"`:view==='project'?`data-board-section="${escape(sectionId)}"`:''}>
       <header><h3>${escape(title)} <small>${tasks.length}</small></h3>${overdue?'<button type="button" data-manage="reschedule">Reschedule</button>':''}${sectionId?`<button type="button" data-manage="section" data-value="${escape(sectionId)}" aria-label="Edit ${escape(title)} section">⋯</button>`:''}</header>
       <div class="planner-column-body">${day?dailyRituals(day):''}${timeStack(scheduleTasks,day)}${cards}${allowAdd?quickForm(key,{date:day,sectionId}):''}${!cards&&!allowAdd?'<p class="planner-empty">No tasks here.</p>':''}</div>
     </section>`;

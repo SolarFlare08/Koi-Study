@@ -302,7 +302,8 @@ export const helpTopics = [
       'Set its project, section, date, time, estimate, deadline, priority, labels, or reminder in the properties area.',
       'Set `Snooze until` to keep the task out of the focus queue until that date. Its schedule and deadline stay visible in Planner. Clear the date to bring it back early.',
       'Expand `Task templates` and choose `Save as template` to reuse a task’s subtasks, labels, and estimate. In a new task, select a saved template and choose `Use template`. Review the draft and save it as a task.',
-      'Save the task. Click its title to edit it again. Right-click a task to choose Finish task, edit it, prioritize it, focus on it, or delete it. You can reopen completed tasks from the same menu.'],
+      'Save the task. Click its title to edit it again. Closing the editor returns you to the same scroll position in the task list or calendar.',
+      'Right-click a task or open its menu. Choose Copy task title to paste the name into a search, or use the menu to edit, prioritize, finish, reopen, or delete the task.'],
     tip:'Task reminders are shown while the app is open. A task’s estimate is also useful for scheduling and estimate-accuracy reports.',
     action:'planner', actionLabel:'Open Planner', related:['repeat','quick-add','completion','waiting-for']
   },
@@ -954,7 +955,7 @@ export const helpTopics = [
       ['/','Open Planner task search when you are not typing or in a dialog.'],
       ['Shift+V','Cycle supported Planner layouts outside forms and dialogs.'],
       ['Arrow keys','Reposition/resize a sticky note when its handle is focused; navigate calendar dates when the schedule is focused.'],
-      ['Escape','Close the current panel or dialog; exit Calendar or Focus mode when no panel is open.'],
+      ['Escape','Close one layer per press. For example, close the task menu first, then close Calendar.'],
       ['Tab / Shift+Tab','Move forward/backward between interactive controls.']],
     tip:'The system-wide note shortcut needs the optional Windows helper. Other shortcuts work while the app has keyboard focus.',
     related:['capture-window','timer','search']

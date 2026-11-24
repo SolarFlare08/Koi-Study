@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'5.21.10',date:'2026-11-23',title:'Keep your place in tasks and Calendar',changes:[
+    'Copy a task title from its menu.',
+    'Return to the same scroll position after saving or closing a task editor.',
+    'Press Escape to close one layer at a time, starting with the task menu when it is open.'
+  ]},
   {version:'5.21.9',date:'2026-11-23',title:'Clearer estimates and calendar times',changes:[
     'See an inline warning if a task’s minimum useful time exceeds its estimate.',
     'Resize confirmations say which edge moved, by how much, and to what time.',

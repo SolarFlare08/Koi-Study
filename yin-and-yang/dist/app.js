@@ -112,6 +112,7 @@ const taskMenu=$('#task-menu');
 const builtinRoutines=[{id:'classic',name:'Classic',focus:25*60000,rest:5*60000},{id:'deep',name:'Deep work',focus:50*60000,rest:10*60000}];
 const desktopTasks=matchMedia('(min-width: 981px)');
 let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1,agendaOffset=0,agendaMarkup='';
+let taskEditorScroll=null;
 let taskDraft=null,blockDraft=null,calendarLayoutDay='',calendarOpenMinute,eventDraft=null;
 let railDate='',railMonth=null,railMarkup='';
 let calendarAnchor=null,calendarExit=null,menuTaskId=null,menuAnchor=null,taskColorMenuId=null;
@@ -3600,8 +3601,26 @@ function positionPanel(panel,anchor){
   panel.style.top=`${Math.max(16,Math.min(y,H-h-16))}px`;
 }
 function visiblePanel(){return root.querySelector('.panel:not(.music-hidden,.music-mini)');}
+function keepTaskEditorScroll(){
+  const origin=workspace;
+  const scrollers=[document.scrollingElement,...document.querySelectorAll(
+    '#task-sidebar, #task-board, #planner-content, #calendar-scroll, #calendar-task-tray, #notes-workspace .sticky-viewport'
+  )].filter(element=>element?.getClientRects().length);
+  const offsets=scrollers.map(element=>({element,left:element.scrollLeft,top:element.scrollTop}));
+  const columnSelector='#planner-content [data-board-key] > .planner-column-body';
+  const columnOffsets=new Map([...document.querySelectorAll(columnSelector)].map(element=>[element.parentElement.dataset.boardKey,element.scrollTop]));
+  return ()=>{
+    if(workspace!==origin)return;
+    for(const {element,left,top} of offsets)element.scrollTo({left,top,behavior:'instant'});
+    for(const element of document.querySelectorAll(columnSelector)){
+      const top=columnOffsets.get(element.parentElement.dataset.boardKey);
+      if(top!==undefined)element.scrollTop=top;
+    }
+  };
+}
 function openPanel(id,anchor,landmarkIndex=null){
   if(closePanel(false)===false)return;
+  if(id==='task-editor')taskEditorScroll=keepTaskEditorScroll();
   if(id==='capture')activeCaptureContext=currentCaptureContext();
   if(id==='focus-goal')goalTimer=state.timer;
   if(id==='appearance')seasonPreview=effectiveAppearance.season;
@@ -3638,6 +3657,8 @@ function closePanel(restore=true){
     returnToCaptureInbox=false;openCaptureInbox(false);return;
   }
   const wasEvening=activePanel==='evening-lights';
+  const restoreScroll=activePanel==='task-editor'?taskEditorScroll:null;
+  if(restoreScroll)taskEditorScroll=null;
   app.classList.remove('evening-view','evening-layout');
   if(activePanel==='garden-landmark')landmarkPanelSize.disconnect();
   const p=visiblePanel();if(p){if(p.id==='music-panel'){p.classList.add('music-hidden');p.setAttribute('aria-hidden','true');p.inert=true;p.querySelector('h2').id='music-hidden-title';p.setAttribute('aria-labelledby','music-hidden-title');}else p.remove();}
@@ -3653,6 +3674,7 @@ function closePanel(restore=true){
   selectedLandmark=null;
   activePanel=null;
   if(wasEvening)render();
+  restoreScroll?.();
   wake();
 }
 function refreshPanel(){
@@ -4197,7 +4219,7 @@ function openTaskMenu(id,anchor,x,y){
   menuTaskId=id;
   menuAnchor=anchor;
   const status=taskStatus(task,taskOccurrence(anchor));
-  const actions=[['edit','Edit task'],['color','Change color…'],['priority',task.priority?'Remove priority':'Prioritize'],['schedule','Add a block…']];
+  const actions=[['edit','Edit task'],['copy-title','Copy task title'],['color','Change color…'],['priority',task.priority?'Remove priority':'Prioritize'],['schedule','Add a block…']];
   actions.push(['duplicate','Duplicate task']);
   if(anchor.classList.contains('calendar-block'))actions.unshift(['block-focus','Start focus…']);
   if(anchor.dataset.block)actions.push(['edit-block','Edit block'],['remove-block','Remove block']);
@@ -4346,11 +4368,19 @@ function finishCurrentTask(button){
   confirmChange(`Task finished. ${activity}${next?` Up next: ${next.text}.`:''}`,undo);
 }
 
-taskMenu.addEventListener('click',event=>{
+taskMenu.addEventListener('click',async event=>{
   const action=event.target.closest('[data-task-action]')?.dataset.taskAction;
   const task=state.tasks.find(item=>item.id===menuTaskId);
   if(action==='skip-date'&&menuAnchor){const anchor=menuAnchor;closeTaskMenu(false);skipCalendarDate(task,anchor);return;}
   if(!action||!task)return;
+  if(action==='copy-title'){
+    closeTaskMenu();
+    let message;
+    try{await navigator.clipboard.writeText(task.text);message='Task title copied.';}
+    catch{message='Could not copy the task title.';}
+    toast(message);announce(message);
+    return;
+  }
   const anchor=menuAnchor;
   const blockSurface=anchor.closest('#mini-calendar')||calendarPanel;
   closeTaskMenu(false);
@@ -6987,11 +7017,12 @@ root.addEventListener('submit',e=>{
       state.activeTask=before;
       return;
     }
+    const restoreScroll=taskEditorScroll;
     closePanel(false);refreshTasks();
-    if(captureKey&&returnToCaptureInbox){finishCaptureFiling('Thought filed as a task.');return;}
+    if(captureKey&&returnToCaptureInbox){restoreScroll?.();finishCaptureFiling('Thought filed as a task.');return;}
     if(e.submitter?.value==='plan-deadline'&&!waitingFor&&canPlanDeadline(task)){
       const anchor=inSchedule()?$('#planner-heading'):taskButton(task.id)||$('#sidebar-add-task');
-      openDeadlinePlanner(task.id,anchor);return;
+      restoreScroll?.();openDeadlinePlanner(task.id,anchor);return;
     }
     if(status==='upcoming'&&workspace==='focus')$('.task-upcoming')?.setAttribute('open','');
     if(fromCurrentTask)currentTaskButton.focus({preventScroll:true});
@@ -7000,7 +7031,8 @@ root.addEventListener('submit',e=>{
       stickyBoard.render();
       $(`[data-sticky-id="${CSS.escape(noteId)}"] [data-note-action="task"]`)?.focus({preventScroll:true});
     }
-    else taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus();
+    else taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus({preventScroll:true});
+    restoreScroll?.();
     const move=finishMove?.();
     if(move)confirmChange('Task moved.',restoreActiveTask(move,before,state.activeTask));
     else if(linkedNote)confirmChange('Task created and linked to its note.');
@@ -7111,12 +7143,24 @@ document.addEventListener('keydown',e=>{
     const form=activePanel==='capture'?$('#capture-form'):activePanel==='resume'?$('#resume-form'):null;
     if(form){e.preventDefault();form.requestSubmit();return;}
   }
-  if(e.key==='Escape'&&workspaceMenuOpen()){e.preventDefault();setWorkspaceMenu(false,true);return;}
-  if(e.key==='Escape'&&!taskMenu.hidden){e.preventDefault();closeTaskMenu();return;}
-  if(e.key==='Escape'&&activePanel){e.preventDefault();closePanel();return;}
-  if(e.key==='Escape'&&inSchedule()&&planner.calendarVisible()&&!calendarShelf.hidden){e.preventDefault();setCalendarShelf(false);return;}
-  if(e.key==='Escape'&&inSchedule()){e.preventDefault();closeCalendar();return;}
-  if(e.key==='Escape'&&state.focusMode&&!e.defaultPrevented){e.preventDefault();toggleFocusMode();return;}
+  if(e.key==='Escape'){
+    if(e.defaultPrevented)return;
+    if(e.repeat){e.preventDefault();return;}
+    if(!taskMenu.hidden)closeTaskMenu();
+    else if(workspaceMenuOpen())setWorkspaceMenu(false,true);
+    else if(activePanel)closePanel();
+    else if(inSchedule()&&planner.calendarVisible()&&!calendarShelf.hidden)setCalendarShelf(false);
+    else if(inSchedule()&&compactCalendarRail.matches&&calendarPanel.classList.contains('calendar-rail-open')){
+      calendarPanel.classList.remove('calendar-rail-open');
+      syncCalendarRail();
+      calendarRailToggle.focus({preventScroll:true});
+    }
+    else if(inSchedule())closeCalendar();
+    else if(state.focusMode)toggleFocusMode();
+    else return;
+    e.preventDefault();
+    return;
+  }
   if(captureInboxShortcut(e))return;
   const p=visiblePanel();
   if(e.key==='Tab'&&p){
