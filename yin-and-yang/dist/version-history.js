@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.3',date:'2026-11-24',title:'Task fit and named focus in Command Prompt',changes:[
+    'Use fit 20m to find ready tasks or useful first steps for a time window.',
+    'Start focus for a named task and choose from the results when multiple ready tasks match.'
+  ]},
   {version:'6.0.2',date:'2026-11-24',title:'Today and next in Command Prompt',changes:[
     'Run today to see the next timed commitment, ready focus pins, and overdue work.',
     'Run next to see the first ready focus task, its estimate, and its saved handoff.'

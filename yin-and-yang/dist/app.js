@@ -552,8 +552,10 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   openHelp:()=>helpGuide.open('command-prompt'),
   openWorkspace:name=>{visitWorkspace(name);return workspace===name;},
   runTimer:runPromptTimer,
+  getFocusTasks:promptFocusTasks,
   today:promptToday,
   next:promptNext,
+  fit:promptFit,
   addTask:title=>{
     if(title.length>300)return 'Use a task title of 300 characters or fewer.';
     openTaskEditor(null,$('#prompt-input'),{text:title});
@@ -1071,6 +1073,29 @@ function promptNext(){
     handoff.length?`Last handoff:\n${handoff.join('\n')}`:'No handoff saved.'
   ].join('\n');
 }
+function promptFocusTasks(){
+  const now=new Date();
+  return gardenFocusQueue(now).map(task=>{
+    const day=nextTaskDate(task,now);
+    return {id:task.id,title:task.text,context:[
+      state.projects.find(project=>project.id===task.projectId)?.name||'Inbox',
+      day&&shortScheduleDate(day),
+      task.estimate&&minutesLabel(task.estimate)
+    ].filter(Boolean).join(' · ')};
+  });
+}
+function promptFit(available){
+  const fits=tasksWithinTime(gardenFocusQueue(),available,'',true);
+  if(!fits.length)return `No ready tasks fit ${minutesLabel(available)}.`;
+  const lines=fits.map(task=>{
+    const {minutes,partial,restMs,spareMs}=taskTimeFit(task,available,true);
+    const work=partial?`${minutesLabel(minutes)} first step`:`${minutesLabel(minutes)} of work`;
+    const total=partial&&task.estimate?` · ${minutesLabel(task.estimate)} total`:'';
+    const rest=restMs?` · ${durationWords(restMs)} of planned rest`:'';
+    return `  - ${task.text} · ${work}${total}${rest} · ${spareMs?durationWords(spareMs):'0 min'} spare`;
+  });
+  return [`Ready work that fits ${minutesLabel(available)}:`,...lines].join('\n');
+}
 function renderNextCommitment(clock){
   const label=$('#next-calendar-commitment');
   if(workspace!=='focus'){label.hidden=true;return;}
@@ -1330,42 +1355,54 @@ async function toggleNotifications(){
   if(activePanel==='pagoda')refreshPanel();
 }
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
-function runPromptTimer(command,arg){
-  const timed=command==='focus'||command==='rest';
-  if(!timed&&arg)return `Use ${command} without an argument.`;
-  const units=timed?arg.match(/^(\d+)\s*([ms])$/i):null;
-  const ms=units?Number(units[1])*(units[2].toLowerCase()==='m'?60000:1000):/^\d{1,3}:[0-5]\d$/.test(arg)?parseDuration(arg):null;
-  if(timed&&(!ms||ms>10800000))return `Use ${command} with a duration from 1s to 180m, such as ${command} 5m or ${command} 05:00.`;
+function runPromptTimer(command,ms=0,taskId){
+  const timed=ms>0;
   checkCompletion();
   const timer=state.timer;
+  const now=new Date(),task=taskId&&gardenFocusQueue(now).find(item=>item.id===taskId);
+  if(taskId&&!task)return 'That task is no longer ready. Run focus again to see the available matches.';
   const kind=mode=>mode==='focus'?'Focus':'Rest';
   if(command==='status'){
     if(timer.status==='overtime')return `Focus overtime · +${formatDuration(overtimeElapsed(timer))}`;
     return `${kind(timer.mode)} · ${timer.status==='idle'?'ready':timer.status} · ${formatDuration(remaining(state))}`;
   }
-  if(timed&&(timer.status!=='idle'||timer.sequence||timer.taskPlan||timer.taskBreak||timer.mistakeId)){
+  const hasTaskPlan=timer.taskPlan&&(!task||timer.taskPlan.stage!=='first');
+  if(timed&&(timer.status!=='idle'||timer.id||timer.block||timer.sequence||hasTaskPlan||timer.taskBreak||timer.mistakeId)){
     return 'Finish the current session or plan in Garden before starting a different countdown.';
   }
   if(command==='pause'&&timer.status!=='running')return 'There’s no running countdown to pause.';
   if(command==='start'&&timer.status==='running')return 'The countdown is already running.';
   if(timer.status==='overtime')return 'Finish overtime in Garden before starting another countdown.';
-  const previous=structuredClone(timer);
+  const {activeTask,activeTaskDay,activeBundle}=state;
+  const previous={activeTask,activeTaskDay,activeBundle,timer:structuredClone(timer)};
   if(timed){
     const mode=command==='focus'?'focus':'break';
-    reset(state,mode);
-    state.timer.total=state.timer.remaining=ms;
-    if(timer.goal&&mode===timer.mode)state.timer.goal=timer.goal;
+    const goal=timer.goal&&mode===timer.mode&&(!task||focusedTask(now)?.id===task.id)?timer.goal:'';
+    if(task){
+      state.activeTask=task.id;state.activeTaskDay=dayKey(now);
+      pauseBundleForTask(task.id);
+    }
+    if(task&&ms>=60000)startTaskTiming(state,task.id,ms/60000);
+    else{
+      reset(state,mode);
+      state.timer.total=state.timer.remaining=ms;
+    }
+    if(goal)state.timer.goal=goal;
   }
-  toggleFocusTimer(focusedTask());
+  toggleFocusTimer(task||focusedTask(now),+now);
   if(state.timer.status!==(command==='pause'?'paused':'running')){
-    state.timer=previous;
+    Object.assign(state,previous);
     return 'Choose a ready task for the current bundle in Garden before starting.';
   }
   if(!persist()){
-    state.timer=previous;
+    Object.assign(state,previous);
     return 'Could not save the timer change.';
   }
   render();wake();
+  if(task){
+    const split=ms>3600000?` · first focus phase of ${formatDuration(ms)} planned work`:'';
+    return `Focus started for ${task.text} · ${formatDuration(state.timer.total)}${split}`;
+  }
   return `${kind(state.timer.mode)} ${command==='pause'?'paused':'started'} · ${formatDuration(remaining(state))}`;
 }
 function toggleFocusTimer(task,now=Date.now()){
