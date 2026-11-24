@@ -11,6 +11,9 @@ export function loadQuestions(raw){
     ...(q.retries?{retries:retryHistory(q.retries)}:{})
   }));
 }
+export function officeHoursQuestion(question,{projectId='',task,ref=''}={}){
+  return {id:crypto.randomUUID(),projectId,taskId:task?.id||'',taskTitle:task?.text||'',question,ref,answered:false,answer:''};
+}
 export function meetingItems(state,projectId){
   const project=state.projects.find(p=>p.id===projectId);
   const questions=state.studyQuestions.filter(q=>q.projectId===projectId);
@@ -38,7 +41,7 @@ export function installOfficeHours({getState,save,focusedTask,switchTask,startRe
     dialog.querySelector('form').onsubmit=e=>{
       e.preventDefault();const fields=e.target.elements,question=fields.question.value.trim();if(!question)return;
       course=fields.course.value;
-      const entry={id:crypto.randomUUID(),projectId:course,taskId:task?.id||'',taskTitle:task?.text||'',question,ref:fields.ref.value.trim(),answered:false,answer:''};
+      const entry=officeHoursQuestion(question,{projectId:course,task,ref:fields.ref.value.trim()});
       if(!save([...getState().studyQuestions,entry]))return;
       if(e.submitter?.value==='sheet'){sheet(course);return;}
       dialog.close();if(e.submitter?.value==='switch')switchTask();else notify('Question saved. Your session can continue.');

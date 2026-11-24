@@ -128,6 +128,7 @@ export const helpTopics = [
       'Type `today` to see the next timed calendar commitment, ready focus tasks pinned for today, and Planner’s overdue work. Type `next` to see the first ready task in Garden’s focus order, its estimate, and any saved handoff.',
       'Type `fit 20m` to list tasks that fit the window, including useful first steps on longer tasks. Results show time for work, planned rest when needed, and time left over.',
       'Type `focus "LinAlg" 40m` to start a timer for a ready task. Put the task name or part of it in quotes. If several tasks match, choose one from the results. Longer task sessions use Garden’s usual split timing. Finish or reset an active session before starting another.',
+      'Type `handoff "Resume at problem 4b"` to update the current task’s next step without changing its saved location or resource. Type `stuck "Why does this boundary term vanish?"` to file a question on the task project’s Office-hours sheet, or on the General sheet for an Inbox task. Both commands leave the current timer running.',
       'Try `open calendar` to switch workspaces or `find chapter 4` to search saved items. Select a search result to open it.',
       'Type task followed by a title to prefill the task editor. Type capture followed by a thought to save it to the Note inbox.',
       'Use the Up and Down arrows in the input to recall recent commands. Type `clear` to clear the transcript or `version` to see the build number. The transcript and command history last until you reload.'],

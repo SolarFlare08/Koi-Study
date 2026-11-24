@@ -20,13 +20,15 @@ function promptDuration(value){
   return clock?(Number(clock[1])*60+Number(clock[2]))*1000:0;
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,today,next,fit,addTask,capture,version,openHelp}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,today,next,fit,handoff,stuck,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
     namedFocus:['focus "LinAlg" 40m','Select a task by name and start its timer.'],
     today:['today','Show the next commitment, pinned focus tasks, and overdue work.'],
     next:['next','Show the next ready task, estimate, and saved handoff.'],
     fit:['fit 20m','Find full tasks or useful first steps for the time you have.'],
+    handoff:['handoff "Resume at problem 4b"','Save the current task’s next step.'],
+    stuck:['stuck "Why does this boundary term vanish?"','Save an office-hours question for the current task.'],
     open:['open calendar','Switch to a workspace.'],
     find:['find ','Search tasks, notes, books, and journal entries.'],
     task:['task ','Open the task editor with a title filled in.'],
@@ -48,7 +50,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     <div class="prompt-screen" role="region" aria-label="Terminal" tabindex="0">
       <div class="prompt-log" role="log" aria-label="Command output"><p class="prompt-banner"></p><p>Type <code>help</code> for available commands.</p></div>
       <form class="prompt-form"><span aria-hidden="true">${promptPath}</span><label for="prompt-input" class="sr-only">Enter an app command</label>
-        <input id="prompt-input" type="text" maxlength="1040" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="prompt-history-hint">
+        <input id="prompt-input" type="text" maxlength="2040" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="prompt-history-hint">
         <button type="submit">Run</button>
       </form>
     </div>
@@ -109,6 +111,13 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     }
     if(Object.hasOwn(timerCommands,name))return arg?`Use ${name} without an argument.`:runTimer(name);
     if(name==='today'||name==='next')return arg?`Use ${name} without an argument.`:name==='today'?today():next();
+    if(name==='handoff'||name==='stuck'){
+      const example=commands[name][0];
+      const quoted=/^(?:"([\s\S]*)"|“([\s\S]*)”)$/.exec(arg);
+      const message=(quoted?(quoted[1]??quoted[2]):/^["“]/.test(arg)?'':arg).trim();
+      if(!message)return `Use ${example}.`;
+      return name==='handoff'?handoff(message):stuck(message);
+    }
     switch(name){
       case 'fit': {
         const minutes=promptDuration(arg)/60000;
@@ -123,7 +132,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
       case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m.\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m.\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nCurrent task: handoff "next step" saves a handoff; stuck "question" saves to office hours.\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }

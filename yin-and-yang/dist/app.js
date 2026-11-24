@@ -36,7 +36,7 @@ import {installReferenceEditor} from './focus-reference.js';
 import {installCalendarResize} from './calendar-resize.js';
 import {installBatchMove} from './calendar-batch.js';
 import {installBrush} from './calendar-brush.js';
-import {installOfficeHours} from './office-hours.js';
+import {installOfficeHours,officeHoursQuestion} from './office-hours.js';
 import {openSemesterReplay} from './semester-replay.js';
 import {installPostcardViewpoints} from './postcard-viewpoints.js';
 import {dailyRitualMarkup,loadRitualSchedules,ritualComplete,rituals,scheduledRituals} from './daily-rituals.js';
@@ -533,7 +533,7 @@ const openPostcardViewpoints=installPostcardViewpoints({
 });
 $('#stuck-now').onclick=$('#focus-stuck').onclick=installOfficeHours({getState:()=>state,focusedTask,notify:toast,switchTask:()=>currentTaskButton.click(),
   startRetry:startOfficeRetry,
-  save:questions=>{const previous=state.studyQuestions;state.studyQuestions=questions;if(persist())return true;state.studyQuestions=previous;return false;}});
+  save:saveOfficeQuestions});
 const renderReference=installReferenceEditor({button:$('#pin-focus-reference'),card:$('#focus-reference'),getTask:focusedTask,
   notify:message=>{toast(message);announce(message);},
   save:(id,reference)=>{
@@ -556,6 +556,8 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   today:promptToday,
   next:promptNext,
   fit:promptFit,
+  handoff:savePromptHandoff,
+  stuck:savePromptQuestion,
   addTask:title=>{
     if(title.length>300)return 'Use a task title of 300 characters or fewer.';
     openTaskEditor(null,$('#prompt-input'),{text:title});
@@ -1095,6 +1097,31 @@ function promptFit(available){
     return `  - ${task.text} · ${work}${total}${rest} · ${spareMs?durationWords(spareMs):'0 min'} spare`;
   });
   return [`Ready work that fits ${minutesLabel(available)}:`,...lines].join('\n');
+}
+function savePromptHandoff(note){
+  if(note.length>500)return 'Use a next step of 500 characters or fewer.';
+  checkCompletion();
+  const task=focusedTask();
+  if(!task)return 'Choose a current task in Garden or start one with focus "task name" 25m.';
+  if(!saveTaskHandoff(task,{resumeNote:note},currentHandoffSession(task.id)))return 'Could not save the handoff on this device.';
+  render();planner.refreshReporting();
+  return `Next step saved for ${task.text}.`;
+}
+function savePromptQuestion(question){
+  if(question.length>2000)return 'Use a question of 2,000 characters or fewer.';
+  checkCompletion();
+  const task=focusedTask();
+  if(!task)return 'Choose a current task in Garden or start one with focus "task name" 25m.';
+  const project=state.projects.find(item=>item.id===task.projectId);
+  const entry=officeHoursQuestion(question,{projectId:project?.id,task});
+  if(!saveOfficeQuestions([...state.studyQuestions,entry]))return 'Could not save the question on this device.';
+  return `Question saved for ${task.text} on the ${project?.name||'General'} office-hours sheet.`;
+}
+function saveOfficeQuestions(questions){
+  const previous=state.studyQuestions;
+  state.studyQuestions=questions;
+  if(persist())return true;
+  state.studyQuestions=previous;return false;
 }
 function renderNextCommitment(clock){
   const label=$('#next-calendar-commitment');
@@ -1672,6 +1699,27 @@ function readHandoff(form){
 function currentHandoffSession(taskId){
   const timer=state.timer;
   return timer.mode==='focus'&&timer.id&&focusedTask()?.id===taskId?timer.id:'';
+}
+function saveTaskHandoff(task,handoff,sessionId,end=false){
+  const previous=Object.fromEntries(Object.keys(handoff).map(key=>[key,task[key]]));
+  const priorTimer=state.timer,priorHistory=state.history,historyLength=priorHistory.length;
+  const session=sessionId&&sessionId===currentHandoffSession(task.id);
+  Object.assign(task,handoff);
+  const nextHandoff=sessionHandoff(task);
+  const savedHandoff=priorTimer.nextHandoff,savedHandoffTask=priorTimer.handoffTaskId;
+  if(session){priorTimer.nextHandoff=nextHandoff;priorTimer.handoffTaskId=task.id;}
+  else if(sessionId&&priorHistory.some(item=>item.id===sessionId&&item.mode==='focus')){
+    state.history=priorHistory.map(item=>item.id===sessionId?
+      {...item,nextHandoff:nextHandoff||undefined,handoffTaskId:nextHandoff?task.id:undefined}:item);
+  }
+  if(end){record(state,'completed',Date.now(),{early:true});reset(state,'break');}
+  if(persist()){
+    if(end)resumeTaskId=task.id;
+    return true;
+  }
+  Object.assign(task,previous);state.timer=priorTimer;state.history=priorHistory;priorHistory.length=historyLength;
+  if(session){priorTimer.nextHandoff=savedHandoff;priorTimer.handoffTaskId=savedHandoffTask;}
+  return false;
 }
 function updateHandoffEditor(){
   const form=$('#resume-form');
@@ -7000,25 +7048,8 @@ root.addEventListener('submit',e=>{
     if(!task)return;
     const handoff=readHandoff(e.target);
     if(!handoff)return;
-    const previous=Object.fromEntries(Object.keys(handoff).map(key=>[key,task[key]]));
-    const priorTimer=state.timer,priorHistory=state.history,historyLength=priorHistory.length;
-    const session=sessionId&&sessionId===currentHandoffSession(taskId);
-    const end=e.submitter?.value==='end'&&session;
-    Object.assign(task,handoff);
-    const nextHandoff=sessionHandoff(task);
-    const savedHandoff=priorTimer.nextHandoff, savedHandoffTask=priorTimer.handoffTaskId;
-    if(session){priorTimer.nextHandoff=nextHandoff;priorTimer.handoffTaskId=task.id;}
-    else if(sessionId&&priorHistory.some(item=>item.id===sessionId&&item.mode==='focus')){
-      state.history=priorHistory.map(item=>item.id===sessionId?
-        {...item,nextHandoff:nextHandoff||undefined,handoffTaskId:nextHandoff?task.id:undefined}:item);
-    }
-    if(end){record(state,'completed',Date.now(),{early:true});reset(state,'break');}
-    if(!persist()){
-      Object.assign(task,previous);state.timer=priorTimer;state.history=priorHistory;priorHistory.length=historyLength;
-      if(session){priorTimer.nextHandoff=savedHandoff;priorTimer.handoffTaskId=savedHandoffTask;}
-      return;
-    }
-    if(end)resumeTaskId=task.id;
+    const end=e.submitter?.value==='end'&&sessionId&&sessionId===currentHandoffSession(taskId);
+    if(!saveTaskHandoff(task,handoff,sessionId,end))return;
     const anchor=lastAnchor;
     closePanel();render();planner.refreshReporting();
     if(end||!anchor?.getClientRects().length)timerButton.focus({preventScroll:true});

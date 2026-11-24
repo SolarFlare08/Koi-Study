@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.4',date:'2026-11-24',title:'Handoffs and office-hours questions in Prompt',changes:[
+    'Save the current task’s next step with handoff while staying in Prompt.',
+    'Use stuck to file a question against the current task on its Office-hours sheet.'
+  ]},
   {version:'6.0.3',date:'2026-11-24',title:'Task fit and named focus in Command Prompt',changes:[
     'Use fit 20m to find ready tasks or useful first steps for a time window.',
     'Start focus for a named task and choose from the results when multiple ready tasks match.'
