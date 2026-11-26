@@ -30,11 +30,19 @@ function promptTime(value){
   return (period?hour%12+(period==='pm'?12:0):hour)*60+Number(match[2]||0);
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,today,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,row,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
+function promptMessage(value){
+  const quoted=/^(?:"([\s\S]*)"|“([\s\S]*)”)$/.exec(value);
+  return (quoted?(quoted[1]??quoted[2]):/^["“]/.test(value)?'':value).trim();
+}
+
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,today,agenda,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,row,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
+    pauseReason:['pause "Looking up the formula"','Pause focus and save the reason in the session replay.'],
     namedFocus:['focus "LinAlg" 40m','Select a task by name and start its timer.'],
     today:['today','Show the next commitment, pinned focus tasks, and overdue work.'],
+    agenda:['agenda tomorrow','Show tomorrow’s commitments, first task, and open gaps.'],
+    queue:['queue pin "LinAlg" first','Move a ready task to the front of today’s focus queue.'],
     next:['next','Show the next ready task, estimate, and saved handoff.'],
     fit:['fit 20m','Find full tasks or useful first steps for the time you have.'],
     handoff:['handoff "Resume at problem 4b"','Save the current task’s next step.'],
@@ -196,6 +204,10 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
 
   function execute(name,arg,entry){
     if(name==='focus')return runFocus(arg,entry);
+    if(name==='pause'&&arg){
+      const reason=promptMessage(arg);
+      return reason?pause(reason):`Use ${commands.pauseReason[0]}.`;
+    }
     if(name==='rest'){
       const ms=promptDuration(arg);
       return ms>0&&ms<=10800000?runTimer(name,ms):'Use rest with a duration from 1s to 180m, such as rest 5m.';
@@ -206,12 +218,18 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     if(name==='read'||name==='row')return runProgress(name,arg,entry);
     if(name==='handoff'||name==='stuck'){
       const example=commands[name][0];
-      const quoted=/^(?:"([\s\S]*)"|“([\s\S]*)”)$/.exec(arg);
-      const message=(quoted?(quoted[1]??quoted[2]):/^["“]/.test(arg)?'':arg).trim();
+      const message=promptMessage(arg);
       if(!message)return `Use ${example}.`;
       return name==='handoff'?handoff(message):stuck(message);
     }
     switch(name){
+      case 'agenda':return arg.toLowerCase()==='tomorrow'?agenda():'Use agenda tomorrow.';
+      case 'queue': {
+        const match=/^pin\s+(?:"([^"]+)"|“([^”]+)”)\s+first$/i.exec(arg);
+        const query=(match?.[1]??match?.[2]??'').trim();
+        if(!query)return `Use ${commands.queue[0]}.`;
+        return chooseMatch(query,getFocusTasks(),entry,({id})=>pin(id),'ready focus task','pin first');
+      }
       case 'extend': {
         const minutes=promptDuration(arg)/60000;
         if(!Number.isInteger(minutes)||minutes<1||minutes>1440)return 'Use extend with whole minutes, such as extend 10m.';
@@ -219,8 +237,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       }
       case 'review':return arg.toLowerCase()==='week'?reviewWeek():'Use review week.';
       case 'play': {
-        const quoted=/^(?:"([^"]*)"|“([^”]*)”)$/.exec(arg);
-        const query=(quoted?(quoted[1]??quoted[2]):/^["“]/.test(arg)?'':arg).trim();
+        const query=promptMessage(arg);
         if(!query)return 'Use play "Deep work".';
         const tracks=getSoundtracks();
         if(!tracks.length)return 'No soundtracks saved. Save one in Garden → Music & video.';
@@ -239,7 +256,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
       case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nHide from focus: snooze "Order yarn" until Friday.\nCurrent task: task done, handoff "next step", stuck "question".\nLog progress: read "Golden Son" p143, row "Left sleeve" +2.\nWeekly totals and handoffs: review week.\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nTomorrow’s commitments and gaps: agenda tomorrow.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nHide from focus: snooze "Order yarn" until Friday.\nCurrent task: task done, handoff "next step", stuck "question".\nLog progress: read "Golden Son" p143, row "Left sleeve" +2.\nWeekly totals and handoffs: review week.\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }

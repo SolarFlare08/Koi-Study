@@ -74,6 +74,13 @@ function freeRanges(busy, from, to) {
   return ranges;
 }
 
+export function agendaGaps(tasks,events,availability,date,cutoff,cooldown){
+  if(allDayEvents(events,date).length)return [];
+  const busy=[...withCooldown(commitments(tasks,[],date),cooldown),...planningEventRanges(events,date,cooldown),
+    ...unavailableRanges(availability,date)].sort((a,b)=>a.start-b.start);
+  return freeRanges(busy,workdayStart,cutoff);
+}
+
 function studyDay(tasks,events,availability,day,from,end,capacity,cooldown){
   const busy=commitments(tasks,[],day);
   const eventRanges=planningEventRanges(events,day,cooldown);

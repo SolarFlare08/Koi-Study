@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.0.10',date:'2026-11-25',title:'Pause reasons, queue pins, and tomorrow’s agenda in Prompt',changes:[
+    'Save a reason when you pause focus and see it in session replay.',
+    'Pin a ready task first in today’s queue without switching the running session.',
+    'See tomorrow’s commitments, first task, and open planning gaps.'
+  ]},
   {version:'6.0.9',date:'2026-11-25',title:'Finish tasks, move blocks, and extend timers in Prompt',changes:[
     'Use task done to complete your current task and choose a break or the next task.',
     'Move an existing block with its duration intact and preview overlaps before saving.',

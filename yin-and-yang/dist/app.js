@@ -5,7 +5,7 @@ import {gardenStarProgress,starConstellations} from './garden-growth.js';
 import {gardenConstellationSketch} from './scenery.js';
 import {addTaskBlock, allDayEvents, applyCalendarReplan, blockFocusTiming, blockProgressLabels, calendarBlockProgress, calendarBlocks, calendarDragType, calendarEventFromFields, calendarFocusTotals, calendarPlanningBuffers, calendarTaskBlock, weekDays, focusCalendarBlock, focusTaskQueue, layoutBlocks, openFocusBlock, replanToday, reserveTomorrowFocus, scheduledTaskTime, scheduleTask, shiftDay, timeLabel, timeMinutes, timeValue, tomorrowFocusSlot} from './calendar.js';
 import {calendarCatalog,calendarColors,calendarColor,calendarColorName,customCalendarColor,eventColorAttributes,calendarTheme,calendarSlotMinute,eventCalendarColor,eventCalendarId,loadCalendars,personalCalendarId,visibleCalendarEvents} from './calendar-layers.js';
-import {replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
+import {addReplayEvent,replayTaskSwitch,replaySessions,replayBlocks} from './focus-replay.js';
 import {currentFocusPause,editFocusPause} from './focus-replay.js';
 import {handoffLink,sessionHandoff,nextFocusSubtask} from './session-handoff.js';
 import {installExamPlans} from './exam-plans.js';
@@ -49,7 +49,7 @@ import {installCommandPrompt} from './command-prompt.js';
 import {summarizeWeek,weeklyStudySummary} from './weekly-planning.js';
 import {installHelp} from './help.js';
 import {appVersion,installVersionHistory} from './version-history.js';
-import {canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,scheduleImpact,todayTradeoffs} from './scheduling.js';
+import {agendaGaps,canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,scheduleImpact,todayTradeoffs} from './scheduling.js';
 import {nextTaskDate,overdueTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
 import {taskTemplate,projectResource} from './project-planning.js';
@@ -556,6 +556,9 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   getFocusTasks:()=>promptTaskChoices(gardenFocusQueue()),
   getTasks:()=>promptTaskChoices(promptPlanningTasks()),
   today:promptToday,
+  agenda:promptTomorrowAgenda,
+  pin:pinPromptTask,
+  pause:reason=>runPromptTimer('pause',0,undefined,reason),
   next:promptNext,
   fit:promptFit,
   handoff:savePromptHandoff,
@@ -918,16 +921,17 @@ function runHelpAction(action){
 
 function focusOrderPins(date){
   const day=dayKey(date);
-  const first=state.tomorrowPin?.day===day?state.tomorrowPin.taskId:null;
-  const pins=state.focusPins?.day===day&&state.focusPins.ids.length?state.focusPins.ids:state.tomorrowPlan?.day===day?[state.tomorrowPlan.taskId]:[];
-  return first?[...new Set([first,...pins])]:pins;
+  const planned=state.tomorrowPin?.day===day?state.tomorrowPin:state.tomorrowPlan?.day===day?state.tomorrowPlan:null;
+  const pins=state.focusPins?.day===day?state.focusPins.ids:[];
+  return planned?[...new Set([...pins,planned.taskId])]:pins;
 }
 function gardenFocusQueue(date=new Date(),tasks=gardenTasks(),tasksById=taskIndex()){
   return focusTaskQueue(tasks,date,focusOrderPins(date),tasksById);
 }
 function pinnedFirstTask(date=new Date()){
   const day=dayKey(date),pin=state.tomorrowPin?.day===day?state.tomorrowPin:state.tomorrowPlan?.day===day?state.tomorrowPlan:null;
-  return pin&&gardenFocusQueue(date).find(task=>task.id===pin.taskId);
+  const first=pin&&gardenFocusQueue(date)[0];
+  return first?.id===pin?.taskId?first:undefined;
 }
 function taskBundleStatus(bundle,date=new Date(),queue=gardenFocusQueue(date)){
   const run=state.activeBundle?.id===bundle.id?state.activeBundle:null;
@@ -1083,6 +1087,34 @@ function promptToday(){
     pinned.length?`Pinned focus tasks:\n${pinned.map(task=>`  - ${task.text}`).join('\n')}`:'No ready focus tasks pinned for today.',
     overdue.length?`Overdue work:\n${overdue.map(({task,due})=>`  - ${task.text} · ${shortScheduleDate(due)}`).join('\n')}`:'No overdue tasks.'
   ].join('\n\n');
+}
+function promptTomorrowAgenda(){
+  const date=shiftDay(new Date(),1),day=dayKey(date),tasks=gardenTasks();
+  const events=visibleCalendarEvents(state.calendarEvents,state.calendars,state.hiddenCalendars);
+  const commitments=[
+    ...allDayEvents(events,date).map(event=>`  - All day · ${event.title}`),
+    ...calendarBlocks(tasks,date,events).filter(block=>block.event||openFocusBlock(block))
+      .map(block=>`  - ${timeLabel(block.start)}–${timeLabel(block.end)} · ${block.event?.title||block.task.text}`)
+  ];
+  const [first]=gardenFocusQueue(date,tasks);
+  const pinned=first&&focusOrderPins(date).includes(first.id);
+  const cutoff=schedulingCutoff();
+  const gaps=agendaGaps(tasks,state.calendarEvents,state.availability,date,cutoff,state.planningCooldown);
+  const open=gaps.map(({start,end})=>`  - ${timeLabel(start)}–${timeLabel(end)} · ${minutesLabel(end-start)}`);
+  return [
+    `Tomorrow’s agenda · ${shortScheduleDate(day)}`,
+    first?`First task: ${first.text}${pinned?' (pinned)':''}`:'No first task ready.',
+    '', 'Commitments:',...(commitments.length?commitments:['  No visible calendar commitments.']),
+    '', `Open gaps (9 AM–${timeLabel(cutoff)}):`,...(open.length?open:['  No open planning gaps.'])
+  ].join('\n');
+}
+function pinPromptTask(id){
+  const queue=gardenFocusQueue(),task=queue.find(item=>item.id===id);
+  if(!task)return 'That task is no longer in today’s ready queue.';
+  const ids=[id,...queue.filter(item=>item!==task).map(item=>item.id)];
+  if(!persistFocusOrder(ids))return 'Could not save the focus order on this device.';
+  refreshTasks();
+  return `Pinned ${task.text} first in today’s focus queue.`;
 }
 function promptNext(){
   const [task]=gardenFocusQueue();
@@ -1540,11 +1572,20 @@ async function toggleNotifications(){
   if(activePanel==='pagoda')refreshPanel();
 }
 function action(fn){checkCompletion();fn();persist();render();wake();if(activePanel==='pagoda')refreshPanel();}
-function runPromptTimer(command,ms=0,taskId){
+function runPromptTimer(command,ms=0,taskId,pauseReason=''){
   const timed=ms>0;
   checkCompletion();
   const timer=state.timer;
   const now=new Date(),task=taskId&&gardenFocusQueue(now).find(item=>item.id===taskId);
+  if(pauseReason){
+    if(pauseReason.length>240)return 'Use a pause reason of 240 characters or fewer.';
+    if(timer.mode!=='focus')return 'Pause reasons are saved on focus sessions.';
+    if(timer.status==='paused'){
+      const pause=currentFocusPause(timer);
+      if(!pause)return 'There’s no recorded pause to annotate.';
+      return savePauseNote(pause,pauseReason)?'Pause reason saved to the session replay.':'Could not save the pause reason on this device.';
+    }
+  }
   if(taskId&&!task)return 'That task is no longer ready. Run focus again to see the available matches.';
   const kind=mode=>mode==='focus'?'Focus':'Rest';
   if(command==='status'){
@@ -1574,10 +1615,19 @@ function runPromptTimer(command,ms=0,taskId){
     }
     if(goal)state.timer.goal=goal;
   }
+  if(pauseReason&&!timer.replay?.length)addReplayEvent(timer,'start',timer.startedAt);
   toggleFocusTimer(task||focusedTask(now),+now);
   if(state.timer.status!==(command==='pause'?'paused':'running')){
     Object.assign(state,previous);
     return 'Choose a ready task for the current bundle in Garden before starting.';
+  }
+  if(pauseReason){
+    const replay=editFocusPause(state.timer,currentFocusPause(state.timer),pauseReason);
+    if(!replay){
+      Object.assign(state,previous);
+      return 'Could not record the pause reason.';
+    }
+    state.timer.replay=replay;
   }
   if(!persist()){
     Object.assign(state,previous);
@@ -1588,7 +1638,7 @@ function runPromptTimer(command,ms=0,taskId){
     const split=ms>3600000?` · first focus phase of ${formatDuration(ms)} planned work`:'';
     return `Focus started for ${task.text} · ${formatDuration(state.timer.total)}${split}`;
   }
-  return `${kind(state.timer.mode)} ${command==='pause'?'paused':'started'} · ${formatDuration(remaining(state))}`;
+  return `${kind(state.timer.mode)} ${command==='pause'?'paused':'started'} · ${formatDuration(remaining(state))}${pauseReason?'\nPause reason saved to the session replay.':''}`;
 }
 function toggleFocusTimer(task,now=Date.now()){
   if(finishOvertime(state,now)){
@@ -3362,11 +3412,15 @@ function finishTaskOccurrence(task,date,timer=state.timer){
   return /^\d{4}-\d{2}-\d{2}$/.test(day)?new Date(day+'T12:00:00'):date;
 }
 
-function saveFocusOrder(ids,focusId,step){
+function persistFocusOrder(ids){
   const previous=state.focusPins, activeTask=state.activeTask;
   state.focusPins=ids.length?{day:dayKey(),ids}:null;
   if(!state.timer.block&&(state.timer.status==='idle'||state.timer.mode==='break'))state.activeTask=null;
-  if(!persist()){state.focusPins=previous;state.activeTask=activeTask;return;}
+  if(persist())return true;
+  state.focusPins=previous;state.activeTask=activeTask;return false;
+}
+function saveFocusOrder(ids,focusId,step){
+  if(!persistFocusOrder(ids))return;
   refreshTasks();
   const list=root.querySelector('.focus-task-list');
   const scroll=list?.scrollTop||0;
