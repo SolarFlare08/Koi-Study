@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.0.12',date:'2026-11-25',title:'Waiting details, mistake retries, and journal drafts in Prompt',changes:[
+    'Use wait to see a task’s blocker, follow-up date, and fallback decision.',
+    'Use retry to start a saved mistake retry with the corrected reasoning hidden.',
+    'Use journal resume to reopen your latest draft at its saved cursor.'
+  ]},
   {version:'6.0.11',date:'2026-11-25',title:'Find gaps, check deadlines, and draft study blocks from Prompt',changes:[
     'Find calendar windows that fit a given duration this week or next.',
     'List hard deadlines with estimated work still to do.',

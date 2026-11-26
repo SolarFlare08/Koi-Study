@@ -35,7 +35,7 @@ function promptMessage(value){
   return (quoted?(quoted[1]??quoted[2]):/^["“]/.test(value)?'':value).trim();
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,today,agenda,gap,due,plan,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,row,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,today,agenda,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,row,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
     pauseReason:['pause "Looking up the formula"','Pause focus and save the reason in the session replay.'],
@@ -45,6 +45,9 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     gap:['gap 45m this week','Find open windows that fit a duration.'],
     due:['due next week','List hard deadlines and estimated work remaining.'],
     plan:['plan "Exam 2" by Friday','Draft study blocks by a date and show any shortfall.'],
+    wait:['wait "Lab report"','Show the blocker, follow-up, and fallback decision.'],
+    retry:['retry "Boundary terms"','Start a timed mistake retry in Garden.'],
+    journal:['journal resume','Reopen the most recently edited draft.'],
     queue:['queue pin "LinAlg" first','Move a ready task to the front of today’s focus queue.'],
     next:['next','Show the next ready task, estimate, and saved handoff.'],
     fit:['fit 20m','Find full tasks or useful first steps for the time you have.'],
@@ -232,6 +235,15 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       return name==='handoff'?handoff(message):stuck(message);
     }
     switch(name){
+      case 'wait': {
+        const query=promptMessage(arg);
+        return query?chooseMatch(query,getTasks(),entry,({id})=>wait(id),'open task','inspect'):`Use ${commands.wait[0]}.`;
+      }
+      case 'retry': {
+        const query=promptMessage(arg);
+        return query?chooseMatch(query,getMistakes(),entry,({id})=>retry(id),'saved mistake','retry'):`Use ${commands.retry[0]}.`;
+      }
+      case 'journal':return arg.toLowerCase()==='resume'?resumeJournal():'Use journal resume.';
       case 'agenda':return arg.toLowerCase()==='tomorrow'?agenda():'Use agenda tomorrow.';
       case 'gap': {
         const match=/^(.+?)\s+(this|next)\s+week$/i.exec(arg);
@@ -275,7 +287,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
       case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAvailability and deadlines: agenda tomorrow, gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nHide from focus: snooze "Order yarn" until Friday.\nCurrent task: task done, handoff "next step", stuck "question".\nLog progress: read "Golden Son" p143, row "Left sleeve" +2.\nWeekly totals and handoffs: review week.\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAvailability and deadlines: agenda tomorrow, gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nCurrent task: task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nLog progress: read "Golden Son" p143, row "Left sleeve" +2.\nWeekly totals and handoffs: review week.\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }

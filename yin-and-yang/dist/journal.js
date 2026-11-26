@@ -435,8 +435,11 @@ export function installJournal({root,storage,storageEvent=key=>key,projects,noti
     openPatterns(){setView('patterns');$('[data-journal-view="patterns"]').focus();},
     refresh:render,
     openEntry(id){
+      entries=loadJournal(storage);
       const item=entries.find(entry=>entry.id===id);
-      if(item)open(item,root.querySelector(`[data-journal-edit="${CSS.escape(id)}"]`)||add);
+      if(!item)return false;
+      open(item,root.querySelector(`[data-journal-edit="${CSS.escape(id)}"]`)||add);
+      return true;
     },
     completedAt(date){
       return entries.reduce((latest,item)=>!item.draft&&item.date===date?Math.max(latest,item.updatedAt||1):latest,0);

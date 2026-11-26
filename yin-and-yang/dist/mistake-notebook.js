@@ -17,6 +17,13 @@ export function loadMistakes(value){
 }
 export function needsRetry(item){return item.retries.at(-1)?.passed!==true;}
 
+export function mistakeSource(state,item){
+  const task=state.tasks.find(task=>task.id===item.taskId);
+  const exam=state.projects.flatMap(project=>project.exams||[]).find(exam=>exam.id===item.examId);
+  const topic=exam?.topics.find(topic=>topic.id===item.topicId);
+  return task?.text||(exam&&topic?`${exam.title} · ${topic.title}`:item.source)||'Saved mistake';
+}
+
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const dateLabel=at=>new Date(at).toLocaleDateString([],{dateStyle:'medium'});
 
@@ -24,13 +31,7 @@ export function installMistakeNotebook({dialog,getState,save,notify,startFocus})
   let scope={}, trigger, mode='review', editId='', revealed=new Set();
   const matching=()=>getState().mistakes.filter(item=>scope.taskId?item.taskId===scope.taskId:
     scope.examId?item.examId===scope.examId:true);
-  function source(item){
-    const state=getState();
-    const task=state.tasks.find(task=>task.id===item.taskId);
-    const exam=state.projects.flatMap(project=>project.exams||[]).find(exam=>exam.id===item.examId);
-    const topic=exam?.topics.find(topic=>topic.id===item.topicId);
-    return task?.text||(exam&&topic?`${exam.title} · ${topic.title}`:item.source)||'Saved mistake';
-  }
+  const source=item=>mistakeSource(getState(),item);
   function render(){
     const entries=matching(), item=entries.find(item=>item.id===editId);
     const reviewing=mode==='review';

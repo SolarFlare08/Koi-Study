@@ -9,7 +9,7 @@ import {addReplayEvent,replayTaskSwitch,replaySessions,replayBlocks} from './foc
 import {currentFocusPause,editFocusPause} from './focus-replay.js';
 import {handoffLink,sessionHandoff,nextFocusSubtask} from './session-handoff.js';
 import {installExamPlans} from './exam-plans.js';
-import {installMistakeNotebook,needsRetry} from './mistake-notebook.js';
+import {installMistakeNotebook,mistakeSource,needsRetry} from './mistake-notebook.js';
 import {bundleProgress,installBundleEditor} from './task-bundles.js';
 import {CAPTURE_PREFIX, cleanCaptureContext, readCaptures, saveCapture, storeCapture} from './capture.js';
 import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from './day-recap.js';
@@ -560,6 +560,13 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   gap:promptGaps,
   due:promptDue,
   plan:previewPromptDeadline,
+  wait:promptWaitingDetails,
+  getMistakes:promptMistakeChoices,
+  retry:id=>{
+    const result=startMistakeFocus(id);
+    return result===true?'Mistake retry started in Garden.':result;
+  },
+  resumeJournal:promptResumeJournal,
   pin:pinPromptTask,
   pause:reason=>runPromptTimer('pause',0,undefined,reason),
   next:promptNext,
@@ -1175,6 +1182,33 @@ function promptTaskChoices(tasks){
 }
 function promptPlanningTasks(){
   return gardenTasks().filter(task=>!task.done);
+}
+function promptWaitingDetails(id){
+  const task=promptPlanningTasks().find(item=>item.id===id);
+  if(!task)return 'That task is no longer open.';
+  const waiting=task.waitingFor,prerequisites=waitingOn(task);
+  const blockers=[waiting?.subject,...prerequisites.map(item=>item.text)].filter(Boolean);
+  return [
+    task.text,
+    `Waiting for: ${blockers.join(' · ')||'No blocker saved'}`,
+    `Follow-up: ${waiting?.followUp?shortScheduleDate(waiting.followUp):'No date set'}`,
+    waiting?.fallback?`Fallback (${shortScheduleDate(waiting.decisionOn)}): ${waiting.fallback}`:'No fallback decision saved.'
+  ].join('\n');
+}
+function promptMistakeChoices(){
+  return state.mistakes.map(item=>{
+    const context=mistakeSource(state,item);
+    const title=item.mistake.length>160?item.mistake.slice(0,159)+'…':item.mistake;
+    return {id:item.id,title,context,search:[item.mistake,item.source,context].join(' ')};
+  });
+}
+function promptResumeJournal(){
+  const drafts=loadJournal(storage).filter(entry=>entry.draft)
+    .sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)||b.date.localeCompare(a.date));
+  if(!drafts.length)return 'No journal drafts to resume.';
+  visitWorkspace('journal');
+  return workspace==='journal'&&journal.openEntry(drafts[0].id)?
+    'Opened the most recent journal draft.':'Could not open the journal draft.';
 }
 function previewPromptDeadline(id,requested,reviewed){
   const task=promptPlanningTasks().find(item=>item.id===id);
