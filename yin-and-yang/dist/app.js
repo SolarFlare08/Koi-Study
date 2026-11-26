@@ -36,7 +36,7 @@ import {installReferenceEditor} from './focus-reference.js';
 import {installCalendarResize} from './calendar-resize.js';
 import {installBatchMove} from './calendar-batch.js';
 import {installBrush} from './calendar-brush.js';
-import {installOfficeHours,officeHoursQuestion} from './office-hours.js';
+import {installOfficeHours,meetingItems,officeHoursQuestion} from './office-hours.js';
 import {openSemesterReplay} from './semester-replay.js';
 import {installPostcardViewpoints} from './postcard-viewpoints.js';
 import {dailyRitualMarkup,loadRitualSchedules,ritualComplete,rituals,scheduledRituals} from './daily-rituals.js';
@@ -562,6 +562,10 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   getFocusTasks:()=>promptTaskChoices(gardenFocusQueue()),
   getTasks:()=>promptTaskChoices(promptPlanningTasks()),
   getTaskDetails:()=>promptTaskChoices(gardenTasks()),
+  getProjects:()=>state.projects.filter(project=>!project.archived).map(project=>({id:project.id,title:project.name})),
+  projectResume:resumeProject,
+  inboxNext:promptInboxNext,
+  officeList:promptOfficeQuestions,
   taskDetails:promptTaskDetails,
   previewTask:previewPromptTask,
   subtasks:promptSubtasks,
@@ -1092,15 +1096,17 @@ function projectTimerLocked(){return Boolean(state.timer.block||state.timer.mode
 function nextProjectTask(projectId){return gardenFocusQueue().find(task=>task.projectId===projectId);}
 function resumeProject(projectId){
   checkCompletion();
-  if(projectTimerLocked()){confirmChange('Finish or reset the current focus timer before switching projects.');return;}
+  const blocked=projectTimerLocked()?'Finish or reset the current focus timer before switching projects.':'';
   const task=nextProjectTask(projectId);
-  if(!task){confirmChange('This project has no task ready in the focus queue.');return;}
-  if(!saveTaskSelection(task))return;
+  const message=blocked||(!task?'This project has no task ready in the focus queue.':'');
+  if(message){confirmChange(message);return message;}
+  if(!saveTaskSelection(task))return 'Could not save the project’s focus task.';
   visitWorkspace('focus');
   refreshTasks();
   const context=$('#focus-project-context');
   openPanel('project-context',context);
   announce(`Current task: ${task.text}`);
+  return `Opened ${task.text} in Garden.`;
 }
 
 function nextGardenCommitment(clock,tasks=state.tasks){
@@ -3210,6 +3216,32 @@ function openCapturedThought(key){
   captureInboxIndex=[...root.querySelectorAll('#capture-inbox-list .capture-card')].findIndex(card=>card.dataset.captureKey===key);
   captureInboxFocus();
 }
+function promptInboxNext(){
+  const note=availableCaptures().at(-1);
+  if(!note)return {text:'Your note inbox is clear.'};
+  const context=captureContextText(note.context);
+  return {
+    text:[`Oldest unsorted thought · ${extensionTime(note.createdAt)}`,note.text,
+      ...(context?[`Captured during ${context}`]:[])].join('\n'),
+    choices:[
+      ['notes','File as sticky note'],['link','Link to a task'],['archive','Archive']
+    ].map(([action,label])=>({label,run:()=>{
+      const current=availableCaptures().find(item=>item.key===note.key);
+      return current?actOnCapturedThought(current,action,$('#prompt-input')):'This thought is no longer unsorted. Run inbox next again.';
+    }}))
+  };
+}
+function promptOfficeQuestions(id){
+  const project=id&&state.projects.find(item=>item.id===id&&!item.archived);
+  if(id&&!project)return 'That project is no longer available.';
+  const questions=meetingItems(state,id).filter(item=>!item.answered);
+  const name=project?.name||'General',tasks=taskIndex();
+  return [`Office hours · ${name} · ${questions.length} unanswered`,
+    ...(questions.length?questions.map((item,index)=>
+      `  ${index+1}. ${item.question}\n     Task: ${tasks.get(item.taskId)?.text||item.taskTitle||'No task linked'}${item.ref?` · Reference: ${item.ref}`:''}`):
+      ['  No unanswered questions.'])
+  ].join('\n');
+}
 function captureInboxList(){
   if(captureInboxTab==='inbox')return captureCards(true)||'<p>Your note inbox is clear.</p>';
   return [...state.captureArchive].sort((a,b)=>b.archivedAt-a.archivedAt).map(note=>
@@ -3222,6 +3254,36 @@ function archiveCapture(note){
     confirmChange('Thought archived.');return true;
   }
   return false;
+}
+function actOnCapturedThought(note,action,anchor,fromInbox=false){
+  const {key}=note;
+  if(action==='archive'){
+    if(!archiveCapture(note))return 'Could not archive the thought on this device.';
+    if(fromInbox)captureInboxFocus();
+    return 'Thought archived.';
+  }
+  if(action==='task'){
+    returnToCaptureInbox=fromInbox;
+    const context=captureContextText(note.context);
+    openTaskEditor(null,anchor,{text:note.text.split(/\r?\n/)[0].slice(0,160),description:context?`${note.text}\n\nCaptured during ${context}`:note.text,captureKey:key});
+    return 'Opened the task editor.';
+  }
+  if(action==='project'||action==='link'){
+    returnToCaptureInbox=fromInbox;
+    captureActionKey=key;openPanel(action==='project'?'capture-project':'capture-link',anchor);
+    return action==='project'?'Choose a project to attach the thought.':'Choose a task to link the thought.';
+  }
+  const previous=state.stickyNotes,context=captureContextText(note.context);
+  const sticky=stickyBoard.newNote(context?`${note.text}\n\nCaptured during ${context}`:note.text,'Quick capture');
+  if(state.tasks.some(task=>task.id===note.context?.taskId))sticky.taskId=note.context.taskId;
+  if(!saveCaptureDestination(key,()=>{state.stickyNotes=[...previous,sticky];},()=>{state.stickyNotes=previous;})){
+    return 'Could not file the thought on this device.';
+  }
+  stickyBoard.render();
+  toast('Thought saved as a sticky note.');
+  if(fromInbox)captureInboxFocus();
+  else (workspace==='prompt'?anchor:$('#notes-input')||gardenToolAnchor('notes')).focus({preventScroll:true});
+  return 'Thought saved as a sticky note.';
 }
 function restoreCapture(key){
   const note=state.captureArchive.find(item=>item.key===key);
@@ -4081,7 +4143,7 @@ function panelContent(id){
       <label class="field-label" for="capture-link-task">Task</label><select id="capture-link-task" required>${tasks.map(task=>
       `<option value="${escape(task.id)}">${escape(task.text)}</option>`).join('')}</select>
       <div class="panel-actions"><button class="panel-primary">File and link note</button></div></form>`:'<p>Add an open task to link this thought.</p>'}
-      <button type="button" class="text-button" data-open-capture-inbox>Back to inbox</button>`;
+      ${returnToCaptureInbox?'<button type="button" class="text-button" data-open-capture-inbox>Back to inbox</button>':''}`;
   }
   if(id==='capture-inbox')return `${header('NOTES','Note inbox')}
     <div class="capture-inbox-tabs" role="group" aria-label="Captured thoughts">${['inbox','archive'].map(tab=>
@@ -7837,30 +7899,7 @@ document.addEventListener('click',event=>{
     if(!note)return;
     const fromInbox=Boolean(action.closest('#capture-inbox-list'));
     if(fromInbox)captureInboxIndex=[...root.querySelectorAll('#capture-inbox-list .capture-card')].indexOf(action.closest('.capture-card'));
-    if(action.dataset.captureAction==='archive'){
-      if(archiveCapture(note)&&fromInbox)captureInboxFocus();
-    }else if(action.dataset.captureAction==='task'){
-      returnToCaptureInbox=fromInbox;
-      const context=captureContextText(note.context);
-      openTaskEditor(null,action,{text:note.text.split(/\r?\n/)[0].slice(0,160),description:context?`${note.text}\n\nCaptured during ${context}`:note.text,captureKey:key});
-    }else if(action.dataset.captureAction==='project'){
-      returnToCaptureInbox=fromInbox;
-      captureActionKey=key;openPanel('capture-project',action);
-    }else if(action.dataset.captureAction==='link'){
-      returnToCaptureInbox=true;
-      captureActionKey=key;openPanel('capture-link',action);
-    }else{
-      const previous=state.stickyNotes;
-      const context=captureContextText(note.context);
-      const sticky=stickyBoard.newNote(context?`${note.text}\n\nCaptured during ${context}`:note.text,'Quick capture');
-      if(state.tasks.some(task=>task.id===note.context?.taskId))sticky.taskId=note.context.taskId;
-      if(saveCaptureDestination(key,()=>{state.stickyNotes=[...previous,sticky];},()=>{state.stickyNotes=previous;})){
-        stickyBoard.render();
-        const input=$('#notes-input');
-        toast('Thought saved as a sticky note.');
-        if(fromInbox)captureInboxFocus();else (input||gardenToolAnchor('notes')).focus({preventScroll:true});
-      }
-    }
+    actOnCapturedThought(note,action.dataset.captureAction,action,fromInbox);
     return;
   }
 });

@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.0.16',date:'2026-11-25',title:'Project context, note triage, and office hours in Prompt',changes:[
+    'Resume a project in Garden with its next ready task, handoff, and pinned reference.',
+    'Review the oldest unsorted thought and file, link, or archive it from Prompt.',
+    'List unanswered office-hours questions with task and page references.'
+  ]},
   {version:'6.0.15',date:'2026-11-25',title:'Block splits, actual agendas, and estimates in Prompt',changes:[
     'Preview how an existing block divides into focus chunks and breaks.',
     'See today’s actual focus activity, pause notes, and early finishes.',
