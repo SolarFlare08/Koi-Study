@@ -178,7 +178,7 @@ internal sealed class Desktop : Form
 
     private void ReceiveMessage(object sender, CoreWebView2WebMessageReceivedEventArgs args)
     {
-        // Only the bundled main document can request these two fixed operations.
+        // Only the bundled main document can use the backup bridge.
         if (!IsGarden(args.Source)) return;
         try {
             var message = serializer.Deserialize<Dictionary<string, object>>(args.WebMessageAsJson);
@@ -194,13 +194,22 @@ internal sealed class Desktop : Form
                 WriteBackup(serializer.Serialize(snapshot));
                 webBackupResult(null);
             }
+            else if ((string)kind == "backup-status") webBackupResult(null);
         } catch (Exception error) { webBackupResult(error.Message); }
     }
 
     private void webBackupResult(string error)
     {
+        FileInfo latest = null;
+        if (error == null) {
+            var directory = new DirectoryInfo(Path.Combine(profile, "Backups"));
+            if (directory.Exists) latest = directory.GetFiles("garden-*.json").Concat(directory.GetFiles("daily-*.json"))
+                .OrderByDescending(file => file.LastWriteTimeUtc).FirstOrDefault();
+        }
         view.CoreWebView2.PostWebMessageAsJson(serializer.Serialize(new {
-            type = "backup-result", error = error, at = DateTime.UtcNow.ToString("o")
+            type = "backup-result", error = error,
+            at = latest == null ? null : latest.LastWriteTimeUtc.ToString("o"),
+            path = latest == null ? null : latest.FullName
         }));
     }
 

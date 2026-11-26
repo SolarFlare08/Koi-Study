@@ -35,7 +35,7 @@ function promptMessage(value){
   return (quoted?(quoted[1]??quoted[2]):/^["“]/.test(value)?'':value).trim();
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,backupStatus,getViewpoints,postcard,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
     pauseReason:['pause "Looking up the formula"','Pause focus and save the reason in the session replay.'],
@@ -75,6 +75,8 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     rowStatus:['row status "Left sleeve"','Show a counter’s count, instruction, and checkpoint.'],
     checkpoint:['checkpoint "Left sleeve" "Switch to 4 mm hook"','Save the current count with a note about where to resume.'],
     shutdown:['shutdown','Review the evening checklist, tomorrow’s first task, and open work.'],
+    backup:['backup status','Show when and where your latest backup was saved.'],
+    postcard:['postcard "Autumn dusk"','Open the export preview for a saved Garden viewpoint.'],
     garden:['garden dusk','Preview dusk lighting in Garden.'],
     review:['review week','Show this week’s focus time, completed tasks, and open next steps.'],
     play:['play "Deep work"','Load a saved soundtrack in Music & video.'],
@@ -309,6 +311,15 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         return query?chooseMatch(query,getBooks(),entry,({id})=>bookResume(id),'book','resume'):`Use ${commands.book[0]}.`;
       }
       case 'shutdown':return arg?'Use shutdown without an argument.':shutdown();
+      case 'backup':return arg.toLowerCase()==='status'?backupStatus():`Use ${commands.backup[0]}.`;
+      case 'postcard': {
+        const query=promptMessage(arg);
+        if(!query)return `Use ${commands.postcard[0]}.`;
+        const views=getViewpoints();
+        if(!views.length)return 'No saved postcard viewpoints. Save one from Garden’s Export postcard panel.';
+        const exact=views.filter(view=>view.title.toLowerCase()===query.toLowerCase());
+        return chooseMatch(query,exact.length?exact:views,entry,({id})=>postcard(id),'postcard viewpoint','preview');
+      }
       case 'garden':return arg.toLowerCase()==='dusk'?dusk():'Use garden dusk.';
       case 'wait': {
         const query=promptMessage(arg);
@@ -369,7 +380,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
       case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nPreview lighting: garden dusk.\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }
@@ -388,7 +399,10 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     command.className='prompt-echo';command.textContent=promptPath+line;
     entry.className='prompt-output';group.append(command,entry);
     const response=execute(name,arg,entry);
-    if(response)entry.textContent=response;
+    if(response instanceof Promise){
+      entry.textContent='Checking backup status…';
+      response.then(message=>{entry.textContent=message;},()=>{entry.textContent='Could not read backup status.';});
+    }else if(response)entry.textContent=response;
     log.append(group);
     if(log.children.length>60)log.firstElementChild.remove();
     screen.scrollTop=screen.scrollHeight;

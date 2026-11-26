@@ -79,11 +79,14 @@ export function installPostcardViewpoints({getViews,save,getScene,paint,download
     }catch{status('Could not download the postcard.');}
     finally{exportButton.disabled=false;}
   };
-  return (source=getScene())=>{
+  return (source=getScene(),viewId)=>{
+    const saved=viewId===undefined?undefined:getViews().find(view=>view.id===viewId);
+    if(viewId!==undefined&&!saved)return false;
     openingScene={...source,appearance:{...source.appearance,weather:gardenWeather(source.appearance)}};
     field('through').max=dayKey();
     field('through').value=source.through||dayKey();
     field('caption').value='';status('');
-    dialog.showModal();select();
+    dialog.showModal();select(saved);
+    return true;
   };
 }

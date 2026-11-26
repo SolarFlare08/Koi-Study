@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.18',date:'2026-11-26',title:'Backup status and postcards in Prompt',changes:[
+    'Use backup status to see when your latest restore point or Windows backup was saved and where it lives.',
+    'Open the postcard export preview with a saved Garden viewpoint by typing its name in Prompt.'
+  ]},
   {version:'6.0.17',date:'2026-11-25',title:'Reading targets, counter status, and shutdown in Prompt',changes:[
     'Set a book’s next page goal and see the distance from your saved reading position.',
     'Inspect a Stitchbook counter’s current count, row instruction, and latest checkpoint.',

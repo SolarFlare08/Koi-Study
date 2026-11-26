@@ -33,19 +33,33 @@ async function writePoint(snapshot){
 }
 export function installAutomaticBackup({storage,getState,getCaptures}){
   const desktop=location.hostname==='yin-and-yang.local' ? window.chrome?.webview : undefined;
-  let lastAttempt=0,lastData='',busy=false,writing=false,points=[];
+  let lastAttempt=0,lastData='',busy=false,writing=false,points=[],diskPoint;
   let status={local:'Waiting for first automatic backup',disk:desktop?'Waiting for disk backup':'Disk backups are available in the Windows app'};
   function publish(){window.dispatchEvent(new CustomEvent('garden-backup-status',{detail:{...status}}));}
+  const backupTime=at=>new Date(at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
   const snapshot=()=>createBackup(getState(),storage,getCaptures());
-  readPoints().then(value=>{points=value;publish();}).catch(()=>{status.local='Local backup storage unavailable. Download a backup or use Windows disk backups.';publish();});
+  readPoints().then(value=>{
+    if(!points.length)points=value;
+    if(points[0])status.local='Local backup · '+backupTime(points[0].snapshot.exportedAt);
+    publish();
+  }).catch(()=>{status.local='Local backup storage unavailable. Download a backup or use Windows disk backups.';publish();});
   // The desktop also uses this on a normal window close, before disposing WebView2.
   window.gardenDesktopSnapshot=()=>JSON.stringify(snapshot());
   desktop?.addEventListener('message',event=>{
-    if(event.data?.type!=='backup-result')return;
+    const result=event.data;
+    if(result?.type!=='backup-result')return;
     busy=false;
-    status.disk=event.data.error?'Disk backup failed: '+event.data.error:'Disk backup · '+new Date(event.data.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    if(result.error)status.disk='Disk backup status unavailable: '+result.error;
+    else if(Number.isFinite(Date.parse(result.at))){
+      diskPoint={at:result.at,path:result.path};
+      status.disk='Disk backup · '+backupTime(result.at);
+    }else{
+      diskPoint=undefined;
+      status.disk='No disk backup saved yet';
+    }
     publish();
   });
+  desktop?.postMessage({type:'backup-status'});
   async function run(force=false){
     if(writing)return;
     if(!force&&Date.now()-lastAttempt<BACKUP_INTERVAL)return;
@@ -66,5 +80,6 @@ export function installAutomaticBackup({storage,getState,getCaptures}){
   setTimeout(()=>run(),10000);
   setInterval(()=>run(),60000);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)run();});
-  return {points:()=>points,run:()=>run(true),status:()=>({...status}),openFolder:()=>desktop?.postMessage({type:'open-backups'}),desktop:Boolean(desktop)};
+  return {points:()=>points,latestLocalPoint:()=>readPoints().then(([latest])=>latest).catch(()=>undefined),
+    diskPoint:()=>diskPoint,run:()=>run(true),status:()=>({...status}),openFolder:()=>desktop?.postMessage({type:'open-backups'}),desktop:Boolean(desktop)};
 }

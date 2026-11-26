@@ -23,7 +23,7 @@ import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
 import {currentPageBookmark,ratingTier,radiantRatingLabels} from './reading-progress.js';
 import {annotationContext,bookPageCount,clearLibraryPageGoal,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingPagePosition,readingShelf,saveLibraryBook} from './reading-shelf.js';
-import {installBackup,restoreBackup} from './backup.js';
+import {installBackup,loadRestorePoints,restoreBackup} from './backup.js';
 import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
 import {installFocusCompass,focusCompass,focusWeek} from './focus-compass.js';
@@ -607,6 +607,9 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   bookGoal:savePromptBookGoal,
   rowStatus:promptRowStatus,
   shutdown:promptShutdown,
+  backupStatus:promptBackupStatus,
+  getViewpoints:()=>state.postcardViewpoints.map(({id,name})=>({id,title:name})),
+  postcard:promptPostcard,
   checkpoint:({projectId,counterId},note)=>{
     const result=crochet.checkpointCounter(projectId,counterId,note);
     if(result.error)return result.error;
@@ -1460,6 +1463,24 @@ function promptShutdown(){
     `Tomorrow’s first task: ${first?.text||'None lined up.'}`,
     ['Still open today:',...(open.length?open.map(title=>`  - ${title}`):['  Nothing left open.'])].join('\n')
   ].join('\n\n');
+}
+async function promptBackupStatus(){
+  const dateClocks={dateStyle:'medium',timeStyle:'short'};
+  const automatic=(await automaticBackup?.latestLocalPoint())?.snapshot.exportedAt;
+  const manual=loadRestorePoints(storage)[0]?.snapshot.exportedAt;
+  const disk=automaticBackup?.diskPoint();
+  const location=automaticBackup?.desktop?'this Windows app profile':'this browser profile';
+  const backups=[
+    {at:automatic,where:`Automatic restore point in ${location}`},
+    {at:manual,where:`Manual restore point in ${location}`},
+    {at:disk?.at,where:disk?.path||'Windows backups folder (%LOCALAPPDATA%\\Yin and Yang\\Backups)'}
+  ].filter(backup=>Number.isFinite(Date.parse(backup.at))).sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));
+  if(!backups.length)return adminSandbox?'No restore point saved in this sandbox. Automatic backups are off here.':'No successful backup found yet. Open Backups in Settings to back up now.';
+  return backups.map(({at,where},index)=>`${index===0?'Last successful backup':'Also saved'}: ${new Date(at).toLocaleString([],dateClocks)}\n  ${where}`).join('\n');
+}
+function promptPostcard(id){
+  const viewpoint=state.postcardViewpoints.find(view=>view.id===id);
+  return viewpoint&&openPostcardViewpoints(undefined,id)?`Opened postcard preview · ${viewpoint.name}`:'That postcard viewpoint is no longer available.';
 }
 function previewPromptDusk(){
   visitWorkspace('focus');
