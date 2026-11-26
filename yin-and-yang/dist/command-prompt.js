@@ -35,13 +35,15 @@ function promptMessage(value){
   return (quoted?(quoted[1]??quoted[2]):/^["“]/.test(value)?'':value).trim();
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,taskDetails,previewTask,subtasks,check,today,agenda,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,row,checkpoint,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,row,checkpoint,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
     pauseReason:['pause "Looking up the formula"','Pause focus and save the reason in the session replay.'],
     namedFocus:['focus "LinAlg" 40m','Select a task by name and start its timer.'],
     today:['today','Show the next commitment, pinned focus tasks, and overdue work.'],
     agenda:['agenda tomorrow','Show tomorrow’s commitments, first task, and open gaps.'],
+    actualAgenda:['agenda today --actual','Show today’s recorded focus activity and pause notes.'],
+    estimate:['estimate "Reading"','Compare estimates and logged focus for matching completed tasks.'],
     gap:['gap 45m this week','Find open windows that fit a duration.'],
     due:['due next week','List hard deadlines and estimated work remaining.'],
     plan:['plan "Exam 2" by Friday','Draft study blocks by a date and show any shortfall.'],
@@ -55,6 +57,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     stuck:['stuck "Why does this boundary term vanish?"','Save an office-hours question for the current task.'],
     schedule:['schedule "Lab report" tomorrow 3pm 45m','Preview a task block and review overlaps before placing it.'],
     move:['move "Lab report" tomorrow 4pm','Review a new time for an existing block.'],
+    block:['block split "Practice exam" 50m','Preview focus chunks and breaks in an existing block.'],
     extend:['extend 10m','Review overlaps before adding time to a running session.'],
     finish:['task done','Complete the current task, then rest or start the next one.'],
     quickAdd:['task add Review chapter 4 tomorrow for 30m','Preview a task with a date and estimate before saving.'],
@@ -259,6 +262,16 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       return name==='handoff'?handoff(message):stuck(message);
     }
     switch(name){
+      case 'block': {
+        const match=/^split\s+(?:"([^"]+)"|“([^”]+)”)\s+(.+)$/i.exec(arg);
+        const query=(match?.[1]??match?.[2]??'').trim(),minutes=match?promptDuration(match[3])/60000:0;
+        if(!query||!Number.isInteger(minutes)||minutes<1||minutes>1440)return `Use ${commands.block[0]}.`;
+        return chooseMatch(query,getBlocks(),entry,block=>blockSplit(block,minutes),'scheduled block','preview');
+      }
+      case 'estimate': {
+        const query=promptMessage(arg);
+        return query?estimate(query):`Use ${commands.estimate[0]}.`;
+      }
       case 'book': {
         const resume=/^resume\s+(.+)$/i.exec(arg);
         const query=resume&&promptMessage(resume[1]);
@@ -274,7 +287,9 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         return query?chooseMatch(query,getMistakes(),entry,({id})=>retry(id),'saved mistake','retry'):`Use ${commands.retry[0]}.`;
       }
       case 'journal':return arg.toLowerCase()==='resume'?resumeJournal():'Use journal resume.';
-      case 'agenda':return arg.toLowerCase()==='tomorrow'?agenda():'Use agenda tomorrow.';
+      case 'agenda':
+        if(/^today\s+--actual$/i.test(arg))return actualAgenda();
+        return arg.toLowerCase()==='tomorrow'?agenda():'Use agenda tomorrow or agenda today --actual.';
       case 'gap': {
         const match=/^(.+?)\s+(this|next)\s+week$/i.exec(arg);
         const minutes=match?promptDuration(match[1])/60000:0;
@@ -322,7 +337,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
       case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAvailability and deadlines: agenda tomorrow, gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nReading: read "Golden Son" p143, book resume "Golden Son".\nStitchbook: row "Left sleeve" +2, checkpoint "Left sleeve" "Switch to 4 mm hook".\nPreview lighting: garden dusk.\nWeekly totals and handoffs: review week.\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nReading: read "Golden Son" p143, book resume "Golden Son".\nStitchbook: row "Left sleeve" +2, checkpoint "Left sleeve" "Switch to 4 mm hook".\nPreview lighting: garden dusk.\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }

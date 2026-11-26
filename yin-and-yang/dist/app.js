@@ -44,7 +44,7 @@ import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed,spotifyPath} from './spotify-embed.js';
 import {createYouTubeEmbed,youtubeContent,youtubeLinks} from './youtube-embed.js';
 import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
-import {installCommandPalette} from './command-palette.js';
+import {installCommandPalette,matchCommands} from './command-palette.js';
 import {installCommandPrompt} from './command-prompt.js';
 import {summarizeWeek,weeklyStudySummary} from './weekly-planning.js';
 import {installHelp} from './help.js';
@@ -54,8 +54,8 @@ import {nextTaskDate,overdueTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
 import {taskTemplate,projectResource} from './project-planning.js';
 import {validTemplateDay,loadDayTemplates,captureCalendarDay,previewCalendarDay,copyCalendarDay} from './calendar-day-templates.js';
-import {estimateSummary,suggestTaskEstimate,taskSplitSuggestion} from './planner-report.js';
-import {loadRoutinePhase,routinePhases} from './state.js';
+import {estimateSamples,estimateSummary,suggestTaskEstimate,taskSplitSuggestion} from './planner-report.js';
+import {blockSplitPreview,loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime,taskTimeFit} from './calendar.js';
 import {calendarFocusWindow,focusWindowTasks,nextCalendarCommitment} from './calendar.js';
 import {calendarBlockTimeLabel,calendarEntryOnDay,eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
@@ -568,6 +568,9 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   check:completePromptSubtask,
   today:promptToday,
   agenda:promptTomorrowAgenda,
+  actualAgenda:promptActualAgenda,
+  blockSplit:promptBlockSplit,
+  estimate:promptEstimateComparison,
   gap:promptGaps,
   due:promptDue,
   plan:previewPromptDeadline,
@@ -1140,6 +1143,44 @@ function promptTomorrowAgenda(){
     '', `Open gaps (9 AM–${timeLabel(cutoff)}):`,...(open.length?open:['  No open planning gaps.'])
   ].join('\n');
 }
+function promptActualAgenda(){
+  const now=new Date(),date=shiftDay(now,0),start=+date,end=+shiftDay(date,1);
+  const sessions=replaySessions(state.history,state.timer,+now);
+  const blocks=replayBlocks(sessions,date);
+  const timeline=sessions.flatMap(session=>session.events.filter(item=>item.at>=start&&item.at<end).map(item=>({
+    at:item.at,text:`${replayLabels[item.action]} · ${item.title||(item.taskId?session.taskTitle:'')||'Unassigned focus'}${item.note?` · ${item.note}`:''}`
+  })));
+  let focused=0;
+  for(const {session,segment} of blocks){
+    const from=Math.max(start,segment.at),to=Math.min(end,segment.end);
+    focused+=Math.max(0,to-from);
+    const title=segment.title||session.taskTitle||'Unassigned focus';
+    if(session.estimated)timeline.push({at:from,text:`Estimated focus until ${replayClock(to)} · ${title}`});
+    else if(segment.at<start&&segment.end>start)timeline.push({at:from,text:`Continued from yesterday · ${title}`});
+  }
+  if(!timeline.length)return 'No focus activity recorded today.';
+  timeline.sort((a,b)=>a.at-b.at);
+  return [`Today’s actual agenda · ${shortScheduleDate(dayKey(date))}`,
+    `Focus today: ${focused?durationWords(focused):'0 min'}`,
+    ...timeline.map(item=>`  ${replayClock(item.at)} · ${item.text}`)
+  ].join('\n');
+}
+function promptEstimateComparison(query){
+  const tasks=taskIndex();
+  const samples=estimateSamples(state).map(sample=>({
+    ...sample,title:sample.event.text,
+    search:(sample.event.labels??tasks.get(sample.event.taskId)?.labels??[]).join(' ')
+  }));
+  const recent=matchCommands(samples,query).sort((a,b)=>b.event.at-a.event.at).slice(0,5);
+  if(!recent.length)return `No completed tasks match “${query}” with both an estimate and logged focus.`;
+  const totals=recent.reduce((sum,item)=>({estimate:sum.estimate+item.estimated,actual:sum.actual+item.actual}),{estimate:0,actual:0});
+  const count=recent.length;
+  return [
+    `Estimate comparison · ${query} · ${count} ${count===1?'sample':'samples'}`,
+    `Average: ${durationWords(totals.estimate/count)} estimated → ${durationWords(totals.actual/count)} actual`,
+    ...recent.map(({event,estimated,actual})=>`  - ${shortScheduleDate(dayKey(new Date(event.at)))} · ${event.text} · ${durationWords(estimated)} estimated → ${durationWords(actual)} actual`)
+  ].join('\n');
+}
 function promptWeek(next,now){
   return weekDays(next?shiftDay(now,7):now);
 }
@@ -1429,6 +1470,23 @@ function promptMoveChoices(){
         context:`${extensionTime(+slot.start)} · ${minutesLabel(slot.minutes)}`,at:+slot.start}];
     });
   }).sort((a,b)=>a.at-b.at);
+}
+function promptBlockSplit({taskId,blockId,occurrence},chunk){
+  const task=promptPlanningTasks().find(item=>item.id===taskId);
+  const slot=task&&calendarTaskBlock(task,blockId,occurrence);
+  if(!slot||!openFocusBlock({task,occurrence,taskDay:slot.taskDay}))return 'That block is no longer open or scheduled.';
+  const time=slot.start.getHours()*60+slot.start.getMinutes(),day=new Date(occurrence+'T00:00:00');
+  const phases=blockSplitPreview(slot.minutes,chunk);
+  const focus=phases.filter(phase=>phase.mode==='focus').reduce((sum,phase)=>sum+phase.minutes,0);
+  return [
+    `Split preview · ${task.text} · ${minutesLabel(slot.minutes)} block`,
+    `${minutesLabel(focus)} focus · ${minutesLabel(slot.minutes-focus)} break`,
+    ...phases.map(phase=>{
+      const from=time+phase.offset,date=dayKey(shiftDay(day,Math.floor(from/1440)));
+      const range=promptBlockTime({date,start:from%1440,minutes:phase.minutes});
+      return `  - ${range} · ${phase.mode==='focus'?'Focus':'Break'} · ${minutesLabel(phase.minutes)}`;
+    })
+  ].join('\n');
 }
 function previewPromptMove(source,destination,reviewed){
   const {taskId,blockId,occurrence}=source,{date,start}=destination;

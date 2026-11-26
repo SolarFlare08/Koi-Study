@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.0.15',date:'2026-11-25',title:'Block splits, actual agendas, and estimates in Prompt',changes:[
+    'Preview how an existing block divides into focus chunks and breaks.',
+    'See today’s actual focus activity, pause notes, and early finishes.',
+    'Compare recent estimates with logged focus and see the sample count.'
+  ]},
   {version:'6.0.14',date:'2026-11-25',title:'Task previews, details, and checklists in Prompt',changes:[
     'Use task add to parse a task’s date and estimate, then review before saving.',
     'Use task show to see a task’s deadline, estimate, next step, and checklist.',

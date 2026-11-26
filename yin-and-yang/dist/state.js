@@ -531,10 +531,23 @@ export function finishOvertime(state,now=Date.now()){
   advanceTimer(state,now);
   return session;
 }
-const blockPhaseLength={focus:50*60000,break:10*60000};
+const blockPhaseMinutes={focus:50,break:10};
+
+export function blockSplitPreview(minutes,focusMinutes=blockPhaseMinutes.focus){
+  if(!Number.isInteger(minutes)||!Number.isInteger(focusMinutes)||minutes<1||focusMinutes<1)return [];
+  const phases=[];
+  let offset=0,mode='focus';
+  while(offset<minutes){
+    const length=Math.min(minutes-offset,mode==='focus'?focusMinutes:blockPhaseMinutes.break);
+    phases.push({mode,offset,minutes:length});
+    offset+=length;
+    mode=mode==='focus'?'break':'focus';
+  }
+  return phases;
+}
 
 function startBlockPhase(state, mode, taskId, available, split, now, calendarBlock) {
-  const total=split ? Math.min(available,blockPhaseLength[mode]) : available;
+  const total=split ? Math.min(available,blockPhaseMinutes[mode]*60000) : available;
   reset(state,mode);
   Object.assign(state.timer,{remaining:total,total,block:{taskId,left:available-total,...calendarBlock}});
   startPause(state,now);

@@ -98,6 +98,10 @@ export function estimateReportDays(state,filters,now){
   return Array.from(estimatedWork(state,filters,now),({event})=>dayKey(new Date(event.at)));
 }
 
+export function estimateSamples(state,now=new Date()){
+  return Array.from(estimatedWork(state,{},now)).filter(({event})=>event.at<=+now);
+}
+
 export function estimateAccuracy(state,filters={},now=new Date()){
   const rows=new Map();
   for(const {event,actual,estimated} of estimatedWork(state,filters,now)){
