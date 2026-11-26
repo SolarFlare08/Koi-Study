@@ -22,6 +22,7 @@ export function loadLibraryBooks(value){
     books.set(id,{id,title,author,status:Object.hasOwn(libraryStatuses,item.status)?item.status:'want',
       totalPages:pageCount(item.totalPages),addedOn:validReadingDay(item.addedOn)?item.addedOn:'',
       ...(item.bookmark?{bookmark:pageBookmark(item.bookmark)}:{}),
+      ...(pageCount(item.pageGoal?.page)&&validReadingDay(item.pageGoal.day)?{pageGoal:{page:item.pageGoal.page,day:item.pageGoal.day}}:{}),
       ...(Number.isInteger(item.cutoff)&&item.cutoff>0?{cutoff:item.cutoff}:{}),
       ...(cleanText(item.lender,120)?{lender:cleanText(item.lender,120),returnBy:validReadingDay(item.returnBy)?item.returnBy:''}:{}),
       ...(item.archived===true?{archived:true}:{}),
@@ -33,11 +34,12 @@ export function loadLibraryBooks(value){
 const chapterLines=value=>(value||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
 const lastPosition=item=>item.position||chapterLines(item.chapters).at(-1)||'';
 
-export function annotationContext(rituals,date,book){
+export function annotationContext(rituals,date,book,library=[]){
   const entry=rituals[date]?.annotate;
   const records=Object.entries(rituals).filter(([day,item])=>day<=date&&item.annotate?.title?.trim())
     .sort(([a],[b])=>b.localeCompare(a));
-  const selected=book||records[0]?.[1].annotate;
+  const selected=book||records[0]?.[1].annotate||library.filter(item=>item.pageGoal?.day<=date)
+    .sort((a,b)=>b.pageGoal.day.localeCompare(a.pageGoal.day))[0];
   const key=selected&&bookKey(selected.title,selected.author);
   const matching=records.filter(([,item])=>bookKey(item.annotate.title,item.annotate.author)===key);
   const last=matching.find(([,item])=>lastPosition(item.annotate));
@@ -46,8 +48,21 @@ export function annotationContext(rituals,date,book){
   const checkedSince=recent?.goal&&Object.entries(rituals).some(([day,item])=>
     day>recentDate&&day<=date&&item.annotate?.done&&!item.annotate.title);
   const sameBook=entry?.title&&bookKey(entry.title,entry.author)===key;
+  const stored=selected?.library?.pageGoal||library.find(item=>item.id===key)?.pageGoal;
+  if(stored&&stored.day<=date&&(!recentDate||recentDate<=stored.day)){
+    return {book:selected,last:last?lastPosition(last[1].annotate):'',goal:String(stored.page),goalType:'page'};
+  }
   const goal=sameBook?entry:(!entry?.title&&entry?.done)||recent?.done||checkedSince?null:recent;
   return {book:selected,last:last?lastPosition(last[1].annotate):'',goal:goal?.goal,goalType:goal?.goalType};
+}
+
+export function clearLibraryPageGoal(library,book,date){
+  const id=bookKey(book.title,book.author);
+  return library.map(item=>{
+    if(item.id!==id||!item.pageGoal||item.pageGoal.day>date)return item;
+    const {pageGoal,...rest}=item;
+    return rest;
+  });
 }
 
 const noteKinds={question:'Question',quote:'Quote',insight:'Insight'};
@@ -291,6 +306,14 @@ export function manageShelfBook(state,id,action,targetId){
     const bookmark=updatePageBookmark(book.library?.bookmark,targetId.action,targetId.page,maximum);
     if(!bookmark)return {error:'Enter a valid page. The ending page must be at or after the starting page.'};
     update(book,{bookmark});
+    return {bookId:id,changes:{libraryBooks}};
+  }
+  if(action==='goal'){
+    const {page,day}=targetId,maximum=bookPageCount(book);
+    if(!pageCount(page)||!validReadingDay(day)||maximum&&page>maximum){
+      return {error:'Enter a valid target page within the book.'};
+    }
+    update(book,{pageGoal:{page,day}});
     return {bookId:id,changes:{libraryBooks}};
   }
   if(action==='return'){
@@ -580,8 +603,10 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
     const current=bookmark?.page||Number(fromLog)||1;
     const minutes=last?Math.round(last.duration/60000):0;
     const duration=minutes?minutes+' min':'Less than a minute';
+    const {goal,goalType}=annotationContext(getRituals(),readingDay(),book);
     return `<section class="reading-resume reading-bookmark"><h4>Reading bookmark</h4>
       ${bookmark?`<strong>Resume at page ${bookmark.page}</strong>`:''}
+      ${goal?`<span>Next reading goal · ${goalType==='page'?'Page':'Chapter'} ${escape(goal)}</span>`:''}
       ${last?`<span>Last sitting · ${duration} · pages ${last.from}–${last.to}</span>`:''}
       <form id="reading-bookmark-form"><label>${active?'Ending page':'Starting page'}<input name="page" type="number" min="${active?.page||1}" max="${maximum}" value="${Math.min(Math.max(current,active?.page||1),maximum)}" required></label>
         <button value="${active?'finish':'start'}">${active?'End sitting':'Start sitting'}</button>

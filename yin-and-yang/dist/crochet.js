@@ -580,6 +580,13 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
   window.addEventListener('storage',event=>{const key=storageEvent(event.key);if(key===CROCHET_KEY||key===null){data=loadCrochet(storage);render();}});
   render();
   return {
+    counterStatus(projectId,counterId){
+      const project=loadCrochet(storage).projects.find(item=>item.id===projectId);
+      const counter=project?.counters.find(item=>item.id===counterId);
+      if(!project||(counterId!=null&&!counter))return {error:'This counter is no longer available.'};
+      return {name:counter?.name??'Rows',project:project.name,count:counter?.count??project.rows,
+        instruction:counter?counter.instruction:project.rowInstruction,checkpoint:counterCheckpoint(project,counter)};
+    },
     checkpointCounter(projectId,counterId,note){
       const next=loadCrochet(storage),project=next.projects.find(item=>item.id===projectId);
       const counter=project?.counters.find(item=>item.id===counterId);

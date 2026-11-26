@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.0.17',date:'2026-11-25',title:'Reading targets, counter status, and shutdown in Prompt',changes:[
+    'Set a book’s next page goal and see the distance from your saved reading position.',
+    'Inspect a Stitchbook counter’s current count, row instruction, and latest checkpoint.',
+    'Review your evening checklist, tomorrow’s first task, and today’s unfinished work.'
+  ]},
   {version:'6.0.16',date:'2026-11-25',title:'Project context, note triage, and office hours in Prompt',changes:[
     'Resume a project in Garden with its next ready task, handoff, and pinned reference.',
     'Review the oldest unsorted thought and file, link, or archive it from Prompt.',

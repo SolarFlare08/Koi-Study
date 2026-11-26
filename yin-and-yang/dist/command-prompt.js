@@ -35,7 +35,7 @@ function promptMessage(value){
   return (quoted?(quoted[1]??quoted[2]):/^["“]/.test(value)?'':value).trim();
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,row,checkpoint,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
     pauseReason:['pause "Looking up the formula"','Pause focus and save the reason in the session replay.'],
@@ -70,8 +70,11 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     snooze:['snooze "Order yarn" until Friday','Hide a task from focus until the selected date.'],
     read:['read "Golden Son" p143','Save a reading position and show pages left.'],
     book:['book resume "Golden Son"','Show the saved position, pages left, and next reading goal.'],
+    bookGoal:['book goal "Golden Son" p180','Set a reading target and see how many pages away it is.'],
     row:['row "Left sleeve" +2','Adjust a Stitchbook counter and show its last checkpoint.'],
+    rowStatus:['row status "Left sleeve"','Show a counter’s count, instruction, and checkpoint.'],
     checkpoint:['checkpoint "Left sleeve" "Switch to 4 mm hook"','Save the current count with a note about where to resume.'],
+    shutdown:['shutdown','Review the evening checklist, tomorrow’s first task, and open work.'],
     garden:['garden dusk','Preview dusk lighting in Garden.'],
     review:['review week','Show this week’s focus time, completed tasks, and open next steps.'],
     play:['play "Deep work"','Load a saved soundtrack in Music & video.'],
@@ -216,14 +219,22 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
   }
 
   function runProgress(name,arg,entry){
+    if(name==='row'){
+      const status=/^status(?:\s+(.+))?$/i.exec(arg);
+      if(status){
+        const query=promptMessage(status[1]||'');
+        return query?chooseMatch(query,getCounters(),entry,rowStatus,'counter','inspect'):'Use '+commands.rowStatus[0]+'.';
+      }
+    }
     const named=/^(?:"([^"]+)"|“([^”]+)”)\s+(.+)$/.exec(arg);
     const query=(named?.[1]??named?.[2]??'').trim();
     const usage=`Use ${commands[name][0]}.`;
     if(!query)return usage;
-    if(name==='read'){
+    if(name==='read'||name==='bookGoal'){
       const page=Number(/^(?:p\.?\s*)?(\d+)$/i.exec(named[3])?.[1]);
       if(!Number.isInteger(page)||page<1||page>100000)return usage+' Enter a positive page number.';
-      return chooseMatch(query,getBooks(),entry,({id})=>read(id,page),'book','update');
+      const update=name==='read'?read:bookGoal;
+      return chooseMatch(query,getBooks(),entry,({id})=>update(id,page),'book',name==='read'?'update':'set a goal for');
     }
     if(name==='checkpoint'){
       const note=promptMessage(named[3]);
@@ -291,10 +302,13 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         return query?estimate(query):`Use ${commands.estimate[0]}.`;
       }
       case 'book': {
+        const goal=/^goal(?:\s+(.+))?$/i.exec(arg);
+        if(goal)return runProgress('bookGoal',goal[1]||'',entry);
         const resume=/^resume\s+(.+)$/i.exec(arg);
         const query=resume&&promptMessage(resume[1]);
         return query?chooseMatch(query,getBooks(),entry,({id})=>bookResume(id),'book','resume'):`Use ${commands.book[0]}.`;
       }
+      case 'shutdown':return arg?'Use shutdown without an argument.':shutdown();
       case 'garden':return arg.toLowerCase()==='dusk'?dusk():'Use garden dusk.';
       case 'wait': {
         const query=promptMessage(arg);
@@ -355,7 +369,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
       case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son".\nStitchbook: row "Left sleeve" +2, checkpoint "Left sleeve" "Switch to 4 mm hook".\nPreview lighting: garden dusk.\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nPreview lighting: garden dusk.\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }

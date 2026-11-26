@@ -21,8 +21,8 @@ import {comparisonPostcardPng,postcardPng,weeklyPostcardPng} from './garden-post
 import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
-import {ratingTier,radiantRatingLabels} from './reading-progress.js';
-import {annotationContext,bookPageCount,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingPagePosition,readingShelf,saveLibraryBook} from './reading-shelf.js';
+import {currentPageBookmark,ratingTier,radiantRatingLabels} from './reading-progress.js';
+import {annotationContext,bookPageCount,clearLibraryPageGoal,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingPagePosition,readingShelf,saveLibraryBook} from './reading-shelf.js';
 import {installBackup,restoreBackup} from './backup.js';
 import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
@@ -604,6 +604,9 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   ]),
   read:savePromptReadingPosition,
   bookResume:promptBookResume,
+  bookGoal:savePromptBookGoal,
+  rowStatus:promptRowStatus,
+  shutdown:promptShutdown,
   checkpoint:({projectId,counterId},note)=>{
     const result=crochet.checkpointCounter(projectId,counterId,note);
     if(result.error)return result.error;
@@ -1408,6 +1411,55 @@ function promptBookResume(id){
       `${remaining.toLocaleString()} ${remaining===1?'page':'pages'} left.`,
     goal?`Next reading goal · ${goalType==='page'?'Page':'Chapter'} ${goal}`:'No next reading goal saved.'
   ].join('\n');
+}
+function savePromptBookGoal(id,page){
+  const book=promptBooks().find(item=>item.id===id);
+  if(!book)return 'This book is no longer on the shelf.';
+  const {current:loggedPage,total}=readingPagePosition(book);
+  const current=currentPageBookmark(book.library?.bookmark)?.page??loggedPage;
+  if(total&&page>total)return `${book.title} has ${total.toLocaleString()} pages. Enter a page within the book.`;
+  const result=saveReadingChanges(manageShelfBook(state,id,'goal',{page,day:dayKey()}));
+  if(result.error)return result.error;
+  const distance=page-current;
+  const progress=current===undefined?'Save a reading position to see how far away the target is.':
+    distance<=0?`Goal already reached · 0 pages to go (saved page ${current.toLocaleString()}).`:
+      `${distance.toLocaleString()} ${distance===1?'page':'pages'} from your saved page (${current.toLocaleString()}).`;
+  return `Reading goal saved · ${book.title} · Page ${page.toLocaleString()}\n${progress}`;
+}
+function promptRowStatus({projectId,counterId}){
+  const result=crochet.counterStatus(projectId,counterId);
+  if(result.error)return result.error;
+  const {name,project,count,instruction,checkpoint}=result;
+  return [
+    `${name} · ${project}`,
+    `Count: ${count.toLocaleString()} ${count===1?'row':'rows'}`,
+    instruction?`${instruction.row>count?'Next instruction':'Saved instruction'}: Row ${instruction.row.toLocaleString()} · ${instruction.text}`:'No row instruction saved.',
+    checkpoint?`Last checkpoint: Row ${checkpoint.row.toLocaleString()}${checkpoint.note?` · ${checkpoint.note}`:''}`:'No checkpoint saved for this counter.'
+  ].join('\n');
+}
+function promptShutdown(){
+  const now=new Date(),today=dayKey(now),tomorrow=shiftDay(now,1);
+  const checked=shutdownChecked(today),tasks=gardenTasks();
+  const tomorrowQueue=gardenFocusQueue(tomorrow,tasks),tomorrowDay=dayKey(tomorrow);
+  const pin=[state.tomorrowPin,state.tomorrowPlan].find(item=>item?.day===tomorrowDay);
+  const first=tomorrowQueue.find(task=>task.id===pin?.taskId)||tomorrowQueue[0];
+  const openTasks=new Map(gardenFocusQueue(now,tasks).map(task=>[task.id,task]));
+  for(const {task} of calendarBlocks(tasks,now).filter(openFocusBlock))openTasks.set(task.id,task);
+  for(const task of tasks){
+    const openOccurrence=taskOccursOn(task,now)&&taskStatus(task,now)!=='done';
+    const due=task.repeat==='none'&&!task.done&&[task.date,task.deadline].some(date=>date&&date<=today);
+    if(openOccurrence||due)openTasks.set(task.id,task);
+  }
+  const openRituals=[...scheduledRituals(state.ritualSchedules,now,'allDay'),...scheduledRituals(state.ritualSchedules,now,'timed')]
+    .filter(kind=>!ritualComplete(kind,state.dailyRituals[today]?.[kind],journal.completedAt(today)));
+  const open=[...Array.from(openTasks.values(),task=>task.text),...openRituals.map(kind=>rituals[kind].label)];
+  return [
+    `Shutdown · ${shortScheduleDate(today)}`,
+    ['Evening checklist:',...(state.shutdownSteps.length?
+      state.shutdownSteps.map(step=>`  [${checked.has(step.id)?'x':' '}] ${step.text}`):['  No recurring steps saved.'])].join('\n'),
+    `Tomorrow’s first task: ${first?.text||'None lined up.'}`,
+    ['Still open today:',...(open.length?open.map(title=>`  - ${title}`):['  Nothing left open.'])].join('\n')
+  ].join('\n\n');
 }
 function previewPromptDusk(){
   visitWorkspace('focus');
@@ -2553,8 +2605,11 @@ function dayRecapMarkup(){
       <button type="button" class="text-button" data-evening-lights>Evening lights</button>${shutdownMarkup(today)}
     </div>`;
 }
+function shutdownChecked(today){
+  return new Set(state.shutdownProgress?.day===today?state.shutdownProgress.ids:[]);
+}
 function shutdownMarkup(today){
-  const checked=new Set(state.shutdownProgress?.day===today?state.shutdownProgress.ids:[]);
+  const checked=shutdownChecked(today);
   return `<section id="shutdown-checklist"><h3>Shutdown checklist</h3>
     ${state.shutdownSteps.length?`<ul>${state.shutdownSteps.map(step=>`<li><label><input type="checkbox" data-shutdown-step="${escape(step.id)}" ${checked.has(step.id)?'checked':''}> ${escape(step.text)}</label></li>`).join('')}</ul>`:'<p>No recurring steps yet.</p>'}
     <details id="shutdown-edit"><summary>Edit recurring steps</summary>
@@ -4739,7 +4794,7 @@ function renderDailyRituals(date,kinds,showDetails=true){
   }
   const now=new Date(),day=state.dailyRituals[date];
   const showReading=day?.annotate?.title||date===dayKey(now)||date===dayKey(shiftDay(now,1));
-  return dailyRitualMarkup(date,day,journal.completedAt(date),showDetails&&showReading?annotationContext(state.dailyRituals,date):null,kinds);
+  return dailyRitualMarkup(date,day,journal.completedAt(date),showDetails&&showReading?annotationContext(state.dailyRituals,date,undefined,state.libraryBooks):null,kinds);
 }
 const replayLabels={start:'Started',pause:'Paused',resume:'Resumed',switch:'Switched to',overtime:'Overtime began',finish:'Timer finished',early:'Finished early',skip:'Skipped'};
 const replayClock=at=>new Date(at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
@@ -6120,7 +6175,7 @@ function ritualEditor(){
       <select id="ritual-project" name="projectId"><option value="">No linked project</option>${projects.map(project=>`<option value="${escape(project.id)}" ${item.projectId===project.id?'selected':''}>${escape(project.name)}</option>`).join('')}</select>
       <div class="panel-actions"><button type="submit" value="open" class="text-button">Open Stitchbook</button><button class="panel-primary">Save link</button></div></form>`;
   }
-  const context=annotationContext(state.dailyRituals,date);
+  const context=annotationContext(state.dailyRituals,date,undefined,state.libraryBooks);
   const book=context.book||{};
   return `${heading}<form id="daily-ritual-form" data-kind="${kind}" data-date="${date}">
     <label class="field-label" for="ritual-book">Book title</label><input id="ritual-book" name="title" maxlength="250" value="${escape(book.title)}" placeholder="Type a title or search Open Library">
@@ -6141,10 +6196,13 @@ function ritualEditor(){
         `<option value="${escape(project.id)}" ${project.id===(item.projectId??book.projectId)?'selected':''}>${escape(project.name)}</option>`).join('')}</select>
     <p class="ritual-error" role="alert" hidden></p><div class="panel-actions"><button type="button" class="text-button" id="open-reading-shelf">Reading shelf</button><button class="panel-primary">Save annotation log</button></div></form>`;
 }
-function saveRitual(date,kind,item){
+function saveRitual(date,kind,item,{editGoal=false}={}){
   const previous=state.dailyRituals[date];
+  const library=state.libraryBooks;
+  if(kind==='annotate'&&editGoal)state.libraryBooks=clearLibraryPageGoal(library,item,date);
   state.dailyRituals[date]={...previous,[kind]:item};
   if(persist())return true;
+  state.libraryBooks=library;
   if(previous)state.dailyRituals[date]=previous;
   else delete state.dailyRituals[date];
   return false;
@@ -7615,7 +7673,7 @@ root.addEventListener('submit',e=>{
         form.elements.title.focus();return;
       }
     }else item.projectId=String(fields.get('projectId'));
-    if(!saveRitual(date,kind,item))return;
+    if(!saveRitual(date,kind,item,{editGoal:true}))return;
     closePanel(false);
     if(e.submitter?.value==='open'){
       $('[data-workspace="crochet"]').click();
