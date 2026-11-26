@@ -35,7 +35,7 @@ function promptMessage(value){
   return (quoted?(quoted[1]??quoted[2]):/^["“]/.test(value)?'':value).trim();
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,today,agenda,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,row,checkpoint,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,taskDetails,previewTask,subtasks,check,today,agenda,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,row,checkpoint,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
     pauseReason:['pause "Looking up the formula"','Pause focus and save the reason in the session replay.'],
@@ -57,6 +57,10 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     move:['move "Lab report" tomorrow 4pm','Review a new time for an existing block.'],
     extend:['extend 10m','Review overlaps before adding time to a running session.'],
     finish:['task done','Complete the current task, then rest or start the next one.'],
+    quickAdd:['task add Review chapter 4 tomorrow for 30m','Preview a task with a date and estimate before saving.'],
+    taskShow:['task show "Lab report"','Show a task’s deadline, checklist, estimate, and next step.'],
+    subtasks:['subtasks','List the current focus task’s numbered checklist.'],
+    check:['check 2','Complete item 2 from the last listed checklist.'],
     snooze:['snooze "Order yarn" until Friday','Hide a task from focus until the selected date.'],
     read:['read "Golden Son" p143','Save a reading position and show pages left.'],
     book:['book resume "Golden Son"','Show the saved position, pages left, and next reading goal.'],
@@ -221,6 +225,18 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     if(!Number.isSafeInteger(step)||step===0||Math.abs(step)>100000)return usage+' Enter a signed whole number.';
     return chooseMatch(query,getCounters(),entry,item=>row(item,step),'counter','update');
   }
+  function runTask(arg,entry){
+    if(arg.toLowerCase()==='done')return showFinish(entry,finish());
+    const action=/^(add|show)(?:\s+(.+))?$/i.exec(arg);
+    const value=action?.[2];
+    if(action?.[1].toLowerCase()==='add')return value?
+      showPreview(entry,previewTask(value),'Task cancelled.'):`Use ${commands.quickAdd[0]}.`;
+    if(action){
+      const query=promptMessage(value||'');
+      return query?chooseMatch(query,getTaskDetails(),entry,({id})=>taskDetails(id),'task','show'):`Use ${commands.taskShow[0]}.`;
+    }
+    return arg?addTask(arg):'Use task <title>, task add <details>, task show <title>, or task done.';
+  }
 
   function execute(name,arg,entry){
     if(name==='focus')return runFocus(arg,entry);
@@ -297,11 +313,16 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         if(!Object.hasOwn(promptWorkspaces,target))return 'Use open <workspace>. Try garden, planner, calendar, notes, reading, journal, or crochet.';
         return openWorkspace(promptWorkspaces[target])?'Opened '+target+'.':'Close the current panel before switching workspaces.';
       }
-      case 'task':return arg.toLowerCase()==='done'?showFinish(entry,finish()):arg?addTask(arg):'Use task <title> or task done.';
+      case 'task':return runTask(arg,entry);
+      case 'subtasks':return arg?'Use subtasks without an argument.':subtasks();
+      case 'check': {
+        const index=/^\d+$/.test(arg)?Number(arg):NaN;
+        return Number.isSafeInteger(index)&&index>0?check(index):'Use check <item number>, such as check 2.';
+      }
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
       case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAvailability and deadlines: agenda tomorrow, gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nCurrent task: task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nReading: read "Golden Son" p143, book resume "Golden Son".\nStitchbook: row "Left sleeve" +2, checkpoint "Left sleeve" "Switch to 4 mm hook".\nPreview lighting: garden dusk.\nWeekly totals and handoffs: review week.\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAvailability and deadlines: agenda tomorrow, gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nReading: read "Golden Son" p143, book resume "Golden Son".\nStitchbook: row "Left sleeve" +2, checkpoint "Left sleeve" "Switch to 4 mm hook".\nPreview lighting: garden dusk.\nWeekly totals and handoffs: review week.\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }

@@ -561,6 +561,11 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   runTimer:runPromptTimer,
   getFocusTasks:()=>promptTaskChoices(gardenFocusQueue()),
   getTasks:()=>promptTaskChoices(promptPlanningTasks()),
+  getTaskDetails:()=>promptTaskChoices(gardenTasks()),
+  taskDetails:promptTaskDetails,
+  previewTask:previewPromptTask,
+  subtasks:promptSubtasks,
+  check:completePromptSubtask,
   today:promptToday,
   agenda:promptTomorrowAgenda,
   gap:promptGaps,
@@ -1199,6 +1204,68 @@ function promptTaskChoices(tasks){
 }
 function promptPlanningTasks(){
   return gardenTasks().filter(task=>!task.done);
+}
+function previewPromptTask(line){
+  if(line.length>300)return {text:'Use a quick-add line of 300 characters or fewer.'};
+  const task=quickTask(line,{},state.projects);
+  if(!task)return {text:'Enter a task title to preview.'};
+  const project=state.projects.find(item=>item.id===task.projectId);
+  return {
+    text:[`Add task · ${task.text}`,
+      `Date: ${task.date?shortScheduleDate(task.date):'No date set'}${task.time?` at ${timeLabel(timeMinutes(task.time))}`:''}`,
+      `Estimate: ${task.estimate?minutesLabel(task.estimate):'No estimate set'}`,
+      `Project: ${project?.name||'Inbox'}`,
+      ...(task.deadline?[`Deadline: ${shortScheduleDate(task.deadline)}`]:[]),
+      ...(task.repeat!=='none'?[`Repeats: ${task.repeat==='interval'?`Every ${task.repeatEvery} days`:taskFrequencies[task.repeat]}`]:[]),
+      ...(task.priority?[`Priority: P${task.priorityLevel}`]:[]),
+      ...(task.labels.length?[`Labels: ${task.labels.join(', ')}`]:[])
+    ].join('\n'),
+    label:'Add task',
+    confirm:()=>{
+      if(task.projectId&&!state.projects.some(item=>item.id===task.projectId&&!item.archived)){
+        return {text:'The project is no longer available. Run task add again to review the destination.'};
+      }
+      if(!saveQuickTask(task))return {text:'Could not save the task on this device.'};
+      refreshTasks();
+      return {text:`Added ${task.text}.`};
+    }
+  };
+}
+function promptChecklistLines(items){
+  return items.length?items.map((item,index)=>`  ${index+1}. [${item.done?'x':' '}] ${item.text}`):['  No subtasks saved.'];
+}
+function promptTaskDetails(id){
+  const task=gardenTasks().find(item=>item.id===id);
+  if(!task)return 'That task is no longer available.';
+  const next=task.resumeNote||nextFocusSubtask(task)?.text;
+  return [task.text,
+    `Deadline: ${task.deadline?shortScheduleDate(task.deadline):'No hard deadline'}`,
+    `Estimate: ${task.estimate?minutesLabel(task.estimate):'No estimate set'}`,
+    `Next step: ${next||'No next step saved'}`,
+    '', 'Checklist:',...promptChecklistLines(task.subtasks||[])
+  ].join('\n');
+}
+let listedPromptChecklist;
+function promptSubtasks(){
+  const task=focusedTask(),items=task?.subtasks||[];
+  listedPromptChecklist=items.length?{taskId:task.id,items:items.map(({id,text})=>({id,text}))}:null;
+  if(!task)return 'There’s no current focus task.';
+  return [`Checklist · ${task.text} (${items.filter(item=>item.done).length}/${items.length} complete)`,
+    ...promptChecklistLines(items)].join('\n');
+}
+function completePromptSubtask(number){
+  if(!listedPromptChecklist)return 'Run subtasks first to see the numbered checklist.';
+  const expected=listedPromptChecklist.items[number-1];
+  if(!expected)return 'That number is outside the checklist. Run subtasks to see the available items.';
+  const task=focusedTask(),sub=task?.subtasks?.[number-1];
+  if(task?.id!==listedPromptChecklist.taskId||sub?.id!==expected.id||sub.text!==expected.text){
+    listedPromptChecklist=null;
+    return 'The current task or checklist changed. Run subtasks again.';
+  }
+  if(sub.done)return `Already complete: ${sub.text}.`;
+  if(!saveSubtaskDone(sub,true))return 'Could not save the subtask on this device.';
+  refreshTasks();
+  return `Completed ${number}. ${sub.text}`;
 }
 function promptWaitingDetails(id){
   const task=promptPlanningTasks().find(item=>item.id===id);
@@ -2801,6 +2868,19 @@ function updateQuickTask(form){
     task.deadline&&'Due '+shortScheduleDate(task.deadline),
     state.projects.find(item=>item.id===task.projectId)?.name,task.priority&&'P'+task.priorityLevel,...task.labels
   ].filter(Boolean).map(escape).join(' · ')||'Inbox · No date or duration'}</p>`:'';
+}
+function saveQuickTask(task){
+  if(state.tasks.some(item=>item.id===task.id))return false;
+  const previous=state.tasks;
+  state.tasks=[...previous,task];
+  if(persist())return true;
+  state.tasks=previous;return false;
+}
+function saveSubtaskDone(subtask,done){
+  const before=subtask.done;
+  subtask.done=done;
+  if(persist())return true;
+  subtask.done=before;return false;
 }
 function focusSetupsMarkup(){
   const routine=[...builtinRoutines,...state.routines];
@@ -7145,9 +7225,7 @@ root.addEventListener('change',event=>{
     const task=state.tasks.find(item=>item.id===event.target.dataset.subtaskParent);
     const sub=task?.subtasks.find(item=>item.id===itemId);
     if(!sub)return;
-    const previous=sub.done;
-    sub.done=event.target.checked;
-    if(!persist()){sub.done=previous;event.target.checked=previous;return;}
+    if(!saveSubtaskDone(sub,event.target.checked)){event.target.checked=sub.done;return;}
     refreshTasks();
     announce(sub.done?'Subtask completed.':'Subtask reopened.');
     return;
@@ -7377,9 +7455,7 @@ root.addEventListener('submit',e=>{
   if(e.target.id==='plan-tomorrow-form'){saveTomorrowPlan(e.target);return;}
   if(e.target.id==='quick-task-capture-form'){
     const task=quickTask(e.target.elements.line.value,{},state.projects);
-    if(!task)return;
-    const previous=state.tasks;state.tasks=[...previous,task];
-    if(!persist()){state.tasks=previous;return;}
+    if(!task||!saveQuickTask(task))return;
     closePanel();refreshTasks();confirmChange(`Added ${task.text}.`);return;
   }
   if(e.target.id==='focus-setup-form'){

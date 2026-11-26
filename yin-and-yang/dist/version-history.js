@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.0.14',date:'2026-11-25',title:'Task previews, details, and checklists in Prompt',changes:[
+    'Use task add to parse a task’s date and estimate, then review before saving.',
+    'Use task show to see a task’s deadline, estimate, next step, and checklist.',
+    'List the current task’s subtasks and check one off by number from Prompt.'
+  ]},
   {version:'6.0.13',date:'2026-11-25',title:'Reading goals, counter checkpoints, and dusk in Prompt',changes:[
     'Use book resume to see your saved position, pages left, and next reading goal.',
     'Save a single Stitchbook counter checkpoint with a resume note from Prompt.',

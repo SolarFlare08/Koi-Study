@@ -133,6 +133,8 @@ export const helpTopics = [
       'Type `due next week` or `due this week` to list unfinished tasks by hard deadline. Estimated work left subtracts completed focus time.',
       'Type `plan "Exam 2" by Friday` to draft study blocks and see any time that couldn’t fit. The task needs an estimate. An earlier hard deadline takes priority. Choose `Add study blocks` to save the draft and keep the task’s existing deadline.',
       'Type `wait "Lab report"` to see what the task is waiting on, its follow-up date, and any fallback decision.',
+      'Type `task add Review chapter 4 tomorrow for 30m` to parse a date and estimate. Review the preview and choose `Add task` to save it. Use `task show "Lab report"` to see the deadline, estimate, next step, and checklist for a saved task.',
+      'Type `subtasks` to list your current focus task’s checklist, then `check 2` to mark the second item complete. Run `subtasks` again if you switch tasks or reorder the checklist.',
       'Type `retry "Boundary terms"` to find a saved mistake and start a retry in Garden. If several match, choose one. The corrected reasoning stays hidden until you finish the retry.',
       'Type `journal resume` to reopen the most recently edited draft at its saved cursor or selection.',
       'Type `fit 20m` to list tasks that fit the window, including useful first steps on longer tasks. Results show time for work, planned rest when needed, and time left over.',
