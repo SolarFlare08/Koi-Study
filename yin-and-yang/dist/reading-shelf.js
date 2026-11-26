@@ -45,7 +45,8 @@ export function annotationContext(rituals,date,book){
   const recent=recentDay?.annotate;
   const checkedSince=recent?.goal&&Object.entries(rituals).some(([day,item])=>
     day>recentDate&&day<=date&&item.annotate?.done&&!item.annotate.title);
-  const goal=entry?.title?entry:entry?.done||recent?.done||checkedSince?null:recent;
+  const sameBook=entry?.title&&bookKey(entry.title,entry.author)===key;
+  const goal=sameBook?entry:(!entry?.title&&entry?.done)||recent?.done||checkedSince?null:recent;
   return {book:selected,last:last?lastPosition(last[1].annotate):'',goal:goal?.goal,goalType:goal?.goalType};
 }
 
@@ -354,18 +355,24 @@ export function countReadingChapters(rituals){
   },0);
 }
 
-export function readingForecast(book){
-  const total=bookPageCount(book);
-  const logs=book.entries.flatMap(entry=>{
+function readingPageLogs(book){
+  return book.entries.flatMap(entry=>{
     const match=normalized(entry.position).match(/^(?:page\s+|p\.?\s*)?(\d{1,6})$/);
     return match?[{page:Number(match[1]),date:entry.date}]:[];
   });
+}
+export function readingPagePosition(book,logs=readingPageLogs(book)){
+  const total=bookPageCount(book);
   const logsPage=logs[0]?.page;
   const {page:bookmarkPage,at:bookmarkAt}=currentPageBookmark(book.library?.bookmark)||{};
   const newerBookmark=bookmarkAt&&(!logs[0]?.date||readingDay(new Date(bookmarkAt))>=logs[0].date);
   const page=newerBookmark?bookmarkPage:logsPage??bookmarkPage;
-  if(!total||page===undefined)return null;
-  const current=Math.min(total,page),remaining=total-current;
+  const current=page===undefined?undefined:Math.min(total??Infinity,page);
+  return {current,total,remaining:total&&current!==undefined?total-current:undefined};
+}
+export function readingForecast(book){
+  const logs=readingPageLogs(book),{current,total,remaining}=readingPagePosition(book,logs);
+  if(remaining===undefined)return null;
   const pages=logs.map(item=>item.page);
   const advances=pages.slice(0,-1).map((page,index)=>page-pages[index+1]).filter(delta=>delta>0).slice(0,5);
   const pace=advances.length?advances.reduce((sum,value)=>sum+value,0)/advances.length:0;

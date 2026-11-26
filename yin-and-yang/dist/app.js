@@ -22,7 +22,7 @@ import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
 import {ratingTier,radiantRatingLabels} from './reading-progress.js';
-import {annotationContext,bookPageCount,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingShelf,saveLibraryBook} from './reading-shelf.js';
+import {annotationContext,bookPageCount,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingPagePosition,readingShelf,saveLibraryBook} from './reading-shelf.js';
 import {installBackup,restoreBackup} from './backup.js';
 import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
@@ -127,7 +127,7 @@ let activeCaptureContext;
 let reopenTasksAfterCalendar=false;
 let effectiveAppearance=state.appearance, resumeTaskId=null, captureActionKey=null;
 let renderedGardenGrowth, renderedGardenProjects, selectedLandmark=null, gardenHistoryFilter='all', recapOrigin=null;
-let gardenFrom='',gardenThrough='',snapshotThrough='',selectedCourse='';
+let gardenFrom='',gardenThrough='',snapshotThrough='',selectedCourse='',gardenDuskPreview=false;
 let seasonPreview='',comparisonDates=null,snapshotLayoutId='',paintedGardenDesign;
 let renderedGardenDesign;
 const studio=createGardenStudio({getState:()=>state,getAppearance:()=>effectiveAppearance,getDesign:sceneGardenDesign,commit:saveStudioLayouts,
@@ -475,7 +475,13 @@ $('#garden-landmarks').addEventListener('click',event=>{
   if(button?.dataset.skyCourse)openGardenCourse(button.dataset.skyCourse,button);
   else if(button)openGardenLandmark(Number(button.dataset.gardenLandmark));
 });
-$('#garden-snapshot-close').onclick=()=>setGardenSnapshot('');
+$('#garden-snapshot-close').onclick=()=>{
+  if(!gardenDuskPreview){setGardenSnapshot('');return;}
+  gardenDuskPreview=false;
+  render();
+  if(!updateGardenSnapshotLabel())workspaceButton('focus').focus({preventScroll:true});
+  announce('Dusk preview ended.');
+};
 $('#garden-snapshot [data-open-postcard]').onclick=event=>openGardenPostcard(undefined,event.currentTarget);
 const crochet=installCrochet({root:$('#crochet-workspace'),storage,storageEvent:key=>workspaceStorageEvent(key,adminSandbox),notify:message=>{toast(message);announce(message);}});
 const journal=installJournal({root:$('#journal-workspace'),storage,storageEvent:key=>workspaceStorageEvent(key,adminSandbox),projects:()=>loadCrochet(storage).projects,notify:confirmChange,
@@ -585,6 +591,13 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
     ...project.counters.map(counter=>({projectId:project.id,counterId:counter.id,title:counter.name,context:project.name}))
   ]),
   read:savePromptReadingPosition,
+  bookResume:promptBookResume,
+  checkpoint:({projectId,counterId},note)=>{
+    const result=crochet.checkpointCounter(projectId,counterId,note);
+    if(result.error)return result.error;
+    return `Checkpoint saved · ${result.project} · ${result.name} · Row ${result.count.toLocaleString()}\n${note}`;
+  },
+  dusk:previewPromptDusk,
   reviewWeek:promptReviewWeek,
   getSoundtracks:()=>state.soundtracks.map(({id,name,source})=>({id,title:name,context:source==='youtube'?'YouTube':'Spotify'})),
   play:openPromptSoundtrack,
@@ -727,6 +740,10 @@ setTaskSidebar(sidebarBeforeFocus);
 desktopTasks.addEventListener('change',()=>setTaskSidebar(workspace==='focus'&&desktopTasks.matches));
 
 function showWorkspace(next){
+  if(next!=='focus'&&gardenDuskPreview){
+    gardenDuskPreview=false;
+    updateGardenSnapshotLabel();
+  }
   workspace=next;
   app.dataset.workspace=next;
   $('.sky').hidden=next!=='focus';
@@ -1264,6 +1281,29 @@ function promptReviewWeek(){
 function promptBooks(){
   return readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks);
 }
+function promptBookResume(id){
+  const book=promptBooks().find(item=>item.id===id);
+  if(!book)return 'This book is no longer on the shelf.';
+  const {current,total,remaining}=readingPagePosition(book);
+  const {last,goal,goalType}=annotationContext(state.dailyRituals,dayKey(),book);
+  return [
+    [book.title,book.author].filter(Boolean).join(' · '),
+    current!==undefined?`Resume at page ${current.toLocaleString()}${total?` of ${total.toLocaleString()}`:''}.`:
+      last?`Last saved position: ${last}`:'No reading position saved.',
+    remaining===undefined?(total?'Pages left will appear after you save a page.':'No total page count saved.'):
+      `${remaining.toLocaleString()} ${remaining===1?'page':'pages'} left.`,
+    goal?`Next reading goal · ${goalType==='page'?'Page':'Chapter'} ${goal}`:'No next reading goal saved.'
+  ].join('\n');
+}
+function previewPromptDusk(){
+  visitWorkspace('focus');
+  if(workspace!=='focus')return 'Could not open Garden.';
+  gardenDuskPreview=true;
+  render();updateGardenSnapshotLabel();
+  $('#garden-snapshot-close').focus({preventScroll:true});
+  announce('Dusk preview. Choose End dusk preview to restore your lighting.');
+  return 'Opened Garden’s dusk preview.';
+}
 function savePromptReadingPosition(id,page){
   const book=promptBooks().find(item=>item.id===id);
   if(!book)return 'This book is no longer on the shelf.';
@@ -1446,6 +1486,7 @@ function render(){
     activity?loadAppearance({...activity.appearance,weatherSince:activityWeatherSince}):
     scheduledAppearance(state.appearance,state.gardenSchedule,clock);
   if(!viewed&&!activity&&!state.gardenSchedule.enabled&&state.appearance.lighting==='day')effectiveAppearance={...effectiveAppearance,lighting:'day'};
+  if(gardenDuskPreview)effectiveAppearance={...effectiveAppearance,lighting:'dusk'};
   if(paintedGardenDesign!==design){
     applyGardenDesign($('#landscape .world'),design);
     paintedGardenDesign=design;
@@ -1929,11 +1970,13 @@ function openGardenLandmark(index){
 }
 const landmarkDate=day=>new Date(`${day}T12:00:00`).toLocaleDateString([],{dateStyle:'medium'});
 function updateGardenSnapshotLabel(){
-  const layout=viewedGardenLayout(),visible=Boolean(snapshotThrough||layout);
+  const layout=viewedGardenLayout(),visible=Boolean(snapshotThrough||layout||gardenDuskPreview);
   $('#garden-snapshot').hidden=!visible;
-  $('#garden-snapshot-date').textContent=layout
+  const label=layout
     ?layout.name+(snapshotThrough?` · Through ${landmarkDate(snapshotThrough)}`:'')
     :snapshotThrough?`Garden on ${landmarkDate(snapshotThrough)}`:'';
+  $('#garden-snapshot-date').textContent=[label,gardenDuskPreview?'Dusk preview':''].filter(Boolean).join(' · ');
+  $('#garden-snapshot-close').textContent=gardenDuskPreview?'End dusk preview':'Return to today';
   return visible;
 }
 function setGardenSnapshot(through,layoutId=''){

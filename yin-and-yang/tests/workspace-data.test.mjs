@@ -387,6 +387,9 @@ test('an unfinished page goal carries forward without mixing stopping points fro
   const {dailyRituals}=loadState(memoryStorage([[STORAGE_KEY,JSON.stringify(state)]]));
   const next=annotationContext(dailyRituals,'2026-11-11');
   assert.deepEqual([next.goalType,next.goal,next.last],['page','50','Page 25']);
+  dailyRituals['2026-11-11']={annotate:{title:'Dunes',goal:'80',goalType:'page',done:false}};
+  const otherBook=annotationContext(dailyRituals,'2026-11-11',{title:'Tides'});
+  assert.deepEqual([otherBook.goal,otherBook.last],['50','Page 25']);
   dailyRituals['2026-11-11']={annotate:{done:true}};
   assert.equal(annotationContext(dailyRituals,'2026-11-12').goal,undefined);
   dailyRituals['2026-11-10'].annotate.done=true;

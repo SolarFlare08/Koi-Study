@@ -9,12 +9,18 @@ const clean=(value,limit)=>typeof value==='string'?value.trim().slice(0,limit):'
 const whole=(value,max=100000)=>Math.min(max,Math.max(0,Math.trunc(Number(value)||0)));
 function counterCheckpoint(project,counter){
   if(!counter){
-    const point=project.checkpoints.at(-1);
+    const point=project.checkpoints.findLast(item=>!item.counterId);
     return point?{row:point.rows,note:point.note}:null;
   }
   const recorded=point=>point.counters.find(value=>value.id?value.id===counter.id:value.name===counter.name);
   const point=project.checkpoints.findLast(recorded);
   return point?{row:recorded(point).count,note:point.note}:null;
+}
+function makeCheckpoint(project,note,{counter,rowsOnly=false,photos=[]}={}){
+  const counters=counter?[counter]:rowsOnly?[]:project.counters;
+  return {id:crypto.randomUUID(),at:Date.now(),note,rows:project.rows,
+    counters:counters.map(({id,name,count})=>({id,name,count})),
+    ...(counter?{counterId:counter.id}:{}),...(photos.length?{photos}:{})};
 }
 const color=value=>/^#[\da-f]{6}$/i.test(value)?value:'#ad7d76';
 const number=new Intl.NumberFormat().format;
@@ -41,6 +47,7 @@ function cleanProject(item){
   const instruction=rowInstruction(item.rowInstruction,rows);
   const checkpoints=Array.isArray(item.checkpoints)?item.checkpoints.filter(point=>typeof point?.id==='string'&&Number.isFinite(point.at)&&clean(point.note,1000))
     .map(point=>({id:point.id,at:point.at,note:clean(point.note,1000),rows:whole(point.rows),
+      ...(typeof point.counterId==='string'&&point.counterId?{counterId:point.counterId}:{}),
       ...(point.photos?.length&&{photos:loadCheckpointPhotos(point.photos)}),
       counters:Array.isArray(point.counters)?point.counters.filter(counter=>clean(counter?.name,60))
         .map(counter=>({name:clean(counter.name,60),count:whole(counter.count),...(typeof counter.id==='string'&&{id:counter.id})})):[]})):[];
@@ -315,7 +322,7 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
       ${sessions.length?`<div class="crochet-time-history"><h4>Recent sessions</h4><ul>${sessions.slice(0,5).map(item=>`<li><time datetime="${item.date}">${escape(new Date(item.date+'T12:00:00').toLocaleDateString([],{dateStyle:'medium'}))}</time><span>${formatTime(item.minutes)}</span></li>`).join('')}</ul></div>`:''}`;
   }
   function checkpointCounts(point){
-    return [`Rows ${number(point.rows)}`,...point.counters.map(counter=>`${counter.name} ${number(counter.count)}`)].join(' · ');
+    return [...(point.counterId?[]:[`Rows ${number(point.rows)}`]),...point.counters.map(counter=>`${counter.name} ${number(counter.count)}`)].join(' · ');
   }
   function checkpointGallery(photos,editable=false){
     return `<div class="crochet-photo-gallery">${photos.map((photo,index)=>`<figure>
@@ -434,8 +441,7 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
         }else{
           const note=clean(fields.get('note'),1000);
           if(!note)return fail('Enter a note about where to resume.');
-          project.checkpoints.push({id:crypto.randomUUID(),at:Date.now(),note,rows:project.rows,
-            counters:project.counters.map(({id,name,count})=>({id,name,count})),...(photos.length&&{photos})});
+          project.checkpoints.push(makeCheckpoint(project,note,{photos}));
         }
       }else{
         const index=project.counters.findIndex(item=>item.id===counterId);
@@ -574,6 +580,16 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
   window.addEventListener('storage',event=>{const key=storageEvent(event.key);if(key===CROCHET_KEY||key===null){data=loadCrochet(storage);render();}});
   render();
   return {
+    checkpointCounter(projectId,counterId,note){
+      const next=loadCrochet(storage),project=next.projects.find(item=>item.id===projectId);
+      const counter=project?.counters.find(item=>item.id===counterId);
+      if(!project||(counterId!=null&&!counter))return {error:'This counter is no longer available.'};
+      if(!note.trim()||note.length>1000)return {error:'Enter a checkpoint note of 1–1,000 characters.'};
+      project.checkpoints.push(makeCheckpoint(project,note,{counter,rowsOnly:!counter}));
+      if(!commit(next))return {error:'Could not save the checkpoint on this device.'};
+      render();
+      return {name:counter?.name??'Rows',project:project.name,count:counter?.count??project.rows};
+    },
     adjustCounter(projectId,counterId,step){
       const result=changeCounter(loadCrochet(storage),projectId,counterId,step);
       if(result.error)return result;

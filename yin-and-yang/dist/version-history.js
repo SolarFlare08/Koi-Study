@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.0.13',date:'2026-11-25',title:'Reading goals, counter checkpoints, and dusk in Prompt',changes:[
+    'Use book resume to see your saved position, pages left, and next reading goal.',
+    'Save a single Stitchbook counter checkpoint with a resume note from Prompt.',
+    'Preview Garden at dusk without saving changes to appearance.'
+  ]},
   {version:'6.0.12',date:'2026-11-25',title:'Waiting details, mistake retries, and journal drafts in Prompt',changes:[
     'Use wait to see a task’s blocker, follow-up date, and fallback decision.',
     'Use retry to start a saved mistake retry with the corrected reasoning hidden.',
