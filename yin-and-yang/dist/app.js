@@ -49,7 +49,7 @@ import {installCommandPrompt} from './command-prompt.js';
 import {summarizeWeek,weeklyStudySummary} from './weekly-planning.js';
 import {installHelp} from './help.js';
 import {appVersion,installVersionHistory} from './version-history.js';
-import {agendaGaps,canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,scheduleImpact,todayTradeoffs} from './scheduling.js';
+import {agendaGaps,canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,remainingDeadlineEstimate,scheduleImpact,todayTradeoffs} from './scheduling.js';
 import {nextTaskDate,overdueTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
 import {taskTemplate,projectResource} from './project-planning.js';
@@ -557,6 +557,9 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   getTasks:()=>promptTaskChoices(promptPlanningTasks()),
   today:promptToday,
   agenda:promptTomorrowAgenda,
+  gap:promptGaps,
+  due:promptDue,
+  plan:previewPromptDeadline,
   pin:pinPromptTask,
   pause:reason=>runPromptTimer('pause',0,undefined,reason),
   next:promptNext,
@@ -1108,6 +1111,34 @@ function promptTomorrowAgenda(){
     '', `Open gaps (9 AM–${timeLabel(cutoff)}):`,...(open.length?open:['  No open planning gaps.'])
   ].join('\n');
 }
+function promptWeek(next,now){
+  return weekDays(next?shiftDay(now,7):now);
+}
+function promptGaps(minutes,next){
+  const now=new Date(),today=dayKey(now),tasks=gardenTasks();
+  const days=promptWeek(next,now),cutoff=schedulingCutoff();
+  const currentMinute=now.getHours()*60+now.getMinutes()+Number(Boolean(now.getSeconds()||now.getMilliseconds()));
+  const windows=days.filter(date=>dayKey(date)>=today).flatMap(date=>{
+    const from=dayKey(date)===today?Math.max(9*60,currentMinute):undefined;
+    return agendaGaps(tasks,state.calendarEvents,state.availability,date,cutoff,state.planningCooldown,from)
+      .filter(gap=>gap.end-gap.start>=minutes).map(({start,end})=>
+        `  - ${shortScheduleDate(dayKey(date))} · ${timeLabel(start)}–${timeLabel(end)} · ${minutesLabel(end-start)} open`);
+  });
+  return windows.length?[`Gaps for ${minutesLabel(minutes)} ${next?'next':'this'} week:`,...windows].join('\n'):
+    `No open windows fit ${minutesLabel(minutes)} ${next?'next':'this'} week.`;
+}
+function promptDue(next){
+  const now=new Date(),days=promptWeek(next,now);
+  const first=dayKey(days[0]),last=dayKey(days.at(-1));
+  const tasks=promptPlanningTasks().filter(task=>task.deadline&&task.deadline>=first&&task.deadline<=last)
+    .sort((a,b)=>a.deadline.localeCompare(b.deadline)||a.text.localeCompare(b.text));
+  if(!tasks.length)return `No open hard deadlines ${next?'next':'this'} week.`;
+  return [`Hard deadlines · ${shortScheduleDate(first)}–${shortScheduleDate(last)}`,...tasks.map(task=>{
+    const remaining=remainingDeadlineEstimate(task,state.history,now);
+    const estimate=remaining===null?'No estimate set':`${minutesLabel(remaining)} estimated work left`;
+    return `  - ${shortScheduleDate(task.deadline)} · ${task.text} · ${estimate}`;
+  })].join('\n');
+}
 function pinPromptTask(id){
   const queue=gardenFocusQueue(),task=queue.find(item=>item.id===id);
   if(!task)return 'That task is no longer in today’s ready queue.';
@@ -1144,6 +1175,41 @@ function promptTaskChoices(tasks){
 }
 function promptPlanningTasks(){
   return gardenTasks().filter(task=>!task.done);
+}
+function previewPromptDeadline(id,requested,reviewed){
+  const task=promptPlanningTasks().find(item=>item.id===id);
+  if(!task)return {text:'That task is no longer open.'};
+  const deadline=task.deadline&&task.deadline<requested?task.deadline:requested;
+  const planned={...task,deadline};
+  if(!canPlanDeadline(planned))return {text:'Set a time estimate on this task before drafting study blocks.'};
+  if(task.waitingFor)return {text:'This task is marked waiting. Mark it ready in Planner to draft a plan.'};
+  if(deadline<dayKey())return {text:`${shortScheduleDate(deadline)} has passed. No future blocks can fit before that date.`};
+  const plan=deadlineSuggestion(planned);
+  if(!plan)return {text:'That planning date is unavailable.'};
+  const {slots,unplaced,booked,recorded,occurrence,noOccurrence}=plan;
+  const summary=[
+    `Study plan · ${task.text} · by ${shortScheduleDate(deadline)}`,
+    ...(deadline!==requested?['Using the task’s earlier hard deadline.']:[]),
+    ...(occurrence?[`For the ${shortScheduleDate(occurrence)} occurrence.`]:[]),
+    `${minutesLabel(task.estimate)} estimated · ${minutesLabel(recorded)} completed focus · ${minutesLabel(booked)} already booked`,
+    ...slots.map(slot=>`  - ${promptBlockTime(slot)} · ${minutesLabel(slot.minutes)}`),
+    unplaced?`${minutesLabel(unplaced)} couldn’t fit before the deadline.`:
+      slots.length?'The draft covers the remaining estimate.':'Booked or completed focus already covers the estimate.',
+    ...(noOccurrence?['No unfinished occurrence falls before the deadline.']:[])
+  ].join('\n');
+  if(!slots.length)return {text:summary};
+  const signature=JSON.stringify([task.text,deadline,task.estimate,slots,unplaced,booked,recorded,occurrence]);
+  if(reviewed!==signature)return {
+    text:(reviewed?'The schedule changed. Review the updated draft.\n\n':'')+summary,
+    label:'Add study blocks',
+    confirm:()=>previewPromptDeadline(id,requested,signature)
+  };
+  const undo=saveDeadlineBlocks(task,slots,occurrence);
+  if(!undo)return {text:'Could not save the study blocks on this device.'};
+  refreshTasks();
+  const message=deadlineBlocksMessage(slots.length,unplaced);
+  confirmChange(message,undo);
+  return {text:message};
 }
 function promptReviewWeek(){
   const tasks=gardenTasks(),week=summarizeWeek(state,tasks,new Date());
@@ -5199,6 +5265,19 @@ function deadlinePlannerMarkup(){
 function selectedDeadlineSlots(form,plan){
   return new FormData(form).getAll('slot').map(index=>plan.slots[Number(index)]).filter(Boolean);
 }
+function saveDeadlineBlocks(task,slots,occurrence){
+  const previous=task.blocks,finishUndo=captureTaskChange(task,['blocks']);
+  task.blocks=[...(previous||[])];
+  for(const slot of slots){
+    const block=addTaskBlock(task,slot.date,timeValue(slot.start),slot.minutes);
+    if(occurrence)block.taskDay=occurrence;
+  }
+  if(persist())return finishUndo();
+  task.blocks=previous;return null;
+}
+function deadlineBlocksMessage(count,missing){
+  return `${count} focus ${count===1?'block':'blocks'} added.${missing?` ${minutesLabel(missing)} still unscheduled.`:''}`;
+}
 function saveDeadlinePlan(form){
   const task=gardenTasks().find(item=>item.id===deadlineTaskId);
   if(!task)return;
@@ -5208,19 +5287,13 @@ function saveDeadlinePlan(form){
   }
   const slots=selectedDeadlineSlots(form,current);
   if(!slots.length)return;
-  const previous=task.blocks;
-  const finishUndo=captureTaskChange(task,['blocks']);
-  task.blocks=[...(previous||[])];
-  for(const slot of slots){
-    const block=addTaskBlock(task,slot.date,timeValue(slot.start),slot.minutes);
-    if(current.occurrence)block.taskDay=current.occurrence;
-  }
-  if(!persist()){task.blocks=previous;return;}
+  const undo=saveDeadlineBlocks(task,slots,current.occurrence);
+  if(!undo)return;
   const first=slots[0];
   openSchedule('calendar',calendarToggle,new Date(first.date+'T00:00:00'),Math.max(0,first.start-30));
   refreshTasks();
   const missing=current.unplaced+current.slots.filter(slot=>!slots.includes(slot)).reduce((total,slot)=>total+slot.minutes,0);
-  confirmChange(`${slots.length} focus ${slots.length===1?'block':'blocks'} added.${missing?` ${minutesLabel(missing)} still unscheduled.`:''}`,finishUndo());
+  confirmChange(deadlineBlocksMessage(slots.length,missing),undo);
 }
 
 let weekSettings, weekDraft, weekComparison=[], weekSlots=[], skippedWeekSlots=[], weekEditId=null;

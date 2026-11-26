@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.0.11',date:'2026-11-25',title:'Find gaps, check deadlines, and draft study blocks from Prompt',changes:[
+    'Find calendar windows that fit a given duration this week or next.',
+    'List hard deadlines with estimated work still to do.',
+    'Draft study blocks by a date, see what couldn’t fit, and review before adding them.'
+  ]},
   {version:'6.0.10',date:'2026-11-25',title:'Pause reasons, queue pins, and tomorrow’s agenda in Prompt',changes:[
     'Save a reason when you pause focus and see it in session replay.',
     'Pin a ready task first in today’s queue without switching the running session.',

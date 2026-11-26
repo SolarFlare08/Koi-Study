@@ -74,11 +74,11 @@ function freeRanges(busy, from, to) {
   return ranges;
 }
 
-export function agendaGaps(tasks,events,availability,date,cutoff,cooldown){
+export function agendaGaps(tasks,events,availability,date,cutoff,cooldown,from=workdayStart){
   if(allDayEvents(events,date).length)return [];
   const busy=[...withCooldown(commitments(tasks,[],date),cooldown),...planningEventRanges(events,date,cooldown),
     ...unavailableRanges(availability,date)].sort((a,b)=>a.start-b.start);
-  return freeRanges(busy,workdayStart,cutoff);
+  return freeRanges(busy,from,cutoff);
 }
 
 function studyDay(tasks,events,availability,day,from,end,capacity,cooldown){
@@ -332,6 +332,12 @@ export function planDeadline(task, tasks, events, history, now, cutoff, dailyCap
   slots.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
   return {slots, unplaced, booked, recorded, occurrence, lastYearOnly: firstDay > today,
     contexts:Object.fromEntries(days.map(day=>[day.date,day.context]))};
+}
+
+export function remainingDeadlineEstimate(task,history,now=new Date()){
+  if(!canPlanDeadline(task))return null;
+  const deadline=new Date(task.deadline+'T00:00:00'),first=shiftDay(now,0);
+  return Math.max(0,task.estimate-deadlineWork(task,history,now,first,deadline).recorded);
 }
 
 export function draftStudyWeek({tasks, events, history, availability, tasksById}, {date, start, end, capacity,cooldown=0,proposed}, now = new Date()) {
