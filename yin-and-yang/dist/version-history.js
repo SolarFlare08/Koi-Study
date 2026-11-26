@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.0.9',date:'2026-11-25',title:'Finish tasks, move blocks, and extend timers in Prompt',changes:[
+    'Use task done to complete your current task and choose a break or the next task.',
+    'Move an existing block with its duration intact and preview overlaps before saving.',
+    'Preview overlaps and a new end time before extending a running session.'
+  ]},
   {version:'6.0.8',date:'2026-11-24',title:'Green accents for Command Prompt',changes:[
     'Prompt keeps its classic CMD layout with green accents, faint scanlines, and a soft glow on the focused command line.'
   ]},

@@ -27,8 +27,8 @@ import {installBackup,restoreBackup} from './backup.js';
 import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
 import {installFocusCompass,focusCompass,focusWeek} from './focus-compass.js';
-import {timerProgress,extendTimer,canExtendCalendarTimer,extendCalendarTimer,focusWrapUp,focusWrapUpDuration,wrapUpMinutes} from './state.js';
-import {calendarBlockDurationChange,planRunningBlockExtension} from './calendar.js';
+import {timerProgress,extendTimer,canExtendTimer,canExtendCalendarTimer,extendCalendarTimer,focusWrapUp,focusWrapUpDuration,wrapUpMinutes} from './state.js';
+import {calendarBlockDurationChange,planRunningBlockExtension,timerExtensionConflicts} from './calendar.js';
 import {quickTask} from './planner-data.js';
 import {incompleteFocusSessions,loadFocusSetups} from './state.js';
 import {installMiniTimer} from './mini-timer.js';
@@ -561,6 +561,10 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   handoff:savePromptHandoff,
   stuck:savePromptQuestion,
   schedule:previewPromptSchedule,
+  getBlocks:promptMoveChoices,
+  move:previewPromptMove,
+  extend:previewPromptExtension,
+  finish:promptFinishTask,
   snooze:snoozePromptTask,
   getBooks:()=>promptBooks().map(book=>({id:book.id,title:book.title,context:book.author})),
   getCounters:()=>loadCrochet(storage).projects.flatMap(project=>[
@@ -1139,18 +1143,22 @@ function savePromptReadingPosition(id,page){
   const remaining=left===null?'Add a page count in Reading to see pages left.':`${left.toLocaleString()} ${left===1?'page':'pages'} left.`;
   return `Saved ${book.title} at page ${page.toLocaleString()}. ${remaining}`;
 }
+function promptBlockTime({date,start,minutes}){
+  const end=start+minutes,endDate=end>=1440?dayKey(shiftDay(new Date(date+'T00:00:00'),1)):date;
+  return `${shortScheduleDate(date)} · ${timeLabel(start)}–${timeLabel(end%1440)}${endDate===date?'':` ${shortScheduleDate(endDate)}`}`;
+}
+function promptOverlapLines(overlaps,date){
+  const lines=overlaps.map(item=>`  - ${item.title} · ${minutesLabel(item.end-item.start)} overlap${item.date===date?'':` · ${shortScheduleDate(item.date)}`}`);
+  return lines.length?['Overlaps:',...lines]:['No timed overlaps.'];
+}
 function previewPromptSchedule(id,placement,reviewed){
   const {date,start,minutes}=placement;
   const tasks=promptPlanningTasks(),task=tasks.find(item=>item.id===id);
   if(!task||!openFocusBlock({task,occurrence:date}))return {text:'That task is unavailable or already complete for this date.'};
   const impact=scheduleImpact(tasks,state.calendarEvents,placement,new Date(),schedulingCutoff());
   if(!impact)return {text:'That date, time, or duration is unavailable.'};
-  const {overlaps}=impact;
-  const end=start+minutes,endDate=end>=1440?dayKey(shiftDay(new Date(date+'T00:00:00'),1)):date;
-  const time=`${shortScheduleDate(date)} · ${timeLabel(start)}–${timeLabel(end%1440)}${endDate===date?'':` ${shortScheduleDate(endDate)}`}`;
-  const lines=overlaps.map(item=>`  - ${item.title} · ${minutesLabel(item.end-item.start)} overlap${item.date===date?'':` · ${shortScheduleDate(item.date)}`}`);
-  const preview=[`Schedule ${task.text}`,`${time} · ${minutesLabel(minutes)}`,
-    ...(lines.length?['Overlaps:',...lines]:['No timed overlaps.'])].join('\n');
+  const {overlaps}=impact,time=promptBlockTime(placement);
+  const preview=[`Schedule ${task.text}`,`${time} · ${minutesLabel(minutes)}`,...promptOverlapLines(overlaps,date)].join('\n');
   const signature=JSON.stringify([task.text,overlaps]);
   if(reviewed!==signature)return {
     text:(reviewed?'The schedule changed. Review the updated block.\n\n':'')+preview,
@@ -1167,6 +1175,57 @@ function previewPromptSchedule(id,placement,reviewed){
   refreshTasks();
   confirmChange('Block scheduled.',undo);
   return {text:`Scheduled ${task.text} · ${time}.`};
+}
+function promptMoveChoices(){
+  const today=new Date(),days=Array.from({length:8},(_,i)=>dayKey(shiftDay(today,i)));
+  return promptPlanningTasks().flatMap(task=>{
+    const recurring=task.repeat&&task.repeat!=='none';
+    const blocks=[...(task.blocks||[]).map(block=>({blockId:block.id,occurrence:block.date})),
+      ...(task.time?(recurring?days:[task.date]).map(occurrence=>({blockId:null,occurrence})):[])];
+    return blocks.flatMap(({blockId,occurrence})=>{
+      const block=task.blocks?.find(item=>item.id===blockId);
+      const slot=calendarTaskBlock(task,blockId,occurrence);
+      if(!slot||!openFocusBlock({task,occurrence,taskDay:block?.taskDay||occurrence}))return [];
+      return [{taskId:task.id,blockId,occurrence,title:task.text,
+        context:`${extensionTime(+slot.start)} · ${minutesLabel(slot.minutes)}`,at:+slot.start}];
+    });
+  }).sort((a,b)=>a.at-b.at);
+}
+function previewPromptMove(source,destination,reviewed){
+  const {taskId,blockId,occurrence}=source,{date,start}=destination;
+  const tasks=promptPlanningTasks(),task=tasks.find(item=>item.id===taskId);
+  const slot=task&&calendarTaskBlock(task,blockId,occurrence);
+  if(!slot||!openFocusBlock({task,occurrence,taskDay:slot.taskDay}))return {text:'That block is no longer open or scheduled.'};
+  const active=state.timer.block||state.timer.calendarBlock;
+  if(state.timer.id&&active?.occurrence===occurrence&&(active.blockId||null)===blockId&&
+    (active.taskId||state.timer.taskSnapshot?.id)===taskId)return {text:'Finish the active session before moving its block.'};
+  const fromStart=slot.start.getHours()*60+slot.start.getMinutes();
+  if(date===occurrence&&start===fromStart)return {text:'That block is already at the requested time.'};
+  const target=new Date(date+'T'+timeValue(start));
+  if(target.getHours()*60+target.getMinutes()!==start)return {text:'That start time is unavailable on this date.'};
+  const {minutes}=slot,placement={date,start,minutes};
+  const impact=scheduleImpact(tasks,state.calendarEvents,{...placement,replacing:source},new Date(),schedulingCutoff());
+  if(!impact)return {text:'That date or time is unavailable.'};
+  const {overlaps}=impact,time=promptBlockTime(placement);
+  const signature=JSON.stringify([task.text,+slot.start,minutes,overlaps]);
+  if(reviewed!==signature)return {
+    text:[...(reviewed?['The schedule changed. Review the updated move.','']:[]),`Move ${task.text} · ${minutesLabel(minutes)}`,
+      `From: ${promptBlockTime({date:occurrence,start:fromStart,minutes})}`,`To:   ${time}`,...promptOverlapLines(overlaps,date)].join('\n'),
+    label:overlaps.length?'Move with overlap':'Move block',
+    confirm:()=>previewPromptMove(source,destination,signature)
+  };
+  const finishUndo=captureTaskChange(task,['date','time','blocks','occurrenceTimes','occurrenceMinutes']);
+  applyCalendarReplan(task,occurrence,{day:date,blockId,parts:[{to:start,minutes}]});
+  if(!blockId&&(!task.repeat||task.repeat==='none')){
+    task.occurrenceMinutes={...task.occurrenceMinutes};
+    delete task.occurrenceMinutes[occurrence];
+    task.occurrenceMinutes[date]=minutes;
+  }
+  const undo=finishUndo();
+  if(!persist()){undo?.(state);return {text:'Could not save the move on this device.'};}
+  refreshTasks();
+  confirmChange('Block moved.',undo);
+  return {text:`Moved ${task.text} · ${time}.`};
 }
 function snoozePromptTask(id,date){
   if(date<=dayKey())return 'Choose a future date to snooze the task.';
@@ -3192,6 +3251,41 @@ function calendarExtensionPreview(){
       `<li><strong>${escape(item.title)} overlaps by ${durationWords(item.overlapMs)}</strong><small>${item.type} · ${extensionTime(item.start)} – ${extensionTime(item.end)}</small></li>`).join('')}</ul></section>`:'<p>No timed commitments overlap the extra ten minutes.</p>'}
     <div class="panel-actions"><button type="button" class="text-button close-panel">Cancel</button><button type="button" class="panel-primary" id="confirm-block-extension">Extend 10 minutes</button></div>`;
 }
+function saveTimerExtension(minutes,now,plan){
+  const {tasks,timer}=state;
+  const extend=plan?extendCalendarTimer:extendTimer;
+  if(!extend(state,minutes*60000,now))return false;
+  if(plan)state.tasks=tasks.map(task=>task.id===plan.taskId?
+    {...task,...calendarBlockDurationChange(task,plan.blockId,plan.occurrence,plan.minutes)}:task);
+  if(persist())return true;
+  Object.assign(state,{tasks,timer});
+  return false;
+}
+function previewPromptExtension(minutes,reviewed){
+  checkCompletion();
+  const now=Date.now(),timer=state.timer,ms=minutes*60000;
+  const unavailable={text:'There’s no eligible running session to extend by that amount.'};
+  if(timer.status!=='running')return unavailable;
+  const block=timer.block?planRunningBlockExtension(state,minutes,now):null;
+  if(timer.block?!block:!canExtendTimer(state,ms,now))return unavailable;
+  const focusEnd=block?.focusEnd??timer.endAt,newFocusEnd=focusEnd+ms;
+  const active=timer.calendarBlock&&{...timer.calendarBlock,taskId:timer.taskSnapshot?.id};
+  const conflicts=block?.conflicts??timerExtensionConflicts(state,[[focusEnd,newFocusEnd]],active);
+  const signature=JSON.stringify([timer.id,focusEnd,block,conflicts]);
+  if(reviewed!==signature)return {
+    text:[...(reviewed?['The schedule changed. Review the updated extension.','']:[]),
+      `Extend by ${minutesLabel(minutes)}`,
+      ...(block?[`Calendar ends: ${extensionTime(block.plannedEnd)} → ${extensionTime(block.newPlannedEnd)}`]:[]),
+      `Session ends: ${extensionTime(focusEnd)} → ${extensionTime(newFocusEnd)}`,
+      ...(conflicts.length?['Overlaps in the extra time:',...conflicts.map(item=>
+        `  - ${item.title}${item.type==='Event buffer'?' (buffer)':''} · ${durationWords(item.overlapMs)} overlap`)]:['No timed overlaps in the extra time.'])].join('\n'),
+    label:conflicts.length?'Extend with overlap':'Extend session',
+    confirm:()=>previewPromptExtension(minutes,signature)
+  };
+  if(!saveTimerExtension(minutes,now,block))return {text:'Could not save the extension on this device.'};
+  refreshTasks();wake();
+  return {text:`${block?'Calendar block and session':'Session'} extended by ${minutesLabel(minutes)}.`};
+}
 
 function selectedBlockTiming(now){
   const {task,block,occurrence}=lastAnchor.dataset;
@@ -4632,37 +4726,54 @@ function markTask(task,done,day=new Date(),anchor){
   return restoreActiveTask(undo,before,state.activeTask);
 }
 
-function finishCurrentTask(button){
+function promptFinishTask(){
   checkCompletion();
   const task=focusedTask();
-  if(!task||task.id!==button.dataset.taskId){closePanel();announce('The current task changed.');return;}
+  const occurrence=task&&finishTaskOccurrence(task,new Date());
+  if(!task||taskStatus(task,occurrence)==='done')return {text:'There’s no current task to complete.'};
+  return {
+    text:`Complete ${task.text}?${state.timer.sequence?' This also ends the current routine.':''}`,
+    choices:[
+      {label:'Take a break',run:()=>completeCurrentTask(task.id,'break',{startWithoutTask:false,day:dayKey(occurrence)})},
+      {label:'Start next task',run:()=>completeCurrentTask(task.id,'focus',{startWithoutTask:false,day:dayKey(occurrence)})}
+    ]
+  };
+}
+function completeCurrentTask(taskId,mode,{startWithoutTask=true,day}={}){
+  checkCompletion();
+  const task=focusedTask();
+  if(!task||task.id!==taskId)return 'The current task changed.';
   const now=Date.now();
   const priorTimer=state.timer, priorSelection=state.activeTask, priorHistoryLength=state.history.length;
   const today=new Date(now);
   const wasBundle=activeBundleStatus(today);
   const minutes=priorTimer.taskPlan?.taskId===task.id?priorTimer.taskPlan.totalMs/60000:taskFocusMinutes(task,now);
   const occurrence=finishTaskOccurrence(task,today,priorTimer);
+  if(day&&day!==dayKey(occurrence))return 'The task occurrence changed. Run task done again.';
   const undo=taskStatus(task,occurrence)!=='done'?recordTaskCompletion(state,task,true,occurrence,now):null;
   if(priorTimer.mode==='focus')record(state,'completed',now,{early:true});
   state.activeTask=null;
-  if(button.dataset.finishTask==='break')taskFinishBreak(state,minutes);else reset(state,'focus');
+  if(mode==='break')taskFinishBreak(state,minutes);else reset(state,'focus');
   const active=activeBundleStatus(today);
   const finishedBundle=wasBundle?.next?.id===task.id&&!wasBundle.run.paused&&!active?.next;
   const next=finishedBundle?undefined:focusedTask();
   if(next&&state.timer.mode==='focus')startTaskTiming(state,next.id,taskFocusMinutes(next,now));
-  if(next||state.timer.mode==='break'||!finishedBundle&&(!active?.next||active.run.paused))toggleFocusTimer(next,now);
+  if(next||state.timer.mode==='break'||startWithoutTask&&!finishedBundle&&(!active?.next||active.run.paused))toggleFocusTimer(next,now);
   if(!persist()){
     undo?.(state);
     state.timer=priorTimer;state.activeTask=priorSelection;state.history.length=priorHistoryLength;
-    return;
+    return 'Could not save the task completion on this device.';
   }
   if(undo)animateTaskCompletion(finishTaskButton);
   resumeTaskId=null;
-  closePanel(false);refreshTasks();wake();
-  timerButton.focus({preventScroll:true});
+  if(activePanel==='finish-task')closePanel(false);
+  refreshTasks();wake();
+  if(workspace==='focus')timerButton.focus({preventScroll:true});
   const activity=state.timer.mode==='break'?'Break started.':state.timer.status==='running'?'Focus started.':
-    activeBundleStatus()?.next?'Bundle is waiting on the next task.':'Bundle complete.';
-  confirmChange(`Task finished. ${activity}${next?` Up next: ${next.text}.`:''}`,undo);
+    activeBundleStatus()?.next?'Bundle is waiting on the next task.':finishedBundle?'Bundle complete.':'No ready tasks left.';
+  const message=`Task finished. ${activity}${next?` Up next: ${next.text}.`:''}`;
+  confirmChange(message,undo);
+  return message;
 }
 
 taskMenu.addEventListener('click',async event=>{
@@ -6519,7 +6630,11 @@ root.addEventListener('click',e=>{
     $('#workspace-tabs [data-workspace="reading"]').click();
     return;
   }
-  if(btn.dataset.finishTask){finishCurrentTask(btn);return;}
+  if(btn.dataset.finishTask){
+    const message=completeCurrentTask(btn.dataset.taskId,btn.dataset.finishTask);
+    if(message==='The current task changed.'){closePanel();announce(message);}
+    return;
+  }
   if(btn.dataset.openRitualNow){
     const kind=btn.dataset.openRitualNow,date=btn.dataset.date;
     if(kind==='journal'){closePanel(false);journal.openDate(date);}
@@ -6577,10 +6692,7 @@ root.addEventListener('click',e=>{
       return;
     }
     if(!plan)return;
-    const {tasks,timer}=state;
-    if(!extendCalendarTimer(state,blockExtensionMinutes*60000,now))return;
-    state.tasks=tasks.map(task=>task.id===plan.taskId?{...task,...calendarBlockDurationChange(task,plan.blockId,plan.occurrence,plan.minutes)}:task);
-    if(!persist()){Object.assign(state,{tasks,timer});return;}
+    if(!saveTimerExtension(blockExtensionMinutes,now,plan))return;
     closePanel();refreshTasks();wake();
     toast('Calendar block extended by 10 minutes.');announce('Calendar block extended by 10 minutes.');
     return;

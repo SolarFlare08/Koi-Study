@@ -168,6 +168,11 @@ export function planRunningBlockExtension(state,addMinutes,now=Date.now()){
     ranges[0][1]=Math.max(ranges[0][1],ranges[1][1]);
     ranges.pop();
   }
+  return {timerId:t.id,taskId,blockId,occurrence,minutes,plannedEnd,newPlannedEnd,focusEnd,newFocusEnd,
+    conflicts:timerExtensionConflicts(state,ranges,{taskId,blockId,occurrence})};
+}
+
+export function timerExtensionConflicts(state,ranges,activeBlock){
   const conflicts=new Map();
   const add=(key,title,start,end,type)=>{
     const overlapMs=ranges.reduce((total,[from,to])=>total+Math.max(0,Math.min(to,end)-Math.max(from,start)),0);
@@ -181,7 +186,7 @@ export function planRunningBlockExtension(state,addMinutes,now=Date.now()){
   for(const date of days){
     const day=new Date(date);
     for(const block of calendarBlocks(state.tasks,day)){
-      if(!openFocusBlock(block)||(block.task.id===taskId&&(block.blockId||null)===(blockId||null)&&block.occurrence===occurrence))continue;
+      if(!openFocusBlock(block)||(activeBlock&&block.task.id===activeBlock.taskId&&(block.blockId||null)===(activeBlock.blockId||null)&&block.occurrence===activeBlock.occurrence))continue;
       const item=calendarTaskBlock(block.task,block.blockId,block.occurrence);
       if(item)add(calendarFocusKey(block.task.id,block.occurrence,block.blockId),block.task.text,+item.start,+item.end,'Task block');
     }
@@ -194,8 +199,7 @@ export function planRunningBlockExtension(state,addMinutes,now=Date.now()){
       if(event.bufferAfter)add(key+'-after',event.title,end,end+event.bufferAfter*60000,'Event buffer');
     }
   }
-  return {timerId:t.id,taskId,blockId,occurrence,minutes,plannedEnd,newPlannedEnd,focusEnd,newFocusEnd,
-    conflicts:[...conflicts.values()].sort((a,b)=>a.start-b.start)};
+  return [...conflicts.values()].sort((a,b)=>a.start-b.start);
 }
 
 export function calendarFocusKey(taskId,occurrence,blockId){

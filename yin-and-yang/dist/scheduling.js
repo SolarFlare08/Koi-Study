@@ -26,7 +26,8 @@ function commitments(tasks, events, date, replacing) {
     if (block.event) return true;
     if (!openFocusBlock(block)) return false;
     return !replacing || block.task.id !== replacing.taskId ||
-      (block.blockId || null) !== replacing.blockId;
+      (block.blockId || null) !== replacing.blockId ||
+      Boolean(replacing.occurrence&&block.occurrence!==replacing.occurrence);
   });
 }
 
