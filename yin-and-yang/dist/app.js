@@ -30,7 +30,7 @@ import {installFocusCompass,focusCompass,focusWeek} from './focus-compass.js';
 import {timerProgress,extendTimer,canExtendTimer,canExtendCalendarTimer,extendCalendarTimer,focusWrapUp,focusWrapUpDuration,wrapUpMinutes} from './state.js';
 import {calendarBlockDurationChange,planRunningBlockExtension,timerExtensionConflicts} from './calendar.js';
 import {quickTask} from './planner-data.js';
-import {incompleteFocusSessions,loadFocusSetups} from './state.js';
+import {incompleteFocusSessions,loadFocusSetups,loadPromptAliases} from './state.js';
 import {installMiniTimer} from './mini-timer.js';
 import {installReferenceEditor} from './focus-reference.js';
 import {installCalendarResize} from './calendar-resize.js';
@@ -591,6 +591,15 @@ const openVersionHistory=installVersionHistory($('#version-history'));
 const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries:commandEntries,version:appVersion,
   openHelp:()=>helpGuide.open('command-prompt'),
   editHistory:applyPromptEdit,
+  getAliases:()=>state.settings.promptAliases||[],
+  saveAliases:items=>{
+    const previous=state.settings;
+    state.settings={...previous,promptAliases:loadPromptAliases(items)};
+    if(persist())return true;
+    state.settings=previous;return false;
+  },
+  getSetups:()=>state.focusSetups.map(({id,name})=>({id,title:name})),
+  startSetup:startFocusSetup,
   openWorkspace:name=>{visitWorkspace(name);return workspace===name;},
   runTimer:runPromptTimer,
   getFocusTasks:()=>promptTaskChoices(gardenFocusQueue()),
@@ -3085,13 +3094,14 @@ function focusSetupsMarkup(){
 }
 function startFocusSetup(id){
   checkCompletion();
-  if(state.timer.id){toast('Finish or reset the current timer before starting a setup.');return;}
+  const fail=message=>{toast(message);return message;};
+  if(state.timer.id)return fail('Finish or reset the current timer before starting a setup.');
   const setup=state.focusSetups.find(item=>item.id===id);
   const routine=setup&&[...builtinRoutines,...state.routines].find(item=>item.id===setup.routineId);
   const layout=setup&&state.gardenLayouts.find(item=>item.id===setup.layoutId);
   const soundtrack=setup&&state.soundtracks.find(item=>item.id===setup.soundtrackId);
   if(!routine||setup.layoutId&&!layout||setup.soundtrackId&&!soundtrack){
-    toast('A routine, layout, or soundtrack used by this setup is unavailable.');return;
+    return fail('A routine, layout, or soundtrack used by this setup is unavailable.');
   }
   const {timer,mediaSource,spotify,youtube,lastFocusSetupId}=state;
   const phases=routine.phases||[{name:'Focus',mode:'focus',ms:routine.focus},{name:'Rest',mode:'break',ms:routine.rest}];
@@ -3102,7 +3112,7 @@ function startFocusSetup(id){
     state[soundtrack.source]=soundtrack.link;
   }
   state.lastFocusSetupId=setup.id;
-  if(!persist()){Object.assign(state,{timer,mediaSource,spotify,youtube,lastFocusSetupId});return;}
+  if(!persist()){Object.assign(state,{timer,mediaSource,spotify,youtube,lastFocusSetupId});return 'Could not save the focus setup.';}
   snapshotLayoutId='';snapshotThrough='';renderedGardenGrowth=null;updateGardenSnapshotLabel();
   closePanel(false);render();wake();
   if(soundtrack){
@@ -3110,6 +3120,7 @@ function startFocusSetup(id){
     openPanel('music',mediaPanelAnchor());
   }else timerButton.focus({preventScroll:true});
   toast(`${setup.name} started.`);
+  return `Started focus setup · ${setup.name}.`;
 }
 function unfinishedFocus(){
   const tasks=new Map(gardenTasks().map(task=>[task.id,task]));

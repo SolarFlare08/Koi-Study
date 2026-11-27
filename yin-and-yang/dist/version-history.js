@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.0.21',date:'2026-11-26',title:'Command help, personal aliases, and output copying',changes:[
+    'Use help move for syntax and date formats, and get suggestions for common command and date typos.',
+    'Save personal aliases for app commands, including shortcuts to start saved focus setups.',
+    'Copy the latest Prompt output without the command line.'
+  ]},
   {version:'6.0.20',date:'2026-11-26',title:'Keyboard confirmation and edit history in Prompt',changes:[
     'Review the target and details of a proposed change, then type yes or cancel.',
     'Undo or redo Prompt task and scheduling edits with a message that names the change.'

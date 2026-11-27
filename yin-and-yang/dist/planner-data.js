@@ -2,12 +2,12 @@ import {dayKey, taskOccursOn, taskPriority, taskStatus} from './state.js';
 import {shiftDay, timeValue, weekDays} from './calendar.js';
 
 const weekdays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+const relativeDates={today:0,tomorrow:1,'next week':7};
+export const plannerDateWords=[...Object.keys(relativeDates),...weekdays];
 
 export function plannerDate(value, now = new Date()) {
   const word = value.trim().toLowerCase();
-  if (word === 'today') return dayKey(now);
-  if (word === 'tomorrow') return dayKey(shiftDay(now,1));
-  if (word === 'next week') return dayKey(shiftDay(now,7));
+  if (Object.hasOwn(relativeDates,word)) return dayKey(shiftDay(now,relativeDates[word]));
   const weekday = weekdays.indexOf(word);
   if (weekday >= 0) return dayKey(shiftDay(now,(weekday-now.getDay()+7)%7||7));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(word)) return '';

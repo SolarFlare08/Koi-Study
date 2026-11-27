@@ -1,5 +1,5 @@
 import {matchCommands} from './command-palette.js';
-import {plannerDate} from './planner-data.js';
+import {plannerDate,plannerDateWords} from './planner-data.js';
 import {dayKey} from './state.js';
 
 const promptWorkspaces={
@@ -40,7 +40,42 @@ function quotedTitle(title){
   return /[“”]/.test(title)?null:`“${title}”`;
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,backupStatus,getViewpoints,postcard,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp,editHistory}){
+function singleEdit(left,right){
+  if(left.length>right.length)return singleEdit(right,left);
+  if(right.length-left.length>1)return false;
+  let first=0;
+  while(first<left.length&&left[first]===right[first])first++;
+  if(left.length<right.length)return left.slice(first)===right.slice(first+1);
+  return left!==right&&(left.slice(first+1)===right.slice(first+1)||
+    left[first]===right[first+1]&&left[first+1]===right[first]&&left.slice(first+2)===right.slice(first+2));
+}
+
+function suggestion(value,options){
+  const word=value?.trim().toLowerCase().replace(/\s+/g,' ');
+  if(!word||word.length<3)return '';
+  const matches=options.filter(option=>singleEdit(word,option));
+  return matches.length===1?` Did you mean ${matches[0]}?`:'';
+}
+
+const acceptedDates='Dates: today, tomorrow, a full weekday name (its next occurrence), next week (7 days from today), or YYYY-MM-DD.';
+const acceptedTimes='Time: 4pm, 4:30 PM, or 16:30.';
+const detailedHelp={
+  move:[
+    'move "task title" <date> <start time>',
+    'Move an existing calendar block and keep its duration. If multiple blocks match, choose one by date and time.',
+    acceptedDates,acceptedTimes,
+    'Examples: move "Lab report" tomorrow 4pm · move "Lab report" Friday 16:30 · move "Lab report" 2027-01-15 4:30 PM',
+    'Review the old time, new time, and overlaps. Type yes to move the block or cancel to dismiss.'
+  ],
+  schedule:['schedule "task title" <date> <start time> <duration>',acceptedDates,acceptedTimes,
+    'Example: schedule "Lab report" tomorrow 3pm 45m. Review the preview, then type yes or cancel.'],
+  plan:['plan "task title" by <date>',acceptedDates,'Choose today or a future date. Example: plan "Exam 2" by Friday.'],
+  snooze:['snooze "task title" until <date>',acceptedDates,'Choose a future date. Example: snooze "Order yarn" until Friday.'],
+  alias:['alias <name> = <command>', 'Examples: alias calc = setup "Calculus" · alias cls = clear',
+    'Run the shortcut by typing its name. Type alias to list shortcuts or unalias <name> to remove one.']
+};
+
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,backupStatus,getViewpoints,postcard,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp,editHistory,getAliases,saveAliases,getSetups,startSetup}){
   const commands={
     ...timerCommands,
     pauseReason:['pause "Looking up the formula"','Pause focus and save the reason in the session replay.'],
@@ -88,6 +123,10 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     open:['open calendar','Switch to a workspace.'],
     find:['find ','Search tasks, notes, books, and journal entries.'],
     pick:['pick 2','Open result 2 from the latest find command.'],
+    setup:['setup "Calculus"','Start a saved focus setup by name.'],
+    alias:['alias cls = clear','Save a personal shortcut. Type alias alone to list shortcuts.'],
+    unalias:['unalias cls','Remove a saved shortcut.'],
+    copy:['copy','Copy the most recent output without the command line.'],
     yes:['yes','Confirm the change in the current preview.'],
     cancel:['cancel','Dismiss the current preview.'],
     undo:['undo','Undo the most recent supported Prompt edit.'],
@@ -96,18 +135,19 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     capture:['capture ','Save a thought to the Note inbox.'],
     version:['version','Show the current app version.'],
     help:['help','See command syntax and examples.'],
+    commandHelp:['help move','See move syntax, examples, and accepted dates.'],
     clear:['clear','Clear the session transcript.']
   };
   const verbs=[...new Set(Object.values(commands).map(([example])=>example.split(' ')[0]))].sort();
   const subcommands={
     agenda:['today','tomorrow'],backup:['status'],block:['split'],book:['goal','resume'],garden:['dusk'],
     inbox:['next'],journal:['resume'],office:['list'],project:['resume'],queue:['pin'],review:['week'],
-    row:['status'],task:['add','done','show']
+    row:['status'],task:['add','done','show'],help:verbs
   };
   const titleSources={
     focus:getFocusTasks,'queue pin':getFocusTasks,'task show':getTaskDetails,estimate:getTaskDetails,
     schedule:getTasks,snooze:getTasks,plan:getTasks,wait:getTasks,move:getBlocks,'block split':getBlocks,
-    read:getBooks,'book goal':getBooks,'book resume':getBooks,play:getSoundtracks,
+    read:getBooks,'book goal':getBooks,'book resume':getBooks,play:getSoundtracks,setup:getSetups,
     find:()=>getEntries().filter(item=>item.kind==='Task'||item.kind==='Book')
   };
   root.innerHTML=`<div class="prompt-wrap"><div class="prompt-console">
@@ -135,6 +175,44 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
   const history=[];
   let historyIndex=0,draft='';
   let completion,activePreview,lastResults=[];
+
+  const personalAliases=()=>getAliases().filter(({name,command})=>
+    !verbs.includes(name)&&verbs.includes(command.split(/\s/,1)[0].toLowerCase())&&!/^(alias|unalias)(?:\s|$)/i.test(command));
+
+  function manageAlias(arg,remove=false){
+    const aliases=personalAliases();
+    if(!arg&&!remove)return aliases.length?aliases.map(({name,command})=>`${name} → ${command}`).join('\n'):'No personal aliases yet. Try alias cls = clear.';
+    const namePattern=/^[a-z][a-z0-9_-]{0,23}$/;
+    if(remove){
+      const name=arg.toLowerCase();
+      if(!aliases.some(item=>item.name===name))return 'No saved alias by that name.';
+      return saveAliases(aliases.filter(item=>item.name!==name))?`Removed alias ${name}.`:'Could not save aliases.';
+    }
+    const definition=/^(\S+)\s*=\s*(.+)$/.exec(arg);
+    const name=definition?.[1].toLowerCase(),command=definition?.[2];
+    if(!namePattern.test(name||''))return 'Use alias <name> = <command>. Start the name with a letter and use up to 24 letters, digits, hyphens, or underscores.';
+    if(verbs.includes(name))return `${name} is already a built-in command.`;
+    const verb=command.split(/\s/,1)[0].toLowerCase();
+    if(!verbs.includes(verb)||verb==='alias'||verb==='unalias')return 'Use a built-in app command as the shortcut target.';
+    const next=aliases.filter(item=>item.name!==name);
+    if(next.length>=40)return 'You can save up to 40 aliases. Remove one with unalias first.';
+    return saveAliases([...next,{name,command}])?`Saved alias · ${name} → ${command}`:'Could not save aliases.';
+  }
+  function helpFor(arg){
+    const name=arg.toLowerCase().replace(/\s+/g,' ');
+    if(Object.hasOwn(detailedHelp,name))return detailedHelp[name].join('\n');
+    const topics=Object.values(commands).filter(([example])=>example.trim().toLowerCase()===name||
+      example.toLowerCase().startsWith(name+' '));
+    if(topics.length)return topics.map(([example,detail])=>`${example.trim()} · ${detail}`).join('\n');
+    return 'No help topic by that name.'+suggestion(name,verbs)+' Type help for available commands.';
+  }
+  async function copyOutput(){
+    const output=[...log.querySelectorAll('.prompt-output:not([data-copy-output])')].reverse().find(entry=>entry.textContent.trim());
+    if(!output)return 'No output to copy yet.';
+    const value=(output.children.length?output.innerText:output.textContent).trim();
+    try{await navigator.clipboard.writeText(value);return 'Copied the last output.';}
+    catch{return 'Clipboard unavailable. Select the output above and press Ctrl+C.';}
+  }
 
   function appendChoices(entry,results,numbered=false){
     const list=document.createElement(numbered?'ol':'ul');
@@ -178,7 +256,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       if(after&&!/^\s/.test(after))return [];
       const prefix=arg===undefined?indent:`${indent}${name} `;
       const query=(arg??verb).toLowerCase();
-      return (arg===undefined?verbs:options).filter(item=>item.startsWith(query))
+      return (arg===undefined?[...verbs,...personalAliases().map(({name})=>name)].sort():options).filter(item=>item.startsWith(query))
         .map(item=>({text:prefix+item,tail:after}));
     }
     const phrase=action?`${name} ${action[1].toLowerCase()}`:name;
@@ -291,25 +369,27 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     if(name==='plan'){
       const by=/^by\s+(.+)$/i.exec(rest);
       const date=by&&plannerDate(by[1]);
-      if(!date||date<dayKey())return usage+' Choose today or a future date.';
+      if(!date||date<dayKey())return usage+' Choose today or a future date.'+suggestion(by?.[1],plannerDateWords);
       return chooseMatch(query,getTasks(),entry,({id})=>showPreview(entry,plan(id,date),'Study plan cancelled.'),'open task','plan');
     }
     if(name==='snooze'){
       const until=/^until\s+(.+)$/i.exec(rest);
       const date=until&&plannerDate(until[1]);
-      if(!date||date<=dayKey())return usage+' Choose a future date.';
+      if(!date||date<=dayKey())return usage+' Choose a future date.'+suggestion(until?.[1],plannerDateWords.filter(word=>word!=='today'));
       return chooseMatch(query,getTasks(),entry,({id})=>snooze(id,date),'open task','snooze');
     }
     if(name==='move'){
       const fields=/^(.+?)\s+(\d{1,2}(?::\d{2})?(?:\s*[ap]m)?)$/i.exec(rest);
       const date=fields&&plannerDate(fields[1]),start=fields?promptTime(fields[2]):-1;
-      if(!date||start<0)return usage+' Use a valid date and start time.';
+      if(!date)return usage+' Use a valid date.'+suggestion(fields?.[1],plannerDateWords)+' Type help move for date formats.';
+      if(start<0)return usage+' Use a valid start time.';
       return chooseMatch(query,getBlocks(),entry,block=>showPreview(entry,move(block,{date,start}),'Move cancelled.'),'scheduled block','move');
     }
     const fields=/^(.+?)\s+(\d{1,2}(?::\d{2})?(?:\s*[ap]m)?)\s+(.+)$/i.exec(rest);
     if(!fields)return usage;
     const date=plannerDate(fields[1]),start=promptTime(fields[2]),minutes=promptDuration(fields[3])/60000;
-    if(!date||start<0||!Number.isInteger(minutes)||minutes<1||minutes>1440)return usage+' Use a valid date, start time, and whole-minute length.';
+    if(!date)return usage+' Use a valid date.'+suggestion(fields[1],plannerDateWords)+' Type help schedule for date formats.';
+    if(start<0||!Number.isInteger(minutes)||minutes<1||minutes>1440)return usage+' Use a valid start time and whole-minute length.';
     return chooseMatch(query,getTasks(),entry,({id})=>showPreview(entry,schedule(id,{date,start,minutes}),'Scheduling cancelled.'),'open task','schedule');
   }
 
@@ -425,7 +505,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'journal':return arg.toLowerCase()==='resume'?resumeJournal():'Use journal resume.';
       case 'agenda':
         if(/^today\s+--actual$/i.test(arg))return actualAgenda();
-        return arg.toLowerCase()==='tomorrow'?agenda():'Use agenda tomorrow or agenda today --actual.';
+        return arg.toLowerCase()==='tomorrow'?agenda():'Use agenda tomorrow or agenda today --actual.'+suggestion(arg,['tomorrow','today --actual']);
       case 'gap': {
         const match=/^(.+?)\s+(this|next)\s+week$/i.exec(arg);
         const minutes=match?promptDuration(match[1])/60000:0;
@@ -477,6 +557,13 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         return query?resultsFor(query,entry):'Use find <words to search for>.';
       }
       case 'pick':return pickResult(arg);
+      case 'setup': {
+        const query=promptMessage(arg);
+        return query?chooseMatch(query,getSetups(),entry,({id})=>startSetup(id),'saved focus setup','start'):`Use ${commands.setup[0]}.`;
+      }
+      case 'alias':return manageAlias(arg);
+      case 'unalias':return manageAlias(arg,true);
+      case 'copy':return !arg||arg.toLowerCase()==='output'?copyOutput():'Use copy to copy the latest output.';
       case 'yes':
       case 'cancel': {
         if(arg)return `Use ${name} without an argument.`;
@@ -487,8 +574,8 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'undo':
       case 'redo':return arg?`Use ${name} without an argument.`:editHistory(name);
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, pick 2, task <title>, capture <thought>.\nConfirm a preview: yes or cancel.\nPrompt edit history: undo or redo.\nPrompt: press Tab to complete a command or title, then Tab again to cycle through matches. Type version, help, or clear.';
-      default:return 'Unknown command. Type help to see the available commands.';
+      case 'help':return arg?helpFor(arg):'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, pick 2, task <title>, capture <thought>.\nCommand details: help move.\nShortcuts: setup "Calculus", alias calc = setup "Calculus", alias cls = clear, unalias cls.\nCopy the latest output: copy.\nConfirm a preview: yes or cancel.\nPrompt edit history: undo or redo.\nPrompt: press Tab to complete a command or title, then Tab again to cycle through matches. Type version, help, or clear.';
+      default:return 'Unknown command.'+suggestion(name,[...verbs,...personalAliases().map(({name})=>name)])+' Type help to see the available commands.';
     }
   }
 
@@ -496,7 +583,9 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     event.preventDefault();
     const line=input.value.trim();
     if(!line)return;
-    const [,verb,arg='']=line.match(/^(\S+)(?:\s+([\s\S]*))?$/);
+    const [,typedVerb,extra]=line.match(/^(\S+)(?:\s+([\s\S]*))?$/);
+    const alias=personalAliases().find(item=>item.name===typedVerb.toLowerCase());
+    const [,verb,arg='']=(alias&&!extra?alias.command:line).match(/^(\S+)(?:\s+([\s\S]*))?$/);
     const name=verb.toLowerCase();
     if(history.at(-1)!==line)history.push(line);
     if(history.length>50)history.shift();
@@ -506,10 +595,11 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     const group=document.createElement('div'),command=document.createElement('code'),entry=document.createElement('div');
     command.className='prompt-echo';command.textContent=promptPath+line;
     entry.className='prompt-output';group.append(command,entry);
-    const response=execute(name,arg,entry);
+    if(name==='copy')entry.dataset.copyOutput='';
+    const response=alias&&extra?'Run the alias by itself.':execute(name,arg,entry);
     if(response instanceof Promise){
-      entry.textContent='Checking backup status…';
-      response.then(message=>{entry.textContent=message;},()=>{entry.textContent='Could not read backup status.';});
+      entry.textContent=name==='copy'?'Copying output…':'Checking backup status…';
+      response.then(message=>{entry.textContent=message;},()=>{entry.textContent='Could not finish the command.';});
     }else if(response)entry.textContent=response;
     log.append(group);
     if(log.children.length>60)log.firstElementChild.remove();
