@@ -1,9 +1,23 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {CROCHET_KEY,loadCrochet,logYarnUse,yarnShoppingList,yarnStashYards,yarnSubstitution} from '../dist/crochet.js';
+import {CROCHET_KEY,crochetResumeDetails,loadCrochet,logYarnUse,yarnShoppingList,yarnStashYards,yarnSubstitution} from '../dist/crochet.js';
 import {createBackup,readBackup} from '../dist/backup.js';
 import {loadCheckpointPhotos} from '../dist/checkpoint-photos.js';
 import {freshState} from '../dist/state.js';
+
+test('project resume uses the latest checkpoint and shows only upcoming instructions',()=>{
+  const project={id:'cardigan',name:'Cardigan',rows:20,rowInstruction:{row:20,text:'Finish the body'},
+    counters:[{id:'sleeve',name:'Left sleeve',count:17,instruction:{row:18,text:'Decrease at both ends'}}],
+    checkpoints:[
+      {id:'new',at:2000,note:'Switch to 4 mm hook',rows:20,counterId:'sleeve',counters:[{id:'sleeve',name:'Left sleeve',count:17}]},
+      {id:'old',at:1000,note:'Start the sleeve',rows:19,counters:[]}
+    ]};
+  const [saved]=loadCrochet({getItem:()=>JSON.stringify({projects:[project]})}).projects;
+  const {checkpoint,counts,instructions}=crochetResumeDetails(saved);
+  assert.equal(checkpoint?.note,'Switch to 4 mm hook');
+  assert.equal(counts,'Left sleeve 17');
+  assert.deepEqual(instructions,[{name:'Left sleeve',row:18,text:'Decrease at both ends'}]);
+});
 
 test('shopping combines matching dye lots and credits yarn already used without counting finished work',()=>{
   const storage={getItem:()=>JSON.stringify({

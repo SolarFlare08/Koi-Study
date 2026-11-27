@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.31',date:'2026-11-27',title:'Stitchbook resume and a copyable daily recap in Prompt',changes:[
+    'Use stitch resume to see the latest project checkpoint and upcoming row instructions, then open the project in Stitchbook.',
+    'Use recap today for a plain-text summary of finished work, schedule moves, and tomorrow’s first task.'
+  ]},
   {version:'6.0.30',date:'2026-11-27',title:'Note search and due chapter reviews in Prompt',changes:[
     'Use note find to search sticky notes and the Note inbox, then open a numbered match with pick.',
     'Use book reviews due to read scheduled chapter notes within each book’s spoiler cutoff.'

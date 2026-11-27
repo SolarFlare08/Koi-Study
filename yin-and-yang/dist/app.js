@@ -18,7 +18,7 @@ import {gardenPalettes,lightingOptions,seasonOptions,sceneryMotionOptions,weathe
 import {createGardenStudio} from './garden-studio.js';
 import {gardenViewport,gardenActivityLayout,loadGardenActivityLayouts} from './garden-layout.js';
 import {comparisonPostcardPng,postcardPng,weeklyPostcardPng} from './garden-postcard.js';
-import {installCrochet,loadCrochet} from './crochet.js';
+import {crochetResumeDetails,installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
 import {currentPageBookmark,ratingTier,radiantRatingLabels} from './reading-progress.js';
@@ -664,6 +664,9 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   bookGoal:savePromptBookGoal,
   rowStatus:promptRowStatus,
   shutdown:promptShutdown,
+  recapToday:promptRecapToday,
+  getStitchProjects:()=>loadCrochet(storage).projects.map(({id,name,hook})=>({id,title:name,context:hook})),
+  stitchResume:promptStitchResume,
   backupStatus:promptBackupStatus,
   getViewpoints:()=>state.postcardViewpoints.map(({id,name})=>({id,title:name})),
   postcard:promptPostcard,
@@ -1760,12 +1763,58 @@ function promptRowStatus({projectId,counterId}){
     checkpoint?`Last checkpoint: Row ${checkpoint.row.toLocaleString()}${checkpoint.note?` · ${checkpoint.note}`:''}`:'No checkpoint saved for this counter.'
   ].join('\n');
 }
+function promptStitchResume(id){
+  const project=loadCrochet(storage).projects.find(item=>item.id===id);
+  if(!project)return {text:'That project is no longer in Stitchbook.'};
+  const {checkpoint,counts,instructions}=crochetResumeDetails(project);
+  return {
+    text:[
+      `Resume Stitchbook project · ${project.name}`,
+      ...(checkpoint?[`Latest checkpoint · ${extensionTime(checkpoint.at)}${counts?` · ${counts}`:''}`,checkpoint.note]:
+        ['No checkpoint saved yet.']),
+      '', 'Next row instructions:',
+      ...(instructions.length?instructions.map(({name,row,text})=>`  - ${name} · Row ${row.toLocaleString()} · ${text}`):
+        ['  No upcoming row instructions saved.'])
+    ].join('\n'),
+    label:'Open in Stitchbook',
+    confirm:()=>{
+      if(!loadCrochet(storage).projects.some(item=>item.id===id))return {text:'That project is no longer in Stitchbook.'};
+      visitWorkspace('crochet');
+      if(workspace!=='crochet')return {text:'Could not open Stitchbook.'};
+      crochet.focusProject(id);
+      return {text:`Opened ${project.name} in Stitchbook.`};
+    }
+  };
+}
+function tomorrowFirstTask(date,tasks){
+  const queue=gardenFocusQueue(date,tasks),day=dayKey(date);
+  const pin=[state.tomorrowPin,state.tomorrowPlan].find(item=>item?.day===day);
+  return queue.find(task=>task.id===pin?.taskId)||queue[0];
+}
+function completedRecapRituals(today,entries){
+  return ['journal','annotate','crochet'].filter(kind=>
+    ritualComplete(kind,entries[kind],kind==='journal'?journal.completedAt(today):0));
+}
+function recapPosition(place){
+  return [place.date?shortScheduleDate(place.date):'',place.time?timeLabel(timeMinutes(place.time)):'',place.place].filter(Boolean).join(' · ')||'Unscheduled';
+}
+function promptRecapToday(){
+  const now=new Date(),tasks=gardenTasks(),{today,finished,moves,rituals:entries}=summarizeDay(state,tasks,now);
+  const first=tomorrowFirstTask(shiftDay(now,1),tasks);
+  const completed=[...finished].sort((a,b)=>b.at-a.at).map(item=>item.text);
+  completed.push(...completedRecapRituals(today,entries).map(kind=>rituals[kind].label));
+  return [
+    `Today’s recap · ${shortScheduleDate(today)}`,
+    ['Finished today:',...(completed.length?completed.map(title=>`  - ${title}`):['  No completed items today.'])].join('\n'),
+    ['Moved today:',...(moves.length?moves.map(item=>`  - ${item.title} · ${recapPosition(item.from)} → ${recapPosition(item.to)}`):
+      ['  No schedule changes recorded today.'])].join('\n'),
+    `Tomorrow’s first task: ${first?.text||'None lined up.'}`
+  ].join('\n\n');
+}
 function promptShutdown(){
   const now=new Date(),today=dayKey(now),tomorrow=shiftDay(now,1);
   const checked=shutdownChecked(today),tasks=gardenTasks();
-  const tomorrowQueue=gardenFocusQueue(tomorrow,tasks),tomorrowDay=dayKey(tomorrow);
-  const pin=[state.tomorrowPin,state.tomorrowPlan].find(item=>item?.day===tomorrowDay);
-  const first=tomorrowQueue.find(task=>task.id===pin?.taskId)||tomorrowQueue[0];
+  const first=tomorrowFirstTask(tomorrow,tasks);
   const openTasks=new Map(gardenFocusQueue(now,tasks).map(task=>[task.id,task]));
   for(const {task} of calendarBlocks(tasks,now).filter(openFocusBlock))openTasks.set(task.id,task);
   for(const task of tasks){
@@ -2959,15 +3008,13 @@ function dayRecapMarkup(){
     const occurrence=item.id.slice(item.taskId.length+1);
     return `<li>${entry(item.text,'',taskTarget(item.taskId,/^\d{4}-\d{2}-\d{2}$/.test(occurrence)?occurrence:today))}</li>`;
   });
-  for(const kind of ['journal','annotate','crochet']){
-    if(ritualComplete(kind,todayRituals[kind],kind==='journal'?journal.completedAt(today):0))completed.push(
-      `<li>${entry(rituals[kind].label,'',`data-recap-ritual="${kind}" data-date="${today}"`)}</li>`);
+  for(const kind of completedRecapRituals(today,todayRituals)){
+    completed.push(`<li>${entry(rituals[kind].label,'',`data-recap-ritual="${kind}" data-date="${today}"`)}</li>`);
   }
-  const position=place=>[place.date?shortScheduleDate(place.date):'',place.time?timeLabel(timeMinutes(place.time)):'',place.place].filter(Boolean).join(' · ')||'Unscheduled';
   const moved=moves.map(item=>{
     const target=recapMoveTarget(item,tasks,state.calendarEvents);
     const link=target?.event||target?.occurrence?blockTarget(target):taskTarget(target?.task);
-    return `<li>${entry(item.title,`${position(item.from)} → ${position(item.to)}`,link)}</li>`;
+    return `<li>${entry(item.title,`${recapPosition(item.from)} → ${recapPosition(item.to)}`,link)}</li>`;
   });
   const upcoming=[...allDay.map(event=>`<li>${entry(event.title,'All day',blockTarget({event:event.id}))}</li>`),
     ...blocks.map(block=>`<li>${entry(block.event?.title||block.task.text,calendarBlockTimeLabel(block),

@@ -24,6 +24,17 @@ function makeCheckpoint(project,note,{counter,rowsOnly=false,photos=[]}={}){
 }
 const color=value=>/^#[\da-f]{6}$/i.test(value)?value:'#ad7d76';
 const number=new Intl.NumberFormat().format;
+function checkpointCounts(point){
+  return [...(point.counterId?[]:[`Rows ${number(point.rows)}`]),...point.counters.map(counter=>`${counter.name} ${number(counter.count)}`)].join(' · ');
+}
+export function crochetResumeDetails(project){
+  const checkpoint=project.checkpoints.reduce((latest,point)=>
+    !latest||point.at>=latest.at?point:latest,null);
+  const counters=[{name:'Rows',count:project.rows,instruction:project.rowInstruction},...project.counters];
+  const instructions=counters.filter(counter=>counter.instruction?.row>counter.count)
+    .map(({name,instruction})=>({name,...instruction}));
+  return {checkpoint,counts:checkpoint?checkpointCounts(checkpoint):'',instructions};
+}
 const validTimeLog=({date,minutes})=>/^\d{4}-\d{2}-\d{2}$/.test(date)&&dayKey(new Date(date+'T12:00:00'))===date&&
   Number.isInteger(minutes)&&minutes>=1&&minutes<=1440;
 const formatTime=minutes=>[minutes>=60?`${number(Math.floor(minutes/60))} h`:'',minutes%60||!minutes?`${minutes%60} min`:''].filter(Boolean).join(' ');
@@ -320,9 +331,6 @@ export function installCrochet({root,storage,storageEvent=key=>key,notify}){
       <div class="crochet-fields"><label>Date<input name="date" type="date" required max="${today}" value="${today}"></label>
       <label>Minutes worked<input name="minutes" type="number" min="1" max="1440" step="1" required placeholder="e.g. 45"></label></div>
       ${sessions.length?`<div class="crochet-time-history"><h4>Recent sessions</h4><ul>${sessions.slice(0,5).map(item=>`<li><time datetime="${item.date}">${escape(new Date(item.date+'T12:00:00').toLocaleDateString([],{dateStyle:'medium'}))}</time><span>${formatTime(item.minutes)}</span></li>`).join('')}</ul></div>`:''}`;
-  }
-  function checkpointCounts(point){
-    return [...(point.counterId?[]:[`Rows ${number(point.rows)}`]),...point.counters.map(counter=>`${counter.name} ${number(counter.count)}`)].join(' · ');
   }
   function checkpointGallery(photos,editable=false){
     return `<div class="crochet-photo-gallery">${photos.map((photo,index)=>`<figure>
