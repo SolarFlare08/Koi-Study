@@ -99,6 +99,7 @@
 #version-history[open] { display:flex; flex-direction:column; }
 .version-header { padding:20px 24px 14px; }
 .version-build { display:flex; align-items:center; flex-wrap:wrap; gap:5px 8px; margin-top:5px; color:var(--surface-muted); font-size:12px; }
+.version-build-number { user-select:text; }
 #version-history .version-copy { padding:4px 8px; border:1px solid var(--surface-line); border-radius:6px; color:var(--surface-accent); font-size:11px; }
 .version-copy:hover { background:var(--surface-raised); }
 .version-copy-status { color:var(--surface-accent); }

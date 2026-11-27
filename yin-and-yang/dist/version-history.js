@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.23',date:'2026-11-26',title:'Find controls in Help and copy the current version',changes:[
+    'Jump straight to a Help step using a full or partial button label, such as Print summary or Skip date.',
+    'Copy the running version from Version History. If clipboard access is blocked, the number is selected for manual copying.'
+  ]},
   {version:'6.0.22',date:'2026-11-26',title:'Current-task shortcuts and named command history',changes:[
     'Use a dot for the current Garden task in commands such as move, focus, and task show.',
     'Search recent commands, save useful ones under a name, and reload them for review before rerunning.'
@@ -637,7 +641,7 @@ export function installVersionHistory(dialog){
   const date=value=>value?`<time datetime="${value}">${formatDate.format(new Date(value))}</time>`:'';
   const items=changes=>`<ul>${changes.map(change=>`<li>${change}</li>`).join('')}</ul>`;
   dialog.innerHTML=`<header class="version-header"><div><h2 id="version-title">Version history</h2><div class="version-build">
-      <span>Yin and Yang · v${appVersion}</span><button type="button" class="version-copy">Copy version number</button><span class="version-copy-status" role="status"></span>
+      <span>Yin and Yang · v<span class="version-build-number">${appVersion}</span></span><button type="button" class="version-copy">Copy version number</button><span class="version-copy-status" role="status"></span>
     </div></div><button type="button" class="version-close" aria-label="Close version history">×</button></header>
     <div class="version-filters">
       <label><span class="sr-only">Search releases</span><input type="search" placeholder="Search releases" autofocus></label>
@@ -678,18 +682,21 @@ export function installVersionHistory(dialog){
     list.scrollTop=0;
     show(matches.includes(selected)?selected:matches[0]);
   }
-  const copyStatus=dialog.querySelector('.version-copy-status');
+  const copyStatus=dialog.querySelector('.version-copy-status'),buildNumber=dialog.querySelector('.version-build-number');
   let copyStatusTimer;
   dialog.querySelector('.version-copy').onclick=async()=>{
     clearTimeout(copyStatusTimer);
     try{
       await navigator.clipboard.writeText(appVersion);
-      copyStatus.textContent='Copied';
+      copyStatus.textContent='Version number copied.';
+      copyStatusTimer=setTimeout(()=>{copyStatus.textContent='';},2400);
     }catch{
-      copyStatus.textContent='Couldn’t copy';
+      if(!dialog.open)return;
+      const range=document.createRange(),selection=document.getSelection();
+      range.selectNodeContents(buildNumber);
+      selection.removeAllRanges();selection.addRange(range);
+      copyStatus.textContent='Version selected. Press Ctrl+C or Command+C to copy.';
     }
-    clearTimeout(copyStatusTimer);
-    copyStatusTimer=setTimeout(()=>{copyStatus.textContent='';},2400);
   };
   dialog.querySelector('.version-close').onclick=()=>dialog.close();
   dialog.querySelector('.version-latest').onclick=()=>{

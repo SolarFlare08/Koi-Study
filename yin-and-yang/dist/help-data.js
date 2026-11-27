@@ -84,6 +84,7 @@ export const helpTopics = [
     id:'help-search', group:'Start here', title:'Find instructions by button name',
     summary:'Jump to the step that explains a control you see in the app.',
     steps:['Open Help and type the name of the button or menu item you want to find.',
+      'You can use just the words you remember. For example, Skip date still finds the `Skip this date` instruction.',
       'Choose a result or press `Enter` to open the first one. Help shows the matching step when the label appears in the instructions.'],
     related:['versions','shortcuts']
   },
@@ -92,6 +93,7 @@ export const helpTopics = [
     summary:'Browse the current release and past updates.',
     steps:['Open Help → `Version history`, or search for Version history with `Ctrl+K`.',
       'Choose `Copy version number` next to the heading to copy the current app version, even while browsing an older release.',
+      'If clipboard access is blocked, Version History selects the number for you. Press Ctrl+C (Command+C on Mac) to copy it.',
       'Search by version number or feature, or filter by version series. Select a release to read its notes. Choose Latest release to clear the filters and return to the newest entry. Version 1.0.0 groups earlier updates by date.'],
     tip:'Patch versions cover fixes and documentation, minor versions add compatible features, and major versions mark intentionally incompatible changes.',
     action:'versions', actionLabel:'Open version history', related:['workspaces','backup']
@@ -1046,17 +1048,25 @@ export const helpTopics = [
 
 const normalize=value=>String(value).normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase();
 const searchText=value=>normalize(value).replace(/`/g,'').replace(/[’‘]/g,"'").trim().replace(/\s+/g,' ');
+const labelWords=value=>searchText(value).match(/[\p{L}\p{N}]+/gu)||[];
 export function searchHelpResults(query){
   const phrase=searchText(query).replace(/^["“](.*)["”]$/,'$1'),words=phrase.split(' ').filter(Boolean);
+  const controls=labelWords(phrase);
   return helpTopics.flatMap(topic=>{
     const steps=topic.steps||[];
     const content=searchText([topic.title,topic.group,topic.summary,...steps,topic.tip,topic.keywords,topic.actionLabel,...(topic.shortcuts||[]).flat()].join(' '));
     if(!words.every(word=>content.includes(word)))return [];
     const title=searchText(topic.title),brief=searchText([topic.title,topic.summary,topic.keywords].join(' '));
-    const labelStep=steps.findIndex(step=>[...step.matchAll(/`([^`]+)`/g)].some(([,label])=>searchText(label)===phrase));
+    const labels=steps.map(step=>[...step.matchAll(/`([^`]+)`/g)].map(([,label])=>searchText(label)));
+    const labelStep=labels.findIndex(items=>items.includes(phrase));
+    const partialLabelStep=controls.length>1&&labelStep===-1?labels.findIndex(items=>items.some(label=>{
+      const tokens=labelWords(label);
+      return controls.every(word=>tokens.includes(word));
+    })):-1;
     const phraseStep=words.length>1?steps.findIndex(step=>searchText(step).includes(phrase)):-1;
     const exactLabel=labelStep!==-1||!!topic.actionLabel&&searchText(topic.actionLabel)===phrase;
-    const score=!words.length?0:exactLabel?6:title===phrase?5:phraseStep!==-1?4:title.includes(phrase)?3:words.every(word=>title.includes(word))?2:words.every(word=>brief.includes(word))?1:0;
-    return [{topic,step:labelStep===-1?phraseStep:labelStep,score}];
+    const score=!words.length?0:exactLabel?7:title===phrase?6:partialLabelStep!==-1?5:phraseStep!==-1?4:title.includes(phrase)?3:words.every(word=>title.includes(word))?2:words.every(word=>brief.includes(word))?1:0;
+    const step=[labelStep,partialLabelStep,phraseStep].find(index=>index!==-1)??-1;
+    return [{topic,step,score}];
   }).sort((a,b)=>b.score-a.score);
 }
