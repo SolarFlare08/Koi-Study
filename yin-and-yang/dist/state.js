@@ -393,6 +393,7 @@ export function loadState(storage) {
     const maxTimer=taskPlan||t?.taskBreak===true?86400000:10800000;
     if (t && ['focus','break'].includes(t.mode) && ['idle','running','paused','overtime'].includes(t.status) && Number.isFinite(t.remaining) && t.remaining>=0 && t.remaining<=maxTimer && Number.isFinite(t.total) && t.total>0 && t.total<=maxTimer && (!['running','overtime'].includes(t.status) || (Number.isFinite(t.endAt) && typeof t.id==='string' && Number.isFinite(t.startedAt)))) {
       base.timer={...t};
+      if(t.mode!=='focus'||!validWrapUpMinutes(t.wrapMinutes))delete base.timer.wrapMinutes;
       const pacing=t.pacing;
       if(!pacing||!Number.isFinite(pacing.left)||pacing.left<=0||pacing.left>t.total||
           !Number.isFinite(pacing.progress)||pacing.progress<0||pacing.progress>=1)delete base.timer.pacing;
@@ -484,13 +485,14 @@ export function consumeTimerWarning(state,now=Date.now()) {
   timer.warningSent=true;
   return {id:timer.id,mode:timer.mode,left};
 }
+const validWrapUpMinutes=value=>Number.isInteger(value)&&value>=0&&value<=15;
 export function wrapUpMinutes(value){
-  return Number.isInteger(value)&&value>=0&&value<=15?value:3;
+  return validWrapUpMinutes(value)?value:3;
 }
 export function focusWrapUpDuration(state){
   const {timer,settings}=state;
   if(timer.mode!=='focus')return 0;
-  return Math.max(0,Math.min(wrapUpMinutes(settings.wrapMinutes)*60000,timer.total-60000));
+  return Math.max(0,Math.min(wrapUpMinutes(timer.wrapMinutes??settings.wrapMinutes)*60000,timer.total-60000));
 }
 export function focusWrapUp(state,now=Date.now()){
   const {timer}=state,left=remaining(state,now);
@@ -524,7 +526,7 @@ export function reset(state, mode=state.timer.mode) {
 const taskStages=['first','interval','second','final'];
 function loadTaskTiming(plan,tasks){
   return tasks.some(task=>task.id===plan?.taskId)&&taskStages.includes(plan.stage)&&
-    Number.isInteger(plan.totalMs)&&plan.totalMs>=60000&&plan.totalMs<=86400000
+    Number.isInteger(plan.totalMs)&&plan.totalMs>=1000&&plan.totalMs<=86400000
     ?{taskId:plan.taskId,totalMs:plan.totalMs,stage:plan.stage}:null;
 }
 const firstTaskHalfMs=totalMs=>Math.ceil(totalMs/2000)*1000;

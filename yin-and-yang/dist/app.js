@@ -617,6 +617,8 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   blockSplit:promptBlockSplit,
   blockNext:promptBlockNext,
   resumeTask:promptResumeTask,
+  setWrap:promptWrap,
+  switchTask:previewPromptSwitch,
   openReference:promptOpenReference,
   timeLeft:promptTaskTimeLeft,
   estimate:promptEstimateComparison,
@@ -1140,8 +1142,8 @@ function selectTaskForTimer(task,minutes){
   if(!startTaskTiming(state,task.id,minutes??taskFocusMinutes(task))&&(prior.id||prior.mode!=='focus'||prior.taskPlan))reset(state,'focus');
   if(wasRunning)toggleFocusTimer(task);
 }
-function saveTaskSelection(task,minutes){
-  checkCompletion();
+function saveTaskSelection(task,minutes,{settleFirst=true}={}){
+  if(settleFirst)checkCompletion();
   const {activeTask,activeTaskDay,activeBundle,timer}=state,length=state.history.length;
   selectTaskForTimer(task,minutes);
   if(persist())return true;
@@ -1206,15 +1208,11 @@ function promptTaskTimeLeft(){
     ...(remainingMs===null?[]:[`Estimate remaining: ${time(remainingMs)}`])
   ].join('\n');
 }
-function promptResumeTask(){
-  checkCompletion();
-  const task=focusedTask();
-  if(!task)return {text:'There’s no current Garden task. Select a task in Garden first.'};
+function promptTaskContext(task){
   const project=state.projects.find(item=>item.id===task.projectId);
   const projectPin=project?.resources?.find(item=>item.id===project.pinnedResourceId);
   const subtask=nextFocusSubtask(task),reference=task.reference;
-  const lines=[
-    `Resume · ${task.text}`,
+  return [
     `Last handoff: ${task.resumeNote||'No handoff saved.'}`,
     ...(task.resumeLocation?[`Where you stopped: ${task.resumeLocation}`]:[]),
     ...(task.resumeResource?[`Handoff resource: ${task.resumeResource}`]:[]),
@@ -1222,6 +1220,12 @@ function promptResumeTask(){
     `Pinned reference: ${reference?.text||(reference?.image?'See the pinned diagram.':
       projectPin?[projectPin.title,projectPin.value].filter(Boolean).join(' · '):'None pinned.')}`
   ];
+}
+function promptResumeTask(){
+  checkCompletion();
+  const task=focusedTask();
+  if(!task)return {text:'There’s no current Garden task. Select a task in Garden first.'};
+  const reference=task.reference,lines=[`Resume · ${task.text}`,...promptTaskContext(task)];
   const result=(message,options={})=>({text:[...lines,message].join('\n'),
     image:reference?.image,imageAlt:`Pinned diagram for ${task.text}`,...options});
   if(!gardenFocusQueue().some(item=>item.id===task.id))return result('The current task is not ready for a new session.');
@@ -1244,6 +1248,59 @@ function promptResumeTask(){
       return {text:runPromptTimer('start')};
     }
   });
+}
+function promptWrap(minutes){
+  checkCompletion();
+  const previous=state.timer;
+  if(previous.mode!=='focus'||previous.status==='overtime')return 'Choose a focus countdown before setting its wrap-up.';
+  const {wrapMinutes,...timer}=previous;
+  if(minutes!==null)timer.wrapMinutes=minutes;
+  state.timer=timer;
+  if(!persist()){state.timer=previous;return 'Could not save the session wrap-up.';}
+  const reserve=focusWrapUpDuration(state);
+  render();wake();checkCompletion();
+  const detail=reserve?`Wrap-up begins with ${durationWords(reserve)} left on this focus countdown.`:
+    'Wrap-up is off for this focus countdown.';
+  return minutes===null?`Restored the default. ${detail}`:
+    minutes>0&&reserve<minutes*60000?`${detail} The countdown keeps its first minute for focus.`:detail;
+}
+function previewPromptSwitch(id,reviewed){
+  checkCompletion();
+  const now=new Date(),task=gardenFocusQueue(now).find(item=>item.id===id),timer=state.timer;
+  if(!task)return {text:'That task is no longer ready. Run switch again to choose another task.'};
+  if(timer.block||timer.sequence||timer.mistakeId||timer.status==='overtime'){
+    const session=timer.block?'calendar block':timer.sequence?'routine':timer.mistakeId?'mistake retry':'overtime session';
+    return {text:`Finish or reset the current ${session} before switching to ${task.text}.`};
+  }
+  const current=focusedTask(now);
+  if(current?.id===id)return {text:`${task.text} is already the current Garden task. Use resume . to review its handoff.`};
+  const minutes=taskFocusMinutes(task,+now)??duration(state,'focus')/60000;
+  const proposed={settings:state.settings};
+  startTaskTiming(proposed,id,minutes);
+  const next=proposed.timer,total=next.taskPlan.totalMs;
+  const automatic=timer.status==='running'&&timer.mode==='focus';
+  const focusTime=`${formatDuration(next.total)}${next.total<total?` for the first half of ${formatDuration(total)} planned focus`:''}`;
+  const currentClock=`${timer.status==='idle'?'Ready':timer.status==='paused'?'Paused':'Running'} ${timer.mode==='focus'?'focus':'rest'} · ${formatDuration(remaining(state,+now))}${timer.status==='idle'?'':' left'}`;
+  const effect=!timer.id?'The current countdown is replaced.':timer.mode==='focus'?
+    'The current focus session is logged as skipped, with its elapsed focus time.':'The current break ends early.';
+  const context=promptTaskContext(task),bundle=activeBundleStatus(now);
+  const pausesBundle=Boolean(bundle?.next&&!bundle.run.paused&&bundle.next.id!==id);
+  const signature=JSON.stringify([current?.id,current?.text,task.text,timer.id,timer.status,timer.mode,timer.total,timer.endAt,
+    timer.remaining,minutes,context,pausesBundle]);
+  if(reviewed!==signature)return {
+    text:[...(reviewed?['The task or timer changed. Review the updated switch.','']:[]),
+      `Switch to ${task.text}`,
+      ...(current?[`Current task: ${current.text}`]:[]),
+      `Current timer: ${currentClock}`,effect,
+      `New timer: ${focusTime} · ${automatic?'starts immediately':'ready to start'}`,
+      ...(pausesBundle?['The current task bundle will pause.']:[]),
+      ...context].join('\n'),
+    label:'Switch task',
+    confirm:()=>previewPromptSwitch(id,signature)
+  };
+  if(!saveTaskSelection(task,minutes,{settleFirst:false}))return {text:'Could not save the task switch.'};
+  refreshTasks();wake();
+  return {text:`Switched to ${task.text} · ${formatDuration(state.timer.total)} ${state.timer.status==='running'?'running':'ready'}.`};
 }
 function promptBlockNext(){
   const now=new Date(),entry=nextGardenCommitment(now,gardenTasks());

@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.26',date:'2026-11-27',title:'Session wrap-up and task-switch previews in Prompt',changes:[
+    'Use wrap 3m to set a wrap-up for the current focus countdown.',
+    'Preview the timer change and the next task’s handoff before confirming a switch.'
+  ]},
   {version:'6.0.25',date:'2026-11-27',title:'Pinned references and time left in Prompt',changes:[
     'Use ref open . to open the current task’s pinned reference beside the timer.',
     'Use left . to compare the current task’s estimate, logged focus, and remaining calendar bookings.'

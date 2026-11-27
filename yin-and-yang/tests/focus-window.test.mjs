@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {calendarFocusWindow,focusWindowTasks,nextCalendarCommitment,nextCalendarEntry,taskTimeFit} from '../dist/calendar.js';
-import {focusWrapUp,focusWrapUpDuration,freshState,loadState,startPause} from '../dist/state.js';
+import {focusWrapUp,focusWrapUpDuration,freshState,loadState,reset,settle,startPause} from '../dist/state.js';
 import {currentFocusPause,editFocusPause,loadReplay} from '../dist/focus-replay.js';
 
 test('class fit uses the next timed occurrence and subtracts preparation and mid-session rest',()=>{
@@ -64,6 +64,25 @@ test('wrap-up uses the last focus minutes and a dated first-task pin survives re
   assert.equal(focusWrapUp(restored,restored.timer.endAt-60000),false);
   restored.settings.wrapMinutes=3;
   restored.timer.mode='break';
+  assert.equal(focusWrapUpDuration(restored),0);
+});
+
+test('a focus countdown’s wrap-up override survives reload and clears when that countdown ends',()=>{
+  const state=freshState();
+  state.settings.wrapMinutes=5;
+  state.timer.wrapMinutes=2;
+  const start=Date.now();
+  startPause(state,start);
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  assert.equal(restored.settings.wrapMinutes,5);
+  assert.equal(focusWrapUpDuration(restored),120000);
+  assert.equal(focusWrapUp(restored,restored.timer.endAt-120001),false);
+  assert.equal(focusWrapUp(restored,restored.timer.endAt-120000),true);
+  settle(restored,restored.timer.endAt);
+  assert.equal(restored.timer.wrapMinutes,undefined);
+  reset(restored,'focus');
+  assert.equal(focusWrapUpDuration(restored),300000);
+  restored.timer.wrapMinutes=0;
   assert.equal(focusWrapUpDuration(restored),0);
 });
 
