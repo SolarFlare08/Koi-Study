@@ -96,14 +96,17 @@ export function recordTaskCompletion(state, task, checked, occurrence = new Date
   completeTask(task, checked, recurring ? occurrence : new Date(now));
   state.taskActivity = state.taskActivity.filter(event => event.id !== id);
   if (checked) state.taskActivity.push({id, taskId:task.id, text:task.text, projectId:task.projectId||'', labels:[...(task.labels||[])], estimate:task.estimate||null, at:now});
-  const undo=finishUndo();
-  return latest=>{
-    if ((latest.taskActivity.find(event=>event.id===id)?.at??null)!==(checked?now:null)) return false;
-    if (!undo?.(latest)) return false;
+  const taskUndo=finishUndo(),recorded=state.taskActivity.find(event=>event.id===id);
+  const apply=(latest,from,to,change)=>{
+    if ((latest.taskActivity.find(event=>event.id===id)?.at??null)!==(from?.at??null)) return false;
+    if (!change?.(latest)) return false;
     latest.taskActivity=latest.taskActivity.filter(event=>event.id!==id);
-    if (prior) latest.taskActivity.push(prior);
+    if (to) latest.taskActivity.push(to);
     return true;
   };
+  const undo=latest=>apply(latest,recorded,prior,taskUndo);
+  undo.redo=latest=>apply(latest,prior,recorded,taskUndo?.redo);
+  return undo;
 }
 
 export const taskCalendarColors={jade:'Jade',lake:'Lake blue',plum:'Plum',rose:'Rose',amber:'Amber',clay:'Terracotta'};

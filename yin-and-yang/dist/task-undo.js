@@ -7,13 +7,30 @@ export function captureTaskChange(task,fields) {
     const after=snapshot(task,fields);
     const changed=fields.filter(key=>!same(before[key],after[key]));
     if (!changed.length) return null;
-    return state=>{
+    const apply=(state,from,to)=>{
       const latest=state.tasks.find(item=>item.id===task.id);
-      if (!latest||changed.some(key=>!same(latest[key],after[key]))) return false;
-      for (const key of changed) latest[key]=structuredClone(before[key]);
+      if (!latest||changed.some(key=>!same(latest[key],from[key]))) return false;
+      for (const key of changed) latest[key]=structuredClone(to[key]);
       return true;
     };
+    const undo=state=>apply(state,after,before);
+    undo.redo=state=>apply(state,before,after);
+    return undo;
   };
+}
+
+export function captureAddedTask(task,index){
+  const restore=restoreDeletedTask(task,index);
+  const added=structuredClone(task);
+  const undo=state=>{
+    const position=state.tasks.findIndex(item=>item.id===added.id);
+    if(position<0||!same(state.tasks[position],added)||state.activeTask===added.id||state.timer?.taskSnapshot?.id===added.id||
+      state.tasks.some(item=>item.prerequisiteIds?.includes(added.id))||state.stickyNotes?.some(note=>note.taskId===added.id))return false;
+    state.tasks.splice(position,1);
+    return true;
+  };
+  undo.redo=state=>(!added.projectId||state.projects.some(project=>project.id===added.projectId&&!project.archived))&&restore(state);
+  return undo;
 }
 
 export function restoreDeletedTask(task,index) {

@@ -151,6 +151,10 @@ test('undo restores a task completion, a move, or a deleted task without replaci
   assert.equal(undoComplete(state),true);
   assert.equal(state.taskActivity.length,0);
   assert.equal(task.done,false);
+  assert.equal(undoComplete.redo(state),true);
+  assert.equal(state.taskActivity.length,1);
+  assert.equal(task.done,true);
+  assert.equal(undoComplete(state),true);
   const finishMove=captureTaskChange(task,['date','projectId']);
   task.date='2026-11-09';
   const undoMove=finishMove();
@@ -158,6 +162,11 @@ test('undo restores a task completion, a move, or a deleted task without replaci
   assert.equal(undoMove(state),true);
   assert.equal(task.date,'');
   assert.equal(task.text,'Revised title');
+  assert.equal(undoMove.redo(state),true);
+  assert.equal(task.date,'2026-11-09');
+  task.date='2026-11-10';
+  assert.equal(undoMove(state),false);
+  assert.equal(task.date,'2026-11-10');
   const undoDelete=restoreDeletedTask(state.tasks.pop(),0);
   assert.equal(undoDelete(state),true);
   assert.equal(state.tasks[0].text,'Revised title');

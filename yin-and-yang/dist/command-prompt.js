@@ -40,7 +40,7 @@ function quotedTitle(title){
   return /[“”]/.test(title)?null:`“${title}”`;
 }
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,backupStatus,getViewpoints,postcard,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,backupStatus,getViewpoints,postcard,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp,editHistory}){
   const commands={
     ...timerCommands,
     pauseReason:['pause "Looking up the formula"','Pause focus and save the reason in the session replay.'],
@@ -88,6 +88,10 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     open:['open calendar','Switch to a workspace.'],
     find:['find ','Search tasks, notes, books, and journal entries.'],
     pick:['pick 2','Open result 2 from the latest find command.'],
+    yes:['yes','Confirm the change in the current preview.'],
+    cancel:['cancel','Dismiss the current preview.'],
+    undo:['undo','Undo the most recent supported Prompt edit.'],
+    redo:['redo','Reapply the most recently undone Prompt edit.'],
     task:['task ','Open the task editor with a title filled in.'],
     capture:['capture ','Save a thought to the Note inbox.'],
     version:['version','Show the current app version.'],
@@ -130,7 +134,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
   log.querySelector('.prompt-banner').textContent=`Yin and Yang [Version ${version}]`;
   const history=[];
   let historyIndex=0,draft='';
-  let completion,lastResults=[];
+  let completion,activePreview,lastResults=[];
 
   function appendChoices(entry,results,numbered=false){
     const list=document.createElement(numbered?'ol':'ul');
@@ -141,6 +145,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       row.append(button);list.append(row);
     }
     entry.append(list);
+    return list;
   }
 
   function resultsFor(query,entry){
@@ -238,31 +243,42 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     return chooseMatch(query,getFocusTasks(),entry,({id})=>runTimer('focus',ms,id),'ready focus task','start focus');
   }
 
+  function closePreview(){
+    activePreview?.controls.remove();
+    activePreview?.hint.remove();
+    activePreview=undefined;
+  }
+  function actOnPreview(output,action){
+    closePreview();
+    return action(output);
+  }
+  function offerPreview(entry,choices,confirm,cancelled){
+    closePreview();
+    const cancel=()=>cancelled;
+    const hint=document.createElement('div');
+    hint.textContent=confirm?'Type yes to confirm or cancel to dismiss.':'Choose an action below or type cancel to dismiss.';
+    entry.append(hint);
+    const controls=appendChoices(entry,[...choices,{label:'Cancel',run:cancel}].map(({label,run})=>({
+      label,run:()=>{
+        if(activePreview?.controls!==controls)return;
+        const response=actOnPreview(entry,run);
+        if(response)entry.textContent=response;
+        if(document.activeElement===document.body)(entry.querySelector('button')||input).focus();
+      }
+    })));
+    activePreview={controls,hint,confirm,cancel};
+  }
   function showPreview(entry,result,cancelled){
     entry.textContent=result.text;
     if(result.confirm){
-      appendChoices(entry,[
-        {label:result.label,run:()=>{
-          showPreview(entry,result.confirm(),cancelled);
-          (entry.querySelector('button')||input).focus();
-        }},
-        {label:'Cancel',run:()=>{
-          entry.textContent=cancelled;
-          input.focus();
-        }}
-      ]);
+      const confirm=output=>showPreview(output,result.confirm(),cancelled);
+      offerPreview(entry,[{label:result.label,run:confirm}],confirm,cancelled);
     }
     return '';
   }
   function showChoices(entry,result,cancelled){
     entry.textContent=result.text;
-    if(result.choices)appendChoices(entry,[
-      ...result.choices.map(({label,run})=>({label,run:()=>{
-        entry.textContent=run();
-        if(document.activeElement===document.body)input.focus();
-      }})),
-      {label:'Cancel',run:()=>{entry.textContent=cancelled;input.focus();}}
-    ]);
+    if(result.choices)offerPreview(entry,result.choices,undefined,cancelled);
     return '';
   }
 
@@ -461,8 +477,17 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         return query?resultsFor(query,entry):'Use find <words to search for>.';
       }
       case 'pick':return pickResult(arg);
+      case 'yes':
+      case 'cancel': {
+        if(arg)return `Use ${name} without an argument.`;
+        if(!activePreview)return 'There’s no current preview.';
+        const action=name==='yes'?activePreview.confirm:activePreview.cancel;
+        return action?actOnPreview(entry,action):'Choose one of the actions shown in the preview.';
+      }
+      case 'undo':
+      case 'redo':return arg?`Use ${name} without an argument.`:editHistory(name);
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, pick 2, task <title>, capture <thought>.\nPrompt: press Tab to complete a command or title, then Tab again to cycle through matches. Type version, help, or clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, pick 2, task <title>, capture <thought>.\nConfirm a preview: yes or cancel.\nPrompt edit history: undo or redo.\nPrompt: press Tab to complete a command or title, then Tab again to cycle through matches. Type version, help, or clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }
@@ -476,6 +501,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     if(history.at(-1)!==line)history.push(line);
     if(history.length>50)history.shift();
     historyIndex=history.length;draft='';input.value='';completion=undefined;
+    if(name!=='yes'&&name!=='cancel')closePreview();
     if(name==='clear'){lastResults=[];log.replaceChildren();input.focus();return;}
     const group=document.createElement('div'),command=document.createElement('code'),entry=document.createElement('div');
     command.className='prompt-echo';command.textContent=promptPath+line;

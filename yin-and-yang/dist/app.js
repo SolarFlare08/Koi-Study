@@ -43,7 +43,7 @@ import {dailyRitualMarkup,loadRitualSchedules,ritualComplete,rituals,scheduledRi
 import {createGardenAudio,soundChannels} from './garden-audio.js';
 import {createSpotifyEmbed,spotifyPath} from './spotify-embed.js';
 import {createYouTubeEmbed,youtubeContent,youtubeLinks} from './youtube-embed.js';
-import {captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
+import {captureAddedTask,captureTaskChange,restoreDeletedTask,restoreActiveTask} from './task-undo.js';
 import {installCommandPalette,matchCommands} from './command-palette.js';
 import {installCommandPrompt} from './command-prompt.js';
 import {summarizeWeek,weeklyStudySummary} from './weekly-planning.js';
@@ -154,6 +154,7 @@ const youtubeEmbed=createYouTubeEmbed(updateMediaPlayback,setMediaStatus);
 const undoToast=$('#undo-toast'),undoButton=$('#undo-action');
 const dismissBrushButton=$('#dismiss-brush-action');
 let pendingUndo,undoTimeout,undoReturn,pendingBrush;
+const promptUndo=[],promptRedo=[];
 let commitmentPreview;
 const clockFormat=new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
 const secondsClockFormat=new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
@@ -320,6 +321,32 @@ function confirmChange(message,undo){
   announce(`${message} Undo available.`);
   queueUndoExpiry();
 }
+function rememberPromptEdit(message,description,undo){
+  if(undo?.redo){
+    promptUndo.push({description,undo});
+    if(promptUndo.length>50)promptUndo.shift();
+    promptRedo.length=0;
+  }
+  confirmChange(message,undo);
+}
+function applyPromptEdit(direction){
+  const undoing=direction==='undo';
+  const [from,to]=undoing?[promptUndo,promptRedo]:[promptRedo,promptUndo];
+  const edit=from.at(-1);
+  if(!edit)return `No Prompt edit to ${direction}.`;
+  const apply=undoing?edit.undo:edit.undo.redo,reverse=undoing?edit.undo.redo:edit.undo;
+  if(!apply(state))return `Could not ${direction} ${edit.description}. The item changed after the edit.`;
+  if(!persist()){
+    reverse(state);
+    return `Could not save the ${direction}.`;
+  }
+  from.pop();to.push(edit);
+  if(pendingUndo===edit.undo)dismissUndo();
+  refreshTasks();
+  const message=`${undoing?'Undid':'Redid'} ${edit.description}.`;
+  toast(message);announce(message);
+  return message;
+}
 undoToast.addEventListener('pointerenter',()=>clearTimeout(undoTimeout));
 undoToast.addEventListener('pointerleave',queueUndoExpiry);
 undoToast.addEventListener('focusin',()=>clearTimeout(undoTimeout));
@@ -339,6 +366,12 @@ undoButton.onclick=()=>{
   }
   const undo=pendingUndo;
   if(!undo)return;
+  if(undo===promptUndo.at(-1)?.undo){
+    const message=applyPromptEdit('undo');
+    if(pendingUndo===undo){toast(message);announce(message);}
+    if(undoReturn?.isConnected&&undoReturn.getClientRects().length)undoReturn.focus({preventScroll:true});
+    return;
+  }
   dismissUndo();
   const reverted=undo(state);
   if(reverted){
@@ -557,6 +590,7 @@ const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canN
 const openVersionHistory=installVersionHistory($('#version-history'));
 const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries:commandEntries,version:appVersion,
   openHelp:()=>helpGuide.open('command-prompt'),
+  editHistory:applyPromptEdit,
   openWorkspace:name=>{visitWorkspace(name);return workspace===name;},
   runTimer:runPromptTimer,
   getFocusTasks:()=>promptTaskChoices(gardenFocusQueue()),
@@ -1280,7 +1314,9 @@ function previewPromptTask(line){
       }
       if(!saveQuickTask(task))return {text:'Could not save the task on this device.'};
       refreshTasks();
-      return {text:`Added ${task.text}.`};
+      const message=`Added ${task.text}.`;
+      rememberPromptEdit(message,`adding ${task.text}`,captureAddedTask(task,state.tasks.length-1));
+      return {text:message};
     }
   };
 }
@@ -1316,9 +1352,12 @@ function completePromptSubtask(number){
     return 'The current task or checklist changed. Run subtasks again.';
   }
   if(sub.done)return `Already complete: ${sub.text}.`;
+  const finishUndo=captureTaskChange(task,['subtasks']);
   if(!saveSubtaskDone(sub,true))return 'Could not save the subtask on this device.';
   refreshTasks();
-  return `Completed ${number}. ${sub.text}`;
+  const message=`Completed ${number}. ${sub.text}`;
+  rememberPromptEdit(message,`checking off ${sub.text} in ${task.text}`,finishUndo());
+  return message;
 }
 function promptWaitingDetails(id){
   const task=promptPlanningTasks().find(item=>item.id===id);
@@ -1379,7 +1418,7 @@ function previewPromptDeadline(id,requested,reviewed){
   if(!undo)return {text:'Could not save the study blocks on this device.'};
   refreshTasks();
   const message=deadlineBlocksMessage(slots.length,unplaced);
-  confirmChange(message,undo);
+  rememberPromptEdit(message,`adding ${slots.length} study ${slots.length===1?'block':'blocks'} for ${task.text}`,undo);
   return {text:message};
 }
 function promptReviewWeek(){
@@ -1532,8 +1571,9 @@ function previewPromptSchedule(id,placement,reviewed){
     return {text:'Could not schedule the block on this device.'};
   }
   refreshTasks();
-  confirmChange('Block scheduled.',undo);
-  return {text:`Scheduled ${task.text} · ${time}.`};
+  const message=`Scheduled ${task.text} · ${time}.`;
+  rememberPromptEdit(message,`scheduling ${task.text} at ${timeLabel(start)} on ${shortScheduleDate(date)}`,undo);
+  return {text:message};
 }
 function promptMoveChoices(){
   const today=new Date(),days=Array.from({length:8},(_,i)=>dayKey(shiftDay(today,i)));
@@ -1600,8 +1640,9 @@ function previewPromptMove(source,destination,reviewed){
   const undo=finishUndo();
   if(!persist()){undo?.(state);return {text:'Could not save the move on this device.'};}
   refreshTasks();
-  confirmChange('Block moved.',undo);
-  return {text:`Moved ${task.text} · ${time}.`};
+  const message=`Moved ${task.text} · ${time}.`;
+  rememberPromptEdit(message,`moving ${task.text} to ${timeLabel(start)} on ${shortScheduleDate(date)}`,undo);
+  return {text:message};
 }
 function snoozePromptTask(id,date){
   if(date<=dayKey())return 'Choose a future date to snooze the task.';
@@ -1617,7 +1658,7 @@ function snoozePromptTask(id,date){
     return 'Could not snooze the task on this device.';
   }
   refreshTasks();
-  confirmChange(message,undo);
+  rememberPromptEdit(message,`snoozing ${task.text} until ${shortScheduleDate(date)}`,undo);
   return message;
 }
 function promptFit(available){
@@ -3740,10 +3781,11 @@ function previewPromptExtension(minutes,reviewed){
   const focusEnd=block?.focusEnd??timer.endAt,newFocusEnd=focusEnd+ms;
   const active=timer.calendarBlock&&{...timer.calendarBlock,taskId:timer.taskSnapshot?.id};
   const conflicts=block?.conflicts??timerExtensionConflicts(state,[[focusEnd,newFocusEnd]],active);
-  const signature=JSON.stringify([timer.id,focusEnd,block,conflicts]);
+  const title=timer.taskSnapshot?.text||(timer.mode==='focus'?focusedTask()?.text||'the focus session':'the break');
+  const signature=JSON.stringify([timer.id,title,focusEnd,block,conflicts]);
   if(reviewed!==signature)return {
     text:[...(reviewed?['The schedule changed. Review the updated extension.','']:[]),
-      `Extend by ${minutesLabel(minutes)}`,
+      `Extend ${title} by ${minutesLabel(minutes)}`,
       ...(block?[`Calendar ends: ${extensionTime(block.plannedEnd)} → ${extensionTime(block.newPlannedEnd)}`]:[]),
       `Session ends: ${extensionTime(focusEnd)} → ${extensionTime(newFocusEnd)}`,
       ...(conflicts.length?['Overlaps in the extra time:',...conflicts.map(item=>
@@ -5207,12 +5249,12 @@ function promptFinishTask(){
   return {
     text:`Complete ${task.text}?${state.timer.sequence?' This also ends the current routine.':''}`,
     choices:[
-      {label:'Take a break',run:()=>completeCurrentTask(task.id,'break',{startWithoutTask:false,day:dayKey(occurrence)})},
-      {label:'Start next task',run:()=>completeCurrentTask(task.id,'focus',{startWithoutTask:false,day:dayKey(occurrence)})}
+      {label:'Take a break',run:()=>completeCurrentTask(task.id,'break',{startWithoutTask:false,day:dayKey(occurrence),fromPrompt:true})},
+      {label:'Start next task',run:()=>completeCurrentTask(task.id,'focus',{startWithoutTask:false,day:dayKey(occurrence),fromPrompt:true})}
     ]
   };
 }
-function completeCurrentTask(taskId,mode,{startWithoutTask=true,day}={}){
+function completeCurrentTask(taskId,mode,{startWithoutTask=true,day,fromPrompt=false}={}){
   checkCompletion();
   const task=focusedTask();
   if(!task||task.id!==taskId)return 'The current task changed.';
@@ -5245,7 +5287,8 @@ function completeCurrentTask(taskId,mode,{startWithoutTask=true,day}={}){
   const activity=state.timer.mode==='break'?'Break started.':state.timer.status==='running'?'Focus started.':
     activeBundleStatus()?.next?'Bundle is waiting on the next task.':finishedBundle?'Bundle complete.':'No ready tasks left.';
   const message=`Task finished. ${activity}${next?` Up next: ${next.text}.`:''}`;
-  confirmChange(message,undo);
+  if(fromPrompt)rememberPromptEdit(message,`completing ${task.text}`,undo);
+  else confirmChange(message,undo);
   return message;
 }
 

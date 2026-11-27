@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.20',date:'2026-11-26',title:'Keyboard confirmation and edit history in Prompt',changes:[
+    'Review the target and details of a proposed change, then type yes or cancel.',
+    'Undo or redo Prompt task and scheduling edits with a message that names the change.'
+  ]},
   {version:'6.0.19',date:'2026-11-26',title:'Tab completion and numbered results in Prompt',changes:[
     'Press Tab to complete command names, task titles, books, and saved soundtracks.',
     'Open a numbered find result with pick followed by its number.'
