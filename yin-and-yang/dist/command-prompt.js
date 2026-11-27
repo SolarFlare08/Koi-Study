@@ -76,6 +76,8 @@ const detailedHelp={
   'resume .':['resume .','Show the current Garden task’s handoff, next unchecked subtask, and pinned reference.',
     'Loads the suggested focus timer when it is idle. Type start or confirm Start focus when ready.'],
   'block next':['block next','Show the next timed calendar entry and when it starts. For an available task block, choose Start block focus or type yes.'],
+  'ref open':['ref open .','Open the current task’s pinned reference beside the Garden timer.'],
+  'left .':['left .','Compare the current task’s estimate, logged focus, and calendar time still booked.'],
   alias:['alias <name> = <command>', 'Examples: alias calc = setup "Calculus" · alias cls = clear',
     'Run the shortcut by typing its name. Type alias to list shortcuts or unalias <name> to remove one.'],
   history:['history <words> · Search recent and named commands.',
@@ -84,7 +86,7 @@ const detailedHelp={
     'history remove "Weekly check-in" · Remove the saved name.']
 };
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,blockNext,resumeTask,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,backupStatus,getViewpoints,postcard,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp,editHistory,getAliases,saveAliases,getSetups,startSetup,getCurrentTask,getNamedHistory,saveNamedHistory}){
+export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,blockNext,resumeTask,openReference,timeLeft,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,backupStatus,getViewpoints,postcard,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp,editHistory,getAliases,saveAliases,getSetups,startSetup,getCurrentTask,getNamedHistory,saveNamedHistory}){
   const commands={
     ...timerCommands,
     pauseReason:['pause "Looking up the formula"','Pause focus and save the reason in the session replay.'],
@@ -113,6 +115,8 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     block:['block split "Practice exam" 50m','Preview focus chunks and breaks in an existing block.'],
     blockNext:['block next','See your next calendar block and start focus if it’s a task.'],
     resume:['resume .','Read the current task’s context and prepare its focus timer.'],
+    reference:['ref open .','Open the current task’s pinned reference beside the timer.'],
+    timeLeft:['left .','Compare the current task’s estimate, logged focus, and booked time.'],
     extend:['extend 10m','Review overlaps before adding time to a running session.'],
     finish:['task done','Complete the current task, then rest or start the next one.'],
     quickAdd:['task add Review chapter 4 tomorrow for 30m','Preview a task with a date and estimate before saving.'],
@@ -158,7 +162,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
   const subcommands={
     agenda:['today','tomorrow'],backup:['status'],block:['next','split'],book:['goal','resume'],garden:['dusk'],
     inbox:['next'],journal:['resume'],office:['list'],project:['resume'],queue:['pin'],review:['week'],
-    row:['status'],task:['add','done','show'],history:['save','recall','remove'],help:verbs
+    ref:['open'],row:['status'],task:['add','done','show'],history:['save','recall','remove'],help:verbs
   };
   const titleSources={
     focus:getFocusTasks,'queue pin':getFocusTasks,'task show':getTaskDetails,estimate:getTaskDetails,
@@ -559,6 +563,8 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         return query?estimate(query):`Use ${commands.estimate[0]}.`;
       }
       case 'resume':return arg==='.'?showPreview(entry,resumeTask(),'Focus start cancelled. The prepared timer is still ready.'):'Use resume . for the current Garden task.';
+      case 'ref':return /^open\s+\.$/i.test(arg)?openReference():'Use ref open . for the current task’s pinned reference.';
+      case 'left':return arg==='.'?timeLeft():'Use left . for the current Garden task.';
       case 'book': {
         const goal=/^goal(?:\s+(.+))?$/i.exec(arg);
         if(goal)return runProgress('bookGoal',goal[1]||'',entry);
@@ -659,7 +665,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'undo':
       case 'redo':return arg?`Use ${name} without an argument.`:editHistory(name);
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return arg?helpFor(arg):'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, pick 2, task <title>, capture <thought>.\nCurrent Garden task: move . tomorrow 4pm, focus . 25m, task show ., resume .\nNext timed commitment: block next.\nSearch command history: history move. Save or recall a name: help history.\nCommand details: help move.\nShortcuts: setup "Calculus", alias calc = setup "Calculus", alias cls = clear, unalias cls.\nCopy the latest output: copy.\nConfirm a preview: yes or cancel.\nPrompt edit history: undo or redo.\nPrompt: press Tab to complete a command or title, then Tab again to cycle through matches. Type version, help, or clear.';
+      case 'help':return arg?helpFor(arg):'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, pick 2, task <title>, capture <thought>.\nCurrent Garden task: move . tomorrow 4pm, focus . 25m, task show ., resume .\nNext timed commitment: block next.\nCurrent task reference and time: ref open ., left .\nSearch command history: history move. Save or recall a name: help history.\nCommand details: help move.\nShortcuts: setup "Calculus", alias calc = setup "Calculus", alias cls = clear, unalias cls.\nCopy the latest output: copy.\nConfirm a preview: yes or cancel.\nPrompt edit history: undo or redo.\nPrompt: press Tab to complete a command or title, then Tab again to cycle through matches. Type version, help, or clear.';
       default:return 'Unknown command.'+suggestion(name,[...verbs,...personalAliases().map(({name})=>name)])+' Type help to see the available commands.';
     }
   }

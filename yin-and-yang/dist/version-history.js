@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.25',date:'2026-11-27',title:'Pinned references and time left in Prompt',changes:[
+    'Use ref open . to open the current task’s pinned reference beside the timer.',
+    'Use left . to compare the current task’s estimate, logged focus, and remaining calendar bookings.'
+  ]},
   {version:'6.0.24',date:'2026-11-26',title:'Resume current work and start upcoming blocks from Prompt',changes:[
     'Use resume . to see the current task’s handoff, next subtask, and pinned reference, and load its suggested timer.',
     'Use block next to see the next timed calendar entry and start an available task block after reviewing it.'

@@ -49,7 +49,7 @@ import {installCommandPrompt} from './command-prompt.js';
 import {summarizeWeek,weeklyStudySummary} from './weekly-planning.js';
 import {installHelp} from './help.js';
 import {appVersion,installVersionHistory} from './version-history.js';
-import {agendaGaps,canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,remainingDeadlineEstimate,scheduleImpact,todayTradeoffs} from './scheduling.js';
+import {agendaGaps,canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,remainingDeadlineEstimate,scheduleImpact,taskTimeBudget,todayTradeoffs} from './scheduling.js';
 import {nextTaskDate,overdueTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
 import {taskTemplate,projectResource} from './project-planning.js';
@@ -617,6 +617,8 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   blockSplit:promptBlockSplit,
   blockNext:promptBlockNext,
   resumeTask:promptResumeTask,
+  openReference:promptOpenReference,
+  timeLeft:promptTaskTimeLeft,
   estimate:promptEstimateComparison,
   gap:promptGaps,
   due:promptDue,
@@ -1177,6 +1179,32 @@ function blockLeadTime(ms){
   if(ms<3600000)return durationWords(ms);
   const minutes=Math.ceil(ms/60000),days=Math.floor(minutes/1440),hours=Math.floor(minutes%1440/60);
   return [days&&`${days} ${days===1?'day':'days'}`,hours&&`${hours} hr`,minutes%60&&`${minutes%60} min`].filter(Boolean).join(' ');
+}
+function promptOpenReference(){
+  const task=focusedTask();
+  if(!task)return 'There’s no current Garden task. Select a task in Garden first.';
+  if(!task.reference)return `${task.text} has no pinned reference. Use Pin reference in Garden to add one.`;
+  visitWorkspace('focus');
+  if(workspace!=='focus')return 'Could not open Garden. Close the current panel and try again.';
+  const card=$('#focus-reference');
+  renderReference(task,true);
+  card.focus({preventScroll:true});
+  return `Opened the pinned reference for ${task.text}.`;
+}
+function promptTaskTimeLeft(){
+  const now=new Date(),task=focusedTask(now);
+  if(!task)return 'There’s no current Garden task. Select a task in Garden first.';
+  const timer=state.timer,timerTask=timer.block?.taskId||timer.taskSnapshot?.id;
+  const occurrence=task.repeat&&task.repeat!=='none'?dayKey(finishTaskOccurrence(task,now,timerTask===task.id?timer:{})):null;
+  const {estimateMs,loggedMs,bookedMs,remainingMs}=taskTimeBudget(task,state.history,now,occurrence);
+  const time=ms=>ms?durationWords(ms):'0 min';
+  return [
+    `Time left · ${task.text}${occurrence?` · ${shortScheduleDate(occurrence)} occurrence`:''}`,
+    `Estimate: ${estimateMs===null?'No estimate saved':time(estimateMs)}`,
+    `Logged focus: ${time(loggedMs)}`,
+    `Calendar time still booked: ${time(bookedMs)}`,
+    ...(remainingMs===null?[]:[`Estimate remaining: ${time(remainingMs)}`])
+  ].join('\n');
 }
 function promptResumeTask(){
   checkCompletion();

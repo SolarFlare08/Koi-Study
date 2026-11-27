@@ -1,11 +1,44 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {applyCalendarReplan,calendarFocusKey,focusTaskQueue,planningEventRanges,tasksWithinTime} from '../dist/calendar.js';
-import {compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,projectHealth,scheduleImpact,todayTradeoffs} from '../dist/scheduling.js';
+import {compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,projectHealth,scheduleImpact,taskTimeBudget,todayTradeoffs} from '../dist/scheduling.js';
 import {createsDependencyCycle,freshState,loadState,recordTaskCompletion} from '../dist/state.js';
 
 const date = (day,hour=0,minute=0) => new Date(2026,10,day,hour,minute);
 const event = (title,start,end) => ({title,start:+start,end:+end});
+
+test('task time budget deduplicates bookings and counts only that task’s recorded focus',()=>{
+  const minute=60000,day='2026-11-13',now=date(13,10,30),started=+date(13,9);
+  const task={id:'lab',estimate:90,blocks:[
+    {id:'early',date:day,time:'08:00',minutes:30},
+    {id:'current',date:day,time:'10:00',minutes:60},
+    {id:'overlap',date:day,time:'10:45',minutes:30}
+  ]};
+  const history=[
+    {mode:'focus',taskId:'lab',outcome:'completed',finishedAt:started-10*minute,focusMs:10*minute,day},
+    {mode:'focus',taskId:'other',outcome:'skipped',finishedAt:started+15*minute,focusMs:15*minute,replay:[
+      {action:'start',at:started,taskId:'other'},
+      {action:'switch',at:started+10*minute,taskId:'lab'},
+      {action:'skip',at:started+15*minute,taskId:'lab'}
+    ]},
+    {mode:'break',taskId:'lab',finishedAt:started+30*minute,focusMs:10*minute}
+  ];
+  assert.deepEqual(taskTimeBudget(task,history,now),{estimateMs:90*minute,loggedMs:15*minute,bookedMs:45*minute,remainingMs:75*minute});
+});
+
+test('recurring task time budget keeps moved blocks and logs with their original occurrence',()=>{
+  const minute=60000,day='2026-11-13',tomorrow='2026-11-14';
+  const task={id:'lab',date:day,repeat:'daily',estimate:50,blocks:[
+    {id:'moved',date:tomorrow,taskDay:day,time:'10:00',minutes:20},
+    {id:'next',date:tomorrow,time:'11:00',minutes:40}
+  ]};
+  const history=[
+    {mode:'focus',taskId:'lab',day:tomorrow,finishedAt:+date(14,9),focusMs:10*minute,
+      calendarBlock:{blockId:'moved',occurrence:tomorrow}},
+    {mode:'focus',taskId:'lab',day:tomorrow,finishedAt:+date(14,9,30),focusMs:20*minute}
+  ];
+  assert.deepEqual(taskTimeBudget(task,history,date(14,9,45),day),{estimateMs:50*minute,loggedMs:10*minute,bookedMs:20*minute,remainingMs:40*minute});
+});
 
 test('trade-offs honor fixed blocks and event move windows',()=>{
   const day='2026-11-13',task={id:'new',estimate:60};

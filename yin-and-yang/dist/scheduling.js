@@ -1,6 +1,7 @@
 import {allDayEvents, calendarBlocks, calendarFocusKey, calendarTaskBlock, openFocusBlock, planningEventRanges, shiftDay, timeMinutes, withCooldown} from './calendar.js';
 import {dayKey, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
 import {unavailableRanges} from './availability.js';
+import {replaySessions} from './focus-replay.js';
 
 const dayMinutes = 24 * 60;
 const minuteMs = 60_000;
@@ -264,6 +265,33 @@ export function canPlanDeadline(task) {
   return !task.done && Number.isInteger(task.estimate) && task.estimate > 0 && Boolean(task.deadline);
 }
 
+function bookedTaskTime(task, now, through, occurrence){
+  const existing=(task.blocks||[]).filter(block=>!occurrence||(block.taskDay||block.date)===occurrence)
+    .map(block=>calendarTaskBlock(task,block.id,block.date));
+  if(task.date&&task.time)existing.push(calendarTaskBlock(task,null,occurrence||task.date));
+  return occupiedMinutes(existing.filter(Boolean).map(block=>({start:+block.start,end:+block.end})),+now,through);
+}
+
+function linkedTaskDay(task,link){
+  const block=link?.blockId&&task.blocks?.find(item=>item.id===link.blockId);
+  return link?.taskDay||block?.taskDay||link?.occurrence;
+}
+
+export function taskTimeBudget(task,history,now=new Date(),occurrence=null){
+  const related=history.filter(session=>session.finishedAt<=+now&&
+    (session.taskId===task.id||session.replay?.some(event=>event.taskId===task.id)));
+  const loggedMs=replaySessions(related,null,+now).reduce((total,session)=>{
+    const day=(session.taskId===task.id&&linkedTaskDay(task,session.calendarBlock))||session.day||dayKey(new Date(session.finishedAt));
+    if(occurrence&&day!==occurrence)return total;
+    return session.segments.reduce((sum,segment)=>segment.taskId===task.id?sum+segment.end-segment.at:sum,total);
+  },0);
+  const bookedMs=task.done||occurrence&&(task.completedOn===occurrence||task.completions?.includes(occurrence))?
+    0:bookedTaskTime(task,now,Infinity,occurrence);
+  const estimateMs=task.estimate>0?task.estimate*minuteMs:null;
+  const remainingMs=estimateMs===null?null:Math.max(0,estimateMs-loggedMs);
+  return {estimateMs,loggedMs,bookedMs,remainingMs};
+}
+
 function deadlineWork(task, history, now, firstDay, deadline) {
   const lastDay = shiftDay(deadline, 1);
   const recurring = task.repeat && task.repeat !== 'none';
@@ -276,21 +304,14 @@ function deadlineWork(task, history, now, firstDay, deadline) {
     }
     if (!occurrence) return {unplaced: task.estimate, booked: 0, recorded: 0, noOccurrence: true};
   }
-  const blocks = task.blocks || [];
   const recorded = Math.floor(history.filter(session => {
     if (session.taskId !== task.id || session.mode !== 'focus' || session.outcome !== 'completed' ||
       session.finishedAt > +now || session.finishedAt >= +lastDay) return false;
     if (!recurring) return true;
-    const link = session.calendarBlock;
-    const block = blocks.find(item => item.id === link?.blockId);
-    return (link?.taskDay || block?.taskDay || link?.occurrence || session.day) === occurrence;
+    return (linkedTaskDay(task,session.calendarBlock)||session.day) === occurrence;
   }).reduce((total, session) => total + session.focusMs, 0) / minuteMs);
 
-  const existing = blocks.filter(block => !recurring || (block.taskDay || block.date) === occurrence)
-    .map(block => calendarTaskBlock(task, block.id, block.date));
-  if (task.date && task.time) existing.push(calendarTaskBlock(task, null, occurrence || task.date));
-  const booked = Math.floor(occupiedMinutes(existing.filter(Boolean).map(block => ({start: +block.start, end: +block.end})),
-    +now, +lastDay) / minuteMs);
+  const booked = Math.floor(bookedTaskTime(task,now,+lastDay,occurrence)/minuteMs);
   return {unplaced: Math.max(0, task.estimate - recorded - booked), booked, recorded, occurrence};
 }
 
