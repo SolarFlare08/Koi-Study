@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {applyCalendarReplan,calendarFocusKey,focusTaskQueue,planningEventRanges,tasksWithinTime} from '../dist/calendar.js';
-import {agendaConflicts,agendaGaps,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,projectHealth,scheduleImpact,taskTimeBudget,todayTradeoffs} from '../dist/scheduling.js';
+import {agendaConflicts,agendaGaps,compareStudyWeeks,draftStudyWeek,examStudyBlocks,nextGapForBlock,planDeadline,projectHealth,scheduleImpact,taskTimeBudget,todayTradeoffs} from '../dist/scheduling.js';
 import {createsDependencyCycle,freshState,loadState,recordTaskCompletion} from '../dist/state.js';
 
 const date = (day,hour=0,minute=0) => new Date(2026,10,day,hour,minute);
@@ -18,6 +18,20 @@ test('full-day agenda windows respect event buffers, availability and cooldowns 
     {start:2,end:510},{start:615,end:660},{start:720,end:1438}
   ]);
   assert.deepEqual(agendaGaps(tasks,[{day:'2026-11-13',endDay:'2026-11-14'}],availability,date(13),1440,5,0),[]);
+});
+
+test('next gap fits a complete block and ignores only the source reservation',()=>{
+  const today='2026-11-13',tomorrow='2026-11-14',now=date(13,11);
+  const source={taskId:'lab',blockId:'move',occurrence:tomorrow};
+  const tasks=[{id:'lab',text:'Lab',blocks:[
+    {id:'move',date:tomorrow,time:'09:10',minutes:45},
+    {id:'keep',date:tomorrow,time:'10:10',minutes:30}
+  ]}];
+  const events=[{...event('Meeting',date(14,8,30),date(14,9,5)),bufferAfter:10}];
+  const availability=[{days:[now.getDay()],start:'11:00',end:'12:00'}];
+  assert.deepEqual(nextGapForBlock(tasks,events,availability,source,45,now,720,5),{date:tomorrow,start:555});
+  assert.deepEqual(nextGapForBlock(tasks,events,availability,source,60,now,720,5),{date:tomorrow,start:645});
+  assert.equal(nextGapForBlock(tasks,events,availability,source,181,now,720,5),null);
 });
 
 test('agenda conflicts report each actual overlap once, clipped to the requested day',()=>{

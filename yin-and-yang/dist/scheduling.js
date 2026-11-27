@@ -1,4 +1,4 @@
-import {allDayEvents, calendarBlocks, calendarFocusKey, calendarTaskBlock, openFocusBlock, planningEventRanges, shiftDay, timeMinutes, withCooldown} from './calendar.js';
+import {allDayEvents, calendarBlocks, calendarFocusKey, calendarTaskBlock, openFocusBlock, planningEventRanges, shiftDay, timeMinutes, timeValue, withCooldown} from './calendar.js';
 import {dayKey, taskPriority, taskStatus, unfinishedPrerequisites} from './state.js';
 import {unavailableRanges} from './availability.js';
 import {replaySessions} from './focus-replay.js';
@@ -75,13 +75,13 @@ function freeRanges(busy, from, to) {
   return ranges;
 }
 
-export function agendaGaps(tasks,events,availability,date,cutoff,cooldown,from=workdayStart){
+export function agendaGaps(tasks,events,availability,date,cutoff,cooldown,from=workdayStart,replacing){
   if(allDayEvents(events,date).length)return [];
-  const busy=[...withCooldown(commitments(tasks,[],date),cooldown),...planningEventRanges(events,date,cooldown),
+  const busy=[...withCooldown(commitments(tasks,[],date,replacing),cooldown),...planningEventRanges(events,date,cooldown),
     ...unavailableRanges(availability,date)];
   for(const offset of [-1,1]){
     if(!cooldown||!(offset<0?from<cooldown:cutoff>dayMinutes-cooldown))continue;
-    const adjacent=withCooldown(commitments(tasks,[],shiftDay(date,offset)),cooldown);
+    const adjacent=withCooldown(commitments(tasks,[],shiftDay(date,offset),replacing),cooldown);
     for(const {start,end} of adjacent){
       const range={start:start+offset*dayMinutes,end:end+offset*dayMinutes};
       if(range.start<cutoff&&range.end>from)busy.push(range);
@@ -91,6 +91,20 @@ export function agendaGaps(tasks,events,availability,date,cutoff,cooldown,from=w
   return freeRanges(busy,from,cutoff);
 }
 
+export function nextGapForBlock(tasks,events,availability,source,minutes,now,cutoff,cooldown){
+  const fromToday=Math.max(workdayStart,Math.ceil(minuteOfDay(now)));
+  for(let offset=0;offset<=7;offset++){
+    const date=shiftDay(now,offset),day=dayKey(date);
+    const ranges=agendaGaps(tasks,events,availability,date,cutoff,cooldown,offset?workdayStart:fromToday,source);
+    for(const range of ranges){
+      for(let start=range.start;start+minutes<=range.end;start++){
+        const time=new Date(day+'T'+timeValue(start));
+        if(minuteOfDay(time)===start)return {date:day,start};
+      }
+    }
+  }
+  return null;
+}
 export function agendaConflicts(tasks,events,date){
   const from=+shiftDay(date,0),to=+shiftDay(date,1);
   const spans=[

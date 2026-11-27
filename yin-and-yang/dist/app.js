@@ -49,7 +49,7 @@ import {installCommandPrompt} from './command-prompt.js';
 import {summarizeWeek,weeklyStudySummary} from './weekly-planning.js';
 import {installHelp} from './help.js';
 import {appVersion,installVersionHistory} from './version-history.js';
-import {agendaConflicts,agendaGaps,canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,remainingDeadlineEstimate,scheduleImpact,taskTimeBudget,todayTradeoffs} from './scheduling.js';
+import {agendaConflicts,agendaGaps,canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,nextGapForBlock,planDeadline,remainingDeadlineEstimate,scheduleImpact,taskTimeBudget,todayTradeoffs} from './scheduling.js';
 import {nextTaskDate,overdueTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
 import {taskTemplate,projectResource} from './project-planning.js';
@@ -617,6 +617,8 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   conflictsTomorrow:promptConflictsTomorrow,
   actualAgenda:promptActualAgenda,
   blockSplit:promptBlockSplit,
+  getSkips:promptSkipChoices,
+  skipBlock:previewPromptSkip,
   blockNext:promptBlockNext,
   resumeTask:promptResumeTask,
   setWrap:promptWrap,
@@ -1796,6 +1798,43 @@ function promptMoveChoices(){
     });
   }).sort((a,b)=>a.at-b.at);
 }
+function promptSkipChoices(day){
+  const date=new Date(day+'T00:00:00');
+  const tasks=gardenTasks().flatMap(task=>task.repeat&&task.repeat!=='none'&&taskOccursOn(task,date)?
+    [{kind:'task',id:task.id,title:task.text,context:'Recurring task'}]:[]);
+  const series=state.calendarEvents.filter(event=>event.manual?event.repeat&&event.repeat!=='none':event.source);
+  const events=calendarEventOccurrences(series,date).filter(item=>eventOccurrenceDay(item)===day).map(event=>({
+    kind:'event',id:event.id,title:event.title,context:event.day?'All-day event':extensionTime(event.start)
+  }));
+  return [...tasks,...events];
+}
+function previewPromptSkip({kind,id},day,reviewed){
+  const candidate=promptSkipChoices(day).find(item=>item.kind===kind&&item.id===id);
+  if(!candidate)return {text:'That occurrence has already been skipped or is no longer scheduled.'};
+  const when=shortScheduleDate(day),date=new Date(day+'T00:00:00');
+  const record=(kind==='event'?state.calendarEvents:state.tasks).find(item=>item.id===id);
+  const active=state.timer.block||state.timer.calendarBlock;
+  if(kind==='task'&&state.timer.id&&(active?.taskDay||active?.occurrence)===day&&
+    (active.taskId||state.timer.taskSnapshot?.id)===id)return {text:'Finish the active session before skipping its occurrence.'};
+  const slots=kind==='event'?
+    calendarEventOccurrences([record],date).filter(event=>eventOccurrenceDay(event)===day)
+      .map(event=>event.day?'All day':calendarBlockTimeLabel({event})):
+    [calendarTaskBlock(record,null,day),...(record.blocks||[]).filter(block=>block.taskDay===day)
+      .map(block=>calendarTaskBlock(record,block.id,block.date))].filter(Boolean).map(slot=>
+      [shortScheduleDate(dayKey(slot.start)),calendarBlockTimeLabel({},slot)].join(' · '));
+  const signature=JSON.stringify([candidate.title,slots]);
+  if(reviewed!==signature)return {
+    text:[...(reviewed?['The occurrence changed. Review it again.','']:[]),
+      `Skip ${candidate.title} · ${when}`,
+      ...slots.map(slot=>`  - ${slot}`),'The other occurrences stay scheduled.'].join('\n'),
+    label:'Skip this date',confirm:()=>previewPromptSkip({kind,id},day,signature)
+  };
+  const undo=saveCalendarSkip(record,kind==='event'?'calendarEvents':'tasks',day);
+  if(!undo)return {text:'Could not skip this occurrence.'};
+  const message=`Skipped ${candidate.title} on ${when}.`;
+  rememberPromptEdit(message,`skipping ${candidate.title} on ${when}`,undo);
+  return {text:message};
+}
 function promptBlockSplit({taskId,blockId,occurrence},chunk){
   const task=promptPlanningTasks().find(item=>item.id===taskId);
   const slot=task&&calendarTaskBlock(task,blockId,occurrence);
@@ -1814,25 +1853,31 @@ function promptBlockSplit({taskId,blockId,occurrence},chunk){
   ].join('\n');
 }
 function previewPromptMove(source,destination,reviewed){
-  const {taskId,blockId,occurrence}=source,{date,start}=destination;
+  const {taskId,blockId,occurrence}=source;
   const tasks=promptPlanningTasks(),task=tasks.find(item=>item.id===taskId);
   const slot=task&&calendarTaskBlock(task,blockId,occurrence);
   if(!slot||!openFocusBlock({task,occurrence,taskDay:slot.taskDay}))return {text:'That block is no longer open or scheduled.'};
   const active=state.timer.block||state.timer.calendarBlock;
   if(state.timer.id&&active?.occurrence===occurrence&&(active.blockId||null)===blockId&&
     (active.taskId||state.timer.taskSnapshot?.id)===taskId)return {text:'Finish the active session before moving its block.'};
+  const now=new Date(),cutoff=schedulingCutoff(),minutes=slot.minutes;
+  const nextGap=destination==='next gap';
+  const placementTime=nextGap?nextGapForBlock(tasks,state.calendarEvents,state.availability,source,minutes,now,cutoff,state.planningCooldown):destination;
+  if(!placementTime)return {text:`No opening fits the full ${minutesLabel(minutes)} block in the next seven days.`};
+  const {date,start}=placementTime;
   const fromStart=slot.start.getHours()*60+slot.start.getMinutes();
-  if(date===occurrence&&start===fromStart)return {text:'That block is already at the requested time.'};
+  if(date===occurrence&&start===fromStart)return {text:nextGap?'That block is already in the earliest available gap.':'That block is already at the requested time.'};
   const target=new Date(date+'T'+timeValue(start));
   if(target.getHours()*60+target.getMinutes()!==start)return {text:'That start time is unavailable on this date.'};
-  const {minutes}=slot,placement={date,start,minutes};
-  const impact=scheduleImpact(tasks,state.calendarEvents,{...placement,replacing:source},new Date(),schedulingCutoff());
+  const placement={date,start,minutes};
+  const impact=scheduleImpact(tasks,state.calendarEvents,{...placement,replacing:source},now,cutoff);
   if(!impact)return {text:'That date or time is unavailable.'};
   const {overlaps}=impact,time=promptBlockTime(placement);
-  const signature=JSON.stringify([task.text,+slot.start,minutes,overlaps]);
+  const signature=JSON.stringify([task.text,+slot.start,minutes,date,start,overlaps]);
   if(reviewed!==signature)return {
     text:[...(reviewed?['The schedule changed. Review the updated move.','']:[]),`Move ${task.text} · ${minutesLabel(minutes)}`,
-      `From: ${promptBlockTime({date:occurrence,start:fromStart,minutes})}`,`To:   ${time}`,...promptOverlapLines(overlaps,date)].join('\n'),
+      `From: ${promptBlockTime({date:occurrence,start:fromStart,minutes})}`,`To:   ${time}`,
+      ...(nextGap?['Earliest opening within planning hours, with availability and buffers applied.']:[]),...promptOverlapLines(overlaps,date)].join('\n'),
     label:overlaps.length?'Move with overlap':'Move block',
     confirm:()=>previewPromptMove(source,destination,signature)
   };
@@ -5377,37 +5422,38 @@ function skipCalendarDate(task,anchor){
   const event=state.calendarEvents.find(item=>item.id===anchor.dataset.calendarEvent);
   const day=event?anchor.dataset.eventDay:recurringTaskDate(task,anchor);
   if(!day)return;
-  if(event){
-    const date=new Date(day+'T00:00:00');
-    if(!calendarEventOccurrences([event],date).some(item=>eventOccurrenceDay(item)===day))return;
-    const omitted=event.manual?{...event,excludedDays:[...new Set([...(event.excludedDays||[]),day])]}:{...event,skippedOccurrence:true};
-    if(!commitCalendarCopies({calendarEvents:state.calendarEvents.map(item=>item===event?omitted:item)}))return;
-    confirmChange(`Skipped ${shortScheduleDate(day)}.`,latest=>{
-      const current=latest.calendarEvents.find(item=>item.id===event.id);
-      if(!current)return false;
-      if(event.manual){
-        if(!current.excludedDays?.includes(day))return false;
-        current.excludedDays=current.excludedDays.filter(date=>date!==day);
-      }else{
-        if(!current.skippedOccurrence)return false;
-        delete current.skippedOccurrence;
-      }
-      return true;
-    });
-  }else{
-    const prior=task.excludedDays;
-    task.excludedDays=[...(prior||[]),day];
-    if(!persist()){task.excludedDays=prior;return;}
-    refreshTasks();
-    confirmChange(`Skipped ${shortScheduleDate(day)}.`,latest=>{
-      const current=latest.tasks.find(item=>item.id===task.id);
-      if(!current?.excludedDays?.includes(day))return false;
-      current.excludedDays=current.excludedDays.filter(date=>date!==day);return true;
-    });
-  }
+  if(event&&!calendarEventOccurrences([event],new Date(day+'T00:00:00')).some(item=>eventOccurrenceDay(item)===day))return;
+  const undo=saveCalendarSkip(event||task,event?'calendarEvents':'tasks',day);
+  if(!undo)return;
+  confirmChange(`Skipped ${shortScheduleDate(day)}.`,undo);
   $('#planner-heading').focus({preventScroll:true});
 }
 
+function saveCalendarSkip(record,collection,day){
+  const imported=collection==='calendarEvents'&&!record.manual;
+  const field=imported?'skippedOccurrence':'excludedDays',previous=record[field];
+  const mark=(latest,skip)=>{
+    const current=latest[collection].find(item=>item.id===record.id);
+    if(!current)return false;
+    const excluded=imported?current.skippedOccurrence===true:Boolean(current.excludedDays?.includes(day));
+    if(excluded===skip)return false;
+    if(imported){
+      if(skip)current.skippedOccurrence=true;
+      else delete current.skippedOccurrence;
+    }else current.excludedDays=skip?[...(current.excludedDays||[]),day]:current.excludedDays.filter(date=>date!==day);
+    return true;
+  };
+  const undo=latest=>mark(latest,false);
+  undo.redo=latest=>mark(latest,true);
+  if(!undo.redo(state))return null;
+  if(!persist()){
+    if(previous===undefined)delete record[field];
+    else record[field]=previous;
+    return null;
+  }
+  refreshTasks();
+  return undo;
+}
 function closeTaskMenu(restore=true){
   if(taskMenu.hidden)return;
   taskMenu.hidden=true;

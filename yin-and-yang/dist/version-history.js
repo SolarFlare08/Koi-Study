@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.28',date:'2026-11-27',title:'Skip occurrences and move blocks to the next gap in Prompt',changes:[
+    'Preview and skip one recurring task or calendar occurrence with block skip.',
+    'Find the first opening for a full task block with move . next gap, then review the proposed move.'
+  ]},
   {version:'6.0.27',date:'2026-11-27',title:'Tomorrow’s free time and calendar conflicts in Prompt',changes:[
     'Use free tomorrow to see all open windows after accounting for availability and calendar buffers.',
     'Use conflicts tomorrow to see which commitments overlap and how long each pair shares.'
