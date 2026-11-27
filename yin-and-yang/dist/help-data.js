@@ -150,6 +150,7 @@ export const helpTopics = [
       'Type `schedule "Lab report" tomorrow 3pm 45m` and review the proposed calendar block and any overlaps. Choose `Schedule block` or `Schedule with overlap` to place it, or `Cancel` to discard the preview.',
       'Type `move "Lab report" tomorrow 4pm` to move an existing calendar block. If several blocks match, choose by date and time. For repeating schedules, Prompt lists occurrences through the next seven days. Review the old time, new time, and overlaps before confirming. The block keeps its duration.',
       'Type `help move` for syntax, examples, and accepted date and time formats. If Prompt recognizes a likely typo such as tmorrow, it suggests tomorrow. Correct the command and run it again.',
+      'Use an unquoted dot in place of the current Garden task’s title. Try `move . tomorrow 4pm`, `focus . 25m`, or `task show .`. If the current task has several scheduled blocks, choose the block before confirming. Prompt resolves the task each time you run the command.',
       'Read the target and proposed change, then type `yes` to confirm or `cancel` to dismiss. If the preview changes before you confirm, review the updated details and type yes again. A preview with several different actions asks you to select one. Running another command closes the preview.',
       'Type `undo` or `redo` for task adds, completions, checklist changes, snoozes, and calendar blocks added or moved from Prompt. The message names the change. These commands use the current session’s history. Undoing a task completion leaves the running timer in place.',
       'Type `extend 10m` during an eligible running session. Review the new end time and any overlap in the added time before confirming. When you started focus from a calendar block, the extension updates that block as well.',
@@ -172,7 +173,9 @@ export const helpTopics = [
       'Use `setup "Calculus"` to start a setup you saved under Garden → Session tools → Focus setups. Save shortcuts with `alias calc = setup "Calculus"` or `alias cls = clear`, then type the shortcut name to run it. Type `alias` to list saved shortcuts or `unalias calc` to remove one. Aliases are saved with your settings.',
       'Type `copy` to copy the latest output, such as an agenda or weekly review, without the command line. If clipboard access is unavailable, you can select and copy the output manually.',
       'Type task followed by a title to prefill the task editor. Type capture followed by a thought to save it to the Note inbox.',
-      'Use the Up and Down arrows in the input to recall recent commands. Type `clear` to clear the transcript or `version` to see the build number. The transcript and command history last until you reload.'],
+      'Use `history move` to search recent commands, or type `history` to browse them and your saved names. Choose a result to load it for editing, then press Enter to run it.',
+      'Run a command, then type `history save "Weekly check-in"` to name it. Type `history recall "Weekly check-in"` to load it again, or `history remove "Weekly check-in"` to remove the name. Named entries are saved with your settings.',
+      'Use the Up and Down arrows in the input to recall recent commands. Type `clear` to clear the transcript or `version` to see the build number. The transcript and unnamed history last until you reload.'],
     action:'prompt', actionLabel:'Open Command Prompt', related:['search','timer','capture-inbox','automatic-backups','postcard-viewpoints']
   },
   {

@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.22',date:'2026-11-26',title:'Current-task shortcuts and named command history',changes:[
+    'Use a dot for the current Garden task in commands such as move, focus, and task show.',
+    'Search recent commands, save useful ones under a name, and reload them for review before rerunning.'
+  ]},
   {version:'6.0.21',date:'2026-11-26',title:'Command help, personal aliases, and output copying',changes:[
     'Use help move for syntax and date formats, and get suggestions for common command and date typos.',
     'Save personal aliases for app commands, including shortcuts to start saved focus setups.',

@@ -243,6 +243,16 @@ export function loadPromptAliases(value){
   return [...aliases.values()].slice(0,40);
 }
 
+export function loadNamedPromptHistory(value){
+  const named=new Map();
+  for(const item of Array.isArray(value)?value:[]){
+    if(typeof item?.name!=='string'||typeof item.command!=='string')continue;
+    const name=item.name.trim().slice(0,80),command=item.command.trim();
+    if(name&&command&&command.length<=2040)named.set(name.toLowerCase(),{name,command});
+  }
+  return [...named.values()].slice(0,40);
+}
+
 export function loadFocusSetups(value){
   if(!Array.isArray(value))return [];
   return [...new Map(value.flatMap(item=>{
@@ -341,6 +351,7 @@ export function loadState(storage) {
     base.finishedBooks=loadFinishedBooks(raw.finishedBooks,base.gardenGrowth,base.dailyRituals,base.readingNotes);
     base.settings.taskBoardCollapsed=raw.settings?.taskBoardCollapsed===true;
     base.settings.promptAliases=loadPromptAliases(raw.settings?.promptAliases);
+    base.settings.namedPromptHistory=loadNamedPromptHistory(raw.settings?.namedPromptHistory);
     if(Object.hasOwn(gardenPropCategories,raw.settings?.studioPropCategory))base.settings.studioPropCategory=raw.settings.studioPropCategory;
     if(Number.isInteger(raw.settings?.fitMinutes)&&raw.settings.fitMinutes>=1&&raw.settings.fitMinutes<=1440)base.settings.fitMinutes=raw.settings.fitMinutes;
     base.settings.wrapMinutes=wrapUpMinutes(raw.settings?.wrapMinutes);

@@ -30,7 +30,7 @@ import {installFocusCompass,focusCompass,focusWeek} from './focus-compass.js';
 import {timerProgress,extendTimer,canExtendTimer,canExtendCalendarTimer,extendCalendarTimer,focusWrapUp,focusWrapUpDuration,wrapUpMinutes} from './state.js';
 import {calendarBlockDurationChange,planRunningBlockExtension,timerExtensionConflicts} from './calendar.js';
 import {quickTask} from './planner-data.js';
-import {incompleteFocusSessions,loadFocusSetups,loadPromptAliases} from './state.js';
+import {incompleteFocusSessions,loadFocusSetups,loadPromptAliases,loadNamedPromptHistory} from './state.js';
 import {installMiniTimer} from './mini-timer.js';
 import {installReferenceEditor} from './focus-reference.js';
 import {installCalendarResize} from './calendar-resize.js';
@@ -592,12 +592,10 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   openHelp:()=>helpGuide.open('command-prompt'),
   editHistory:applyPromptEdit,
   getAliases:()=>state.settings.promptAliases||[],
-  saveAliases:items=>{
-    const previous=state.settings;
-    state.settings={...previous,promptAliases:loadPromptAliases(items)};
-    if(persist())return true;
-    state.settings=previous;return false;
-  },
+  saveAliases:items=>savePromptSettings('promptAliases',loadPromptAliases(items)),
+  getNamedHistory:()=>state.settings.namedPromptHistory||[],
+  saveNamedHistory:items=>savePromptSettings('namedPromptHistory',loadNamedPromptHistory(items)),
+  getCurrentTask:()=>focusedTask()?.id,
   getSetups:()=>state.focusSetups.map(({id,name})=>({id,title:name})),
   startSetup:startFocusSetup,
   openWorkspace:name=>{visitWorkspace(name);return workspace===name;},
@@ -683,6 +681,13 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
 $('#open-help').onclick=()=>helpGuide.open();
 document.querySelectorAll('[data-command-launch]').forEach(button=>button.onclick=()=>commandPalette.open());
 applyIcons();
+
+function savePromptSettings(key,value){
+  const previous=state.settings;
+  state.settings={...previous,[key]:value};
+  if(persist())return true;
+  state.settings=previous;return false;
+}
 
 function saveStickyNotes(notes){
   const previous=state.stickyNotes, scratch=state.notes;
