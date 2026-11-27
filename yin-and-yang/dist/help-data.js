@@ -83,7 +83,8 @@ export const helpTopics = [
   {
     id:'help-search', group:'Start here', title:'Find instructions by button name',
     summary:'Jump to the step that explains a control you see in the app.',
-    steps:['Open Help and type the name of the button or menu item you want to find.',
+    steps:['Open Help and choose a category to browse. On a small screen, use the Category menu.',
+      'Use the search field to look across all categories by topic or button name.',
       'You can use just the words you remember. For example, Skip date still finds the `Skip this date` instruction.',
       'Choose a result or press `Enter` to open the first one. Help shows the matching step when the label appears in the instructions.'],
     related:['versions','shortcuts']
@@ -126,7 +127,8 @@ export const helpTopics = [
     id:'command-prompt', group:'Search & shortcuts', title:'Run typed commands in Command Prompt',
     summary:'Control the timer, open workspaces, and capture thoughts from one tab.',
     steps:['Choose `Prompt` in the bottom bar or under `More`. Type after the green prompt. Press Enter or choose `Run`.',
-      'Type `help` for command syntax, or open `Commands` in the terminal header and choose an example to fill in the command line.',
+      'Open `Commands` in the terminal header or type `help` to browse by category or search across commands. Select an example, or press Enter in search, to fill the command line. Press Enter again in Prompt to run it.',
+      'For syntax and examples without leaving Prompt, type `help move` or replace move with the command you want.',
       'Use `status`, `start`, and `pause` for the current timer. Use `focus 25m` or `rest 5m` for a one-off countdown. Use minutes, seconds, or MM:SS. Finish an active countdown or plan in Garden before replacing it.',
       'Type `today` to see the next timed calendar commitment, ready focus tasks pinned for today, and Planner’s overdue work. Type `next` to see the first ready task in Garden’s focus order, its estimate, and any saved handoff.',
       'Type `pause "Looking up the formula"` to pause focus and save the reason on that pause in Calendar → Actual. Run it again while paused to revise the reason.',

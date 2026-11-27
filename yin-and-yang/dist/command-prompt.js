@@ -1,4 +1,5 @@
 import {matchCommands} from './command-palette.js';
+import {installPromptReference} from './prompt-reference.js';
 import {plannerDate,plannerDateWords} from './planner-data.js';
 import {dayKey} from './state.js';
 
@@ -61,6 +62,12 @@ function suggestion(value,options){
 const acceptedDates='Dates: today, tomorrow, a full weekday name (its next occurrence), next week (7 days from today), or YYYY-MM-DD.';
 const acceptedTimes='Time: 4pm, 4:30 PM, or 16:30.';
 const detailedHelp={
+  focus:[focusUsage,'Use m for minutes, s for seconds, or MM:SS. Example: focus . 25m uses the current task.'],
+  rest:['rest <duration>','Examples: rest 5m, rest 90s, or rest 02:30.'],
+  agenda:['agenda tomorrow','Use agenda today --actual for recorded focus activity, pause reasons, and early finishes.'],
+  gap:['gap 45m this week','Use gap 45m next week to search the following Monday through Sunday.'],
+  due:['due next week','Use due this week for deadlines through this Sunday.'],
+  open:['open <workspace>','Workspaces: garden, planner, calendar, notes, reading, journal, and crochet.'],
   move:[
     'move "task title" <date> <start time>',
     'Move an existing calendar block and keep its duration. If multiple blocks match, choose one by date and time.',
@@ -204,14 +211,12 @@ export function installCommandPrompt({root,getEntries,getNoteEntries,openWorkspa
     <header class="prompt-heading">
       <h2 id="prompt-heading"><span data-icon="terminal" aria-hidden="true"></span>Command Prompt</h2>
       <div class="prompt-tools">
-        <details class="prompt-commands"><summary>Commands</summary><div class="prompt-reference">
-          <ul>${Object.values(commands).map(([example,detail])=>`<li><button type="button" data-prompt-example="${example.replaceAll('"','&quot;')}"><code>${example.trim()}</code><span>${detail}</span></button></li>`).join('')}</ul>
-        </div></details>
+        <button type="button" data-prompt-commands aria-haspopup="dialog">Commands</button>
         <button type="button" data-prompt-help>Help guide</button>
       </div>
     </header>
     <div class="prompt-screen" role="region" aria-label="Terminal" tabindex="0">
-      <div class="prompt-log" role="log" aria-label="Command output"><p class="prompt-banner"></p><p>Type <code>help</code> for available commands.</p></div>
+      <div class="prompt-log" role="log" aria-label="Command output"><p class="prompt-banner"></p><p>Type <code>help</code> to browse commands.</p></div>
       <form class="prompt-form"><span aria-hidden="true">${promptPath}</span><label for="prompt-input" class="sr-only">Enter an app command</label>
         <input id="prompt-input" type="text" maxlength="2040" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="prompt-history-hint">
         <button type="submit">Run</button>
@@ -219,8 +224,12 @@ export function installCommandPrompt({root,getEntries,getNoteEntries,openWorkspa
     </div>
     <footer class="prompt-hint" id="prompt-history-hint"><kbd>Enter</kbd> run · <kbd>Tab</kbd> complete · <kbd>↑</kbd> <kbd>↓</kbd> history</footer>
   </div></div>`;
-  const form=root.querySelector('form'),input=root.querySelector('input'),log=root.querySelector('.prompt-log');
-  const screen=root.querySelector('.prompt-screen'),reference=root.querySelector('.prompt-commands');
+  const form=root.querySelector('.prompt-form'),input=form.querySelector('input'),log=root.querySelector('.prompt-log');
+  const screen=root.querySelector('.prompt-screen');
+  const openCommandReference=installPromptReference(root,commands,example=>{
+    const words=example.trim().split(' ');
+    return (detailedHelp[example.trim()]||detailedHelp[words.slice(0,2).join(' ')]||detailedHelp[words[0]]||[]).join(' ');
+  },recallCommand);
   log.querySelector('.prompt-banner').textContent=`Yin and Yang [Version ${version}]`;
   const history=[];
   let historyIndex=0,draft='';
@@ -749,7 +758,10 @@ export function installCommandPrompt({root,getEntries,getNoteEntries,openWorkspa
       case 'undo':
       case 'redo':return arg?`Use ${name} without an argument.`:editHistory(name);
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return arg?helpFor(arg):'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFree windows and overlaps tomorrow: free tomorrow, conflicts tomorrow.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nMove to an opening: move . next gap.\nSkip an occurrence: block skip "Physics lab" Friday.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nChange a deadline: deadline . Friday.\nCheck or clear a waiting hold: wait "Lab report", unblock .\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180, book reviews due.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook", stitch resume "Cardigan".\nEnd of day: shutdown, recap today.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, note find "boundary terms", pick 2, task <title>, capture <thought>.\nCurrent Garden task: move . tomorrow 4pm, focus . 25m, task show ., resume .\nNext timed commitment: block next.\nSession wrap-up: wrap 3m, wrap 0m, wrap default.\nPreview a task switch: switch "Lab report".\nCurrent task reference and time: ref open ., left .\nSearch command history: history move. Save or recall a name: help history.\nCommand details: help move.\nShortcuts: setup "Calculus", alias calc = setup "Calculus", alias cls = clear, unalias cls.\nCopy the latest output: copy.\nConfirm a preview: yes or cancel.\nPrompt edit history: undo or redo.\nPrompt: press Tab to complete a command or title, then Tab again to cycle through matches. Type version, help, or clear.';
+      case 'help':
+        if(arg)return helpFor(arg);
+        openCommandReference();
+        return 'Opened the command reference. Type help <command> for syntax and examples.';
       default:return 'Unknown command.'+suggestion(name,[...verbs,...personalAliases().map(({name})=>name)])+' Type help to see the available commands.';
     }
   }
@@ -795,16 +807,6 @@ export function installCommandPrompt({root,getEntries,getNoteEntries,openWorkspa
     input.value=history[historyIndex]?.line??draft;
     input.setSelectionRange(input.value.length,input.value.length);
   });
-  root.addEventListener('click',event=>{
-    const button=event.target.closest('button');
-    if(!button)return;
-    if('promptHelp' in button.dataset){openHelp();return;}
-    if(!button.dataset.promptExample)return;
-    reference.open=false;
-    historyIndex=history.length;
-    completion=undefined;
-    input.value=button.dataset.promptExample;
-    input.focus();
-  });
+  root.querySelector('[data-prompt-help]').onclick=openHelp;
   return {focus:()=>input.focus({preventScroll:true})};
 }

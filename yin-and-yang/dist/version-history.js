@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.32',date:'2026-11-27',title:'Easier navigation in Help and Prompt',changes:[
+    'Browse Help by category or search across the guide and jump straight to the matching instruction.',
+    'Open a searchable command reference from Prompt. Browse by category and insert an example into the command line.'
+  ]},
   {version:'6.0.31',date:'2026-11-27',title:'Stitchbook resume and a copyable daily recap in Prompt',changes:[
     'Use stitch resume to see the latest project checkpoint and upcoming row instructions, then open the project in Stitchbook.',
     'Use recap today for a plain-text summary of finished work, schedule moves, and tomorrow’s first task.'
