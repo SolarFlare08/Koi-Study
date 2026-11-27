@@ -81,6 +81,8 @@ const detailedHelp={
     acceptedDates],
   deadline:['deadline . Friday','Change the current task’s deadline after reviewing it. Scheduled calendar blocks stay in place.',acceptedDates],
   unblock:['unblock .','Review the task’s waiting hold, follow-up, and fallback. Type yes to clear the hold. You can also use unblock "task title".'],
+  'note find':['note find "boundary terms"','Search sticky notes and the Note inbox. Open a numbered result with pick, such as pick 2.'],
+  'book reviews due':['book reviews due','List scheduled chapter reviews due today or earlier, within each book’s spoiler cutoff.'],
   'ref open':['ref open .','Open the current task’s pinned reference beside the Garden timer.'],
   'left .':['left .','Compare the current task’s estimate, logged focus, and calendar time still booked.'],
   wrap:['wrap 3m','Reserve the last three minutes of the current focus countdown. Use 0m to turn it off or wrap default to restore the saved setting.'],
@@ -95,7 +97,7 @@ const detailedHelp={
     'history remove "Weekly check-in" · Remove the saved name.']
 };
 
-export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,freeTomorrow,conflictsTomorrow,actualAgenda,blockSplit,getSkips,skipBlock,blockNext,resumeTask,setWrap,switchTask,openReference,timeLeft,estimate,gap,due,setDeadline,plan,wait,getWaitingTasks,getWaitingTask,unblock,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,backupStatus,getViewpoints,postcard,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp,editHistory,getAliases,saveAliases,getSetups,startSetup,getCurrentTask,getNamedHistory,saveNamedHistory}){
+export function installCommandPrompt({root,getEntries,getNoteEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,freeTomorrow,conflictsTomorrow,actualAgenda,blockSplit,getSkips,skipBlock,blockNext,resumeTask,setWrap,switchTask,openReference,timeLeft,estimate,gap,due,setDeadline,plan,wait,getWaitingTasks,getWaitingTask,unblock,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookReviewsDue,bookGoal,row,rowStatus,checkpoint,shutdown,backupStatus,getViewpoints,postcard,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp,editHistory,getAliases,saveAliases,getSetups,startSetup,getCurrentTask,getNamedHistory,saveNamedHistory}){
   const commands={
     ...timerCommands,
     pauseReason:['pause "Looking up the formula"','Pause focus and save the reason in the session replay.'],
@@ -144,6 +146,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     read:['read "Golden Son" p143','Save a reading position and show pages left.'],
     book:['book resume "Golden Son"','Show the saved position, pages left, and next reading goal.'],
     bookGoal:['book goal "Golden Son" p180','Set a reading target and see how many pages away it is.'],
+    bookReviewsDue:['book reviews due','List due chapter notes within each book’s spoiler cutoff.'],
     row:['row "Left sleeve" +2','Adjust a Stitchbook counter and show its last checkpoint.'],
     rowStatus:['row status "Left sleeve"','Show a counter’s count, instruction, and checkpoint.'],
     checkpoint:['checkpoint "Left sleeve" "Switch to 4 mm hook"','Save the current count with a note about where to resume.'],
@@ -155,6 +158,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     play:['play "Deep work"','Load a saved soundtrack in Music & video.'],
     open:['open calendar','Switch to a workspace.'],
     find:['find ','Search tasks, notes, books, and journal entries.'],
+    noteFind:['note find "boundary terms"','Search sticky notes and captured thoughts in the Note inbox.'],
     pick:['pick 2','Open result 2 from the latest find command.'],
     setup:['setup "Calculus"','Start a saved focus setup by name.'],
     alias:['alias cls = clear','Save a personal shortcut. Type alias alone to list shortcuts.'],
@@ -177,10 +181,10 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
   };
   const verbs=[...new Set(Object.values(commands).map(([example])=>example.split(' ')[0]))].sort();
   const subcommands={
-    agenda:['today','tomorrow'],backup:['status'],block:['next','skip','split'],book:['goal','resume'],
+    agenda:['today','tomorrow'],backup:['status'],block:['next','skip','split'],book:['goal','resume','reviews'],
     conflicts:['tomorrow'],free:['tomorrow'],garden:['dusk'],
     inbox:['next'],journal:['resume'],office:['list'],project:['resume'],queue:['pin'],review:['week'],
-    ref:['open'],row:['status'],task:['add','done','show'],history:['save','recall','remove'],help:verbs
+    note:['find'],ref:['open'],row:['status'],task:['add','done','show'],history:['save','recall','remove'],help:verbs
   };
   const titleSources={
     focus:getFocusTasks,switch:getFocusTasks,'queue pin':getFocusTasks,'task show':getTaskDetails,estimate:getTaskDetails,
@@ -267,9 +271,9 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     return list;
   }
 
-  function resultsFor(query,entry){
-    lastResults=matchCommands(getEntries(),query).filter(result=>result.kind!=='Action').slice(0,8);
-    if(!lastResults.length)return 'No matching items.';
+  function resultsFor(query,entry,entries=getEntries(),empty='No matching items.'){
+    lastResults=matchCommands(entries,query).filter(result=>result.kind!=='Action').slice(0,8);
+    if(!lastResults.length)return empty;
     entry.append('Open a result with pick <number>, or select it below.');
     appendChoices(entry,lastResults.map(result=>({
       label:[result.title,result.kind,result.detail].filter(Boolean).join(' · '),run:result.run
@@ -325,7 +329,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
   function pickResult(arg){
     const index=/^\d+$/.test(arg)?Number(arg):0;
     if(!Number.isSafeInteger(index)||index<1)return 'Use pick <result number>, such as pick 2.';
-    if(!lastResults.length)return 'Run find <words> to get numbered results first.';
+    if(!lastResults.length)return 'Run find <words> or note find <words> to get numbered results first.';
     const result=lastResults[index-1];
     if(!result)return `Choose a result from 1 to ${lastResults.length}.`;
     result.run();
@@ -612,6 +616,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
           `Use ${commands.switch[0]}.`;
       }
       case 'book': {
+        if(/^reviews\s+due$/i.test(arg))return bookReviewsDue();
         const goal=/^goal(?:\s+(.+))?$/i.exec(arg);
         if(goal)return runProgress('bookGoal',goal[1]||'',entry);
         const resume=/^resume\s+(.+)$/i.exec(arg);
@@ -707,6 +712,12 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         const query=promptMessage(arg);
         return query?resultsFor(query,entry):'Use find <words to search for>.';
       }
+      case 'note': {
+        const find=/^find(?:\s+(.+))?$/i.exec(arg);
+        if(find)lastResults=[];
+        const query=promptMessage(find?.[1]||'');
+        return query?resultsFor(query,entry,getNoteEntries(),'No matching notes or captured thoughts.'):`Use ${commands.noteFind[0]}.`;
+      }
       case 'pick':return pickResult(arg);
       case 'setup': {
         const query=promptMessage(arg);
@@ -726,7 +737,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
       case 'undo':
       case 'redo':return arg?`Use ${name} without an argument.`:editHistory(name);
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return arg?helpFor(arg):'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFree windows and overlaps tomorrow: free tomorrow, conflicts tomorrow.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nMove to an opening: move . next gap.\nSkip an occurrence: block skip "Physics lab" Friday.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nChange a deadline: deadline . Friday.\nCheck or clear a waiting hold: wait "Lab report", unblock .\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, pick 2, task <title>, capture <thought>.\nCurrent Garden task: move . tomorrow 4pm, focus . 25m, task show ., resume .\nNext timed commitment: block next.\nSession wrap-up: wrap 3m, wrap 0m, wrap default.\nPreview a task switch: switch "Lab report".\nCurrent task reference and time: ref open ., left .\nSearch command history: history move. Save or recall a name: help history.\nCommand details: help move.\nShortcuts: setup "Calculus", alias calc = setup "Calculus", alias cls = clear, unalias cls.\nCopy the latest output: copy.\nConfirm a preview: yes or cancel.\nPrompt edit history: undo or redo.\nPrompt: press Tab to complete a command or title, then Tab again to cycle through matches. Type version, help, or clear.';
+      case 'help':return arg?helpFor(arg):'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFree windows and overlaps tomorrow: free tomorrow, conflicts tomorrow.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nMove to an opening: move . next gap.\nSkip an occurrence: block skip "Physics lab" Friday.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nChange a deadline: deadline . Friday.\nCheck or clear a waiting hold: wait "Lab report", unblock .\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180, book reviews due.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, note find "boundary terms", pick 2, task <title>, capture <thought>.\nCurrent Garden task: move . tomorrow 4pm, focus . 25m, task show ., resume .\nNext timed commitment: block next.\nSession wrap-up: wrap 3m, wrap 0m, wrap default.\nPreview a task switch: switch "Lab report".\nCurrent task reference and time: ref open ., left .\nSearch command history: history move. Save or recall a name: help history.\nCommand details: help move.\nShortcuts: setup "Calculus", alias calc = setup "Calculus", alias cls = clear, unalias cls.\nCopy the latest output: copy.\nConfirm a preview: yes or cancel.\nPrompt edit history: undo or redo.\nPrompt: press Tab to complete a command or title, then Tab again to cycle through matches. Type version, help, or clear.';
       default:return 'Unknown command.'+suggestion(name,[...verbs,...personalAliases().map(({name})=>name)])+' Type help to see the available commands.';
     }
   }

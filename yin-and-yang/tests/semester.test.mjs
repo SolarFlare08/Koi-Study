@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {freshState,loadState,STORAGE_KEY} from '../dist/state.js';
 import {brushStroke,paintedCopies} from '../dist/calendar-brush.js';
-import {withinCutoff} from '../dist/reading-shelf.js';
+import {chapterReviewQueue,loadLibraryBooks,withinCutoff} from '../dist/reading-shelf.js';
 import {meetingItems} from '../dist/office-hours.js';
 import {semesterFrames} from '../dist/semester-replay.js';
 
@@ -20,6 +20,20 @@ test('spoiler cutoff hides later chapters, crossing ranges and unrecognized labe
   for(const label of ['Ch. 2','Chapters 2–4','4: Discovery'])assert.equal(withinCutoff(label,4),true);
   for(const label of ['Chapter 10','Chapters 2–6','Epilogue'])assert.equal(withinCutoff(label,4),false);
   assert.equal(withinCutoff('Epilogue',null),true);
+});
+test('the chapter review queue respects the cutoff for each book and separates due from upcoming',()=>{
+  const today='2026-11-27';
+  const library=loadLibraryBooks([{title:'Night Sky',author:'Ng',cutoff:3},{title:'Night Sky',author:'Diaz',cutoff:8}]);
+  const note=(id,chapter,{bookAuthor='Ng',queued=true,reviewDue=today}={})=>({id,bookTitle:'Night Sky',bookAuthor,chapter,queued,reviewDue});
+  const notes=[
+    note('due','Chapter 2'),note('past','Chapter 1',{reviewDue:'2026-11-25'}),
+    note('legacy','Chapter 3',{reviewDue:''}),note('range','Chapters 3–4'),note('epilogue','Epilogue'),
+    note('other','Chapter 8',{bookAuthor:'Diaz'}),
+    note('future','Chapter 3',{reviewDue:'2026-11-28'}),note('unqueued','Chapter 2',{queued:false})
+  ];
+  const {due,upcoming}=chapterReviewQueue(notes,library,today);
+  assert.deepEqual(due.map(item=>item.id),['due','past','legacy','other']);
+  assert.deepEqual(upcoming.map(item=>item.id),['future']);
 });
 test('brush undo and redo use the identities of exactly the placed copies',()=>{
   for(const type of ['task','event']){

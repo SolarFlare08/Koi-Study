@@ -74,6 +74,15 @@ export function withinCutoff(chapter,limit){
   return !!match&&Math.max(Number(match[1]),Number(match[2]||0))<=limit;
 }
 
+export function chapterReviewQueue(notes,library,day=readingDay()){
+  const limits=new Map(library.map(book=>[book.id,book.cutoff]));
+  const queued=notes.filter(note=>note.queued&&withinCutoff(note.chapter,limits.get(bookKey(note.bookTitle,note.bookAuthor))));
+  return {
+    due:queued.filter(note=>!note.reviewDue||note.reviewDue<=day),
+    upcoming:queued.filter(note=>note.reviewDue>day).sort((a,b)=>a.reviewDue.localeCompare(b.reviewDue))
+  };
+}
+
 export function chapterReference({bookTitle,chapter}){
   const name=chapter.trim(),match=name.match(numberedChapter);
   const reference=match?`Ch. ${match[1]}${match[2]?'–'+match[2]:''}${match[3]||''}`:name;
@@ -676,10 +685,7 @@ export function installReadingShelf({root,getRituals,getNotes,saveNotes,getLibra
 
   function render(){
     const query=normalized(search.value);
-    const limits=new Map(getLibrary().map(book=>[book.id,book.cutoff]));
-    const notes=getNotes(),queued=notes.filter(note=>note.queued&&withinCutoff(note.chapter,limits.get(bookKey(note.bookTitle,note.bookAuthor))));
-    const due=queued.filter(note=>!note.reviewDue||note.reviewDue<=readingDay());
-    const upcoming=queued.filter(note=>note.reviewDue>readingDay()).sort((a,b)=>a.reviewDue.localeCompare(b.reviewDue));
+    const notes=getNotes(),{due,upcoming}=chapterReviewQueue(notes,getLibrary());
     reviewButton.textContent=`Review queue${due.length?` (${due.length})`:''}`;
     for(const button of root.querySelectorAll('[data-reading-filter]'))button.setAttribute('aria-pressed',String(button.dataset.readingFilter===filter));
     const all=shelf();

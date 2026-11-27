@@ -22,7 +22,7 @@ import {installCrochet,loadCrochet} from './crochet.js';
 import {installJournal,loadJournal} from './journal.js';
 import {installFocusNotes,installStickyNotes,noteRelatedItems,noteTaskIds,scratchNoteId} from './sticky-notes.js';
 import {currentPageBookmark,ratingTier,radiantRatingLabels} from './reading-progress.js';
-import {annotationContext,bookPageCount,clearLibraryPageGoal,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingPagePosition,readingShelf,saveLibraryBook} from './reading-shelf.js';
+import {annotationContext,bookPageCount,chapterReviewQueue,clearLibraryPageGoal,editFinishedBook,finishedBook,installReadingShelf,manageShelfBook,mergeShelfBooks,readingPagePosition,readingShelf,saveLibraryBook} from './reading-shelf.js';
 import {installBackup,loadRestorePoints,restoreBackup} from './backup.js';
 import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent} from './admin-sandbox.js';
 import {installAutomaticBackup} from './automatic-backup.js';
@@ -589,6 +589,7 @@ installMiniTimer({launch:$('#open-mini-timer'),getState:()=>state,taskTitle:()=>
 const helpGuide=installHelp({dialog:$('#help-guide'),onAction:runHelpAction,canNavigate:()=>!activePanel&&!document.querySelector('dialog[open]:not(#help-guide)')});
 const openVersionHistory=installVersionHistory($('#version-history'));
 const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries:commandEntries,version:appVersion,
+  getNoteEntries:noteSearchEntries,
   openHelp:()=>helpGuide.open('command-prompt'),
   editHistory:applyPromptEdit,
   getAliases:()=>state.settings.promptAliases||[],
@@ -659,6 +660,7 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   ]),
   read:savePromptReadingPosition,
   bookResume:promptBookResume,
+  bookReviewsDue:promptBookReviewsDue,
   bookGoal:savePromptBookGoal,
   rowStatus:promptRowStatus,
   shutdown:promptShutdown,
@@ -897,13 +899,7 @@ document.addEventListener('click',event=>{
   button.closest('dialog[open]')?.close();
   visitWorkspace('notes');stickyBoard.focusNote(id);
 });
-function commandEntries(includeArchived=false){
-  const action=(title,detail,search,run)=>({kind:'Action',title,detail,search,run});
-  const tasks=state.tasks.map(task=>({
-    kind:'Task',title:task.text,detail:state.projects.find(project=>project.id===task.projectId)?.name||'Inbox',
-    search:[task.description,...(task.labels||[])].join(' '),
-    run:()=>openTaskEditor(task.id,visitWorkspace('planner'))
-  }));
+function noteSearchEntries(includeArchived=false){
   const notes=state.stickyNotes.map(note=>({
     kind:'Note',title:note.title||note.body.trim().split(/\r?\n/)[0]?.slice(0,85)||'Untitled note',
     detail:note.body.trim().replace(/\s+/g,' ').slice(0,100),search:note.body,
@@ -914,6 +910,15 @@ function commandEntries(includeArchived=false){
     title:note.text.trim().split(/\r?\n/)[0].slice(0,85)||'Untitled note',
     detail:note.archivedAt?'Note inbox · Archive':'Note inbox · Unsorted',search:note.text,
     run:()=>openCapturedThought(note.key)
+  }));
+  return [...notes,...captures];
+}
+function commandEntries(includeArchived=false){
+  const action=(title,detail,search,run)=>({kind:'Action',title,detail,search,run});
+  const tasks=state.tasks.map(task=>({
+    kind:'Task',title:task.text,detail:state.projects.find(project=>project.id===task.projectId)?.name||'Inbox',
+    search:[task.description,...(task.labels||[])].join(' '),
+    run:()=>openTaskEditor(task.id,visitWorkspace('planner'))
   }));
   const books=readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks).map(book=>({
     kind:'Book',title:book.title,detail:book.author,search:book.chapters.join(' '),
@@ -960,7 +965,7 @@ function commandEntries(includeArchived=false){
       visitWorkspace('planner');$('[data-plan-tomorrow]')?.click();
     }),
     action('Add task','Create a task in Planner','new create inbox',()=>openTaskEditor(null,visitWorkspace('planner'))),
-    ...tasks,...notes,...captures,...books,...entries
+    ...tasks,...noteSearchEntries(includeArchived),...books,...entries
   ];
 }
 
@@ -1703,6 +1708,18 @@ function promptReviewWeek(){
 }
 function promptBooks(){
   return readingShelf(state.dailyRituals,state.readingNotes,state.finishedBooks,state.libraryBooks);
+}
+function promptBookReviewsDue(){
+  const day=dayKey(),{due}=chapterReviewQueue(state.readingNotes,state.libraryBooks,day);
+  if(!due.length)return 'No chapter reviews due today within your spoiler cutoffs.';
+  return [
+    `Chapter reviews due · ${due.length}`,
+    ...due.map(note=>[
+      [note.bookTitle,note.bookAuthor,note.chapter].filter(Boolean).join(' · '),
+      note.reviewDue&&note.reviewDue<day?`Overdue since ${shortScheduleDate(note.reviewDue)}`:'Due now',
+      note.text
+    ].join('\n'))
+  ].join('\n\n');
 }
 function promptBookResume(id){
   const book=promptBooks().find(item=>item.id===id);

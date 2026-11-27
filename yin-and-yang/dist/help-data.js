@@ -184,6 +184,8 @@ export const helpTopics = [
       'Type `play "Deep work"` to load a saved Spotify or YouTube soundtrack in Music & video. Choose a result if several names match, then press Play in the player.',
       'Type part of a command and press Tab to complete it. You can also complete titles, such as `task show Cal`, `book resume Gol`, or `play Deep`. Press Tab again to cycle through matches. Shift+Tab moves focus out of the input.',
       'Try `open calendar` to switch workspaces or `find calculus` to search saved items. Click a numbered result or type `pick 2` to open the second result from your latest search.',
+      'Type `note find "boundary terms"` to search sticky notes and unsorted thoughts in the Note inbox, including their text. Open a numbered result by clicking it or typing `pick 2`.',
+      'Type `book reviews due` to read the chapter notes due today or earlier. The report uses the same spoiler cutoffs as Reading’s Review queue.',
       'Use `setup "Calculus"` to start a setup you saved under Garden → Session tools → Focus setups. Save shortcuts with `alias calc = setup "Calculus"` or `alias cls = clear`, then type the shortcut name to run it. Type `alias` to list saved shortcuts or `unalias calc` to remove one. Aliases are saved with your settings.',
       'Type `copy` to copy the latest output, such as an agenda or weekly review, without the command line. If clipboard access is unavailable, you can select and copy the output manually.',
       'Type task followed by a title to prefill the task editor. Type capture followed by a thought to save it to the Note inbox.',
@@ -827,6 +829,7 @@ export const helpTopics = [
     summary:'Review due notes and space them out as you remember them.',
     steps:['Choose `Schedule review` on a chapter note. The first review is due in three days. Previously queued notes appear as due right away.',
       'Open Reading → `Review queue` to see what is due now and what is coming up.',
+      'In Prompt, type `book reviews due` to see the due notes within each book’s spoiler cutoff.',
       'Choose `Remembered` for a longer interval, or `Again tomorrow` to revisit it the next day. Use `Remove from queue` to stop scheduling a note.'],
     action:'reading', actionLabel:'Open Reading', related:['reading-shelf','reading-collections']
   },

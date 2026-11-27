@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.30',date:'2026-11-27',title:'Note search and due chapter reviews in Prompt',changes:[
+    'Use note find to search sticky notes and the Note inbox, then open a numbered match with pick.',
+    'Use book reviews due to read scheduled chapter notes within each book’s spoiler cutoff.'
+  ]},
   {version:'6.0.29',date:'2026-11-27',title:'Deadline previews and waiting holds in Prompt',changes:[
     'Change a deadline after reviewing the old and new dates. Scheduled calendar blocks stay in place.',
     'Clear a waiting hold from Prompt and see the original follow-up and fallback.'
