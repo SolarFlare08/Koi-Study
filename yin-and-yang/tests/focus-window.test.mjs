@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {calendarFocusWindow,focusWindowTasks,nextCalendarCommitment,taskTimeFit} from '../dist/calendar.js';
+import {calendarFocusWindow,focusWindowTasks,nextCalendarCommitment,nextCalendarEntry,taskTimeFit} from '../dist/calendar.js';
 import {focusWrapUp,focusWrapUpDuration,freshState,loadState,startPause} from '../dist/state.js';
 import {currentFocusPause,editFocusPause,loadReplay} from '../dist/focus-replay.js';
 
@@ -36,8 +36,11 @@ test('the next commitment considers future task blocks and recurring events',()=
     {id:'class',title:'Class',manual:true,repeat:'daily',start:+new Date('2026-11-17T13:18'),end:+new Date('2026-11-17T14:00')}
   ];
   assert.deepEqual(nextCalendarCommitment(tasks,events,now),{title:'Read',start:+new Date(today+'T13:15')});
+  assert.deepEqual(nextCalendarEntry(tasks,events,now),{title:'Read',start:+new Date(today+'T13:15'),
+    end:+new Date(today+'T13:45'),taskId:'read',blockId:'block',occurrence:today});
   const active={taskId:'read',blockId:'block',occurrence:today};
   assert.deepEqual(nextCalendarCommitment(tasks,events,now,active),{title:'Class',start:+new Date(today+'T13:18')});
+  assert.equal(nextCalendarEntry(tasks,events,now,active).event.title,'Class');
   events[2].excludedDays=[today];
   assert.deepEqual(nextCalendarCommitment(tasks,events,now,active),{title:'Class',start:+new Date(tomorrow+'T13:18')});
 });

@@ -57,7 +57,7 @@ import {validTemplateDay,loadDayTemplates,captureCalendarDay,previewCalendarDay,
 import {estimateSamples,estimateSummary,suggestTaskEstimate,taskSplitSuggestion} from './planner-report.js';
 import {blockSplitPreview,loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime,taskTimeFit} from './calendar.js';
-import {calendarFocusWindow,focusWindowTasks,nextCalendarCommitment} from './calendar.js';
+import {calendarFocusWindow,focusWindowTasks,nextCalendarEntry} from './calendar.js';
 import {calendarBlockTimeLabel,calendarEntryOnDay,eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
 import {parseRubric,rubricPoints,rubricSummary} from './rubric.js';
 import {blockFlexibility,waitingForRecord} from './task-readiness.js';
@@ -615,6 +615,8 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   agenda:promptTomorrowAgenda,
   actualAgenda:promptActualAgenda,
   blockSplit:promptBlockSplit,
+  blockNext:promptBlockNext,
+  resumeTask:promptResumeTask,
   estimate:promptEstimateComparison,
   gap:promptGaps,
   due:promptDue,
@@ -1165,11 +1167,90 @@ function resumeProject(projectId){
 
 function nextGardenCommitment(clock,tasks=state.tasks){
   const events=visibleCalendarEvents(state.calendarEvents,state.calendars,state.hiddenCalendars);
-  return nextCalendarCommitment(tasks,events,clock,state.timer.block);
+  return nextCalendarEntry(tasks,events,clock,state.timer.block);
 }
 function commitmentTime(start,clock){
   const time=clockFormat.format(start);
   return dayKey(start)===dayKey(clock)?time:`${weekdayFormat.format(start)} ${time}`;
+}
+function blockLeadTime(ms){
+  if(ms<3600000)return durationWords(ms);
+  const minutes=Math.ceil(ms/60000),days=Math.floor(minutes/1440),hours=Math.floor(minutes%1440/60);
+  return [days&&`${days} ${days===1?'day':'days'}`,hours&&`${hours} hr`,minutes%60&&`${minutes%60} min`].filter(Boolean).join(' ');
+}
+function promptResumeTask(){
+  checkCompletion();
+  const task=focusedTask();
+  if(!task)return {text:'There’s no current Garden task. Select a task in Garden first.'};
+  const project=state.projects.find(item=>item.id===task.projectId);
+  const projectPin=project?.resources?.find(item=>item.id===project.pinnedResourceId);
+  const subtask=nextFocusSubtask(task),reference=task.reference;
+  const lines=[
+    `Resume · ${task.text}`,
+    `Last handoff: ${task.resumeNote||'No handoff saved.'}`,
+    ...(task.resumeLocation?[`Where you stopped: ${task.resumeLocation}`]:[]),
+    ...(task.resumeResource?[`Handoff resource: ${task.resumeResource}`]:[]),
+    `First unfinished subtask: ${subtask?.text||'None.'}`,
+    `Pinned reference: ${reference?.text||(reference?.image?'See the pinned diagram.':
+      projectPin?[projectPin.title,projectPin.value].filter(Boolean).join(' · '):'None pinned.')}`
+  ];
+  const result=(message,options={})=>({text:[...lines,message].join('\n'),
+    image:reference?.image,imageAlt:`Pinned diagram for ${task.text}`,...options});
+  if(!gardenFocusQueue().some(item=>item.id===task.id))return result('The current task is not ready for a new session.');
+  const timer=state.timer;
+  if(timer.status!=='idle'||timer.id||timer.block||timer.sequence||timer.taskBreak||timer.mistakeId||timer.mode==='break'&&timer.taskPlan){
+    return result('The current timer is unchanged. Use start to continue a paused timer, or finish it before loading another session.');
+  }
+  if(timer.taskPlan?.taskId!==task.id){
+    const minutes=taskFocusMinutes(task)??duration(state,'focus')/60000;
+    if(!saveTaskSelection(task,minutes))return result('Could not load the focus timer.');
+    refreshTasks();
+  }
+  const prepared=state.timer,loaded=remaining(state),formatted=formatDuration(loaded);
+  return result(`Timer ready · ${formatted}${prepared.taskPlan?.stage==='first'&&prepared.taskPlan.totalMs>loaded?
+    ` first phase of ${formatDuration(prepared.taskPlan.totalMs)} planned work`:''}.`,{
+    label:'Start focus',
+    confirm:()=>{
+      if(state.timer!==prepared||state.timer.status!=='idle'||state.timer.remaining!==loaded||focusedTask()?.id!==task.id||
+        !gardenFocusQueue().some(item=>item.id===task.id))return {text:'The current task or timer changed. Run resume . again.'};
+      return {text:runPromptTimer('start')};
+    }
+  });
+}
+function promptBlockNext(){
+  const now=new Date(),entry=nextGardenCommitment(now,gardenTasks());
+  if(!entry)return {text:'No upcoming timed calendar blocks in the next week.'};
+  if(entry.taskId)return promptTaskBlockStart(entry);
+  return {text:[
+    `Next block · ${entry.title}`,
+    `Scheduled: ${commitmentTime(new Date(entry.start),now)}–${commitmentTime(new Date(entry.end),now)}`,
+    `Starts in ${blockLeadTime(entry.start-now)}.`
+  ].join('\n')};
+}
+function promptTaskBlockStart({taskId,blockId,occurrence},reviewed){
+  checkCompletion();
+  const now=Date.now(),clock=new Date(now),task=gardenTasks().find(item=>item.id===taskId);
+  const slot=task&&calendarTaskBlock(task,blockId,occurrence);
+  const timing=slot&&blockFocusTiming(task,blockId,occurrence,now);
+  if(!timing?.available||!openFocusBlock({task,occurrence,taskDay:slot.taskDay}))return {text:'That task block has ended or is no longer available.'};
+  const lines=[
+    `Next block · ${task.text}`,
+    `Scheduled: ${shortScheduleDate(occurrence)} · ${calendarBlockTimeLabel({task,blockId,occurrence},slot)}`,
+    timing.early?`Starts in ${blockLeadTime(+slot.start-now)}.`:'This block is now in progress.',
+    `Focus if started now: ${durationWords(timing.available)}${timing.split&&timing.available>50*60000?' in 50-minute focus phases with 10-minute breaks':''}.`
+  ];
+  if(task.waitingFor||waitingOn(task).length)return {text:[...lines,'This task is waiting on a prerequisite or follow-up.'].join('\n')};
+  if(state.timer.id||state.timer.block||state.timer.sequence||state.timer.status!=='idle')return {text:[...lines,'Finish or reset the current timer before starting the block.'].join('\n')};
+  const signature=JSON.stringify([task.text,+slot.start,+slot.end,slot.taskDay,timing.early]);
+  if(reviewed!==signature)return {
+    text:[...(reviewed?['The block changed. Review the updated timing.','']:[]),...lines].join('\n'),
+    label:'Start block focus',
+    confirm:()=>promptTaskBlockStart({taskId,blockId,occurrence},signature)
+  };
+  if(!saveCalendarBlockFocus(task,blockId,occurrence,slot.taskDay,timing,now))return {text:'Could not start block focus.'};
+  visitWorkspace('focus');
+  refreshTasks();wake();timerButton.focus({preventScroll:true});
+  return {text:`Block focus started · ${task.text} · ${formatDuration(state.timer.total)}.`};
 }
 function promptToday(){
   const now=new Date(),tasks=gardenTasks();
@@ -3818,6 +3899,16 @@ function selectedBlockTiming(now){
   const {task,block,occurrence}=lastAnchor.dataset;
   const selected=state.tasks.find(item=>item.id===task);
   return selected ? blockFocusTiming(selected,block,occurrence,now) : null;
+}
+function saveCalendarBlockFocus(task,blockId,occurrence,taskDay,timing,now){
+  const {activeTask,activeTaskDay,activeBundle,timer}=state,historyLength=state.history.length;
+  const skipped=record(state,'skipped',now);
+  pauseBundleForTask(task.id);
+  startBlockFocus(state,task.id,timing.available,timing.split,now,occurrence,blockId||null,taskDay||occurrence);
+  if(persist())return {skipped};
+  Object.assign(state,{activeTask,activeTaskDay,activeBundle,timer});
+  state.history.length=historyLength;
+  return null;
 }
 
 function updateBlockPreview(now){
@@ -7249,17 +7340,16 @@ root.addEventListener('click',e=>{
     const now=Date.now(),timing=selectedBlockTiming(now);
     const id=lastAnchor.dataset.task;
     const task=state.tasks.find(task=>task.id===id);
-    if(!timing?.available||task?.waitingFor||waitingOn(task).length){updateBlockPreview(now);return;}
-    const skipped=record(state,'skipped',now);
+    if(!timing?.available||!task||task.waitingFor||waitingOn(task).length){updateBlockPreview(now);return;}
     const {occurrence,block,taskDay}=lastAnchor.dataset;
-    pauseBundleForTask(id);
-    startBlockFocus(state,id,timing.available,timing.split,now,occurrence,block||null,taskDay||occurrence);
+    const result=saveCalendarBlockFocus(task,block,occurrence,taskDay,timing,now);
+    if(!result)return;
     closePanel(false);
     if(inSchedule())closeCalendar();
     if(!durationForm.hidden)finishEdit();
-    persist();refreshTasks();wake();
+    refreshTasks();wake();
     $('#toggle-timer').focus({preventScroll:true});
-    const message=skipped?'Block focus started. The previous session was skipped.':'Block focus started.';
+    const message=result.skipped?'Block focus started. The previous session was skipped.':'Block focus started.';
     toast(message);announce(message+(hasHandoff(task)||task?.reference?' Saved focus context is beside the timer.':''));
   }
   if(btn.id==='panel-timer-toggle')$('#toggle-timer').click();

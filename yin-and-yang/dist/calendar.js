@@ -343,21 +343,28 @@ export function calendarFocusWindow(events,buffer,now=new Date()){
 }
 
 export function nextCalendarCommitment(tasks,events,now=new Date(),activeBlock=null){
+  const entry=nextCalendarEntry(tasks,events,now,activeBlock);
+  return entry?{title:entry.title,start:entry.start}:null;
+}
+
+export function nextCalendarEntry(tasks,events,now=new Date(),activeBlock=null){
   for(let offset=0;offset<=7;offset++){
     const day=shiftDay(now,offset),dayEnd=+shiftDay(day,1);
     let next=null;
-    const consider=(title,start)=>{
-      if(start>now&&start>=day&&start<dayEnd&&(!next||start<next.start))next={title,start};
+    const consider=entry=>{
+      const {start}=entry;
+      if(start>now&&start>=day&&start<dayEnd&&(!next||start<next.start))next=entry;
     };
     for(const event of calendarEventOccurrences(events,day)){
-      if(!event.day)consider(event.title||'Event',event.start);
+      if(!event.day)consider({title:event.title||'Event',start:event.start,end:event.end,event});
     }
     for(const block of calendarBlocks(tasks,day)){
       if(block.continues||!openFocusBlock(block))continue;
       if(activeBlock?.taskId===block.task.id&&activeBlock.occurrence===block.occurrence&&
         (activeBlock.blockId||null)===(block.blockId||null))continue;
       const slot=calendarTaskBlock(block.task,block.blockId,block.occurrence);
-      if(slot)consider(block.task.text,+slot.start);
+      if(slot)consider({title:block.task.text,start:+slot.start,end:+slot.end,taskId:block.task.id,
+        blockId:block.blockId||null,occurrence:block.occurrence});
     }
     if(next)return next;
   }

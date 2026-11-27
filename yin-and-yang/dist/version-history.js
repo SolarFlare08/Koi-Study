@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.24',date:'2026-11-26',title:'Resume current work and start upcoming blocks from Prompt',changes:[
+    'Use resume . to see the current task’s handoff, next subtask, and pinned reference, and load its suggested timer.',
+    'Use block next to see the next timed calendar entry and start an available task block after reviewing it.'
+  ]},
   {version:'6.0.23',date:'2026-11-26',title:'Find controls in Help and copy the current version',changes:[
     'Jump straight to a Help step using a full or partial button label, such as Print summary or Skip date.',
     'Copy the running version from Version History. If clipboard access is blocked, the number is selected for manual copying.'
