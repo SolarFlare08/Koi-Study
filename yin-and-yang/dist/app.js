@@ -60,7 +60,7 @@ import {tasksWithinTime,taskTimeFit} from './calendar.js';
 import {calendarFocusWindow,focusWindowTasks,nextCalendarEntry} from './calendar.js';
 import {calendarBlockTimeLabel,calendarEntryOnDay,eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
 import {parseRubric,rubricPoints,rubricSummary} from './rubric.js';
-import {blockFlexibility,waitingForRecord} from './task-readiness.js';
+import {blockFlexibility,markWaitingTaskReady,waitingForRecord} from './task-readiness.js';
 
 const $=s=>document.querySelector(s);
 const icons={
@@ -628,8 +628,12 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   estimate:promptEstimateComparison,
   gap:promptGaps,
   due:promptDue,
+  setDeadline:previewPromptSetDeadline,
   plan:previewPromptDeadline,
   wait:promptWaitingDetails,
+  getWaitingTasks:()=>promptTaskChoices(promptPlanningTasks().filter(task=>task.waitingFor)),
+  getWaitingTask:promptWaitingTaskId,
+  unblock:previewPromptUnblock,
   getMistakes:promptMistakeChoices,
   retry:id=>{
     const result=startMistakeFocus(id);
@@ -1567,17 +1571,69 @@ function completePromptSubtask(number){
   rememberPromptEdit(message,`checking off ${sub.text} in ${task.text}`,finishUndo());
   return message;
 }
-function promptWaitingDetails(id){
-  const task=promptPlanningTasks().find(item=>item.id===id);
-  if(!task)return 'That task is no longer open.';
+function waitingDetailLines(task){
   const waiting=task.waitingFor,prerequisites=waitingOn(task);
   const blockers=[waiting?.subject,...prerequisites.map(item=>item.text)].filter(Boolean);
   return [
-    task.text,
     `Waiting for: ${blockers.join(' · ')||'No blocker saved'}`,
     `Follow-up: ${waiting?.followUp?shortScheduleDate(waiting.followUp):'No date set'}`,
     waiting?.fallback?`Fallback (${shortScheduleDate(waiting.decisionOn)}): ${waiting.fallback}`:'No fallback decision saved.'
-  ].join('\n');
+  ];
+}
+function promptWaitingDetails(id){
+  const task=promptPlanningTasks().find(item=>item.id===id);
+  return task?[task.text,...waitingDetailLines(task)].join('\n'):'That task is no longer open.';
+}
+function promptWaitingTaskId(){
+  const bundle=activeBundleStatus();
+  const candidates=[focusedTask()?.id,state.activeTask,bundle?.run&&!bundle.run.paused?bundle.next?.id:null];
+  const waiting=new Set(promptPlanningTasks().filter(task=>task.waitingFor).map(task=>task.id));
+  return candidates.find(id=>waiting.has(id));
+}
+function previewPromptUnblock(id,reviewed){
+  const task=promptPlanningTasks().find(item=>item.id===id);
+  if(!task?.waitingFor)return {text:'This task is no longer on hold.'};
+  const details=waitingDetailLines(task),prerequisites=waitingOn(task);
+  const remaining=[
+    ...(prerequisites.length?[`Still waiting on: ${prerequisites.map(item=>item.text).join(' · ')}.`]:[]),
+    ...(task.snoozedUntil>dayKey()?[`Snoozed until ${shortScheduleDate(task.snoozedUntil)}.`]:[])
+  ];
+  const signature=JSON.stringify([task.text,details,remaining]);
+  if(reviewed!==signature)return {
+    text:[...(reviewed?['The waiting details changed. Review them again.','']:[]),
+      `Clear waiting hold · ${task.text}`,...details,'Clears the waiting hold and any follow-up reminder.',...remaining].join('\n'),
+    label:'Clear waiting hold',confirm:()=>previewPromptUnblock(id,signature)
+  };
+  const undo=markWaitingTaskReady(task,persist);
+  if(!undo)return {text:'Could not save the task’s readiness.'};
+  refreshTasks();
+  const message=remaining.length?`Cleared the waiting hold for ${task.text}.`:`Marked ${task.text} ready.`;
+  rememberPromptEdit(message,`clearing the waiting hold for ${task.text}`,undo);
+  return {text:[message,...remaining,'Previous waiting details:',...details].join('\n')};
+}
+function previewPromptSetDeadline(id,date,reviewed){
+  const task=promptPlanningTasks().find(item=>item.id===id);
+  if(!task)return {text:'That task is no longer open.'};
+  const when=shortScheduleDate(date);
+  if(task.deadline===date)return {text:`${task.text} is already due ${when}.`};
+  const signature=JSON.stringify([task.text,task.deadline]);
+  if(reviewed!==signature)return {
+    text:[...(reviewed?['The task or deadline changed. Review the updated deadline.','']:[]),
+      `Change deadline · ${task.text}`,`Current deadline: ${task.deadline?shortScheduleDate(task.deadline):'None'}`,
+      `New deadline: ${when}`,'Scheduled calendar blocks stay in place.'].join('\n'),
+    label:'Set deadline',confirm:()=>previewPromptSetDeadline(id,date,signature)
+  };
+  const capture=captureTaskChange(task,['deadline']);
+  task.deadline=date;
+  const undo=capture();
+  if(!persist()){
+    undo?.(state);
+    return {text:'Could not save the new deadline.'};
+  }
+  refreshTasks();
+  const message=`Set ${task.text}’s deadline to ${when}.`;
+  rememberPromptEdit(message,`changing the deadline for ${task.text} to ${when}`,undo);
+  return {text:message};
 }
 function promptMistakeChoices(){
   return state.mistakes.map(item=>{

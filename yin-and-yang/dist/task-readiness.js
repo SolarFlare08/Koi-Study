@@ -1,3 +1,15 @@
+import {captureTaskChange} from './task-undo.js';
+
+export function markWaitingTaskReady(task,commit){
+  const previous=task.waitingFor;
+  if(!previous)return null;
+  const capture=captureTaskChange(task,['waitingFor']);
+  delete task.waitingFor;
+  if(commit())return capture();
+  task.waitingFor=previous;
+  return null;
+}
+
 const time=value=>typeof value==='string'&&/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)?value:'';
 
 export function blockFlexibility(value){

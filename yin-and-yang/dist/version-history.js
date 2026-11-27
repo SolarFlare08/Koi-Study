@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.29',date:'2026-11-27',title:'Deadline previews and waiting holds in Prompt',changes:[
+    'Change a deadline after reviewing the old and new dates. Scheduled calendar blocks stay in place.',
+    'Clear a waiting hold from Prompt and see the original follow-up and fallback.'
+  ]},
   {version:'6.0.28',date:'2026-11-27',title:'Skip occurrences and move blocks to the next gap in Prompt',changes:[
     'Preview and skip one recurring task or calendar occurrence with block skip.',
     'Find the first opening for a full task block with move . next gap, then review the proposed move.'

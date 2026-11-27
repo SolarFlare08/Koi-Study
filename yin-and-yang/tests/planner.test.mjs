@@ -5,6 +5,23 @@ import {calendarBlocks} from '../dist/calendar.js';
 import {completeTask,freshState,loadState,recordTaskCompletion,settle,skipPhase,startPause,taskStatus} from '../dist/state.js';
 import {estimateAccuracy,estimateReportDays,courseEstimateAccuracy,courseEstimateCsv,reportCsv,reportEvents,reportExportFilename,reportMetrics} from '../dist/planner-report.js';
 import {captureTaskChange,restoreDeletedTask} from '../dist/task-undo.js';
+import {markWaitingTaskReady,waitingForRecord} from '../dist/task-readiness.js';
+
+test('clearing a waiting hold preserves dependencies and can be undone after reloading the task',()=>{
+  const hold=waitingForRecord({subject:'Professor reply',followUp:'2026-12-01',decisionOn:'2026-12-02',fallback:'Use dataset B'});
+  const state=freshState(),task={id:'report',text:'Lab report',done:false,waitingFor:hold,prerequisiteIds:['analysis']};
+  state.tasks=[task];
+  assert.equal(markWaitingTaskReady(task,()=>false),null);
+  assert.deepEqual(task.waitingFor,hold);
+  const undo=markWaitingTaskReady(task,()=>true);
+  const restored=loadState({getItem:()=>JSON.stringify(state)});
+  assert.equal(restored.tasks[0].waitingFor,undefined);
+  assert.equal(undo(restored),true);
+  assert.deepEqual(restored.tasks[0].waitingFor,hold);
+  assert.deepEqual(restored.tasks[0].prerequisiteIds,['analysis']);
+  assert.equal(undo.redo(restored),true);
+  assert.equal(restored.tasks[0].waitingFor,undefined);
+});
 
 test('Quick Add creates a timed project task that shows in the shared calendar and saved filters',()=>{
   const now=new Date(2026,10,8), tomorrow=new Date(2026,10,9);

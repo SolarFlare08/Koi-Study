@@ -11,7 +11,7 @@ import {milestoneProgress,projectDecision,projectMilestone,remainingProjectWork}
 import {exportCalendar} from './calendar-export.js';
 import {cleanCaptureContext} from './capture.js';
 import {projectHealth} from './scheduling.js';
-import {waitingDecisionDue} from './task-readiness.js';
+import {markWaitingTaskReady,waitingDecisionDue} from './task-readiness.js';
 import {rubricPoints,rubricSummary} from './rubric.js';
 import {eventOccurrenceDay} from './calendar.js';
 
@@ -1140,15 +1140,10 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     if(data.waitingReady){
       const task=state().tasks.find(item=>item.id===data.waitingReady);
       if(!task?.waitingFor)return;
-      const previous=task.waitingFor;
-      task.waitingFor=null;
-      if(!commit()){task.waitingFor=previous;render();return;}
+      const undo=markWaitingTaskReady(task,commit);
+      if(!undo){render();return;}
       $('#planner-heading').focus({preventScroll:true});
-      notify('Task marked ready.',latest=>{
-        const item=latest.tasks.find(item=>item.id===task.id);
-        if(!item||item.waitingFor)return false;
-        item.waitingFor=previous;return true;
-      });return;
+      notify('Task marked ready.',undo);return;
     }
     if('bundleNew' in data||data.bundleEdit)return editBundle(data.bundleEdit);
     if(data.bundleStart)return startBundle(data.bundleStart);
