@@ -49,7 +49,7 @@ import {installCommandPrompt} from './command-prompt.js';
 import {summarizeWeek,weeklyStudySummary} from './weekly-planning.js';
 import {installHelp} from './help.js';
 import {appVersion,installVersionHistory} from './version-history.js';
-import {agendaGaps,canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,remainingDeadlineEstimate,scheduleImpact,taskTimeBudget,todayTradeoffs} from './scheduling.js';
+import {agendaConflicts,agendaGaps,canPlanDeadline,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,remainingDeadlineEstimate,scheduleImpact,taskTimeBudget,todayTradeoffs} from './scheduling.js';
 import {nextTaskDate,overdueTaskDate} from './planner-data.js';
 import {loadAvailability,unavailableRanges} from './availability.js';
 import {taskTemplate,projectResource} from './project-planning.js';
@@ -613,6 +613,8 @@ const commandPrompt=installCommandPrompt({root:$('#prompt-workspace'),getEntries
   check:completePromptSubtask,
   today:promptToday,
   agenda:promptTomorrowAgenda,
+  freeTomorrow:promptFreeTomorrow,
+  conflictsTomorrow:promptConflictsTomorrow,
   actualAgenda:promptActualAgenda,
   blockSplit:promptBlockSplit,
   blockNext:promptBlockNext,
@@ -1367,6 +1369,30 @@ function promptTomorrowAgenda(){
     first?`First task: ${first.text}${pinned?' (pinned)':''}`:'No first task ready.',
     '', 'Commitments:',...(commitments.length?commitments:['  No visible calendar commitments.']),
     '', `Open gaps (9 AM–${timeLabel(cutoff)}):`,...(open.length?open:['  No open planning gaps.'])
+  ].join('\n');
+}
+function promptFreeTomorrow(){
+  const date=shiftDay(new Date(),1);
+  const windows=agendaGaps(gardenTasks(),state.calendarEvents,state.availability,date,1440,state.planningCooldown,0);
+  const total=windows.reduce((sum,{start,end})=>sum+end-start,0);
+  return [
+    `Free tomorrow · ${shortScheduleDate(dayKey(date))}`,
+    ...(windows.length?[`${minutesLabel(total)} available across ${windows.length} ${windows.length===1?'window':'windows'}.`,
+      ...windows.map(({start,end})=>`  - ${timeLabel(start)}–${end===1440?'midnight':timeLabel(end)} · ${minutesLabel(end-start)}`)]:
+      ['No free windows.']),
+    'Accounts for availability, calendar buffers, and cooldowns.'
+  ].join('\n');
+}
+function promptConflictsTomorrow(){
+  const date=shiftDay(new Date(),1),midnight=+shiftDay(date,1);
+  const overlaps=agendaConflicts(gardenTasks(),state.calendarEvents,date);
+  const label=span=>span.title+(span.allDay?' (all day)':'');
+  return [
+    `Conflicts tomorrow · ${shortScheduleDate(dayKey(date))}`,
+    ...(overlaps.length?overlaps.map(({first,second,start,end})=>{
+      const ms=end-start,duration=ms%60000===0?minutesLabel(ms/60000):durationWords(ms);
+      return `  - ${label(first)} ↔ ${label(second)} · ${duration} overlap · ${clockFormat.format(start)}–${end===midnight?'midnight':clockFormat.format(end)}`;
+    }):['No overlapping commitments.'])
   ].join('\n');
 }
 function promptActualAgenda(){

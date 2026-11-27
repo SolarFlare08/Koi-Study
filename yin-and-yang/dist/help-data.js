@@ -132,6 +132,8 @@ export const helpTopics = [
       'Type `pause "Looking up the formula"` to pause focus and save the reason on that pause in Calendar → Actual. Run it again while paused to revise the reason.',
       'Type `queue pin "LinAlg" first` to move a ready task to the front of today’s focus queue. Choose a task if several names match. A running session keeps its current task.',
       'Type `agenda tomorrow` to see tomorrow’s first task, visible calendar commitments, and open gaps from 9 AM to your planning cutoff. Gaps account for availability, buffers, cooldowns, and hidden calendar commitments.',
+      'Type `free tomorrow` to list all free windows across the full day, including early mornings and evenings. The report subtracts unavailable hours, all-day events, hidden calendar commitments, travel and setup buffers, and cooldowns.',
+      'Type `conflicts tomorrow` to see each pair of overlapping calendar commitments and its shared time. The report uses scheduled times, including all-day events and any part of an overnight block that falls tomorrow.',
       'Type `agenda today --actual` to see today’s recorded focus activity in order, including starts, pauses and their reasons, resumes, and early finishes. Older sessions with only a duration and finish time are marked estimated.',
       'Type `block split "Practice exam" 50m` to preview an existing block with 50-minute focus chunks and up to 10-minute breaks. Choose a block if several match. The preview leaves your calendar and timer as they are.',
       'Type `estimate "Reading"` to compare saved estimates and logged focus for up to five recent matching completions. Prompt shows each pair, their averages, and the sample count.',

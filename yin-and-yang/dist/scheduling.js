@@ -78,8 +78,39 @@ function freeRanges(busy, from, to) {
 export function agendaGaps(tasks,events,availability,date,cutoff,cooldown,from=workdayStart){
   if(allDayEvents(events,date).length)return [];
   const busy=[...withCooldown(commitments(tasks,[],date),cooldown),...planningEventRanges(events,date,cooldown),
-    ...unavailableRanges(availability,date)].sort((a,b)=>a.start-b.start);
+    ...unavailableRanges(availability,date)];
+  for(const offset of [-1,1]){
+    if(!cooldown||!(offset<0?from<cooldown:cutoff>dayMinutes-cooldown))continue;
+    const adjacent=withCooldown(commitments(tasks,[],shiftDay(date,offset)),cooldown);
+    for(const {start,end} of adjacent){
+      const range={start:start+offset*dayMinutes,end:end+offset*dayMinutes};
+      if(range.start<cutoff&&range.end>from)busy.push(range);
+    }
+  }
+  busy.sort((a,b)=>a.start-b.start);
   return freeRanges(busy,from,cutoff);
+}
+
+export function agendaConflicts(tasks,events,date){
+  const from=+shiftDay(date,0),to=+shiftDay(date,1);
+  const spans=[
+    ...allDayEvents(events,date).map(event=>({title:event.title,allDay:true,start:from,end:to})),
+    ...commitments(tasks,events,date).flatMap(block=>{
+      const slot=block.event||calendarTaskBlock(block.task,block.blockId,block.occurrence);
+      if(!slot)return [];
+      const start=Math.max(from,+slot.start);
+      const end=Math.min(to,+slot.end);
+      return end>start?[{title:block.event?.title||block.task?.text||'Event',start,end}]:[];
+    })
+  ].sort((a,b)=>a.start-b.start||a.end-b.end);
+  const overlaps=[];
+  for(const [index,first] of spans.entries()){
+    for(let next=index+1;next<spans.length&&spans[next].start<first.end;next++){
+      const second=spans[next];
+      overlaps.push({first,second,start:second.start,end:Math.min(first.end,second.end)});
+    }
+  }
+  return overlaps.sort((a,b)=>a.start-b.start||a.end-b.end);
 }
 
 function studyDay(tasks,events,availability,day,from,end,capacity,cooldown){

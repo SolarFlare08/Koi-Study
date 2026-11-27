@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.27',date:'2026-11-27',title:'Tomorrow’s free time and calendar conflicts in Prompt',changes:[
+    'Use free tomorrow to see all open windows after accounting for availability and calendar buffers.',
+    'Use conflicts tomorrow to see which commitments overlap and how long each pair shares.'
+  ]},
   {version:'6.0.26',date:'2026-11-27',title:'Session wrap-up and task-switch previews in Prompt',changes:[
     'Use wrap 3m to set a wrap-up for the current focus countdown.',
     'Preview the timer change and the next task’s handoff before confirming a switch.'

@@ -1,11 +1,37 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {applyCalendarReplan,calendarFocusKey,focusTaskQueue,planningEventRanges,tasksWithinTime} from '../dist/calendar.js';
-import {compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,projectHealth,scheduleImpact,taskTimeBudget,todayTradeoffs} from '../dist/scheduling.js';
+import {agendaConflicts,agendaGaps,compareStudyWeeks,draftStudyWeek,examStudyBlocks,planDeadline,projectHealth,scheduleImpact,taskTimeBudget,todayTradeoffs} from '../dist/scheduling.js';
 import {createsDependencyCycle,freshState,loadState,recordTaskCompletion} from '../dist/state.js';
 
 const date = (day,hour=0,minute=0) => new Date(2026,10,day,hour,minute);
 const event = (title,start,end) => ({title,start:+start,end:+end});
+
+test('full-day agenda windows respect event buffers, availability and cooldowns across midnight',()=>{
+  const tasks=[
+    {id:'before',text:'Late work',date:'2026-11-12',time:'23:45',estimate:12},
+    {id:'after',text:'Early work',date:'2026-11-14',time:'00:03',estimate:20}
+  ];
+  const events=[{...event('Lab',date(13,9),date(13,10)),bufferBefore:30,bufferAfter:15}];
+  const availability=[{days:[date(13).getDay()],start:'11:00',end:'12:00'}];
+  assert.deepEqual(agendaGaps(tasks,events,availability,date(13),1440,5,0),[
+    {start:2,end:510},{start:615,end:660},{start:720,end:1438}
+  ]);
+  assert.deepEqual(agendaGaps(tasks,[{day:'2026-11-13',endDay:'2026-11-14'}],availability,date(13),1440,5,0),[]);
+});
+
+test('agenda conflicts report each actual overlap once, clipped to the requested day',()=>{
+  const minute=60000,day='2026-11-13';
+  const tasks=[{id:'overnight',text:'Overnight',date:'2026-11-12',time:'23:45',estimate:45},
+    {id:'done',text:'Finished',date:day,time:'00:12',estimate:30,done:true}];
+  const meeting={...event('Meeting',date(13,0,10),date(13,0,35)),bufferAfter:30};
+  const handoff=event('Handoff',date(13,0,35),date(13,0,40));
+  const report=events=>agendaConflicts(tasks,events,date(13)).map(({first,second,start,end})=>[first.title,second.title,(end-start)/minute]);
+  assert.deepEqual(report([meeting,handoff]),[['Overnight','Meeting',20]]);
+  assert.deepEqual(report([meeting,handoff,{title:'Retreat',day,endDay:'2026-11-14'}]),[
+    ['Overnight','Retreat',30],['Overnight','Meeting',20],['Retreat','Meeting',25],['Retreat','Handoff',5]
+  ]);
+});
 
 test('task time budget deduplicates bookings and counts only that task’s recorded focus',()=>{
   const minute=60000,day='2026-11-13',now=date(13,10,30),started=+date(13,9);
