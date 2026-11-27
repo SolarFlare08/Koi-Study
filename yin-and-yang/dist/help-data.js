@@ -164,7 +164,8 @@ export const helpTopics = [
       'Type `row "Left sleeve" +2` to add two rows to a Stitchbook counter, or use a negative number to subtract. Prompt shows the new count and last checkpoint. Use `row "Rows" +2` for a project’s main row count. Choose an item if several books or counters match.',
       'Type `review week` for this Monday through Sunday’s completed focus time, completed tasks, and next steps for open work.',
       'Type `play "Deep work"` to load a saved Spotify or YouTube soundtrack in Music & video. Choose a result if several names match, then press Play in the player.',
-      'Try `open calendar` to switch workspaces or `find chapter 4` to search saved items. Select a search result to open it.',
+      'Type part of a command and press Tab to complete it. You can also complete titles, such as `task show Cal`, `book resume Gol`, or `play Deep`. Press Tab again to cycle through matches. Shift+Tab moves focus out of the input.',
+      'Try `open calendar` to switch workspaces or `find calculus` to search saved items. Click a numbered result or type `pick 2` to open the second result from your latest search.',
       'Type task followed by a title to prefill the task editor. Type capture followed by a thought to save it to the Note inbox.',
       'Use the Up and Down arrows in the input to recall recent commands. Type `clear` to clear the transcript or `version` to see the build number. The transcript and command history last until you reload.'],
     action:'prompt', actionLabel:'Open Command Prompt', related:['search','timer','capture-inbox','automatic-backups','postcard-viewpoints']

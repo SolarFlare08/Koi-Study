@@ -35,6 +35,11 @@ function promptMessage(value){
   return (quoted?(quoted[1]??quoted[2]):/^["“]/.test(value)?'':value).trim();
 }
 
+function quotedTitle(title){
+  if(!title.includes('"'))return `"${title}"`;
+  return /[“”]/.test(title)?null:`“${title}”`;
+}
+
 export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,getFocusTasks,getTasks,getTaskDetails,getProjects,projectResume,inboxNext,officeList,taskDetails,previewTask,subtasks,check,today,agenda,actualAgenda,blockSplit,estimate,gap,due,plan,wait,getMistakes,retry,resumeJournal,pin,pause,next,fit,handoff,stuck,schedule,getBlocks,move,extend,finish,snooze,getBooks,getCounters,read,bookResume,bookGoal,row,rowStatus,checkpoint,shutdown,backupStatus,getViewpoints,postcard,dusk,reviewWeek,getSoundtracks,play,addTask,capture,version,openHelp}){
   const commands={
     ...timerCommands,
@@ -82,11 +87,24 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     play:['play "Deep work"','Load a saved soundtrack in Music & video.'],
     open:['open calendar','Switch to a workspace.'],
     find:['find ','Search tasks, notes, books, and journal entries.'],
+    pick:['pick 2','Open result 2 from the latest find command.'],
     task:['task ','Open the task editor with a title filled in.'],
     capture:['capture ','Save a thought to the Note inbox.'],
     version:['version','Show the current app version.'],
     help:['help','See command syntax and examples.'],
     clear:['clear','Clear the session transcript.']
+  };
+  const verbs=[...new Set(Object.values(commands).map(([example])=>example.split(' ')[0]))].sort();
+  const subcommands={
+    agenda:['today','tomorrow'],backup:['status'],block:['split'],book:['goal','resume'],garden:['dusk'],
+    inbox:['next'],journal:['resume'],office:['list'],project:['resume'],queue:['pin'],review:['week'],
+    row:['status'],task:['add','done','show']
+  };
+  const titleSources={
+    focus:getFocusTasks,'queue pin':getFocusTasks,'task show':getTaskDetails,estimate:getTaskDetails,
+    schedule:getTasks,snooze:getTasks,plan:getTasks,wait:getTasks,move:getBlocks,'block split':getBlocks,
+    read:getBooks,'book goal':getBooks,'book resume':getBooks,play:getSoundtracks,
+    find:()=>getEntries().filter(item=>item.kind==='Task'||item.kind==='Book')
   };
   root.innerHTML=`<div class="prompt-wrap"><div class="prompt-console">
     <header class="prompt-heading">
@@ -105,16 +123,17 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         <button type="submit">Run</button>
       </form>
     </div>
-    <footer class="prompt-hint" id="prompt-history-hint"><kbd>Enter</kbd> run · <kbd>↑</kbd> <kbd>↓</kbd> history</footer>
+    <footer class="prompt-hint" id="prompt-history-hint"><kbd>Enter</kbd> run · <kbd>Tab</kbd> complete · <kbd>↑</kbd> <kbd>↓</kbd> history</footer>
   </div></div>`;
   const form=root.querySelector('form'),input=root.querySelector('input'),log=root.querySelector('.prompt-log');
   const screen=root.querySelector('.prompt-screen'),reference=root.querySelector('.prompt-commands');
   log.querySelector('.prompt-banner').textContent=`Yin and Yang [Version ${version}]`;
   const history=[];
   let historyIndex=0,draft='';
+  let completion,lastResults=[];
 
-  function appendChoices(entry,results){
-    const list=document.createElement('ul');
+  function appendChoices(entry,results,numbered=false){
+    const list=document.createElement(numbered?'ol':'ul');
     list.className='prompt-results';
     for(const {label,run} of results){
       const row=document.createElement('li'),button=document.createElement('button');
@@ -125,12 +144,70 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
   }
 
   function resultsFor(query,entry){
-    const results=matchCommands(getEntries(),query).filter(result=>result.kind!=='Action').slice(0,8);
-    if(!results.length)return 'No matching items.';
-    appendChoices(entry,results.map(result=>({
+    lastResults=matchCommands(getEntries(),query).filter(result=>result.kind!=='Action').slice(0,8);
+    if(!lastResults.length)return 'No matching items.';
+    entry.append('Open a result with pick <number>, or select it below.');
+    appendChoices(entry,lastResults.map(result=>({
       label:[result.title,result.kind,result.detail].filter(Boolean).join(' · '),run:result.run
-    })));
+    })),true);
     return '';
+  }
+
+  function pickResult(arg){
+    const index=/^\d+$/.test(arg)?Number(arg):0;
+    if(!Number.isSafeInteger(index)||index<1)return 'Use pick <result number>, such as pick 2.';
+    if(!lastResults.length)return 'Run find <words> to get numbered results first.';
+    const result=lastResults[index-1];
+    if(!result)return `Choose a result from 1 to ${lastResults.length}.`;
+    result.run();
+    return `Opened ${result.title}.`;
+  }
+
+  function completions(before,after){
+    const match=/^(\s*)(\S+)(?:\s+(.*))?$/.exec(before);
+    if(!match)return [];
+    const [,indent,verb,arg]=match,name=verb.toLowerCase();
+    const options=Object.hasOwn(subcommands,name)?subcommands[name]:null;
+    const action=options&&arg!==undefined&&/^(\S+)\s+(.*)$/.exec(arg);
+    if(arg===undefined||options&&!action){
+      if(after&&!/^\s/.test(after))return [];
+      const prefix=arg===undefined?indent:`${indent}${name} `;
+      const query=(arg??verb).toLowerCase();
+      return (arg===undefined?verbs:options).filter(item=>item.startsWith(query))
+        .map(item=>({text:prefix+item,tail:after}));
+    }
+    const phrase=action?`${name} ${action[1].toLowerCase()}`:name;
+    const source=Object.hasOwn(titleSources,phrase)?titleSources[phrase]:null;
+    if(!source)return [];
+    const partial=action?action[2]:arg;
+    const quoted=/^(?:"([^"]*)|“([^”]*))$/.exec(partial);
+    if(!quoted&&/["“”]/.test(partial))return [];
+    const tail=quoted&&after.startsWith(partial[0]==='"'?'"':'”')?after.slice(1):after;
+    if(tail&&!/^\s/.test(tail))return [];
+    const query=(quoted?.[1]??quoted?.[2]??partial).trim();
+    const items=source();
+    const matches=query?matchCommands(items,query):items;
+    return [...new Set(matches.map(({title})=>quotedTitle(title)).filter(Boolean))]
+      .map(title=>({text:`${indent}${phrase} ${title}`,tail}));
+  }
+
+  function completeInput(){
+    const caret=input.selectionStart,value=input.value;
+    if(caret!==input.selectionEnd)return false;
+    if(completion?.value!==value||completion.caret!==caret){
+      const choices=completions(value.slice(0,caret),value.slice(caret));
+      const current=choices.findIndex(({text,tail})=>text+tail===value);
+      if(!choices.length||choices.length===1&&current===0)return false;
+      completion={choices,index:current};
+    }
+    const {choices}=completion;
+    completion.index=(completion.index+1)%choices.length;
+    const {text,tail}=choices[completion.index];
+    input.value=text+tail;
+    input.setSelectionRange(text.length,text.length);
+    completion.value=input.value;completion.caret=text.length;
+    if(choices.length===1)completion=undefined;
+    return true;
   }
 
   function chooseMatch(query,items,entry,run,noun,action){
@@ -378,9 +455,14 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
         return Number.isSafeInteger(index)&&index>0?check(index):'Use check <item number>, such as check 2.';
       }
       case 'capture':return arg?capture(arg):'Use capture <thought>.';
-      case 'find':return arg?resultsFor(arg,entry):'Use find <words to search for>.';
+      case 'find': {
+        lastResults=[];
+        const query=promptMessage(arg);
+        return query?resultsFor(query,entry):'Use find <words to search for>.';
+      }
+      case 'pick':return pickResult(arg);
       case 'version':return 'Yin and Yang '+version;
-      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, task <title>, capture <thought>.\nPrompt: version, help, clear.';
+      case 'help':return 'Timer: status, start, pause, focus 25m, focus "LinAlg" 40m, rest 5m, extend 10m.\nAdd a pause reason: pause "Looking up the formula".\nUse m for minutes, s for seconds, or MM:SS.\nPlanning: today shows your agenda, next shows the first ready focus task, and fit 20m finds work that fits.\nAgenda: agenda tomorrow or agenda today --actual.\nFind time and deadlines: gap 45m this week, due next week.\nDraft a study plan: plan "Exam 2" by Friday.\nReorder focus: queue pin "LinAlg" first.\nPreview a block: schedule "Lab report" tomorrow 3pm 45m or move "Lab report" tomorrow 4pm.\nPreview focus and breaks: block split "Practice exam" 50m.\nHide from focus: snooze "Order yarn" until Friday.\nCheck a blocker: wait "Lab report".\nTasks: task add Review chapter 4 tomorrow for 30m, task show "Lab report".\nCurrent task: subtasks, check 2, task done, handoff "next step", stuck "question".\nPractice or write: retry "Boundary terms", journal resume.\nProject context: project resume "Thermodynamics".\nSort thoughts and review questions: inbox next, office list "LinAlg".\nReading: read "Golden Son" p143, book resume "Golden Son", book goal "Golden Son" p180.\nStitchbook: row "Left sleeve" +2, row status "Left sleeve", checkpoint "Left sleeve" "Switch to 4 mm hook".\nEnd of day: shutdown.\nBackups: backup status.\nGarden: garden dusk, postcard "Autumn dusk".\nReports: review week, estimate "Reading".\nSaved soundtrack: play "Deep work".\nWorkspace: open <workspace>, find <words>, pick 2, task <title>, capture <thought>.\nPrompt: press Tab to complete a command or title, then Tab again to cycle through matches. Type version, help, or clear.';
       default:return 'Unknown command. Type help to see the available commands.';
     }
   }
@@ -393,8 +475,8 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     const name=verb.toLowerCase();
     if(history.at(-1)!==line)history.push(line);
     if(history.length>50)history.shift();
-    historyIndex=history.length;draft='';input.value='';
-    if(name==='clear'){log.replaceChildren();input.focus();return;}
+    historyIndex=history.length;draft='';input.value='';completion=undefined;
+    if(name==='clear'){lastResults=[];log.replaceChildren();input.focus();return;}
     const group=document.createElement('div'),command=document.createElement('code'),entry=document.createElement('div');
     command.className='prompt-echo';command.textContent=promptPath+line;
     entry.className='prompt-output';group.append(command,entry);
@@ -408,9 +490,15 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     screen.scrollTop=screen.scrollHeight;
     if(!root.hidden&&(form.contains(document.activeElement)||document.activeElement===document.body))input.focus();
   });
+  input.addEventListener('input',()=>{completion=undefined;});
+  input.addEventListener('blur',()=>{completion=undefined;});
   input.addEventListener('keydown',event=>{
-    if(event.isComposing||event.ctrlKey||event.metaKey||event.altKey||!history.length||!['ArrowUp','ArrowDown'].includes(event.key))return;
+    if(event.isComposing||event.ctrlKey||event.metaKey||event.altKey)return;
+    if(event.key==='Escape'&&completion){completion=undefined;event.preventDefault();return;}
+    if(event.key==='Tab'&&!event.shiftKey&&completeInput()){event.preventDefault();return;}
+    if(!history.length||!['ArrowUp','ArrowDown'].includes(event.key))return;
     event.preventDefault();
+    completion=undefined;
     if(historyIndex===history.length)draft=input.value;
     historyIndex=Math.max(0,Math.min(history.length,historyIndex+(event.key==='ArrowUp'?-1:1)));
     input.value=history[historyIndex]??draft;
@@ -423,6 +511,7 @@ export function installCommandPrompt({root,getEntries,openWorkspace,runTimer,get
     if(!button.dataset.promptExample)return;
     reference.open=false;
     historyIndex=history.length;
+    completion=undefined;
     input.value=button.dataset.promptExample;
     input.focus();
   });

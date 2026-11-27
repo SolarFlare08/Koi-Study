@@ -127,6 +127,7 @@
   font-size: 11px;
 }
 .prompt-reference ul, .prompt-results { list-style: none; margin: 0; padding: 0; }
+ol.prompt-results { list-style: decimal; padding-inline-start: 3ch; }
 .prompt-reference button { width: 100%; display: grid; gap: 2px; padding: 6px 7px; border-radius: 4px; text-align: left; }
 .prompt-reference code { color: var(--prompt-green); font-size: 13px; }
 .prompt-reference span { color: #d5d2ce; font-size: 12px; }

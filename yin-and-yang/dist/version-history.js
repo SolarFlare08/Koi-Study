@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.0.19',date:'2026-11-26',title:'Tab completion and numbered results in Prompt',changes:[
+    'Press Tab to complete command names, task titles, books, and saved soundtracks.',
+    'Open a numbered find result with pick followed by its number.'
+  ]},
   {version:'6.0.18',date:'2026-11-26',title:'Backup status and postcards in Prompt',changes:[
     'Use backup status to see when your latest restore point or Windows backup was saved and where it lives.',
     'Open the postcard export preview with a saved Garden viewpoint by typing its name in Prompt.'
