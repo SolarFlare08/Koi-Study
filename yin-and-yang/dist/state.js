@@ -217,7 +217,7 @@ export function loadSoundtracks(value){
 export function freshState() {
   return { settings: { focus:25, break:5, savesInlineDuration:true, taskBoardCollapsed:false, fitMinutes:20 }, appearance:loadAppearance(), gardenSchedule:loadGardenSchedule(), calendarEvents:[], calendars:loadCalendars(), hiddenCalendars:[], calendarTheme:'day', calendarDayTemplates:[], dailyRituals:{}, ritualSchedules:loadRitualSchedules(), studyCapacity:240, processedCaptures:[], sounds:loadSoundSettings(), notifications:false, routines:[], intention:'', tasks:[], taskTemplates:[], projects:[], plannerFilters:[], plannerLabels:[], taskActivity:[], gardenClearedDone:{}, activeTask:null, focusPins:null, notes:'', stickyNotes:[], history:[], spotify:'', youtube:'', mediaSource:'spotify', soundtracks:[], focusOvertime:false, focusMode:false,
     replanCutoff:'21:00', planningCooldown:5, tomorrowPlan:null, activeTaskDay:null, readingNotes:[], libraryBooks:[], readingShelfRows:loadShelfRows(), readingBookends:[], finishedBooks:[], availability:[], journalTemplates:[], gardenGrowth:[], scheduleMoves:[], captureArchive:[],
-    shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,readingCollections:[],mistakes:[],studyQuestions:[],
+    shutdownSteps:[{id:'notes',text:'Clear the note inbox'},{id:'tomorrow',text:'Choose tomorrow’s first task'}],shutdownProgress:null,recapOpen:null,readingCollections:[],mistakes:[],studyQuestions:[],
     taskBundles:[],activeBundle:null,weeklyReflections:[],gardenLooks:[],gardenDesign:loadGardenDesign(),gardenLayouts:[],gardenArrangements:[],gardenActivityLayouts:{},focusSetups:[],lastFocusSetupId:'',postcardViewpoints:[],breakIdeas:[],
     timer:{ mode:'focus', status:'idle', remaining:25*60000, endAt:null, total:25*60000, startedAt:null, id:null } };
 }
@@ -381,6 +381,9 @@ export function loadState(storage) {
     const plan=raw.tomorrowPlan;
     const pin=raw.tomorrowPin;
     if(isDay(pin?.day)&&base.tasks.some(task=>task.id===pin.taskId))base.tomorrowPin={day:pin.day,taskId:pin.taskId};
+    if(isDay(raw.recapOpen?.day)&&Array.isArray(raw.recapOpen.keys)){
+      base.recapOpen={day:raw.recapOpen.day,keys:[...new Set(raw.recapOpen.keys.filter(key=>typeof key==='string'))]};
+    }
     if(isDay(plan?.day)&&base.tasks.some(task=>task.id===plan.taskId)&&
         (plan.blockId===null||typeof plan.blockId==='string')){
       base.tomorrowPlan={day:plan.day,taskId:plan.taskId,blockId:plan.blockId,ownsBlock:plan.ownsBlock===true&&Boolean(plan.blockId)};

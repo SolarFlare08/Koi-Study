@@ -12,7 +12,7 @@ import {installExamPlans} from './exam-plans.js';
 import {installMistakeNotebook,mistakeSource,needsRetry} from './mistake-notebook.js';
 import {bundleProgress,installBundleEditor} from './task-bundles.js';
 import {CAPTURE_PREFIX, cleanCaptureContext, readCaptures, saveCapture, storeCapture} from './capture.js';
-import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from './day-recap.js';
+import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget,unfinishedRecapItems} from './day-recap.js';
 import {installPlanner} from './planner.js';
 import {gardenPalettes,lightingOptions,seasonOptions,sceneryMotionOptions,weatherBySeason,gardenWeather,loadAppearance,loadGardenLooks,loadGardenSchedule,scheduledAppearance} from './garden-appearance.js';
 import {createGardenStudio} from './garden-studio.js';
@@ -28,7 +28,7 @@ import {adminSandboxStorage,adminSandboxUrl,isAdminSandbox,workspaceStorageEvent
 import {installAutomaticBackup} from './automatic-backup.js';
 import {installFocusCompass,focusCompass,focusWeek} from './focus-compass.js';
 import {timerProgress,extendTimer,canExtendTimer,canExtendCalendarTimer,extendCalendarTimer,focusWrapUp,focusWrapUpDuration,wrapUpMinutes} from './state.js';
-import {calendarBlockDurationChange,planRunningBlockExtension,timerExtensionConflicts} from './calendar.js';
+import {calendarBlockDurationChange,moveTimedTaskBlock,planRunningBlockExtension,timerExtensionConflicts} from './calendar.js';
 import {quickTask} from './planner-data.js';
 import {incompleteFocusSessions,loadFocusSetups,loadPromptAliases,loadNamedPromptHistory} from './state.js';
 import {installMiniTimer} from './mini-timer.js';
@@ -126,7 +126,7 @@ let capturePointer=null,nativeNotes=[],captureApiAvailable=true,syncingCaptures=
 let activeCaptureContext;
 let reopenTasksAfterCalendar=false;
 let effectiveAppearance=state.appearance, resumeTaskId=null, captureActionKey=null;
-let renderedGardenGrowth, renderedGardenProjects, selectedLandmark=null, gardenHistoryFilter='all', recapOrigin=null;
+let renderedGardenGrowth, renderedGardenProjects, selectedLandmark=null, gardenHistoryFilter='all', recapOrigin=null, recapMove=null;
 let gardenFrom='',gardenThrough='',snapshotThrough='',selectedCourse='',gardenDuskPreview=false;
 let seasonPreview='',comparisonDates=null,snapshotLayoutId='',paintedGardenDesign;
 let renderedGardenDesign;
@@ -379,8 +379,11 @@ undoButton.onclick=()=>{
     stickyBoard.render();
     if(activePanel==='task-editor')updateTaskCompletionButton();
   }
-  const target=undoReturn?.isConnected&&undoReturn.getClientRects().length?undoReturn:inSchedule()?$('#planner-heading'):currentTaskButton;
-  target.focus({preventScroll:true});
+  if(activePanel==='day-recap')refreshDayRecap(undoReturn?.closest('[data-recap-key]')?.dataset.recapKey,undoReturn?.dataset.recapAction);
+  else{
+    const target=undoReturn?.isConnected&&undoReturn.getClientRects().length?undoReturn:inSchedule()?$('#planner-heading'):currentTaskButton;
+    target.focus({preventScroll:true});
+  }
   const message=reverted?'Change undone.':'This item changed before it could be undone.';
   toast(message);announce(message);
 };
@@ -2021,12 +2024,7 @@ function previewPromptMove(source,destination,reviewed){
     confirm:()=>previewPromptMove(source,destination,signature)
   };
   const finishUndo=captureTaskChange(task,['date','time','blocks','occurrenceTimes','occurrenceMinutes']);
-  applyCalendarReplan(task,occurrence,{day:date,blockId,parts:[{to:start,minutes}]});
-  if(!blockId&&(!task.repeat||task.repeat==='none')){
-    task.occurrenceMinutes={...task.occurrenceMinutes};
-    delete task.occurrenceMinutes[occurrence];
-    task.occurrenceMinutes[date]=minutes;
-  }
+  moveTimedTaskBlock(task,occurrence,blockId,date,start,minutes);
   const undo=finishUndo();
   if(!persist()){undo?.(state);return {text:'Could not save the move on this device.'};}
   refreshTasks();
@@ -3082,6 +3080,7 @@ function dayRecapMarkup(){
       <div><dt>Completed</dt><dd>${completed.length}</dd></div><div><dt>Moved</dt><dd>${moves.length}</dd></div></dl>
     <div class="day-recap-sections">
       <section><h3>Finished today</h3>${list(completed,'No completed items today.')}</section>
+      ${recapUnfinishedMarkup(today,tomorrow,firstTask,entry,taskTarget)}
       <section><h3>Moved today</h3>${list(moved,'No schedule changes recorded today.')}</section>
       <section><h3>Tomorrow · ${shortScheduleDate(tomorrow)}</h3>
       ${firstTask?entry(firstTask.text,'First focus task',taskTarget(firstTask.id,tomorrow)):''}${list(upcoming,'Nothing lined up yet.')}
@@ -3089,6 +3088,161 @@ function dayRecapMarkup(){
       ${thoughts.length?`<section><h3>Captured today</h3>${list(thoughts,'')}</section>`:''}
       <button type="button" class="text-button" data-evening-lights>Evening lights</button>${shutdownMarkup(today)}
     </div>`;
+}
+function recapUnfinishedMarkup(today,tomorrow,firstTask,entry,taskTarget){
+  const items=unfinishedRecapItems(gardenTasks(),new Date(today+'T12:00:00'));
+  const reviewed=new Set(state.recapOpen?.day===today?state.recapOpen.keys:[]);
+  const pinOptions=new Set(tomorrowChoices(new Date(tomorrow+'T12:00:00')).choices.map(task=>task.id));
+  const pending=[],leftOpen=[];
+  const action=(item,kind,label,attrs='')=>`<button type="button" data-recap-action="${kind}" ${attrs}
+    aria-label="${escape(label+' · '+item.task.text)}">${label}</button>`;
+  for(const item of items){
+    const {task,slot,occurrence,key}=item;
+    const detail=slot?[occurrence===today?'':shortScheduleDate(occurrence),calendarBlockTimeLabel({},slot)].filter(Boolean).join(' · '):
+      task.date?recapPosition({date:task.date}):'Unscheduled';
+    const title=entry(task.text,detail,taskTarget(task.id,slot?.taskDay||today));
+    const attrs=`class="recap-unfinished-row" data-recap-key="${escape(key)}" data-recap-day="${today}"`;
+    if(reviewed.has(key)){
+      leftOpen.push(`<li ${attrs}>${title}<div class="recap-actions">${action(item,'review','Review again')}</div></li>`);
+      continue;
+    }
+    const repeatingUntimed=!slot&&task.repeat&&task.repeat!=='none';
+    const preview=recapMove?.day===today&&recapMove.key===key?recapMove.plan:null;
+    const isPinned=firstTask?.id===task.id;
+    pending.push(`<li ${attrs}>${title}<div class="recap-actions">
+      ${repeatingUntimed?'':action(item,'preview','Move to tomorrow',`aria-expanded="${Boolean(preview)}"`)}
+      ${isPinned?'<span class="recap-pinned">Pinned first</span>':pinOptions.has(task.id)?action(item,'pin','Pin first tomorrow'):''}
+      ${action(item,'leave','Leave open')}</div>
+      ${repeatingUntimed?'<small>Change the date of this untimed recurring task in Planner.</small>':''}
+      ${preview?`<div class="recap-move-preview" aria-live="polite">
+        <p>${escape(preview.error||preview.label)}</p>
+        ${!preview.error&&task.deadline&&task.deadline<tomorrow?`<p>Deadline stays ${escape(shortScheduleDate(task.deadline))}.</p>`:''}
+        <div class="recap-actions">${action(item,'cancel','Cancel')}${preview.error?'':action(item,'move','Confirm move')}</div>
+      </div>`:''}</li>`);
+  }
+  return `<section class="recap-unfinished" aria-labelledby="recap-unfinished-title"><h3 id="recap-unfinished-title" tabindex="-1">Unfinished today <small>${pending.length}</small></h3>
+    ${pending.length?`<ul>${pending.join('')}</ul>`:'<p>No unfinished items to review.</p>'}
+    ${leftOpen.length?`<details class="recap-left-open"><summary>Left open · ${leftOpen.length}</summary><ul>${leftOpen.join('')}</ul></details>`:''}
+  </section>`;
+}
+function recapTomorrowMove(item,today){
+  const {task,slot,blockId,occurrence}=item;
+  const date=shiftDay(new Date(today+'T12:00:00'),1),day=dayKey(date);
+  const active=state.timer.block||state.timer.calendarBlock;
+  const activeTask=active?.taskId||state.timer.taskSnapshot?.id||focusedTask()?.id;
+  if(state.timer.id&&activeTask===task.id&&(active?
+    active.occurrence===occurrence&&(active.blockId||null)===blockId:state.timer.mode==='focus')){
+    return {error:'Finish the active focus session before moving this item.'};
+  }
+  if(!slot)return task.repeat&&task.repeat!=='none'?{error:'Change this recurring date in Planner.'}:
+    {day,label:`Move to ${shortScheduleDate(day)} without a start time.`};
+  const {minutes,flexibility}=slot;
+  const original=slot.start.getHours()*60+slot.start.getMinutes();
+  const source={taskId:task.id,blockId,occurrence};
+  const tasks=gardenTasks();
+  const gaps=(day,from,to)=>agendaGaps(tasks,state.calendarEvents,state.availability,day,to,state.planningCooldown,from,source);
+  const tomorrow=gaps(date,0,1440);
+  const valid=start=>{
+    const stamp=new Date(day+'T'+timeValue(start));
+    return stamp.getHours()*60+stamp.getMinutes()===start;
+  };
+  const windowContains=(ranges,start,end)=>ranges.some(gap=>gap.start<=start&&end<=gap.end);
+  const end=original+minutes;
+  let start=original;
+  if(!valid(start)||!windowContains(tomorrow,start,Math.min(end,1440))||
+    end>1440&&!windowContains(gaps(shiftDay(date,1),0,1440),0,end-1440)){
+    start=null;
+    if(flexibility?.mode!=='fixed'){
+      const from=flexibility?.earliest?timeMinutes(flexibility.earliest):9*60;
+      const to=flexibility?.latest?timeMinutes(flexibility.latest):schedulingCutoff();
+      for(const gap of tomorrow){
+        const candidate=Math.max(from,gap.start);
+        if(candidate+minutes<=Math.min(to,gap.end)&&valid(candidate)){start=candidate;break;}
+      }
+    }
+  }
+  if(start===null)return {error:'No open time fits tomorrow. Use the task editor to choose a different date or time.'};
+  return {day,start,minutes,from:+slot.start,label:`Move to ${promptBlockTime({date:day,start,minutes})} · ${minutesLabel(minutes)}.`};
+}
+function refreshDayRecap(key,action){
+  if(activePanel!=='day-recap')return;
+  const panel=visiblePanel(),top=panel.scrollTop,showLeftOpen=panel.querySelector('.recap-left-open')?.open;
+  if(lastAnchor?.hasAttribute('data-day-recap')&&!lastAnchor.isConnected){
+    lastAnchor=$('[data-day-recap]')||$('#planner-heading');
+    lastAnchor.setAttribute('aria-expanded','true');
+  }
+  refreshPanel();
+  const reviewed=panel.querySelector('.recap-left-open');
+  if(reviewed)reviewed.open=Boolean(showLeftOpen);
+  panel.scrollTop=top;
+  const row=key&&panel.querySelector(`[data-recap-key="${CSS.escape(key)}"]`);
+  const target=(action&&row?.querySelector(`[data-recap-action="${action}"]`))||
+    row?.querySelector('.recap-actions button')||$('#recap-unfinished-title');
+  target.focus({preventScroll:true});
+  const bounds=panel.getBoundingClientRect(),position=target.getBoundingClientRect();
+  if(position.top<bounds.top||position.bottom>bounds.bottom)target.scrollIntoView({block:'nearest'});
+}
+function changeRecapReview(day,key,leaveOpen){
+  const previous=state.recapOpen;
+  const keys=new Set(previous?.day===day?previous.keys:[]);
+  if(leaveOpen===keys.has(key))return null;
+  if(leaveOpen)keys.add(key);else keys.delete(key);
+  state.recapOpen=keys.size?{day,keys:[...keys]}:null;
+  if(!persist()){state.recapOpen=previous;return null;}
+  const after=state.recapOpen;
+  return latest=>{
+    if(JSON.stringify(latest.recapOpen)!==JSON.stringify(after))return false;
+    latest.recapOpen=previous;return true;
+  };
+}
+function actOnRecapItem(button){
+  const row=button.closest('[data-recap-key]');
+  const {recapKey:key,recapDay:day}=row.dataset;
+  const action=button.dataset.recapAction,now=new Date();
+  if(day!==dayKey(now)){
+    recapMove=null;refreshDayRecap();confirmChange('The date changed. Review the new recap.');return;
+  }
+  const item=unfinishedRecapItems(gardenTasks(),now).find(item=>item.key===key);
+  if(!item){recapMove=null;refreshDayRecap();confirmChange('That item is no longer unfinished.');return;}
+  const {task,blockId,occurrence,slot}=item;
+  const nextKey=row.nextElementSibling?.dataset.recapKey||row.previousElementSibling?.dataset.recapKey;
+  if(action==='cancel'||action==='preview'&&recapMove?.key===key){
+    recapMove=null;refreshDayRecap(key,'preview');return;
+  }
+  if(action==='pin'){
+    const tomorrow=shiftDay(now,1);
+    if(!tomorrowChoices(tomorrow).choices.some(candidate=>candidate.id===task.id)){
+      refreshDayRecap(key);confirmChange('This task won’t be ready tomorrow.');return;
+    }
+    const undo=saveTomorrowPin(task.id,dayKey(tomorrow));
+    if(!undo)return;
+    refreshTasks();refreshDayRecap(key);confirmChange('First task pinned for tomorrow.',undo);return;
+  }
+  if(action==='leave'||action==='review'){
+    const leaveOpen=action==='leave',undo=changeRecapReview(day,key,leaveOpen);
+    if(!undo)return;
+    if(recapMove?.key===key)recapMove=null;
+    refreshDayRecap(leaveOpen?nextKey:key);
+    confirmChange(leaveOpen?'Left open for later.':'Returned to today’s review.',undo);return;
+  }
+  if(!['preview','move'].includes(action))return;
+  checkCompletion();
+  const plan=recapTomorrowMove(item,day);
+  const reviewed=recapMove?.day===day&&recapMove.key===key&&JSON.stringify(recapMove.plan)===JSON.stringify(plan);
+  if(action==='preview'||!reviewed||plan.error){
+    recapMove={day,key,plan};refreshDayRecap(key,plan.error?'cancel':'move');
+    if(action==='move'&&!reviewed)announce('Tomorrow’s schedule changed. Review the updated move.');
+    return;
+  }
+  const capture=captureTaskChange(task,['date','time','blocks','occurrenceTimes','occurrenceMinutes']);
+  const previousActive=state.activeTask;
+  if(slot)moveTimedTaskBlock(task,occurrence,blockId,plan.day,plan.start,plan.minutes);
+  else task.date=plan.day;
+  if(state.activeTask===task.id&&!gardenFocusQueue().includes(task))state.activeTask=null;
+  const undo=restoreActiveTask(capture(),previousActive,state.activeTask);
+  if(!persist()){undo?.(state);return;}
+  recapMove=null;refreshTasks();refreshDayRecap(nextKey);
+  confirmChange(`Moved ${task.text} to tomorrow${slot?` at ${timeLabel(plan.start)}`:''}.`,undo);
 }
 function shutdownChecked(today){
   return new Set(state.shutdownProgress?.day===today?state.shutdownProgress.ids:[]);
@@ -4984,6 +5138,7 @@ function keepEditorScroll(){
 function openPanel(id,anchor,landmarkIndex=null){
   if(closePanel(false)===false)return;
   if(id==='task-editor')taskEditorScroll=keepEditorScroll();
+  if(id==='day-recap')recapMove=null;
   if(id==='capture')activeCaptureContext=currentCaptureContext();
   if(id==='focus-goal')goalTimer=state.timer;
   if(id==='appearance')seasonPreview=effectiveAppearance.season;
@@ -4996,6 +5151,7 @@ function openPanel(id,anchor,landmarkIndex=null){
   else{panel=document.createElement('section');panel.className=id==='capture'?'panel capture-panel lake-note':id==='notes'?'panel lake-note':id==='task-editor'?'panel task-editor task-detail-panel':['event-editor','calendar-list-editor','ritual-schedules','replan-today','plan-tomorrow','plan-deadline','build-week','schedule-drop','routine-editor','availability','task-tradeoffs','calendar-day-templates','project-resources'].includes(id)?'panel task-editor event-editor':id==='block-editor'?'panel task-editor':id==='appearance'?'panel appearance-panel':id==='garden-comparison'?'panel garden-comparison-panel':id==='garden-studio'?'panel garden-studio-panel':id==='garden-landmark'?'panel landmark-panel':['focus-subtasks','project-context'].includes(id)?'panel focus-checklist-panel':'panel';if(id==='music')panel.id='music-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','panel-title');panel.innerHTML=panelContent(id);root.appendChild(panel);if(id==='music')mountMedia();}
   if(id==='admin-sandbox')panel.classList.add('admin-sandbox-panel');
   if(id==='progress')panel.classList.add('focus-today-panel');
+  if(id==='day-recap')panel.classList.add('day-recap-panel');
   if(id==='garden-tools'){panel.classList.add('garden-tools-panel');filterGardenTools(panel);}
   addGardenToolsReturn(panel,id,anchor);
   syncSettingsNavigation(panel,id);
@@ -6574,13 +6730,19 @@ function pinTomorrowTask(form){
   if(day!==form.dataset.day||!tomorrowChoices(date).choices.some(task=>task.id===taskId)){
     toast('Reopen Plan tomorrow to choose an available task.');return;
   }
+  const undo=saveTomorrowPin(taskId,day);
+  if(!undo)return;
+  refreshPanel();confirmChange('First task pinned for tomorrow.',undo);
+}
+function saveTomorrowPin(taskId,day){
   const previous=state.tomorrowPin;
+  if(previous?.day===day&&previous.taskId===taskId)return null;
   state.tomorrowPin={day,taskId};
-  if(!persist()){state.tomorrowPin=previous;return;}
-  refreshPanel();confirmChange('First task pinned for tomorrow.',latest=>{
+  if(!persist()){state.tomorrowPin=previous;return null;}
+  return latest=>{
     if(latest.tomorrowPin?.day!==day||latest.tomorrowPin.taskId!==taskId)return false;
     latest.tomorrowPin=previous;return true;
-  });
+  };
 }
 function updateTomorrowSlot(form,useDefaults){
   const date=new Date(form.dataset.day+'T00:00:00');
@@ -7549,6 +7711,8 @@ root.addEventListener('click',e=>{
   if(e.target.closest('#focus-today-goal')){compass.openGoal();return;}
   if(e.target.closest('#open-day-recap')){openPanel('day-recap',$('[data-panel="progress"]'));return;}
   if(e.target.closest('#recap-open-tomorrow')){runHelpAction('tomorrow');return;}
+  const recapAction=e.target.closest('[data-recap-action]');
+  if(recapAction){actOnRecapItem(recapAction);return;}
   const recap=e.target.closest('.recap-entry');
   if(recap){
     const {recapTask,recapCapture,recapRitual,date}=recap.dataset;

@@ -1,4 +1,4 @@
-import {allDayEvents,calendarBlocks,openFocusBlock,shiftDay,timeValue} from './calendar.js';
+import {allDayEvents,calendarBlocks,calendarTaskBlock,focusTaskQueue,openFocusBlock,shiftDay,timeValue} from './calendar.js';
 import {dayKey,taskOccursOn,taskStatus} from './state.js';
 
 const label = (items,id) => items.find(item=>item.id===id)?.name || '';
@@ -75,8 +75,28 @@ export function summarizeDay(state,tasks,now=new Date()) {
   const scheduled=new Set(blocks.filter(block=>block.task).map(block=>block.task.id));
   const due=tasks.filter(task=>taskStatus(task,date)!=='done'&&!scheduled.has(task.id)&&
     (task.deadline===tomorrow||taskOccursOn(task,date)));
-  const firstTask=state.tomorrowPlan?.day===tomorrow&&tasks.find(task=>task.id===state.tomorrowPlan.taskId&&!task.done);
+  const pin=[state.tomorrowPin,state.tomorrowPlan].find(item=>item?.day===tomorrow);
+  const firstTask=pin&&focusTaskQueue(tasks,date,[pin.taskId],new Map(state.tasks.map(task=>[task.id,task])))
+    .find(task=>task.id===pin.taskId);
   return {today,tomorrow,finished,moves,focus,blocks,due,firstTask,allDay:allDayEvents(state.calendarEvents,date),rituals:state.dailyRituals[today]||{}};
+}
+
+export function unfinishedRecapItems(tasks,now=new Date()){
+  const today=dayKey(now);
+  const make=(task,blockId=null,occurrence=null)=>{
+    const slot=occurrence&&calendarTaskBlock(task,blockId,occurrence);
+    return {key:JSON.stringify([task.id,blockId,occurrence]),task,blockId,occurrence,slot};
+  };
+  const timed=calendarBlocks(tasks,now).filter(block=>!block.continues&&openFocusBlock(block))
+    .map(({task,blockId,occurrence})=>make(task,blockId||null,occurrence));
+  const scheduled=new Set(timed.map(item=>item.task.id));
+  const remaining=tasks.filter(task=>!scheduled.has(task.id)&&taskStatus(task,now)==='todo'&&
+    !task.blocks?.some(block=>block.date>today&&openFocusBlock({task,occurrence:block.date,taskDay:block.taskDay})))
+    .map(task=>{
+      const earlier=task.time&&task.date<today&&(!task.repeat||task.repeat==='none')&&calendarTaskBlock(task,null,task.date);
+      return earlier?make(task,null,task.date):make(task);
+    });
+  return [...timed,...remaining];
 }
 
 export function recapMoveTarget(move,tasks,events){

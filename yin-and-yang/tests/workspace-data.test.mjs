@@ -55,7 +55,7 @@ test('course skies connect earned exams in date order and keep legacy and standa
   assert.match(gardenGrowthMarkup(history,{courses}).stars,/<polyline /);
   assert.doesNotMatch(gardenGrowthMarkup(history,{courses,through:'2026-10-01'}).stars,/<polyline /);
 });
-import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget} from '../dist/day-recap.js';
+import {recordScheduleMoves,snapshotSchedule,summarizeDay,recapMoveTarget,unfinishedRecapItems} from '../dist/day-recap.js';
 import {remainingProjectWork} from '../dist/project-planning.js';
 import {borrowedReturnStatus,reviewChapter,ratingTier} from '../dist/reading-progress.js';
 import {needsRetry} from '../dist/mistake-notebook.js';
@@ -238,6 +238,34 @@ test('day recap combines completions and tomorrow’s blocks and drops an undone
   assert.equal(recap.blocks[0].task.id,task.id);
   assert.deepEqual(recapMoveTarget(recap.moves[0],new Map([[task.id,task]]),[]),{task:task.id,occurrence:tomorrow});
   assert.deepEqual(recordScheduleMoves(state.scheduleMoves,after,before,now),[]);
+});
+
+test('unfinished recap distinguishes today’s blocks and leaves already booked future work out of review',()=>{
+  const now=new Date(2026,10,12,18),today='2026-11-12',tomorrow='2026-11-13';
+  const tasks=[
+    {id:'two',blocks:[{id:'first',date:today,time:'09:00',minutes:20},{id:'second',date:today,time:'12:00',minutes:25}]},
+    {id:'past',date:'2026-11-11',time:'09:00',estimate:15},
+    {id:'future',blocks:[{id:'booked',date:tomorrow,time:'09:00',minutes:20}]},
+    {id:'ready',date:today,waitingFor:{subject:'Feedback'}},
+    {id:'done',done:true,date:today}
+  ];
+  const open=unfinishedRecapItems(tasks,now);
+  assert.deepEqual(open.map(({task,blockId,slot})=>[task.id,blockId,slot?.minutes]),[
+    ['two','first',20],['two','second',25],['past',null,15],['ready',null,undefined]
+  ]);
+  assert.equal(new Set(open.map(({key})=>key)).size,open.length);
+});
+
+test('day recap prioritizes a first-task pin and carries leave-open decisions through backups',()=>{
+  const state=freshState(),now=new Date(2026,10,12,18),day='2026-11-12',tomorrow='2026-11-13';
+  state.tasks=[{id:'review',text:'Review chapter',done:false},{id:'class',text:'Read lecture notes',done:false}];
+  state.tomorrowPlan={day:tomorrow,taskId:'class',blockId:null};
+  state.tomorrowPin={day:tomorrow,taskId:'review'};
+  state.recapOpen={day,keys:[unfinishedRecapItems(state.tasks,now)[0].key]};
+  const storage=memoryStorage();
+  const snapshot=readBackup(JSON.stringify(createBackup(state,storage,[],now)));
+  assert.deepEqual(snapshot.state.recapOpen,state.recapOpen);
+  assert.equal(summarizeDay(snapshot.state,snapshot.state.tasks,now).firstTask?.id,'review');
 });
 
 test('earned Garden details stay unique and survive a backup without the original project or book',()=>{

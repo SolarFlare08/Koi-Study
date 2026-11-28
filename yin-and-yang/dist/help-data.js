@@ -346,11 +346,13 @@ export const helpTopics = [
   },
   {
     id:'day-recap', group:'Calendar & planning', title:'Review today in two minutes',
-    summary:'See what you finished or moved and what is lined up for tomorrow.',
+    summary:'Review unfinished tasks and decide what to carry into tomorrow.',
     steps:['Open Garden → Today → `End-of-day recap`, use the button on Planner’s Today view, or find it with `Ctrl+K`.',
       'In Prompt, run `recap today` followed by `copy` to share the finished items, schedule moves, and tomorrow’s first task as plain text.',
       'Review completed tasks and rituals, focus time, and the schedule changes recorded today.',
       'Select a task, a moved or upcoming block, an event, or a captured thought to open it. Unsorted and archived thoughts captured today appear under Captured today.',
+      'Under Unfinished today, choose Move to tomorrow and confirm the date or suggested time. A timed block keeps its duration and original time if it fits. If it conflicts, the recap looks for another opening that respects commitments, buffers, and availability. Moving a timed repeat applies to that block. Edit untimed recurring dates in Planner.',
+      'Choose Pin first tomorrow to set tomorrow’s first focus task without reserving time. Leave open files the item under Left open for today without changing the task or its schedule. Expand Left open and choose Review again to bring it back. The recap also offers Undo after each change.',
       'Check tomorrow’s events, focus blocks, and due tasks. Choose `Plan tomorrow` to reserve your first focus block.',
       'Use `Shutdown checklist` to check off your steps. Choose `Edit recurring steps` to add, remove, or reorder them, one per line. Checkmarks reset each day.'],
     action:'day-recap', actionLabel:'Open end-of-day recap', related:['progress','tomorrow','weekly-review']

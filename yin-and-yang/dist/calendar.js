@@ -518,6 +518,15 @@ export function applyCalendarReplan(task,sourceDay,move){
   }
 }
 
+export function moveTimedTaskBlock(task,occurrence,blockId,date,start,minutes){
+  applyCalendarReplan(task,occurrence,{day:date,blockId,parts:[{to:start,minutes}]});
+  if(!blockId&&(!task.repeat||task.repeat==='none')){
+    task.occurrenceMinutes={...task.occurrenceMinutes};
+    delete task.occurrenceMinutes[occurrence];
+    task.occurrenceMinutes[date]=minutes;
+  }
+}
+
 export function layoutBlocks(blocks) {
   blocks.sort((a, b) => a.start - b.start || b.end - a.end);
   let group = [];
