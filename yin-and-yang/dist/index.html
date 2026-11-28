@@ -57,20 +57,26 @@
       <div class="mode-tabs" aria-label="Timer mode"><button data-mode="focus" aria-pressed="true">Focus</button><button data-mode="break" aria-pressed="false">Rest</button></div>
       <div class="timer-actions"><button id="reset-timer" class="icon-button" title="Reset timer" aria-label="Reset timer"><span data-icon="reset"></span></button><button id="toggle-timer" class="start-button" aria-keyshortcuts="Space" aria-describedby="focus-wrap-preview" title="Start or pause (Space)"><span data-icon="play"></span><span>Begin focus</span></button><button id="skip-timer" class="icon-button" title="Skip session" aria-label="Skip session"><span data-icon="skip"></span></button></div>
       <p id="focus-wrap-preview" hidden></p>
-      <p id="next-calendar-commitment" aria-label="Next calendar commitment" hidden></p>
-      <div class="sky-task">
-        <button id="current-task" type="button" aria-haspopup="dialog" aria-expanded="false">
-          <span data-icon="target" class="current-task-icon"></span>
-          <span class="current-task-copy"><span class="current-task-label">Current task</span><span id="current-task-name">Choose a task</span></span>
-          <span data-icon="down" class="current-task-chevron"></span>
+      <div class="garden-session-overview">
+        <div class="sky-task">
+          <button id="current-task" type="button" aria-haspopup="dialog" aria-expanded="false">
+            <span data-icon="target" class="current-task-icon"></span>
+            <span class="current-task-copy"><span class="current-task-label">Current task</span><span id="current-task-name">Choose a task</span></span>
+            <span data-icon="down" class="current-task-chevron"></span>
+          </button>
+          <button id="finish-current-task" type="button" aria-label="Finish current task early" aria-haspopup="dialog" aria-expanded="false" title="Finish current task early" hidden>Finish</button>
+          <button id="stuck-now" type="button" aria-haspopup="dialog" hidden>I’m stuck</button>
+        </div>
+        <button id="pick-up-here" type="button" aria-controls="focus-pick-up" aria-expanded="false" hidden>
+          <span data-icon="note" aria-hidden="true"></span>Pick up here
         </button>
-        <button id="finish-current-task" type="button" aria-label="Finish current task early" aria-haspopup="dialog" aria-expanded="false" title="Finish current task early" hidden>Finish</button>
-        <button id="stuck-now" type="button" aria-haspopup="dialog" hidden>I’m stuck</button>
+        <div id="next-calendar-commitment" hidden>
+          <span data-icon="calendar" aria-hidden="true"></span>
+          <span class="next-commitment-label">Up next</span>
+          <strong data-commitment-title></strong>
+          <span data-commitment-time></span>
+        </div>
       </div>
-      <button id="resume-task" class="resume-task" type="button" aria-haspopup="dialog" hidden></button>
-      <button id="focus-bundle" class="resume-task" type="button" aria-haspopup="dialog" hidden></button>
-      <button id="focus-project-context" class="resume-task" type="button" aria-haspopup="dialog" title="Open project context" hidden></button>
-      <button id="focus-linked-notes" class="resume-task" type="button" aria-controls="focus-notes-panel" aria-expanded="false" hidden>Task notes</button>
       <p id="routine-phase" class="routine-phase-caption" aria-live="polite" hidden></p>
       <p id="routine-next-phase" class="routine-phase-caption" hidden></p>
       <button id="extend-running-block" class="resume-task" type="button" aria-haspopup="dialog" hidden>Extend block</button>
@@ -84,10 +90,12 @@
       </div>
       <button id="focus-pause-note" class="resume-task" type="button" aria-haspopup="dialog" hidden>Add pause note</button>
       <div class="session-tools" hidden>
+        <button id="focus-linked-notes" class="resume-task" type="button" aria-controls="focus-notes-panel" aria-expanded="false" hidden>Task notes</button>
+        <button id="focus-project-context" class="resume-task" type="button" aria-haspopup="dialog" title="Open project context" hidden></button>
+        <button id="focus-bundle" class="resume-task" type="button" aria-haspopup="dialog" hidden></button>
         <button id="quick-task-capture" class="resume-task" type="button" aria-haspopup="dialog">Capture a task</button>
         <button id="open-focus-setups" class="resume-task" type="button" aria-haspopup="dialog">Focus setups</button>
         <button id="open-incomplete-focus" class="resume-task" type="button" aria-haspopup="dialog">Incomplete sessions</button>
-        <button id="pin-focus-reference" class="resume-task" type="button" aria-haspopup="dialog" hidden>Pin reference</button>
         <button id="focus-note-stacks" class="resume-task" type="button" aria-controls="focus-notes-panel" aria-expanded="false" hidden>Note stacks</button>
         <button id="focus-stuck" class="resume-task" type="button">I’m stuck</button>
         <button id="open-mini-timer" class="resume-task" type="button">Mini timer ↗</button>
@@ -104,16 +112,29 @@
       </div>
     </section>
     <aside id="focus-retry" class="focus-retry-card" aria-label="Mistake retry" hidden></aside>
-    <aside id="focus-handoff" aria-labelledby="focus-handoff-title" hidden></aside>
-    <aside id="focus-reference" aria-label="Pinned reference" tabindex="-1" hidden>
-      <header>
-        <strong>Pinned reference</strong>
-        <div class="reference-actions">
-          <button type="button" data-copy-reference>Copy</button>
-          <button type="button" data-edit-reference aria-haspopup="dialog">Edit</button>
-        </div>
+    <aside id="focus-pick-up" aria-labelledby="focus-pick-up-title" hidden>
+      <header class="pick-up-header">
+        <div><h2 id="focus-pick-up-title" tabindex="-1">Pick up here</h2><p id="focus-pick-up-task"></p></div>
+        <button id="close-focus-pick-up" type="button" aria-label="Close Pick up here"><span data-icon="close" aria-hidden="true"></span></button>
       </header>
-      <div data-reference-text></div><img alt="Pinned diagram" hidden>
+      <section class="pick-up-section" aria-labelledby="focus-handoff-title">
+        <header><h3 id="focus-handoff-title">Last handoff</h3><button id="resume-task" type="button" aria-haspopup="dialog">Leave a handoff</button></header>
+        <div id="focus-handoff"></div>
+      </section>
+      <section class="pick-up-section" aria-labelledby="focus-reference-title">
+        <header>
+          <h3 id="focus-reference-title" tabindex="-1">Pinned reference</h3>
+          <div class="reference-actions">
+            <button id="pin-focus-reference" type="button" aria-haspopup="dialog" hidden>Pin reference</button>
+            <button type="button" data-copy-reference hidden>Copy</button>
+            <button type="button" data-edit-reference aria-haspopup="dialog" hidden>Edit</button>
+          </div>
+        </header>
+        <div id="focus-reference" hidden>
+          <div data-reference-text></div><img alt="Pinned diagram" hidden>
+        </div>
+        <p id="focus-reference-empty">No reference pinned yet.</p>
+      </section>
     </aside>
     <aside id="focus-notes-panel" aria-labelledby="focus-notes-title" hidden>
       <header><h2 id="focus-notes-title">Task notes</h2><button type="button" data-focus-notes-close aria-label="Close notes">×</button></header>

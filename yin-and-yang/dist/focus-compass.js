@@ -133,7 +133,6 @@ export function installFocusCompass({getState,save,notify,beforeTimerChange,afte
   };
   const tools=root.querySelector('.session-tools');
   const toggle=document.createElement('button');toggle.type='button';toggle.className='session-tools-toggle';toggle.textContent='Session tools';toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-controls','session-tool-drawer');
-  for(const id of ['resume-task','focus-bundle','focus-project-context','focus-linked-notes'])tools.prepend(document.getElementById(id));
   tools.id='session-tool-drawer';tools.before(toggle);tools.hidden=true;
   toggle.onclick=()=>{tools.hidden=!tools.hidden;toggle.setAttribute('aria-expanded',String(!tools.hidden));};
   function closeTools(){tools.hidden=true;toggle.setAttribute('aria-expanded','false');}

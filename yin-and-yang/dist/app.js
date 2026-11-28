@@ -574,7 +574,9 @@ const openPostcardViewpoints=installPostcardViewpoints({
 $('#stuck-now').onclick=$('#focus-stuck').onclick=installOfficeHours({getState:()=>state,focusedTask,notify:toast,switchTask:()=>currentTaskButton.click(),
   startRetry:startOfficeRetry,
   save:saveOfficeQuestions});
-const renderReference=installReferenceEditor({button:$('#pin-focus-reference'),card:$('#focus-reference'),getTask:focusedTask,
+const pickupButton=$('#pick-up-here'),pickupPanel=$('#focus-pick-up');
+const renderReference=installReferenceEditor({button:$('#pin-focus-reference'),card:$('#focus-reference'),
+  getTask:()=>state.tasks.find(task=>task.id===pickupPanel.dataset.taskId),
   notify:message=>{toast(message);announce(message);},
   save:(id,reference)=>{
     const task=state.tasks.find(item=>item.id===id);if(!task)return false;
@@ -832,7 +834,7 @@ function showWorkspace(next){
   workspace=next;
   app.dataset.workspace=next;
   $('.sky').hidden=next!=='focus';
-  if(next!=='focus'){$('#focus-handoff').hidden=true;$('#focus-retry').hidden=true;}
+  if(next!=='focus'){closePickup();$('#focus-retry').hidden=true;}
   $('#crochet-workspace').hidden=next!=='crochet';
   $('#journal-workspace').hidden=next!=='journal';
   $('#notes-workspace').hidden=next!=='notes';
@@ -1201,12 +1203,10 @@ function blockLeadTime(ms){
 function promptOpenReference(){
   const task=focusedTask();
   if(!task)return 'There’s no current Garden task. Select a task in Garden first.';
-  if(!task.reference)return `${task.text} has no pinned reference. Use Pin reference in Garden to add one.`;
+  if(!task.reference)return `${task.text} has no pinned reference. In Garden, open Pick up here → Pin reference to add one.`;
   visitWorkspace('focus');
   if(workspace!=='focus')return 'Could not open Garden. Close the current panel and try again.';
-  const card=$('#focus-reference');
-  renderReference(task,true);
-  card.focus({preventScroll:true});
+  openPickup(task,$('#focus-reference-title'));
   return `Opened the pinned reference for ${task.text}.`;
 }
 function promptTaskTimeLeft(){
@@ -2084,9 +2084,49 @@ function renderNextCommitment(clock){
   if(!next)return;
   const start=new Date(next.start),minutes=Math.ceil((start-clock)/60000);
   const when=commitmentTime(start,clock);
-  const text=minutes<=60?`${next.title} in ${minutes} min`:`${next.title} · ${when}`;
-  if(label.textContent!==text)label.textContent=text;
-  label.title=`${next.title} · ${when}`;
+  const title=label.querySelector('[data-commitment-title]'),time=label.querySelector('[data-commitment-time]');
+  const relative=minutes<=60?`in ${minutes} min`:when;
+  if(title.textContent!==next.title){title.textContent=next.title;title.title=next.title;}
+  if(time.textContent!==relative)time.textContent=relative;
+  time.title=when;
+}
+function pickupTask(task=focusedTask()){
+  if(task)return task;
+  if(state.timer.mode!=='break')return null;
+  const recent=state.history.findLast(item=>item.mode==='focus'&&item.outcome==='completed');
+  const previous=resumeTaskId||recent?.replay?.at(-1)?.taskId||recent?.taskId;
+  return state.tasks.find(item=>item.id===previous);
+}
+function closePickup(restoreFocus=false){
+  pickupPanel.hidden=true;
+  delete pickupPanel.dataset.taskId;
+  pickupButton.setAttribute('aria-expanded','false');
+  if(restoreFocus&&!pickupButton.hidden)pickupButton.focus({preventScroll:true});
+}
+function renderPickup(task){
+  pickupButton.hidden=workspace!=='focus'||!task;
+  if(pickupPanel.hidden)return;
+  if(pickupButton.hidden||pickupPanel.dataset.taskId!==task.id){closePickup(pickupPanel.contains(document.activeElement));return;}
+  const name=$('#focus-pick-up-task'),handoff=$('#focus-handoff'),resume=$('#resume-task');
+  if(name.textContent!==task.text)name.textContent=task.text;
+  const saved=hasHandoff(task);
+  const action=saved?'Edit handoff':'Leave a handoff';
+  if(resume.textContent!==action)resume.textContent=action;
+  resume.dataset.resumeId=task.id;
+  const html=saved?handoffDetails(task,true):'<p class="pick-up-empty">No handoff saved yet.</p>';
+  if(handoffMarkup!==html){handoff.innerHTML=html;handoffMarkup=html;}
+  renderReference(task,true);
+  $('#focus-reference-empty').hidden=Boolean(task.reference);
+}
+function openPickup(task,target=$('#focus-pick-up-title')){
+  if(!task||workspace!=='focus')return;
+  pickupPanel.dataset.taskId=task.id;
+  pickupPanel.hidden=false;
+  pickupButton.setAttribute('aria-expanded','true');
+  pickupPanel.scrollTop=0;
+  renderPickup(task);
+  target.focus({preventScroll:true});
+  target.scrollIntoView({block:'nearest'});
 }
 function render(){
   syncFocusMode();
@@ -2148,7 +2188,6 @@ function render(){
   const bundleText=bundle?`${bundle.bundle.name} · ${bundle.done}/${bundle.steps.length}${bundle.run.paused?' · Paused':!bundle.next?' · Complete':!bundle.next.ready?' · Waiting':''}`:'';
   if(renderedBundle!==bundleText){bundleButton.textContent=bundleText;renderedBundle=bundleText;}
   focusNotes.update(task,workspace==='focus');
-  renderReference(task,workspace==='focus');
   const wrapPreview=$('#focus-wrap-preview');
   const reserve=workspace==='focus'&&t.status==='idle'?focusWrapUpDuration(state):0;
   const wrapPreviewText=reserve?`Last ${reserve%60000===0?`${reserve/60000} min`:formatDuration(reserve)} for wrap-up`:'';
@@ -2191,22 +2230,7 @@ function render(){
   const extra=$('#focus-overtime');
   extra.hidden=t.mode!=='focus'||Boolean(t.block||t.sequence||t.mistakeId)||overtime;
   extra.setAttribute('aria-pressed',String(state.focusOvertime));
-  const recent=t.mode==='break'?state.history.findLast(item=>item.mode==='focus'&&item.outcome==='completed'):null;
-  const previousFocus=t.mode==='break'?(resumeTaskId||recent?.replay?.at(-1)?.taskId||recent?.taskId):null;
-  const resume=(previousFocus&&state.tasks.find(item=>item.id===previousFocus))||task;
-  const resumeButton=$('#resume-task');
-  resumeButton.hidden=!resume;
-  const nextStep=hasHandoff(resume)?'Edit handoff':'Leave a handoff';
-  if(resumeButton.textContent!==nextStep)resumeButton.textContent=nextStep;
-  resumeButton.dataset.resumeId=resume?.id||'';
-  const handoff=$('#focus-handoff');
-  const showHandoff=workspace==='focus'&&t.mode==='focus'&&!t.mistakeId&&hasHandoff(task);
-  app.classList.toggle('calendar-focus-context',Boolean(showHandoff&&t.block&&task?.reference));
-  handoff.hidden=!showHandoff;
-  if(showHandoff){
-    const html=`<h2 id="focus-handoff-title">Pick up here</h2>${handoffDetails(task)}`;
-    if(handoffMarkup!==html){handoff.innerHTML=html;handoffMarkup=html;}
-  }
+  renderPickup(pickupTask(task));
   const projectButton=$('#focus-project-context');
   const project=task?.projectId&&state.projects.find(item=>item.id===task.projectId);
   projectButton.hidden=!project;
@@ -2517,6 +2541,8 @@ $('#calendar-theme').onchange=event=>{
 };
 $('#planner-appearance').onclick=()=>openPanel('appearance',$('#planner-appearance'));
 $('#resume-task').onclick=()=>openPanel('resume',$('#resume-task'));
+pickupButton.onclick=()=>pickupPanel.hidden?openPickup(pickupTask()):closePickup(true);
+$('#close-focus-pick-up').onclick=()=>closePickup(true);
 $('#focus-bundle').onclick=()=>openPanel('focus-bundle',$('#focus-bundle'));
 $('#focus-project-context').onclick=()=>openPanel('project-context',$('#focus-project-context'));
 taskBoardToggle.onclick=()=>{
@@ -4100,7 +4126,7 @@ function calendarBlockPreview(){
     ${resume?`<section class="calendar-resume-context calendar-handoff" aria-labelledby="block-handoff-title">
       <h3 id="block-handoff-title">${hasHandoff(task)?'Last handoff':'Pinned reference'}</h3>
       ${hasHandoff(task)?handoffDetails(task,true):''}
-      ${hasReference?'<p class="block-reference-hint">Pinned reference will open beside the timer.</p>':''}
+      ${hasReference?'<p class="block-reference-hint">Open Pick up here in Garden to see the pinned reference.</p>':''}
     </section>`:''}
     <div class="panel-actions calendar-block-actions">
       <button class="panel-primary" type="button" id="start-block-focus">${icon('play')} ${resume?'Resume focus':'Start focus'}</button>
@@ -7627,7 +7653,7 @@ root.addEventListener('click',e=>{
     refreshTasks();wake();
     $('#toggle-timer').focus({preventScroll:true});
     const message=result.skipped?'Block focus started. The previous session was skipped.':'Block focus started.';
-    toast(message);announce(message+(hasHandoff(task)||task?.reference?' Saved focus context is beside the timer.':''));
+    toast(message);announce(message+(hasHandoff(task)||task?.reference?' Open Pick up here for saved focus context.':''));
   }
   if(btn.id==='panel-timer-toggle')$('#toggle-timer').click();
   if(btn.id==='timer-notifications')toggleNotifications();
@@ -8436,6 +8462,7 @@ document.addEventListener('keydown',e=>{
     if(!taskMenu.hidden)closeTaskMenu();
     else if(workspaceMenuOpen())setWorkspaceMenu(false,true);
     else if(activePanel)closePanel();
+    else if(!pickupPanel.hidden)closePickup(true);
     else if(inSchedule()&&planner.calendarVisible()&&!calendarShelf.hidden)setCalendarShelf(false);
     else if(inSchedule()&&compactCalendarRail.matches&&calendarPanel.classList.contains('calendar-rail-open')){
       calendarPanel.classList.remove('calendar-rail-open');

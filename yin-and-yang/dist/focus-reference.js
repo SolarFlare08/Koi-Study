@@ -52,8 +52,9 @@ export function installReferenceEditor({button,card,getTask,save,notify}){
     dialog.querySelector('[data-unpin]').hidden=!existing;
     status.textContent='';dialog.showModal();
   }
-  const copy=card.querySelector('[data-copy-reference]');
-  button.onclick=card.querySelector('[data-edit-reference]').onclick=open;
+  const section=card.closest('section');
+  const copy=section.querySelector('[data-copy-reference]'),edit=section.querySelector('[data-edit-reference]');
+  button.onclick=edit.onclick=open;
   copy.onclick=async()=>{
     const reference=getTask()?.reference;
     if(!reference)return;
@@ -69,6 +70,11 @@ export function installReferenceEditor({button,card,getTask,save,notify}){
     }
   };
   dialog.querySelector('[data-close]').onclick=()=>dialog.close();
+  dialog.addEventListener('close',()=>{
+    if(document.activeElement===document.body&&section.getClientRects().length){
+      (button.hidden?edit:button).focus({preventScroll:true});
+    }
+  });
   dialog.querySelector('[data-unpin]').onclick=()=>{if(save(taskId,null))dialog.close();};
   form.onsubmit=async event=>{
     event.preventDefault();
@@ -90,8 +96,8 @@ export function installReferenceEditor({button,card,getTask,save,notify}){
   };
   return (task,visible)=>{
     const ref=visible&&task?.reference;
-    button.hidden=!visible||!task;
-    button.textContent=ref?'Edit reference':'Pin reference';
+    button.hidden=!visible||!task||Boolean(ref);
+    copy.hidden=edit.hidden=!ref;
     paintReference(card,ref);
     if(ref)copy.title=ref.text?'Copy reference text':'Copy diagram';
   };

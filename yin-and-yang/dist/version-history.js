@@ -1,4 +1,8 @@
 export const releases = [
+  {version:'6.1.0',date:'2026-11-28',title:'A clearer Garden home',changes:[
+    'See the countdown first, then the current task and the next timed calendar commitment.',
+    'Open Pick up here to read or edit the task’s last handoff and pinned reference in one place.'
+  ]},
   {version:'6.0.32',date:'2026-11-27',title:'Easier navigation in Help and Prompt',changes:[
     'Browse Help by category or search across the guide and jump straight to the matching instruction.',
     'Open a searchable command reference from Prompt. Browse by category and insert an example into the command line.'
