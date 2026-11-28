@@ -425,7 +425,11 @@ export function loadState(storage) {
     return base;
   } catch { return base; }
 }
-export function remaining(state, now=Date.now()) { return state.timer.status==='overtime'?0:state.timer.status==='running' ? Math.max(0,state.timer.endAt-now) : state.timer.remaining; }
+export function remaining(state, now=Date.now()) {
+  const {status,endAt,remaining:left}=state.timer;
+  if(status==='overtime')return 0;
+  return status==='running'?Math.max(0,Math.min(left,endAt-now)):left;
+}
 export function timerProgress(state,now=Date.now()){
   const {pacing,total}=state.timer,left=remaining(state,now);
   const progress=pacing?1-left/pacing.left*(1-pacing.progress):1-left/total;
@@ -660,6 +664,14 @@ export function settle(state, now=Date.now()) {
   const h=record(state,'completed',now);
   advanceTimer(state,state.timer.endAt);
   return h;
+}
+export function recoverTimer(state,now=Date.now()){
+  const previous=state.timer,status=previous.status,sessions=[];
+  while(state.timer.status==='running'&&remaining(state,now)===0){
+    const phase=settle(state,now);
+    if(phase)sessions.push(phase);
+  }
+  return {sessions,changed:state.timer!==previous||state.timer.status!==status};
 }
 export function todayProgress(state, date=new Date()) {
   const items=state.history.filter(h=>h.day===dayKey(date) && h.mode==='focus');

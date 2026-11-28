@@ -184,22 +184,26 @@ internal sealed class QuickNote : Form
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length != 1) return 1;
+        bool desktop = args.Length == 2 && args[1] == "--desktop";
+        if (args.Length != 1 && !desktop) return 1;
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         using (var note = new QuickNote(args[0]))
         using (note.tray)
         {
             IntPtr handle = note.Handle;
-            if (!RegisterHotKey(handle, HotkeyId, CtrlAltNoRepeat, (uint)Keys.N))
+            bool registered = RegisterHotKey(handle, HotkeyId, CtrlAltNoRepeat, (uint)Keys.N);
+            if (!registered)
             {
                 Console.Error.WriteLine("Ctrl+Alt+N could not be registered (Windows error {0}).", Marshal.GetLastWin32Error());
-                return 1;
+                if (!desktop) return 1;
+                note.tray.Text = "Quick capture (hotkey unavailable)";
+                note.tray.ContextMenuStrip.Items[0].Text = "Open quick note · hotkey unavailable";
             }
             note.tray.Visible = true;
-            Console.WriteLine("Ctrl+Alt+N is ready. Quit from the tray icon or press Ctrl+C.");
+            if (registered) Console.WriteLine("Ctrl+Alt+N is ready. Quit from the tray icon or press Ctrl+C.");
             try { Application.Run(); }
-            finally { UnregisterHotKey(handle, HotkeyId); note.tray.Visible = false; }
+            finally { if (registered) UnregisterHotKey(handle, HotkeyId); note.tray.Visible = false; }
         }
         return 0;
     }

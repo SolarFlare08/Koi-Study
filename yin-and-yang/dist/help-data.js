@@ -1,5 +1,10 @@
 // Keep feature instructions separate from the guide UI so they can be updated together with the app.
 export const helpTopics = [
+  {id:'timer-recovery',group:'Focus & rest',title:'Resume the timer after sleep',
+    summary:'See what happens to a running or paused timer when the device wakes.',
+    steps:['A running timer follows its saved end time. Return to Garden after sleep to see the remaining time or the next phase. A paused timer keeps the same time left.',
+      'A regular countdown records its finish once and prepares the next phase. A running Calendar block catches up to the phase that matches the clock.'],
+    related:['timer','block-focus','windows-app']},
   {id:'garden-home',group:'Start here',title:'Find your place in Garden',summary:'See your timer, current task, and what’s next on the calendar.',steps:[
     'Use the countdown and timer controls at the center. Use Current task just below them to choose what you’re working on.',
     'Up next shows the next timed Calendar commitment when one is scheduled. For commitments within an hour, it shows how many minutes you have.',
@@ -75,7 +80,7 @@ export const helpTopics = [
     steps:['Open Garden → Settings → Backups. In a browser tab, Automatic protection shows local backup status. In the Windows app, it also shows disk backup status. Choose Back up now to create a snapshot immediately.',
       'While the app is open, changed data is captured every five minutes, with an initial backup after ten seconds. The last three automatic snapshots are separate from five manual restore points. Preview any snapshot and choose the sections to restore.',
       'The Windows app also saves JSON files in %LOCALAPPDATA%\\Yin and Yang\\Backups. It keeps 30 recent snapshots plus the first snapshot from each of the last 14 backed-up days. A normal window close makes another disk backup.',
-      'Choose Open backup folder in the Windows app, then restore a JSON file through the normal backup preview. Tasks, calendars, saved journal drafts, notes, books, Stitchbook photos, and settings use the existing portable backup format.',
+      'Choose Open backup folder in the Windows app, then restore a JSON file through the normal backup preview. Browser downloads and Windows disk backups use the same format. Local and disk backup statuses are separate. If a disk write fails, use Back up now to retry or wait for the next automatic attempt.',
       'Type `backup status` in Prompt to see the latest automatic and manual restore points in your current profile and the latest Windows backup file when available. Find browser downloads through your browser’s downloads list.',
       'Automatic backups stay on this computer. Copy a downloaded backup to another device or drive for protection against drive failure. Browser storage limits can prevent local snapshots; the status tells you when a backup fails.'],
     action:'backup',actionLabel:'Open backups',related:['backup','windows-app']},
@@ -84,7 +89,7 @@ export const helpTopics = [
     summary:'Open Yin and Yang in its own window and move your saved data from the browser.',
     steps:['Extract the complete Windows x64 package and open Yin and Yang.exe. Windows uses the Microsoft Edge WebView2 Runtime to display the app.',
       'To bring over tasks, books, notes, and settings, open Backup and restore in your original browser tab and download a backup. Open Backup and restore in the Windows app and select the file.',
-      'The Windows app starts the Quick Capture helper when it opens. Ctrl+Alt+N opens a note near the pointer. If that shortcut is already owned by the browser helper, quit the browser helper from its tray icon and reopen the desktop app.',
+      'The Windows app starts the Quick Capture helper when it opens. Ctrl+Alt+N opens a note near the pointer. If another program owns the shortcut, use Open quick note from the Windows notification area or Quick capture in Garden. To reclaim the shortcut, quit the other helper and reopen the desktop app.',
       'Drag the slim top strip to move the window or double-click to maximize. The buttons on the right minimize, maximize, or close it. Fullscreen hides the strip. The Garden icon appears on the taskbar.',
       'Windows 5.0 enables per-monitor DPI support to avoid bitmap scaling on high-resolution displays. Existing app data stays in the same profile.',
       'Updates are manual, not automatic. Changes to the website or source files do not change an already-built desktop package. Close the app, extract the newer full Windows package to a new folder, and open its executable. It reads the same saved data from your Windows profile.'],
@@ -1063,7 +1068,7 @@ export const helpTopics = [
       ['Arrow keys','Reposition/resize a sticky note when its handle is focused; navigate calendar dates when the schedule is focused.'],
       ['Escape','Close one layer per press. For example, close the task menu first, then close Calendar.'],
       ['Tab / Shift+Tab','Move forward/backward between interactive controls.']],
-    tip:'The system-wide note shortcut needs the optional Windows helper. Other shortcuts work while the app has keyboard focus.',
+    tip:'The Windows app starts its own note helper. In a browser, launch the optional Windows helper for system-wide capture. Use the tray icon or Garden’s Quick capture if the global shortcut is taken.',
     related:['capture-window','timer','search']
   },
   {

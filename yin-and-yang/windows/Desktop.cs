@@ -18,6 +18,8 @@ internal sealed class Desktop : Form
 {
     private const string Home = "https://yin-and-yang.local/";
     private const string CaptureEndpoint = Home + "api/capture-inbox";
+    private const int PowerBroadcast = 0x0218;
+    private const int ResumeAutomatic = 0x0012;
     private readonly string profile;
     private readonly bool verify;
     private readonly WebView2 view = new WebView2();
@@ -26,6 +28,7 @@ internal sealed class Desktop : Form
     private readonly Panel chrome = new Panel();
     private bool closingSaved;
     private string lastBackupData;
+    private string lastBackupPath;
     private readonly JavaScriptSerializer serializer = new JavaScriptSerializer { MaxJsonLength = 64 * 1024 * 1024 };
 
     [DllImport("user32.dll")] private static extern bool ReleaseCapture();
@@ -36,6 +39,12 @@ internal sealed class Desktop : Form
     protected override void WndProc(ref Message message)
     {
         base.WndProc(ref message);
+        if (message.Msg == PowerBroadcast && message.WParam.ToInt32() == ResumeAutomatic)
+        {
+            var web = view.CoreWebView2;
+            if (web != null && IsGarden(web.Source)) web.PostWebMessageAsJson("{\"type\":\"system-resume\"}");
+            return;
+        }
         if (message.Msg != 0x84 || WindowState != FormWindowState.Normal) return;
         var position = PointToClient(new Point(unchecked((short)(long)message.LParam), unchecked((short)((long)message.LParam >> 16))));
         int edge = Math.Max(5, (int)(6 * DeviceDpi / 96.0));
@@ -180,6 +189,7 @@ internal sealed class Desktop : Form
     {
         // Only the bundled main document can use the backup bridge.
         if (!IsGarden(args.Source)) return;
+        string requestId = null;
         try {
             var message = serializer.Deserialize<Dictionary<string, object>>(args.WebMessageAsJson);
             object kind;
@@ -190,15 +200,17 @@ internal sealed class Desktop : Form
             }
             else if ((string)kind == "backup") {
                 object snapshot;
+                object token;
+                if (message.TryGetValue("requestId", out token)) requestId = token as string;
                 if (!message.TryGetValue("snapshot", out snapshot)) return;
                 WriteBackup(serializer.Serialize(snapshot));
-                webBackupResult(null);
+                webBackupResult(null, requestId);
             }
             else if ((string)kind == "backup-status") webBackupResult(null);
-        } catch (Exception error) { webBackupResult(error.Message); }
+        } catch (Exception error) { webBackupResult(error.Message, requestId); }
     }
 
-    private void webBackupResult(string error)
+    private void webBackupResult(string error, string requestId = null)
     {
         FileInfo latest = null;
         if (error == null) {
@@ -207,7 +219,7 @@ internal sealed class Desktop : Form
                 .OrderByDescending(file => file.LastWriteTimeUtc).FirstOrDefault();
         }
         view.CoreWebView2.PostWebMessageAsJson(serializer.Serialize(new {
-            type = "backup-result", error = error,
+            type = "backup-result", error = error, requestId = requestId,
             at = latest == null ? null : latest.LastWriteTimeUtc.ToString("o"),
             path = latest == null ? null : latest.FullName
         }));
@@ -220,19 +232,24 @@ internal sealed class Desktop : Form
         if (snapshot == null || !snapshot.ContainsKey("format") || (string)snapshot["format"] != "yin-and-yang-backup" ||
             !snapshot.ContainsKey("data")) throw new InvalidOperationException("Invalid Garden backup.");
         string data = serializer.Serialize(snapshot["data"]);
-        if (data == lastBackupData) return;
+        if (data == lastBackupData && File.Exists(lastBackupPath)) return;
         string directory = Path.Combine(profile, "Backups");
         Directory.CreateDirectory(directory);
         string file = Path.Combine(directory, "garden-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + "-" + Guid.NewGuid().ToString("N") + ".json");
         string temporary = file + ".tmp";
         // Move a complete file into place before rotating older snapshots.
-        File.WriteAllText(temporary, text, new UTF8Encoding(false));
-        File.Move(temporary, file);
+        try {
+            File.WriteAllText(temporary, text, new UTF8Encoding(false));
+            File.Move(temporary, file);
+        } finally {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
         string daily = Path.Combine(directory, "daily-" + DateTime.Now.ToString("yyyyMMdd") + ".json");
         if (!File.Exists(daily)) File.Copy(file, daily);
         foreach (var older in Directory.GetFiles(directory, "garden-*.json").OrderByDescending(p => p).Skip(30)) File.Delete(older);
         foreach (var older in Directory.GetFiles(directory, "daily-*.json").OrderByDescending(p => p).Skip(14)) File.Delete(older);
         lastBackupData = data;
+        lastBackupPath = file;
     }
 
     private async void SaveBeforeClose(object sender, FormClosingEventArgs args)
@@ -249,7 +266,7 @@ internal sealed class Desktop : Form
                 Enabled = true;
                 return;
             }
-            var request = view.ExecuteScriptAsync("window.gardenDesktopSnapshot ? window.gardenDesktopSnapshot() : null");
+            var request = view.ExecuteScriptAsync(ClosingSnapshotScript());
             if (await Task.WhenAny(request, Task.Delay(8000)) != request) throw new IOException("The backup did not respond in time.");
             var value = serializer.Deserialize<string>(await request);
             if (value != null) WriteBackup(value);
@@ -259,6 +276,12 @@ internal sealed class Desktop : Form
                 "Backup needs attention", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         }
         closingSaved = true; Close();
+    }
+
+    private string ClosingSnapshotScript()
+    {
+        return "window.gardenDesktopSnapshot ? window.gardenDesktopSnapshot(" +
+            serializer.Serialize(ReadCaptureInbox()) + ") : null";
     }
 
     private static void OpenExternal(string value)
@@ -306,7 +329,7 @@ internal sealed class Desktop : Form
         if (!File.Exists(path)) return;
         try
         {
-            captureHelper = Process.Start(new ProcessStartInfo(path, '"' + Path.Combine(profile, "Capture") + '"')
+            captureHelper = Process.Start(new ProcessStartInfo(path, '"' + Path.Combine(profile, "Capture") + "\" --desktop")
                 { UseShellExecute = false, CreateNoWindow = true });
         }
         catch (System.ComponentModel.Win32Exception) { /* In-app quick capture is still available. */ }
@@ -315,6 +338,13 @@ internal sealed class Desktop : Form
     private void ServeCaptureInbox(object sender, CoreWebView2WebResourceRequestedEventArgs args)
     {
         if (args.Request.Uri != CaptureEndpoint || args.Request.Method != "GET") return;
+        var content = new MemoryStream(Encoding.UTF8.GetBytes(serializer.Serialize(ReadCaptureInbox())));
+        args.Response = view.CoreWebView2.Environment.CreateWebResourceResponse(content, 200, "OK",
+            "Content-Type: application/json; charset=utf-8\r\nCache-Control: no-store");
+    }
+
+    private List<Dictionary<string, object>> ReadCaptureInbox()
+    {
         var notes = new List<Dictionary<string, object>>();
         var directory = Path.Combine(profile, "Capture");
         var json = new JavaScriptSerializer();
@@ -337,9 +367,88 @@ internal sealed class Desktop : Form
                 catch (InvalidOperationException) { }
             }
         }
-        var content = new MemoryStream(Encoding.UTF8.GetBytes(json.Serialize(notes)));
-        args.Response = view.CoreWebView2.Environment.CreateWebResourceResponse(content, 200, "OK",
-            "Content-Type: application/json; charset=utf-8\r\nCache-Control: no-store");
+        return notes;
+    }
+
+    private async Task VerifyScript(string expression, string failure)
+    {
+        for (int attempt = 0; attempt < 40; attempt++)
+        {
+            if (await view.ExecuteScriptAsync(expression) == "true") return;
+            await Task.Delay(100);
+        }
+        throw new InvalidOperationException(failure);
+    }
+
+    private async Task VerifyKey(string key, string code, int virtualKey, int modifiers = 0)
+    {
+        foreach (string type in new[] { "rawKeyDown", "keyUp" })
+            await view.CoreWebView2.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", serializer.Serialize(new
+            {
+                type = type, key = key, code = code, windowsVirtualKeyCode = virtualKey, modifiers = modifiers
+            }));
+    }
+
+    private async Task VerifyRecoveryAndTransfer()
+    {
+        await VerifyKey("F1", "F1", 112);
+        await VerifyScript("document.querySelector('#help-guide').open", "F1 did not open Help.");
+        await VerifyKey("Escape", "Escape", 27);
+        await VerifyScript("!document.querySelector('#help-guide').open", "Escape did not close Help.");
+        await VerifyKey("k", "KeyK", 75, 2);
+        await VerifyScript("document.querySelector('#command-palette').open", "Ctrl+K did not open search.");
+        await VerifyKey("Escape", "Escape", 27);
+        await VerifyKey("n", "KeyN", 78, 3);
+        await VerifyScript("Boolean(document.querySelector('#capture-form'))", "Ctrl+Alt+N did not open in-app capture.");
+        await view.ExecuteScriptAsync("document.querySelector('#capture-text').value='Windows shortcut verification'");
+        await VerifyKey("Enter", "Enter", 13, 2);
+        await VerifyScript(@"!document.querySelector('#capture-form') && Object.keys(localStorage)
+            .filter(key=>key.startsWith('yin-and-yang.capture.'))
+            .some(key=>JSON.parse(localStorage.getItem(key)).text==='Windows shortcut verification')", "Ctrl+Enter did not save the captured note.");
+        await view.ExecuteScriptAsync("document.body.tabIndex=-1;document.body.focus()");
+        await VerifyKey(" ", "Space", 32);
+        await VerifyScript("JSON.parse(localStorage.getItem('yin-and-yang.v1')).timer.status==='running'", "Space did not start focus.");
+        await VerifyKey(" ", "Space", 32);
+        await VerifyScript("JSON.parse(localStorage.getItem('yin-and-yang.v1')).timer.status==='paused'", "Space did not pause focus.");
+
+        await view.ExecuteScriptAsync(@"(function(){
+            const current=JSON.parse(window.gardenDesktopSnapshot()).data.state, now=Date.now();
+            const id='sleep-verification';
+            current.timer={id,mode:'focus',status:'running',remaining:60000,total:60000,startedAt:now,endAt:now+60000};
+            localStorage.setItem('yin-and-yang.v1',JSON.stringify(current));
+            dispatchEvent(new StorageEvent('storage',{key:'yin-and-yang.v1'}));
+            window.sawResumeVerification=false;
+            window.chrome.webview.addEventListener('message',e=>{if(e.data?.type==='system-resume')window.sawResumeVerification=true;});
+            const clock=Date.now;Date.now=()=>clock()+90000;
+        })()");
+        SendMessage(Handle, PowerBroadcast, (IntPtr)ResumeAutomatic, IntPtr.Zero);
+        await VerifyScript(@"window.sawResumeVerification && (function(){
+            const state=JSON.parse(localStorage.getItem('yin-and-yang.v1'));
+            return state.timer.mode==='break' && state.history.filter(h=>h.id==='sleep-verification').length===1;
+        })()", "Windows resume did not recover the expired timer.");
+
+        var inbox = Path.Combine(profile, "Capture");
+        Directory.CreateDirectory(inbox);
+        File.WriteAllText(Path.Combine(inbox, Guid.NewGuid().ToString("N") + ".json"),
+            serializer.Serialize(new { text = "Captured immediately before close", createdAt = 1795842000000L }));
+        string portable = serializer.Deserialize<string>(await view.ExecuteScriptAsync(ClosingSnapshotScript()));
+        if (!portable.Contains("Captured immediately before close")) throw new InvalidOperationException("Closing backup missed a new native capture.");
+        WriteBackup(portable);
+
+        var file = Path.Combine(profile, "browser-backup.json");
+        if (!File.Exists(file)) return;
+        string text = serializer.Serialize(File.ReadAllText(file));
+        await view.ExecuteScriptAsync(@"(function(){
+            const dialog=document.querySelector('#backup-dialog'),input=dialog.querySelector('#backup-file');
+            const files=new DataTransfer();files.items.add(new File([" + text + @"],'browser-backup.json',{type:'application/json'}));
+            dialog.showModal();input.files=files.files;input.dispatchEvent(new Event('change'));
+        })()");
+        await VerifyScript("!document.querySelector('#backup-preview').hidden", "Browser backup did not preview in Windows.");
+        await view.ExecuteScriptAsync(@"document.querySelectorAll('#backup-preview-sections input').forEach(input=>{
+            input.checked=['planner','notes'].includes(input.value);input.dispatchEvent(new Event('change',{bubbles:true}));
+        });document.querySelector('#apply-backup').click();");
+        await VerifyScript(@"Boolean(window.gardenDesktopSnapshot)&&JSON.parse(window.gardenDesktopSnapshot()).data.state.tasks
+            .some(task=>task.id==='browser-transfer-task')", "Browser backup did not restore in Windows.");
     }
 
     private async void VerifyGarden(object sender, CoreWebView2NavigationCompletedEventArgs args)
@@ -417,6 +526,8 @@ internal sealed class Desktop : Form
                     File.WriteAllText(Path.Combine(profile, "display.txt"), "DPI: " + DeviceDpi + "; icon: " + Icon.Size);
                     if (Directory.GetFiles(Path.Combine(profile, "Backups"), "garden-*.json").Length < 1)
                         throw new InvalidOperationException("No desktop backup created.");
+                    await view.ExecuteScriptAsync("document.querySelector('.focus-goal-dialog').close()");
+                    await VerifyRecoveryAndTransfer();
                     File.WriteAllText(Path.Combine(profile, "verify.txt"), result.Trim('"'));
                     Close();
                     return;

@@ -1,4 +1,4 @@
-import {STORAGE_KEY,freshState,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,settle,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskColorAttributes,repeatSettings,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit,loadSoundtracks,startTaskTiming,resetTaskTiming,taskFinishBreak,overtimeElapsed,finishOvertime} from './state.js';
+import {STORAGE_KEY,freshState,loadState,remaining,startPause,startBlockFocus,skipPhase,reset,record,recoverTimer,consumeTimerWarning,todayProgress,duration,formatDuration,formatTypedDuration,parseDuration,dayKey,taskOccursOn,taskStatus,taskCompletionId,recordTaskCompletion,taskEnergyLevels,taskFrequencies,taskCalendarColors,taskCalendarColor,taskColorAttributes,repeatSettings,taskPriority,createsDependencyCycle,unfinishedPrerequisites,breakIdeaMinutes,breakIdeasThatFit,loadSoundtracks,startTaskTiming,resetTaskTiming,taskFinishBreak,overtimeElapsed,finishOvertime} from './state.js';
 import {renderLandscape,blossomMarkup,animateLandscape,createShootingStars,eveningCamera,gardenFieldSketch,gardenGrowthMarkup,gardenLandmarkPositions,applySceneryAppearance,mountGardenPreview,applyGardenDesign,constellationLitPoints,mountainRidges,mountainCovers} from './scenery.js';
 import {earnGardenDetail,gardenComparison,gardenCourses,gardenRange,gardenReward,gardenZones,landmarkInscription,landmarkPlacement,landmarkTypes} from './garden-growth.js';
 import {gardenStarProgress,starConstellations} from './garden-growth.js';
@@ -2302,12 +2302,9 @@ function render(){
 }
 function checkCompletion(){
   const now=Date.now(),wasOvertime=state.timer.status==='overtime',wasBlock=Boolean(state.timer.block),wasRoutine=Boolean(state.timer.sequence);
-  let completed=null;
-  let focused=false;
-  for(let phase=settle(state,now);phase;phase=settle(state,now)){
-    completed=phase;
-    if(phase.mode==='focus'){focused=true;resumeTaskId=phase.replay?.at(-1)?.taskId??phase.taskId??null;}
-  }
+  const {sessions,changed}=recoverTimer(state,now),completed=sessions.at(-1);
+  const focused=sessions.findLast(phase=>phase.mode==='focus');
+  if(focused)resumeTaskId=focused.replay?.at(-1)?.taskId??focused.taskId??null;
   if(!wasOvertime&&state.timer.status==='overtime'){
     const text='Focus time is up. Overtime is counting until you finish.';
     persist();render();toast(text);announce(text);wake();
@@ -2324,7 +2321,7 @@ function checkCompletion(){
     return;
   }
   if(wrapping&&warning){persist();return;}
-  if(!completed&&!warning)return;
+  if(!completed&&!warning){if(changed)persist();return;}
   if(!completed){
     const label=warning.mode==='focus'?'Focus':'Break';
     const message=`${formatDuration(warning.left)} left in your ${warning.mode==='focus'?'focus session':'break'}.`;
@@ -3839,11 +3836,12 @@ function startClassFitTask(id,buffer){
   closePanel(false);refreshTasks();timerButton.focus({preventScroll:true});announce(`Focus started for ${task.text}.`);
 }
 
-function availableCaptures(){
+function availableCaptures(freshNative){
   let notes=[];
   try{notes=readCaptures(storage);}catch{ /* Storage may be unavailable. */ }
   const processed=new Set(state.processedCaptures);
-  return [...notes,...nativeNotes].filter(note=>!processed.has(note.key)).sort((a,b)=>b.createdAt-a.createdAt);
+  const incoming=Array.isArray(freshNative)?normalizeNativeCaptures(freshNative):nativeNotes;
+  return [...notes,...incoming].filter(note=>!processed.has(note.key)).sort((a,b)=>b.createdAt-a.createdAt);
 }
 function currentCaptureContext(){
   const now=new Date(),task=focusedTask(now);
@@ -4020,6 +4018,10 @@ function finishCaptureFiling(message){
   else closePanel();
   confirmChange(message);
 }
+function normalizeNativeCaptures(notes){
+  return notes.filter(note=>note&&typeof note.text==='string'&&Number.isFinite(note.createdAt)&&/^[a-f0-9]{32}$/.test(note.id))
+    .map(note=>({text:note.text,createdAt:note.createdAt,key:`native:${note.id}`}));
+}
 async function syncNativeCaptures(){
   if(adminSandbox||!captureApiAvailable||syncingCaptures||!['localhost','127.0.0.1','yin-and-yang.local'].includes(location.hostname))return;
   syncingCaptures=true;
@@ -4029,7 +4031,7 @@ async function syncNativeCaptures(){
     if(!response.ok)return;
     const notes=await response.json();
     if(!Array.isArray(notes))return;
-    const next=notes.filter(note=>note&&typeof note.text==='string'&&Number.isFinite(note.createdAt)&&/^[a-f0-9]{32}$/.test(note.id)).map(note=>({text:note.text,createdAt:note.createdAt,key:`native:${note.id}`}));
+    const next=normalizeNativeCaptures(notes);
     if(JSON.stringify(next)!==JSON.stringify(nativeNotes)){nativeNotes=next;renderCaptures();}
   }catch{ /* The app keeps working while the local server reconnects. */ }
   finally{syncingCaptures=false;}
@@ -8807,9 +8809,15 @@ document.addEventListener('keydown',e=>{
   }
 });
 window.addEventListener('resize',()=>{const p=visiblePanel();if(p)positionPanel(p,lastAnchor);});
-document.addEventListener('visibilitychange',()=>{if(document.hidden)shootingStars.clear();else{checkCompletion();render();wake();}});
-window.addEventListener('focus',syncNativeCaptures);
-window.addEventListener('pageshow',()=>{checkCompletion();render();});
+function resumeGarden(){
+  checkCompletion();render();wake();syncNativeCaptures();
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)shootingStars.clear();else resumeGarden();});
+window.addEventListener('focus',resumeGarden);
+window.addEventListener('pageshow',resumeGarden);
+if(location.hostname==='yin-and-yang.local')window.chrome?.webview?.addEventListener('message',event=>{
+  if(event.data?.type==='system-resume')resumeGarden();
+});
 window.addEventListener('storage',e=>{
   const key=workspaceStorageEvent(e.key,adminSandbox);
   if(key===undefined)return;

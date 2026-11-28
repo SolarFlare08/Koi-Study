@@ -23,6 +23,52 @@ test('automatic backups initialize on the website without a desktop bridge',asyn
   const event=await statusEvent;
   assert.match(event.detail.disk,/Windows app/);
 });
+test('Windows disk retries independently of local snapshots and ignores an old acknowledgement',async t=>{
+  t.mock.timers.enable({apis:['setTimeout','setInterval','Date'],now:Date.now()});
+  const host=new EventTarget(),window=new EventTarget(),messages=[];
+  host.postMessage=message=>messages.push(message);
+  window.chrome={webview:host};
+  let points=[];
+  const indexedDB={open(){
+    const request={result:{close(){},transaction(){
+      const transaction={objectStore:()=>({
+        get(){
+          const result={result:points};
+          queueMicrotask(()=>{result.onsuccess?.();transaction.oncomplete();});
+          return result;
+        },
+        put(value){points=value;}
+      })};
+      return transaction;
+    }}};
+    queueMicrotask(()=>request.onsuccess());return request;
+  }};
+  for(const [key,value] of Object.entries({window,document:new EventTarget(),location:{hostname:'yin-and-yang.local'},indexedDB})){
+    const original=Object.getOwnPropertyDescriptor(globalThis,key);
+    Object.defineProperty(globalThis,key,{value,configurable:true});
+    t.after(()=>{if(original)Object.defineProperty(globalThis,key,original);else delete globalThis[key];});
+  }
+  const state=freshState(),backup=installAutomaticBackup({storage:memory(),getState:()=>state,getCaptures:()=>[]});
+  const requests=()=>messages.filter(item=>item.type==='backup');
+  const reply=data=>host.dispatchEvent(new MessageEvent('message',{data:{type:'backup-result',...data}}));
+  await backup.run();
+  assert.equal(points.length,1);
+  const [first]=requests();
+  reply({requestId:first.requestId,error:'Drive unavailable'});
+  assert.match(backup.status().disk,/Drive unavailable/);
+  t.mock.timers.tick(5*60000);
+  const second=requests()[1];
+  assert.ok(second);
+  assert.notEqual(second.requestId,first.requestId);
+  assert.equal(points.length,1);
+  const at=new Date().toISOString();
+  reply({requestId:first.requestId,at,path:'old.json'});
+  assert.equal(backup.diskPoint(),undefined);
+  reply({requestId:second.requestId,at,path:'current.json'});
+  assert.equal(backup.diskPoint()?.path,'current.json');
+  t.mock.timers.tick(5*60000);
+  assert.equal(requests().length,2);
+});
 test('focus ring follows timestamps and pauses, resets without retaining old progress',()=>{
   const state=freshState(),now=Date.now();startPause(state,now);
   assert.equal(focusCompass(state,now).progress,0);

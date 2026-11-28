@@ -33,22 +33,30 @@ async function writePoint(snapshot){
 }
 export function installAutomaticBackup({storage,getState,getCaptures}){
   const desktop=location.hostname==='yin-and-yang.local' ? window.chrome?.webview : undefined;
-  let lastAttempt=0,lastData='',busy=false,writing=false,points=[],diskPoint;
+  let lastAttempt=0,lastData='',lastDiskData='',pendingDisk,writing=false,points=[],diskPoint;
   let status={local:'Waiting for first automatic backup',disk:desktop?'Waiting for disk backup':'Disk backups are available in the Windows app'};
   function publish(){window.dispatchEvent(new CustomEvent('garden-backup-status',{detail:{...status}}));}
   const backupTime=at=>new Date(at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-  const snapshot=()=>createBackup(getState(),storage,getCaptures());
+  const snapshot=native=>createBackup(getState(),storage,getCaptures(native));
   readPoints().then(value=>{
-    if(!points.length)points=value;
+    if(!points.length){
+      points=value;
+      if(points[0])lastData=JSON.stringify(points[0].snapshot.data);
+    }
     if(points[0])status.local='Local backup · '+backupTime(points[0].snapshot.exportedAt);
     publish();
   }).catch(()=>{status.local='Local backup storage unavailable. Download a backup or use Windows disk backups.';publish();});
   // The desktop also uses this on a normal window close, before disposing WebView2.
-  window.gardenDesktopSnapshot=()=>JSON.stringify(snapshot());
+  window.gardenDesktopSnapshot=native=>JSON.stringify(snapshot(native));
   desktop?.addEventListener('message',event=>{
     const result=event.data;
     if(result?.type!=='backup-result')return;
-    busy=false;
+    if(result.requestId){
+      if(pendingDisk?.id!==result.requestId)return;
+      clearTimeout(pendingDisk.timeout);
+      if(!result.error&&Number.isFinite(Date.parse(result.at)))lastDiskData=pendingDisk.data;
+      pendingDisk=undefined;
+    }else if(pendingDisk)return;
     if(result.error)status.disk='Disk backup status unavailable: '+result.error;
     else if(Number.isFinite(Date.parse(result.at))){
       diskPoint={at:result.at,path:result.path};
@@ -60,6 +68,20 @@ export function installAutomaticBackup({storage,getState,getCaptures}){
     publish();
   });
   desktop?.postMessage({type:'backup-status'});
+  function saveDisk(snapshot,data){
+    const id=crypto.randomUUID();
+    const timeout=setTimeout(()=>{
+      if(pendingDisk?.id!==id)return;
+      pendingDisk=undefined;
+      status.disk='Disk backup has not confirmed. Try Back up now.';publish();
+    },20000);
+    pendingDisk={id,data,timeout};
+    try{desktop.postMessage({type:'backup',requestId:id,snapshot});}
+    catch{
+      clearTimeout(timeout);pendingDisk=undefined;
+      status.disk='Could not send the disk backup. Try Back up now.';
+    }
+  }
   async function run(force=false){
     if(writing)return;
     if(!force&&Date.now()-lastAttempt<BACKUP_INTERVAL)return;
@@ -67,13 +89,12 @@ export function installAutomaticBackup({storage,getState,getCaptures}){
     writing=true;
     try {
       const value=structuredClone(snapshot()),data=JSON.stringify(value.data);
-      if(!force&&data===lastData)return;
       // Native disk protection is independent of the browser backup quota.
-      if(desktop&&!busy){busy=true;desktop.postMessage({type:'backup',snapshot:value});setTimeout(()=>{if(busy){busy=false;status.disk='Disk backup has not confirmed. Try Back up now.';publish();}},20000);}
-      let saved=false;
-      try {points=await writePoint(value);saved=true;status.local='Local backup · '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
-      catch {status.local='Local backup could not fit. Download a backup or use the Windows disk backup.';}
-      if(saved)lastData=data;
+      if(desktop&&!pendingDisk&&(force||data!==lastDiskData))saveDisk(value,data);
+      if(force||data!==lastData){
+        try{points=await writePoint(value);lastData=data;status.local='Local backup · '+backupTime(value.exportedAt);}
+        catch{status.local='Local backup could not fit. Download a backup or use the Windows disk backup.';}
+      }
     } catch {status.local='Automatic backup failed. Download a backup while this window is open.';}
     finally{writing=false;publish();}
   }

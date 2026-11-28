@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {freshState,startPause,startBlockFocus,skipPhase,remaining,settle,record,reset,consumeTimerWarning,parseDuration,formatTypedDuration,todayProgress,loadState,STORAGE_KEY,dayKey,taskStatus,completeTask} from '../dist/state.js';
+import {freshState,startPause,startBlockFocus,skipPhase,remaining,settle,recoverTimer,record,reset,consumeTimerWarning,parseDuration,formatTypedDuration,todayProgress,loadState,STORAGE_KEY,dayKey,taskStatus,completeTask} from '../dist/state.js';
 import {incompleteFocusSessions,loadRoutinePhase,loadFocusSetups} from '../dist/state.js';
 
 test('focus setup layouts persist through reload and into the next routine phase',()=>{
@@ -160,4 +160,30 @@ test('each running phase warns once at its own threshold, including after reload
   assert.equal(consumeTimerWarning(saved,breakStart+149999),null);
   assert.equal(consumeTimerWarning(saved,breakStart+150000).mode,'break');
   assert.equal(consumeTimerWarning(saved,breakStart+151000),null);
+});
+test('recovery advances past a phase already in history and catches up to the correct calendar phase',()=>{
+  const state=freshState(),minute=60000,start=Date.now(),day=dayKey(new Date(start));
+  state.tasks=[{id:'read',text:'Reading',done:false}];
+  startBlockFocus(state,'read',150*minute,true,start,day);
+  const stale=structuredClone(state.timer);
+  settle(state,start+50*minute);
+  state.timer=stale;
+  const recovery=recoverTimer(state,start+125*minute);
+  assert.equal(recovery.changed,true);
+  assert.deepEqual(recovery.sessions.map(item=>item.mode),['break','focus','break']);
+  assert.equal(state.history.filter(item=>item.id===stale.id).length,1);
+  assert.equal(state.timer.mode,'focus');
+  assert.equal(remaining(state,start+125*minute),25*minute);
+  assert.deepEqual(recoverTimer(state,start+125*minute),{changed:false,sessions:[]});
+  assert.equal(recoverTimer(state,start+180*minute).sessions.length,1);
+  assert.equal(state.timer.status,'idle');
+});
+
+test('a backward clock correction cannot extend the last saved countdown or unpause the timer',()=>{
+  const state=freshState(),now=Date.now(),length=state.timer.total;
+  startPause(state,now);
+  assert.equal(remaining(state,now-3600000),length);
+  startPause(state,now+60000);
+  assert.equal(recoverTimer(state,now+86400000).changed,false);
+  assert.equal(remaining(state,now+86400000),length-60000);
 });

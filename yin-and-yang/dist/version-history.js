@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.1.4',date:'2026-11-28',title:'A reliability pass',changes:[
+    'Recover timers from their saved deadlines after sleep, including Calendar blocks that crossed several phases.',
+    'Keep Quick Capture available from the Windows tray when another program owns Ctrl+Alt+N.',
+    'Retry failed Windows disk backups independently from browser snapshots and include newly captured thoughts in the closing backup. Browser and Windows backups remain interchangeable.'
+  ]},
   {version:'6.1.3',date:'2026-11-28',title:'An actionable daily recap',changes:[
     'Move unfinished tasks or blocks to tomorrow from the recap. See the new date or time before confirming.',
     'Pin tomorrow’s first focus task or file an item under Left open for today.',
