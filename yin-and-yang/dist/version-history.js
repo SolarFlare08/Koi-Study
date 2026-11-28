@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.1.2',date:'2026-11-28',title:'Better session handoffs',changes:[
+    'Save a page, problem, or file directly when switching tasks, starting a different calendar block, or finishing early.',
+    'Choose End session only in Garden to log your time and keep the task open.',
+    'Add a stopping point in the Prompt previews for switch and task done.'
+  ]},
   {version:'6.1.1',date:'2026-11-28',title:'A smoother Calendar',changes:[
     'Read short blocks on a roomier timeline, with a full label on hover or keyboard focus.',
     'Keep your date and scroll position after editing a task, block, event, or buffer.',

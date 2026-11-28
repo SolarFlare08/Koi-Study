@@ -108,6 +108,12 @@
 .prompt-echo, .prompt-output { white-space: pre-wrap; }
 .prompt-echo { color: #bee5c9; }
 .prompt-output { color: #d0cccb; }
+.prompt-stopping-point { display: grid; gap: 4px; width: min(100%,32rem); margin: 8px 0; color: var(--prompt-green); }
+.prompt-stopping-point input {
+  min-width: 0; padding: 5px 7px; color: #efeeea; border: 1px solid #59595e; border-radius: 3px;
+  background: #171719; caret-color: var(--prompt-green);
+}
+.prompt-stopping-point input:focus-visible { outline: 1px solid var(--prompt-green); outline-offset: 2px; }
 .prompt-reference-image { display:block; max-width:min(100%, 28rem); max-height:16rem; object-fit:contain; margin-block:6px; }
 .prompt-form {
   display: flex;

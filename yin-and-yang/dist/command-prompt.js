@@ -439,27 +439,39 @@ export function installCommandPrompt({root,getEntries,getNoteEntries,openWorkspa
   function closePreview(){
     activePreview?.controls.remove();
     activePreview?.hint.remove();
+    activePreview?.locationField?.remove();
     activePreview=undefined;
   }
   function actOnPreview(output,action){
     closePreview();
     return action(output);
   }
-  function offerPreview(entry,choices,confirm,cancelled){
+  function offerPreview(entry,choices,confirm,cancelled,stoppingPoint){
     closePreview();
     const cancel=()=>cancelled;
+    let locationField,location;
+    if(stoppingPoint){
+      locationField=document.createElement('label');
+      locationField.className='prompt-stopping-point';
+      locationField.append(`Where you stopped on ${stoppingPoint.title} (optional)`);
+      location=document.createElement('input');
+      location.maxLength=240;location.placeholder='Page 42, problem 8, or chapter3.md';
+      location.value=stoppingPoint.value||'';
+      locationField.append(location);entry.append(locationField);
+    }
+    const confirmWithLocation=confirm&&(output=>confirm(output,location?.value));
     const hint=document.createElement('div');
     hint.textContent=confirm?'Type yes to confirm or cancel to dismiss.':'Choose an action below or type cancel to dismiss.';
     entry.append(hint);
     const controls=appendChoices(entry,[...choices,{label:'Cancel',run:cancel}].map(({label,run})=>({
       label,run:()=>{
         if(activePreview?.controls!==controls)return;
-        const response=actOnPreview(entry,run);
+        const response=actOnPreview(entry,output=>run(output,location?.value));
         if(response)entry.textContent=response;
         if(document.activeElement===document.body)(entry.querySelector('button')||input).focus();
       }
     })));
-    activePreview={controls,hint,confirm,cancel};
+    activePreview={controls,hint,confirm:confirmWithLocation,cancel,locationField};
   }
   function showPreview(entry,result,cancelled){
     entry.textContent=result.text;
@@ -470,14 +482,14 @@ export function installCommandPrompt({root,getEntries,getNoteEntries,openWorkspa
       entry.append(diagram);
     }
     if(result.confirm){
-      const confirm=output=>showPreview(output,result.confirm(),cancelled);
-      offerPreview(entry,[{label:result.label,run:confirm}],confirm,cancelled);
+      const confirm=(output,location)=>showPreview(output,result.confirm(location),cancelled);
+      offerPreview(entry,[{label:result.label,run:confirm}],confirm,cancelled,result.stoppingPoint);
     }
     return '';
   }
   function showChoices(entry,result,cancelled){
     entry.textContent=result.text;
-    if(result.choices)offerPreview(entry,result.choices,undefined,cancelled);
+    if(result.choices)offerPreview(entry,result.choices,undefined,cancelled,result.stoppingPoint);
     return '';
   }
 

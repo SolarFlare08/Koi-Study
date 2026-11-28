@@ -219,6 +219,17 @@
 .focus-timer-context small { display: block; font-size: 10px; color: var(--surface-muted); }
 .focus-timer-context button { flex: none; padding: 4px 6px; border-radius: 5px; background: var(--surface-raised); }
 #resume-form .field-label span { color: var(--surface-muted); }
+.session-stop-field {
+  display: grid; gap: 5px; padding: 9px 10px; margin: 10px 0;
+  background: var(--surface-raised); border: 1px solid var(--surface-line); border-radius: 8px;
+  color: var(--surface-ink); font-size: 12px; font-weight: 650; overflow-wrap: anywhere;
+}
+.session-stop-field small { margin-inline-start: 4px; color: var(--surface-muted); font-size: 11px; font-weight: 400; }
+.session-stop-field input {
+  min-width: 0; width: 100%; padding: 8px; background: var(--surface-field); color: var(--surface-ink);
+  border: 1px solid var(--surface-line); border-radius: 6px; font-size: 12px; font-weight: 400;
+}
+.panel .end-session-only { display: block; margin: 4px 0 0 auto; font-size: 12px; }
 @media (max-width:850px) {
   .focus-retry-card { top: 62px; left: 12px; max-height: 17%; width: min(270px,calc(100% - 24px)); padding: 8px 10px; }
 }

@@ -116,7 +116,7 @@ const builtinRoutines=[{id:'classic',name:'Classic',focus:25*60000,rest:5*60000}
 const desktopTasks=matchMedia('(min-width: 981px)');
 let editingTaskId=null,editingBlockId=null,renderedTaskDay='',agendaMinute=-1,agendaOffset=0,agendaMarkup='';
 let taskEditorScroll=null;
-let taskDraft=null,blockDraft=null,calendarLayoutDay='',calendarOpenMinute,eventDraft=null;
+let taskDraft=null,blockDraft=null,calendarLayoutDay='',calendarOpenMinute,eventDraft=null,focusSwitch=null;
 let railDate='',railMonth=null,railMarkup='';
 let calendarAnchor=null,calendarExit=null,menuTaskId=null,menuAnchor=null,taskColorMenuId=null;
 const plannerDateCount=43;
@@ -1160,13 +1160,25 @@ function selectTaskForTimer(task,minutes){
   if(!startTaskTiming(state,task.id,minutes??taskFocusMinutes(task))&&(prior.id||prior.mode!=='focus'||prior.taskPlan))reset(state,'focus');
   if(wasRunning)toggleFocusTimer(task);
 }
-function saveTaskSelection(task,minutes,{settleFirst=true}={}){
+function saveTaskSelection(task,minutes,{settleFirst=true,handoff}={}){
   if(settleFirst)checkCompletion();
   const {activeTask,activeTaskDay,activeBundle,timer}=state,length=state.history.length;
+  const restoreHandoff=stageStoppingPoint(handoff);
   selectTaskForTimer(task,minutes);
   if(persist())return true;
   Object.assign(state,{activeTask,activeTaskDay,activeBundle,timer});state.history.length=length;
+  restoreHandoff?.();
   return false;
+}
+function requestTaskSelection(task,anchor){
+  checkCompletion();
+  const current=focusedTask(),sessionId=current&&currentHandoffSession(current.id);
+  if(sessionId&&current.id!==task.id&&!state.timer.block&&!state.timer.mistakeId){
+    focusSwitch={fromId:current.id,taskId:task.id,sessionId};
+    openPanel('switch-focus-task',anchor);
+    return false;
+  }
+  return saveTaskSelection(task,undefined,{settleFirst:false});
 }
 function gardenTasks(){return state.tasks.filter(task=>!state.projects.some(project=>project.id===task.projectId&&project.archived));}
 
@@ -1280,7 +1292,7 @@ function promptWrap(minutes){
   return minutes===null?`Restored the default. ${detail}`:
     minutes>0&&reserve<minutes*60000?`${detail} The countdown keeps its first minute for focus.`:detail;
 }
-function previewPromptSwitch(id,reviewed){
+function previewPromptSwitch(id,reviewed,location){
   checkCompletion();
   const now=new Date(),task=gardenFocusQueue(now).find(item=>item.id===id),timer=state.timer;
   if(!task)return {text:'That task is no longer ready. Run switch again to choose another task.'};
@@ -1303,7 +1315,9 @@ function previewPromptSwitch(id,reviewed){
   const pausesBundle=Boolean(bundle?.next&&!bundle.run.paused&&bundle.next.id!==id);
   const signature=JSON.stringify([current?.id,current?.text,task.text,timer.id,timer.status,timer.mode,timer.total,timer.endAt,
     timer.remaining,minutes,context,pausesBundle]);
-  if(reviewed!==signature)return {
+  const sameSource=reviewed?.fromId===current?.id;
+  const sessionId=(current&&currentHandoffSession(current.id))||(sameSource?reviewed?.sessionId:'');
+  if(reviewed?.signature!==signature)return {
     text:[...(reviewed?['The task or timer changed. Review the updated switch.','']:[]),
       `Switch to ${task.text}`,
       ...(current?[`Current task: ${current.text}`]:[]),
@@ -1312,9 +1326,12 @@ function previewPromptSwitch(id,reviewed){
       ...(pausesBundle?['The current task bundle will pause.']:[]),
       ...context].join('\n'),
     label:'Switch task',
-    confirm:()=>previewPromptSwitch(id,signature)
+    stoppingPoint:current?{title:current.text,value:sameSource?location:''}:null,
+    confirm:value=>previewPromptSwitch(id,{signature,fromId:current?.id,sessionId},value)
   };
-  if(!saveTaskSelection(task,minutes,{settleFirst:false}))return {text:'Could not save the task switch.'};
+  if(!saveTaskSelection(task,minutes,{settleFirst:false,handoff:{task:current,location,sessionId}})){
+    return {text:'Could not save the task switch.'};
+  }
   refreshTasks();wake();
   return {text:`Switched to ${task.text} · ${formatDuration(state.timer.total)} ${state.timer.status==='running'?'running':'ready'}.`};
 }
@@ -2684,6 +2701,14 @@ function handoffFields(task){
     <label class="field-label" for="handoff-resource">Resource link <span>(optional)</span></label>
     <input id="handoff-resource" name="resumeResource" type="url" maxlength="2000" value="${escape(task.resumeResource)}" placeholder="https://…">`;
 }
+function stoppingPointField(task,{named=false}={}){
+  return `<label class="session-stop-field"><span>Where you stopped${named?` on ${escape(task.text)}`:''} <small>Optional</small></span>
+    <input name="stopLocation" maxlength="240" placeholder="Page 42, problem 8, or chapter3.md"></label>`;
+}
+function stageStoppingPoint({task,location,sessionId}={}){
+  const next=String(location??'').trim().slice(0,240);
+  if(task&&next)return stageTaskHandoff(task,{resumeLocation:next},sessionId);
+}
 function readHandoff(form){
   const fields=form.elements;
   const resource=handoffLink(fields.resumeResource.value);
@@ -2695,25 +2720,26 @@ function currentHandoffSession(taskId){
   const timer=state.timer;
   return timer.mode==='focus'&&timer.id&&focusedTask()?.id===taskId?timer.id:'';
 }
-function saveTaskHandoff(task,handoff,sessionId,end=false){
+function stageTaskHandoff(task,handoff,sessionId){
   const previous=Object.fromEntries(Object.keys(handoff).map(key=>[key,task[key]]));
-  const priorTimer=state.timer,priorHistory=state.history,historyLength=priorHistory.length;
-  const session=sessionId&&sessionId===currentHandoffSession(task.id);
+  const {timer,history}=state;
   Object.assign(task,handoff);
   const nextHandoff=sessionHandoff(task);
-  const savedHandoff=priorTimer.nextHandoff,savedHandoffTask=priorTimer.handoffTaskId;
-  if(session){priorTimer.nextHandoff=nextHandoff;priorTimer.handoffTaskId=task.id;}
-  else if(sessionId&&priorHistory.some(item=>item.id===sessionId&&item.mode==='focus')){
-    state.history=priorHistory.map(item=>item.id===sessionId?
-      {...item,nextHandoff:nextHandoff||undefined,handoffTaskId:nextHandoff?task.id:undefined}:item);
+  const snapshot={nextHandoff:nextHandoff||undefined,handoffTaskId:nextHandoff?task.id:undefined};
+  if(sessionId&&sessionId===currentHandoffSession(task.id))state.timer={...timer,...snapshot};
+  else if(sessionId&&history.some(item=>item.id===sessionId&&item.mode==='focus')){
+    state.history=history.map(item=>item.id===sessionId?{...item,...snapshot}:item);
   }
+  return ()=>{Object.assign(task,previous);Object.assign(state,{timer,history});};
+}
+function saveTaskHandoff(task,handoff,sessionId,end=false){
+  const historyLength=state.history.length,restore=stageTaskHandoff(task,handoff,sessionId);
   if(end){record(state,'completed',Date.now(),{early:true});reset(state,'break');}
   if(persist()){
     if(end)resumeTaskId=task.id;
     return true;
   }
-  Object.assign(task,previous);state.timer=priorTimer;state.history=priorHistory;priorHistory.length=historyLength;
-  if(session){priorTimer.nextHandoff=savedHandoff;priorTimer.handoffTaskId=savedHandoffTask;}
+  state.history.length=historyLength;restore();
   return false;
 }
 function updateHandoffEditor(){
@@ -4118,6 +4144,7 @@ function calendarBlockPreview(){
   const {block:blockId,occurrence}=lastAnchor.dataset;
   const slot=task&&calendarTaskBlock(task,blockId,occurrence);
   const hasReference=Boolean(task?.reference),resume=hasHandoff(task)||hasReference;
+  const source=focusedTask(),sessionId=source&&currentHandoffSession(source.id);
   return `${header('CALENDAR BLOCK',escape(task?.text||'Task unavailable'))}
     ${slot?`<p class="block-scheduled-time">${calendarBlockTimeLabel({task,blockId,occurrence},slot)}</p>`:''}
     <p id="block-focus-time"></p>
@@ -4128,6 +4155,8 @@ function calendarBlockPreview(){
       ${hasHandoff(task)?handoffDetails(task,true):''}
       ${hasReference?'<p class="block-reference-hint">Open Pick up here in Garden to see the pinned reference.</p>':''}
     </section>`:''}
+    ${task&&sessionId&&source.id!==task.id?`<div id="block-stopping-point" data-task-id="${escape(source.id)}" data-session-id="${escape(sessionId)}">
+      ${stoppingPointField(source,{named:true})}<p class="event-error" role="alert" hidden></p></div>`:''}
     <div class="panel-actions calendar-block-actions">
       <button class="panel-primary" type="button" id="start-block-focus">${icon('play')} ${resume?'Resume focus':'Start focus'}</button>
       <button type="button" class="text-button" id="edit-calendar-block">${lastAnchor.dataset.block?'Edit block':'Edit task'}</button>
@@ -4202,14 +4231,16 @@ function selectedBlockTiming(now){
   const selected=state.tasks.find(item=>item.id===task);
   return selected ? blockFocusTiming(selected,block,occurrence,now) : null;
 }
-function saveCalendarBlockFocus(task,blockId,occurrence,taskDay,timing,now){
+function saveCalendarBlockFocus(task,blockId,occurrence,taskDay,timing,now,handoff){
   const {activeTask,activeTaskDay,activeBundle,timer}=state,historyLength=state.history.length;
+  const restoreHandoff=stageStoppingPoint(handoff);
   const skipped=record(state,'skipped',now);
   pauseBundleForTask(task.id);
   startBlockFocus(state,task.id,timing.available,timing.split,now,occurrence,blockId||null,taskDay||occurrence);
   if(persist())return {skipped};
   Object.assign(state,{activeTask,activeTaskDay,activeBundle,timer});
   state.history.length=historyLength;
+  restoreHandoff?.();
   return null;
 }
 
@@ -4714,6 +4745,18 @@ function panelContent(id){
       <button type="submit" class="panel-primary">Download PNG</button></div>
       <p id="postcard-status" role="status" hidden></p></form>`;
   if(id==='focus-task')return focusTaskPicker();
+  if(id==='switch-focus-task'){
+    const source=state.tasks.find(task=>task.id===focusSwitch?.fromId);
+    const target=state.tasks.find(task=>task.id===focusSwitch?.taskId);
+    if(!source||!target)return header('CURRENT TASK','Task unavailable');
+    return `${header('CURRENT TASK','Switch tasks?')}
+      <p>Switch from <strong>${escape(source.text)}</strong> to <strong>${escape(target.text)}</strong>.</p>
+      <form id="switch-focus-form">${stoppingPointField(source)}
+        <p class="event-error" role="alert" hidden></p>
+        <div class="panel-actions"><button type="button" class="text-button close-panel">Cancel</button>
+        <button type="submit" class="panel-primary">Switch task</button></div>
+      </form>`;
+  }
   if(id==='finish-task'){
     const task=focusedTask();
     if(!task)return header('CURRENT TASK','Nothing to finish');
@@ -4728,10 +4771,15 @@ function panelContent(id){
     const next=inBundle?nextStep?.task:queue[0];
     const message=next?`Up next · <strong>${escape(next.text)}</strong>${nextStep&&!nextStep.ready?' · Waiting':''}`:
       nextStep?'The next bundle task is unavailable.':inBundle?'This finishes the bundle.':'Your task queue is clear after this.';
-    return `${header('CURRENT TASK','Finish early?')}<p>Mark <strong>${escape(task.text)}</strong> complete.</p>
+    const sessionId=currentHandoffSession(task.id);
+    return `${header('CURRENT TASK','Finish early?')}<p>Take a break or keep going to mark <strong>${escape(task.text)}</strong> complete.</p>
       ${state.timer.sequence?'<p>This also ends the current routine.</p>':''}
       <p>${message}</p>
-      <div class="panel-actions"><button type="button" class="text-button" data-finish-task="break" data-task-id="${escape(task.id)}">Take a break</button><button type="button" class="panel-primary" data-finish-task="focus" data-task-id="${escape(task.id)}">${inBundle&&(!nextStep||!nextStep.ready)?'Finish task':'Keep going'}</button></div>`;
+      <form id="finish-focus-form" data-task-id="${escape(task.id)}" data-day="${dayKey(finishTaskOccurrence(task,date))}" data-session-id="${escape(sessionId)}">
+        ${stoppingPointField(task)}<p class="event-error" role="alert" hidden></p>
+        <div class="panel-actions"><button type="submit" class="text-button" value="break">Take a break</button><button type="submit" class="panel-primary" value="focus">${inBundle&&(!nextStep||!nextStep.ready)?'Finish task':'Keep going'}</button></div>
+        ${sessionId?`<button type="submit" class="text-button end-session-only" value="end">End session only</button>`:''}
+      </form>`;
   }
   if(id==='event-editor')return calendarEventEditor();
   if(id==='calendar-list-editor')return calendarListEditor();
@@ -5668,15 +5716,17 @@ function promptFinishTask(){
   const task=focusedTask();
   const occurrence=task&&finishTaskOccurrence(task,new Date());
   if(!task||taskStatus(task,occurrence)==='done')return {text:'There’s no current task to complete.'};
+  const options={startWithoutTask:false,day:dayKey(occurrence),fromPrompt:true,sessionId:currentHandoffSession(task.id)};
   return {
     text:`Complete ${task.text}?${state.timer.sequence?' This also ends the current routine.':''}`,
+    stoppingPoint:{title:task.text},
     choices:[
-      {label:'Take a break',run:()=>completeCurrentTask(task.id,'break',{startWithoutTask:false,day:dayKey(occurrence),fromPrompt:true})},
-      {label:'Start next task',run:()=>completeCurrentTask(task.id,'focus',{startWithoutTask:false,day:dayKey(occurrence),fromPrompt:true})}
+      {label:'Take a break',run:(_output,location)=>completeCurrentTask(task.id,'break',{...options,location})},
+      {label:'Start next task',run:(_output,location)=>completeCurrentTask(task.id,'focus',{...options,location})}
     ]
   };
 }
-function completeCurrentTask(taskId,mode,{startWithoutTask=true,day,fromPrompt=false}={}){
+function completeCurrentTask(taskId,mode,{startWithoutTask=true,day,fromPrompt=false,location,sessionId}={}){
   checkCompletion();
   const task=focusedTask();
   if(!task||task.id!==taskId)return 'The current task changed.';
@@ -5686,7 +5736,11 @@ function completeCurrentTask(taskId,mode,{startWithoutTask=true,day,fromPrompt=f
   const wasBundle=activeBundleStatus(today);
   const minutes=priorTimer.taskPlan?.taskId===task.id?priorTimer.taskPlan.totalMs/60000:taskFocusMinutes(task,now);
   const occurrence=finishTaskOccurrence(task,today,priorTimer);
-  if(day&&day!==dayKey(occurrence))return 'The task occurrence changed. Run task done again.';
+  if(day&&day!==dayKey(occurrence))return 'The task occurrence changed. Open the completion prompt again.';
+  if(priorTimer.mode==='focus'&&priorTimer.id&&sessionId!==priorTimer.id){
+    return 'The focus session changed. Open the completion prompt again.';
+  }
+  const restoreHandoff=stageStoppingPoint({task,location,sessionId});
   const undo=taskStatus(task,occurrence)!=='done'?recordTaskCompletion(state,task,true,occurrence,now):null;
   if(priorTimer.mode==='focus')record(state,'completed',now,{early:true});
   state.activeTask=null;
@@ -5699,6 +5753,7 @@ function completeCurrentTask(taskId,mode,{startWithoutTask=true,day,fromPrompt=f
   if(!persist()){
     undo?.(state);
     state.timer=priorTimer;state.activeTask=priorSelection;state.history.length=priorHistoryLength;
+    restoreHandoff?.();
     return 'Could not save the task completion on this device.';
   }
   if(undo)animateTaskCompletion(finishTaskButton);
@@ -5753,7 +5808,7 @@ taskMenu.addEventListener('click',async event=>{
     if(state.activeTask===task.id){
       state.activeTask=null;
       if(state.timer.taskPlan&&!state.timer.id)reset(state,'focus');
-    }else if(!saveTaskSelection(task))return;
+    }else if(!requestTaskSelection(task,anchor))return;
   }
   let undo,message;
   if(action==='complete'){
@@ -7232,7 +7287,7 @@ taskSidebar.addEventListener('click',event=>{
   if(button.classList.contains('task-active')){
     const task=state.tasks.find(item=>item.id===card.dataset.task);
     if(!task||waitingOn(task).length)return;
-    if(!saveTaskSelection(task))return;
+    if(!requestTaskSelection(task,button))return;
     refreshTasks();
     taskSidebar.querySelector(`[data-task="${CSS.escape(state.activeTask)}"] .task-active`)?.focus();
   }
@@ -7604,11 +7659,6 @@ root.addEventListener('click',e=>{
     $('#workspace-tabs [data-workspace="reading"]').click();
     return;
   }
-  if(btn.dataset.finishTask){
-    const message=completeCurrentTask(btn.dataset.taskId,btn.dataset.finishTask);
-    if(message==='The current task changed.'){closePanel();announce(message);}
-    return;
-  }
   if(btn.dataset.openRitualNow){
     const kind=btn.dataset.openRitualNow,date=btn.dataset.date;
     if(kind==='journal'){closePanel(false);journal.openDate(date);}
@@ -7649,7 +7699,7 @@ root.addEventListener('click',e=>{
   if(btn.dataset.focusTask){
     const task=gardenFocusQueue().find(item=>item.id===btn.dataset.focusTask);
     if(!task||state.timer.block)return;
-    if(!saveTaskSelection(task))return;
+    if(!requestTaskSelection(task,currentTaskButton))return;
     closePanel(false);refreshTasks();
     timerButton.focus({preventScroll:true});
     announce(`Current task: ${task.text}`);
@@ -7683,7 +7733,15 @@ root.addEventListener('click',e=>{
     const task=state.tasks.find(task=>task.id===id);
     if(!timing?.available||!task||task.waitingFor||waitingOn(task).length){updateBlockPreview(now);return;}
     const {occurrence,block,taskDay}=lastAnchor.dataset;
-    const result=saveCalendarBlockFocus(task,block,occurrence,taskDay,timing,now);
+    const stop=$('#block-stopping-point'),where=stop?.querySelector('input').value;
+    const source=where?.trim()?focusedTask():null;
+    if(where?.trim()&&(source?.id!==stop.dataset.taskId||
+      state.timer.mode==='focus'&&state.timer.id&&state.timer.id!==stop.dataset.sessionId)){
+      const warning=stop.querySelector('[role="alert"]');
+      warning.textContent='The focus session changed. Reopen the block to review the switch.';warning.hidden=false;return;
+    }
+    const result=saveCalendarBlockFocus(task,block,occurrence,taskDay,timing,now,
+      stop?{task:source,location:where,sessionId:stop.dataset.sessionId}:undefined);
     if(!result)return;
     closePanel(false);
     if(inSchedule())closeCalendar();
@@ -8016,6 +8074,53 @@ root.addEventListener('change',event=>{
 });
 root.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='switch-focus-form'||e.target.id==='finish-focus-form'){
+    const form=e.target,location=form.elements.stopLocation.value;
+    const fail=message=>{
+      const error=form.querySelector('[role="alert"]');
+      error.textContent=message;error.hidden=false;
+    };
+    if(form.id==='finish-focus-form'){
+      if(!e.submitter)return;
+      const {taskId,day,sessionId}=form.dataset;
+      if(e.submitter.value==='end'){
+        checkCompletion();
+        const task=state.tasks.find(item=>item.id===taskId);
+        const running=sessionId&&currentHandoffSession(taskId)===sessionId;
+        const logged=sessionId&&state.history.some(item=>item.id===sessionId&&item.mode==='focus');
+        if(!task||!running&&!logged){
+          fail('The focus session changed. Reopen the completion prompt to continue.');return;
+        }
+        const handoff=location.trim()?{resumeLocation:location.trim().slice(0,240)}:{};
+        if(!saveTaskHandoff(task,handoff,sessionId,Boolean(running))){fail('Could not save the session.');return;}
+        closePanel(false);refreshTasks();timerButton.focus({preventScroll:true});
+        confirmChange(running?'Focus ended early. Your task is still open.':
+          handoff.resumeLocation?'Stopping point saved for the previous session.':'That focus session already ended.');
+        return;
+      }
+      const message=completeCurrentTask(taskId,e.submitter.value,{day,sessionId,location});
+      if(form.isConnected)fail(message);
+      return;
+    }
+    checkCompletion();
+    const {fromId,taskId,sessionId}=focusSwitch;
+    const source=focusedTask(),timer=state.timer;
+    if(source?.id!==fromId||timer.block||timer.mistakeId||timer.mode==='focus'&&timer.id&&timer.id!==sessionId){
+      fail('The focus session changed. Choose the task again to review the switch.');return;
+    }
+    const task=state.tasks.find(item=>item.id===taskId);
+    if(!task||task.waitingFor||waitingOn(task).length||taskStatus(task)==='done'){
+      fail('That task is no longer available.');return;
+    }
+    if(!saveTaskSelection(task,undefined,{settleFirst:false,handoff:{task:source,location,sessionId}})){
+      fail('Could not save the task switch.');return;
+    }
+    closePanel(false);refreshTasks();wake();
+    if(workspace==='focus')timerButton.focus({preventScroll:true});
+    else focusCalendarEditOrigin(lastAnchor);
+    announce(`Current task: ${task.text}`);
+    return;
+  }
   if(e.target.id==='focus-pause-form'){
     if(savePauseNote(editingPause,e.target.elements.reason.value)){closePanel();toast('Pause note saved to session replay.');}
     else toast('This pause is no longer available to edit.');
