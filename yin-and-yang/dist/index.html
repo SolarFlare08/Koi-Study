@@ -244,7 +244,7 @@
         <div id="planner-search-row" hidden><label class="sr-only" for="planner-search">Search tasks</label><input id="planner-search" type="search" placeholder="Find a task, project, or label…"><span id="planner-search-count" aria-live="polite"></span></div>
         <div id="planner-content"></div>
         <div id="planner-calendar-view" hidden>
-          <p class="sr-only" id="calendar-help">Scroll sideways or press the left and right arrow keys for more dates. In Calendar, click an empty time or press Enter from the schedule to create an event. Open a block to edit it or start focus.</p>
+          <p class="sr-only" id="calendar-help">Scroll sideways or press the left and right arrow keys for more dates. In Calendar, click an empty time or press Enter from the schedule to create an event. Open a block to edit it or start focus. Focus a short block to read its full label.</p>
           <div id="calendar-scroll" role="region" tabindex="0" aria-label="Schedule" aria-describedby="calendar-help"><div id="calendar-grid"></div></div>
           <aside id="calendar-queue" aria-labelledby="calendar-queue-title" hidden>
             <header><div><h3 id="calendar-queue-title">Task shelf</h3><p>Pick a task to set a time or drag it onto the calendar.</p></div><button id="calendar-queue-close" class="icon-button" type="button" aria-label="Close task shelf"><span data-icon="close"></span></button></header>
@@ -252,6 +252,10 @@
             <input id="calendar-queue-search" type="search" placeholder="Find a task…">
             <ul id="calendar-task-tray" aria-label="Tasks to schedule"></ul>
           </aside>
+        </div>
+        <div id="calendar-timeline-legend" aria-label="Calendar timeline legend" hidden>
+          <span><i class="calendar-overlap-symbol" aria-hidden="true"></i>Overlap</span>
+          <span><i class="calendar-buffer-symbol" aria-hidden="true"></i>Planning buffer</span>
         </div>
       </div>
       <dialog id="planner-dialog"></dialog>

@@ -58,7 +58,7 @@ import {estimateSamples,estimateSummary,suggestTaskEstimate,taskSplitSuggestion}
 import {blockSplitPreview,loadRoutinePhase,routinePhases} from './state.js';
 import {tasksWithinTime,taskTimeFit} from './calendar.js';
 import {calendarFocusWindow,focusWindowTasks,nextCalendarEntry} from './calendar.js';
-import {calendarBlockTimeLabel,calendarEntryOnDay,eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
+import {calendarBlockTimeLabel,calendarBufferBands,calendarEntryOnDay,eventOccurrenceDay,calendarEventOccurrences} from './calendar.js';
 import {parseRubric,rubricPoints,rubricSummary} from './rubric.js';
 import {blockFlexibility,markWaitingTaskReady,waitingForRecord} from './task-readiness.js';
 
@@ -4916,7 +4916,7 @@ function positionPanel(panel,anchor){
   panel.style.top=`${Math.max(16,Math.min(y,H-h-16))}px`;
 }
 function visiblePanel(){return root.querySelector('.panel:not(.music-hidden,.music-mini)');}
-function keepTaskEditorScroll(){
+function keepEditorScroll(){
   const origin=workspace;
   const scrollers=[document.scrollingElement,...document.querySelectorAll(
     '#task-sidebar, #task-board, #planner-content, #calendar-scroll, #calendar-task-tray, #notes-workspace .sticky-viewport'
@@ -4935,7 +4935,7 @@ function keepTaskEditorScroll(){
 }
 function openPanel(id,anchor,landmarkIndex=null){
   if(closePanel(false)===false)return;
-  if(id==='task-editor')taskEditorScroll=keepTaskEditorScroll();
+  if(id==='task-editor')taskEditorScroll=keepEditorScroll();
   if(id==='capture')activeCaptureContext=currentCaptureContext();
   if(id==='focus-goal')goalTimer=state.timer;
   if(id==='appearance')seasonPreview=effectiveAppearance.season;
@@ -5139,14 +5139,22 @@ function syncCalendarRail(){
 compactCalendarRail.addEventListener('change',syncCalendarRail);
 syncCalendarRail();
 
+function timelineBlockAttributes(length,title,time,overlapping=false){
+  const density=length<10?'marker':length<24?'compact':'full';
+  return ` data-timeline-density="${density}"${density==='full'?'':` data-timeline-label="${escape(title+' · '+time+(overlapping?' · Overlap':''))}"`}${overlapping?' data-overlap':''}`;
+}
 function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=block.end,mini=false){
   const {task,blockId,lane,lanes,continues,occurrence}=block;
   const length=visibleEnd-visibleStart;
-  const density=mini?` data-agenda-density="${length<14?'marker':length<28?'compact':'full'}"`:'';
+  const timeline=!mini&&workspace==='calendar';
   const placement=`--start:${visibleStart};--length:${visibleEnd-visibleStart};--lane:${lane};--lanes:${lanes}`;
-  if(block.ritual)return `<div class="calendar-block calendar-ritual-block" style="${placement}">${renderDailyRituals(dayKey(date),[block.ritual],false)}</div>`;
+  if(block.ritual)return `<div class="calendar-block calendar-ritual-block" ${block.overlapping?'data-overlap':''} style="${placement}">${renderDailyRituals(dayKey(date),[block.ritual],false)}</div>`;
   const slot=block.event||calendarTaskBlock(task,blockId,occurrence);
   const time=calendarBlockTimeLabel(block,slot);
+  const name=block.event?block.event.title:task.text;
+  const overlap=timeline&&block.overlapping?', overlaps another block':'';
+  const density=mini?` data-agenda-density="${length<14?'marker':length<28?'compact':'full'}"`:
+    timeline?timelineBlockAttributes(length,name,time,block.overlapping):'';
   let handles='';
   if(slot&&!mini&&workspace==='calendar'&&(!block.event||block.event.manual)){
     const finish=new Date(slot.end);
@@ -5154,13 +5162,13 @@ function calendarBlockMarkup(block,date,visibleStart=block.start,visibleEnd=bloc
     handles=`${continues?'':'<span data-resize-edge="start" aria-hidden="true"></span>'}
       ${endsHere?'<span data-resize-edge="end" aria-hidden="true"></span>':''}`;
   }
-  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(block.event,placement)} data-calendar-event="${escape(block.event.id)}" data-event-day="${eventOccurrenceDay(block.event)}"${density} aria-haspopup="dialog" title="${escape(block.event.title)} · ${time}" aria-label="${escape(block.event.title)}, ${time}, ${block.event.manual?'event':'imported event'}"><strong>${escape(block.event.title)}</strong><span>${time}</span>${handles}</button>`;
+  if(block.event)return `<button type="button" class="calendar-block ${block.event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(block.event,placement)} data-calendar-event="${escape(block.event.id)}" data-event-day="${eventOccurrenceDay(block.event)}"${density} aria-haspopup="dialog" title="${escape(name)} · ${escape(time)}${overlap}" aria-label="${escape(name)}, ${escape(time)}, ${block.event.manual?'event':'imported event'}${overlap}"><strong>${escape(name)}</strong><span class="calendar-block-time">${escape(time)}</span>${handles}</button>`;
   const title=`${task.text}, ${date.toLocaleDateString([],{weekday:'long'})}, ${time}${continues?', continued from the previous day':''}`;
   const done=!openFocusBlock(block);
   const {status}=progressForBlock(block);
   const important=taskPriority(task)===1;
-  const label=`Open ${escape(title)}${important?', important':''}${done?', done':''}`;
-  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-priority="${taskPriority(task)}" ${taskColorAttributes(task.calendarColor,placement)}${density} data-important="${important}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-block-label="${label}" aria-label="${label}${status?`, ${blockProgressLabels[status]}`:''}" aria-haspopup="dialog" title="${escape(title)}"><strong>${escape(task.text)}</strong><span>${escape(time)}</span><span class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</span>${handles}</button>`;
+  const label=`Open ${escape(title)}${important?', important':''}${done?', done':''}${overlap}`;
+  return `<button type="button" draggable="true" class="calendar-block${task.priority?' calendar-priority':''}${done?' calendar-done':''}" data-priority="${taskPriority(task)}" ${taskColorAttributes(task.calendarColor,placement)}${density} data-important="${important}" data-task="${escape(task.id)}" data-block="${escape(blockId)}" data-occurrence="${occurrence}" data-task-day="${escape(block.taskDay)}" data-block-status="${status}" data-block-label="${label}" aria-label="${label}${status?`, ${blockProgressLabels[status]}`:''}" aria-haspopup="dialog" title="${escape(title)}${overlap}"><strong>${escape(task.text)}</strong><span class="calendar-block-time">${escape(time)}</span><span class="calendar-block-state" ${status?'':'hidden'}>${blockProgressLabels[status]||''}</span>${handles}</button>`;
 }
 
 function renderCalendar(){
@@ -5290,9 +5298,9 @@ function actualBlockMarkup(block){
   const note=segment.action==='overtime'?'Overtime':session.estimated?'Estimated':session.live==='running'?'In progress':session.live==='paused'?'Paused':session.outcome==='skipped'?'Skipped':'Actual';
   const label=`${title}, ${replayClock(segment.at)} to ${replayClock(segment.end)}, ${note}`;
   return `<button type="button" class="calendar-block replay-block" data-replay-session="${escape(session.id)}"
-    data-replay-segment="${block.index}" data-replay-status="${note.toLowerCase()}" aria-haspopup="dialog" title="${escape(label)}" aria-label="${escape(label)}"
+    data-replay-segment="${block.index}" data-replay-status="${note.toLowerCase()}"${timelineBlockAttributes(end-start,title,`${replayClock(segment.at)}–${replayClock(segment.end)} · ${note}`)} aria-haspopup="dialog" title="${escape(label)}" aria-label="${escape(label)}"
     style="--start:${start};--length:${end-start};--lane:${lane};--lanes:${lanes}"><strong>${escape(title)}</strong>
-    <span>${timeLabel(start)} – ${timeLabel(end)} · ${note}</span></button>`;
+    <span class="calendar-block-time">${timeLabel(start)} – ${timeLabel(end)} · ${note}</span></button>`;
 }
 function actualReplayKey(now){
   const t=state.timer;
@@ -5335,6 +5343,7 @@ function renderPlannerDays(now=new Date()){
   const today=dayKey(now),minute=now.getHours()*60+now.getMinutes();
   const tasks=planner.calendarTasks(),showCompleted=$('#planner-completed').checked,events=shownCalendarEvents();
   const actual=workspace==='calendar'&&actualCalendar;
+  const bufferedEvents=workspace==='calendar'&&!actual?events.filter(event=>event.bufferBefore||event.bufferAfter):[];
   const sessions=actual?replaySessions(state.history,state.timer,+now):null;
   replayRenderKey=actual?actualReplayKey(now):'';
   const headers=plannerDays.map(date=>{
@@ -5345,7 +5354,7 @@ function renderPlannerDays(now=new Date()){
     const stamp=`<span>${current?'Today':date.toLocaleDateString([],{weekday:'short'})}</span><strong>${date.getDate()}</strong>`;
     const dayLabel=escape(date.toLocaleDateString([],{dateStyle:'full'}));
     const heading=workspace==='calendar'?`<button class="calendar-day-heading" type="button" data-calendar-day="${key}" aria-label="Open day view for ${dayLabel}">${stamp}</button>`:`<div class="calendar-day-heading">${stamp}</div>`;
-    return `<div class="calendar-date${current?' calendar-today':''}"${current?' aria-current="date"':''}>${heading}${actual||create&&state.hiddenCalendars.includes('tasks')?'':renderDailyRituals(key)}${create||allDay.length||imports.length?`<div class="calendar-all-day" ${create?`data-calendar-all-day-create="${key}"`:''}>
+    return `<div class="calendar-date${current?' calendar-today':''}" data-date="${key}"${current?' aria-current="date"':''}>${heading}${actual||create&&state.hiddenCalendars.includes('tasks')?'':renderDailyRituals(key)}${create||allDay.length||imports.length?`<div class="calendar-all-day" ${create?`data-calendar-all-day-create="${key}"`:''}>
       ${create?`<button type="button" class="calendar-all-day-new" data-calendar-all-day-create="${key}" aria-label="Add an all-day event on ${dayLabel}">+</button>`:''}${allDay.map(task=>`<button type="button" class="calendar-all-day-task${taskStatus(task,date)==='done'?' all-day-done':''}" ${taskColorAttributes(task.calendarColor)} data-important="${taskPriority(task)===1}" aria-label="${escape(task.text)}${taskPriority(task)===1?', important':''}" data-task="${escape(task.id)}" data-occurrence="${key}" title="${escape(task.text)}">${escape(task.text)}</button>`).join('')}${imports.map(event=>`<button type="button" class="calendar-all-day-task ${event.manual?'manual-event':'imported-block'}" ${calendarEventAppearance(event)} data-calendar-event="${escape(event.id)}" data-event-day="${eventOccurrenceDay(event)}" title="${escape(event.title)}">${escape(event.title)}</button>`).join('')}</div>`:''}</div>`;
   }).join('');
   const hours=Array.from({length:24},(_,hour)=>`<div>${timeLabel(hour*60)}</div>`).join('');
@@ -5353,8 +5362,10 @@ function renderPlannerDays(now=new Date()){
     const planned=actual?[]:calendarBlocks(tasks,date,events).filter(block=>block.event||showCompleted||openFocusBlock(block)||progressForBlock(block).focusMs);
     const blocks=actual?layoutBlocks(replayBlocks(sessions,date,$('#calendar-project').value)).map(actualBlockMarkup).join(''):
       layoutBlocks([...planned,...timedCalendarRituals(date)]).map(block=>calendarBlockMarkup(block,date)).join('');
+    const buffers=calendarBufferBands(bufferedEvents,date).map(({edge,start,end})=>
+      `<span class="calendar-buffer-band" data-buffer-edge="${edge}" style="--start:${start};--length:${end-start}" aria-hidden="true"></span>`).join('');
     const nowLine=dayKey(date)===today?`<div class="mini-now calendar-now" style="--now-minute:${minute}" title="Current time"></div>`:'';
-    return `<div class="calendar-day${dayKey(date)===today?' calendar-day-current':''}" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${blocks}${nowLine}</div>`;
+    return `<div class="calendar-day${dayKey(date)===today?' calendar-day-current':''}" data-date="${dayKey(date)}" aria-label="${date.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'})}">${buffers}${blocks}${nowLine}</div>`;
   }).join('');
   calendarGrid.style.setProperty('--planner-date-count',plannerDays.length);
   calendarGrid.innerHTML=`<div class="calendar-days"><div class="calendar-corner"></div>${headers}</div><div class="calendar-week"><div class="calendar-hours" aria-hidden="true">${hours}</div>${columns}</div>`;
@@ -5415,6 +5426,7 @@ function updatePlannerViewport(){
       const visible=index>=first&&index<=last;
       if(visible)column.removeAttribute('aria-hidden');
       else column.setAttribute('aria-hidden','true');
+      column.toggleAttribute('data-last-visible',index===last);
       for(const button of column.querySelectorAll('button'))button.tabIndex=visible?0:-1;
     });
   }
@@ -7035,20 +7047,46 @@ function saveCalendarEntry(form){
     }
     return true;
   }:undefined;
-  finishCalendarEventChange(event);
+  finishCalendarEdit();
   const hidden=state.hiddenCalendars.includes(taskMode?'tasks':event.calendarId);
   const kind=taskMode?'Task':'Event',message=converted?`Converted to ${kind.toLowerCase()}.`:`${kind} ${eventId||sourceTask?'updated':'added'}.`;
   confirmChange(hidden?`${message} Its calendar is hidden.`:message,undo);
 }
-function finishCalendarEventChange(event){
-  const anchor=lastAnchor;
-  closePanel(false);refreshTasks();
-  if(event&&workspace==='calendar'){
-    const date=event.day?new Date(event.day+'T00:00:00'):new Date(event.start);
-    if(planner.calendarVisible())scrollCalendarTo(date,event.day?undefined:Math.max(0,date.getHours()*60+date.getMinutes()-30));
-    else planner.jumpMonth(date);
+function focusCalendarEditOrigin(anchor){
+  if(workspace!=='calendar'){
+    (anchor?.isConnected?anchor:inSchedule()?$('#planner-heading'):$('#sidebar-calendar')).focus({preventScroll:true});
+    return;
   }
-  (anchor?.isConnected?anchor:inSchedule()?$('#planner-heading'):$('#sidebar-calendar'))?.focus({preventScroll:true});
+  const timeline=planner.calendarVisible();
+  const scroller=timeline?calendarScroll:$('#planner-content');
+  let target=anchor?.isConnected?anchor:null;
+  if(!target&&anchor){
+    const key=anchor.dataset.calendarEvent?'calendarEvent':anchor.dataset.task?'task':null;
+    const idAttribute=key==='calendarEvent'?'data-calendar-event':'data-task';
+    const scope=anchor.closest('.calendar-day,.calendar-date,.planner-month-cell');
+    const day=scope?.dataset.date||scope?.dataset.boardDay||anchor.dataset.occurrence;
+    if(key)target=[...scroller.querySelectorAll(`button[${idAttribute}="${CSS.escape(anchor.dataset[key])}"]`)].find(button=>{
+      const column=button.closest('.calendar-day,.calendar-date,.planner-month-cell');
+      return (!day||day===(column?.dataset.date||column?.dataset.boardDay||button.dataset.occurrence))&&
+        ['eventDay','occurrence','block'].every(name=>(anchor.dataset[name]||'')===(button.dataset[name]||''));
+    });
+  }
+  if(target&&scroller.contains(target)){
+    const rect=target.getBoundingClientRect(),viewport=scroller.getBoundingClientRect();
+    const headerHeight=timeline&&target.closest('.calendar-day')?calendarGrid.querySelector('.calendar-days').offsetHeight:0;
+    if(rect.right<=viewport.left||rect.left>=viewport.right||rect.bottom<=viewport.top+headerHeight||rect.top>=viewport.bottom||
+      target.closest('[aria-hidden=true]'))target=null;
+  }
+  (target||(timeline?scroller:$('#planner-heading'))).focus({preventScroll:true});
+}
+function finishCalendarEdit(){
+  const anchor=lastAnchor;
+  const restore=workspace==='calendar'?keepEditorScroll():null;
+  closePanel(false);
+  refreshTasks();
+  restore?.();
+  if(restore&&planner.calendarVisible())updatePlannerViewport();
+  focusCalendarEditOrigin(anchor);
 }
 $('#calendar-jump-date').addEventListener('change',event=>{
   if(!event.target.value)return;
@@ -7592,7 +7630,7 @@ root.addEventListener('click',e=>{
     if(!event)return;
     state.calendarEvents=prior.filter(item=>item!==event);
     if(!persist()){state.calendarEvents=prior;return;}
-    finishCalendarEventChange();
+    finishCalendarEdit();
     confirmChange('Event deleted.',latest=>{
       if(latest.calendarEvents.some(item=>item.id===id))return false;
       latest.calendarEvents.push(event);return true;
@@ -8169,7 +8207,7 @@ root.addEventListener('submit',e=>{
     catch(error){const alert=form.querySelector('[role="alert"]');alert.hidden=false;alert.textContent=error.message;return;}
     state.calendarEvents=prior.map(item=>item===existing?event:item);
     if(!persist()){state.calendarEvents=prior;return;}
-    finishCalendarEventChange(event);confirmChange('Planning buffers saved.');return;
+    finishCalendarEdit();confirmChange('Planning buffers saved.');return;
   }
   if(e.target.id==='garden-preset-form'){
     const time=new FormData(e.target).get('time');
@@ -8352,7 +8390,7 @@ root.addEventListener('submit',e=>{
       state.activeTask=before;
       return;
     }
-    const restoreScroll=taskEditorScroll;
+    const restoreScroll=taskEditorScroll,editOrigin=lastAnchor;
     closePanel(false);refreshTasks();
     if(captureKey&&returnToCaptureInbox){restoreScroll?.();finishCaptureFiling('Thought filed as a task.');return;}
     let noteField;
@@ -8366,9 +8404,13 @@ root.addEventListener('submit',e=>{
     }
     if(status==='upcoming'&&workspace==='focus')$('.task-upcoming')?.setAttribute('open','');
     if(fromCurrentTask)currentTaskButton.focus({preventScroll:true});
-    else if(inSchedule())$('#planner-heading').focus({preventScroll:true});
-    else if(!linkedNote)taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus({preventScroll:true});
+    else if(workspace==='planner')$('#planner-heading').focus({preventScroll:true});
+    else if(!inSchedule()&&!linkedNote)taskSidebar.querySelector(`[data-task="${CSS.escape(task.id)}"] .task-open`)?.focus({preventScroll:true});
     restoreScroll?.();
+    if(workspace==='calendar'){
+      if(planner.calendarVisible())updatePlannerViewport();
+      focusCalendarEditOrigin(editOrigin);
+    }
     const move=finishMove?.();
     if(move)confirmChange('Task moved.',restoreActiveTask(move,before,state.activeTask));
     else if(linkedNote)confirmChange('Task created and linked to its note.');
@@ -8391,8 +8433,11 @@ root.addEventListener('submit',e=>{
     const previous=state.history,followUpId=blockDraft?.incompleteSessionId;
     if(followUpId)state.history=previous.map(item=>item.id===followUpId&&!item.followUp?{...item,followUp:'rescheduled'}:item);
     if(!persist()){undo?.(state);state.history=previous;return;}
-    closePanel(false);refreshTasks();
-    openSchedule('calendar',calendarToggle,new Date(`${date}T00:00:00`),Math.max(0,timeMinutes(time)-60));
+    if(workspace==='calendar')finishCalendarEdit();
+    else{
+      closePanel(false);refreshTasks();
+      openSchedule('calendar',calendarToggle,new Date(`${date}T00:00:00`),Math.max(0,timeMinutes(time)-60));
+    }
     confirmChange(existing?'Block updated.':'Block scheduled.',followUpId?latest=>{
       if(!undo?.(latest))return false;
       latest.history=latest.history.map(item=>{

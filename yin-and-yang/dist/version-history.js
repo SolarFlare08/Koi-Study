@@ -1,4 +1,9 @@
 export const releases = [
+  {version:'6.1.1',date:'2026-11-28',title:'A smoother Calendar',changes:[
+    'Read short blocks on a roomier timeline, with a full label on hover or keyboard focus.',
+    'Keep your date and scroll position after editing a task, block, event, or buffer.',
+    'Spot overlapping blocks by their corner marks and see planning buffers as striped bands.'
+  ]},
   {version:'6.1.0',date:'2026-11-28',title:'A clearer Garden home',changes:[
     'See the countdown first, then the current task and the next timed calendar commitment.',
     'Open Pick up here to read or edit the task’s last handoff and pinned reference in one place.'

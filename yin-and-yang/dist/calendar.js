@@ -259,6 +259,25 @@ export function calendarEventOccurrences(events,date,marginMinutes=0){
 
 export const eventOccurrenceDay=event=>event.day||dayKey(new Date(event.start));
 
+export function calendarBufferBands(events,date){
+  const first=+shiftDay(date,0),last=+shiftDay(date,1);
+  const bands=[];
+  for(const event of calendarEventOccurrences(events,date,180)){
+    if(event.day)continue;
+    const end=Math.max(event.end,event.start+60000);
+    for(const [edge,minutes,from,to] of [
+      ['before',event.bufferBefore,event.start-event.bufferBefore*60000,event.start],
+      ['after',event.bufferAfter,end,end+event.bufferAfter*60000]
+    ]){
+      if(!minutes||from>=last||to<=first)continue;
+      const start=from<=first?0:clockMinute(new Date(from));
+      const finish=to>=last?1440:Math.max(start+1,clockMinute(new Date(to)));
+      bands.push({edge,start,end:finish});
+    }
+  }
+  return bands;
+}
+
 export function allDayEvents(events,date){
   const day=dayKey(date);
   return calendarEventOccurrences(events,date).filter(event=>event.day&&event.day<=day&&day<event.endDay);
@@ -510,7 +529,8 @@ export function layoutBlocks(blocks) {
     laneEnds = [];
     groupEnd = 0;
   }
-  for (const block of blocks) {
+  for (const [index,block] of blocks.entries()) {
+    block.overlapping=block.start<groupEnd||Boolean(blocks[index+1]?.start<block.end);
     if (block.start >= groupEnd) finishGroup();
     const free = laneEnds.findIndex(end => end <= block.start);
     block.lane = free === -1 ? laneEnds.length : free;

@@ -5,6 +5,11 @@ export const helpTopics = [
     'Up next shows the next timed Calendar commitment when one is scheduled. For commitments within an hour, it shows how many minutes you have.',
     'Choose Pick up here below the current task to see the last handoff and pinned reference together. Close it with Escape or its close button.'
   ],related:['timer','resume','focus-reference']},
+  {id:'calendar-timeline',group:'Calendar',title:'Read short blocks, overlaps, and buffers',summary:'Use the timeline labels and the legend below the grid.',steps:[
+    'In Calendar’s Day, 3 days, or Week view, short blocks show the title on one line. The shortest blocks appear as narrow time marks. Hover or Tab to either one to see its full title and time.',
+    'In Planned view, a corner mark means the block shares time with another visible block. Stripes along the day’s right edge indicate travel, setup, or recovery time saved under Planning buffers.',
+    'When you save edits, Calendar keeps your date and scroll position. If you move a block out of view, use the date controls to find it.'
+  ],related:['resize-calendar','move-blocks']},
   {id:'quick-task-capture',group:'Calendar & planning',title:'Capture a task in one line',summary:'See the parsed task before saving it.',
     steps:['In Garden, open Session tools → Capture a task. Try “Review chapter 4 tomorrow for 30m”.',
       'Check the title, date, and estimate in the preview. Adjust the line if needed, then choose Add task. Add a time such as “at 9am” to put it on the calendar.'],related:['focus-queue']},
@@ -639,7 +644,7 @@ export const helpTopics = [
       'Choose a color swatch or Custom. The picker and hex field update the preview. Events can inherit their calendar’s default color.',
       'Enter dates and times or turn on All day. Choose Repeat for daily, weekday, weekly, monthly, yearly, or custom day intervals.',
       'Click a manual event to edit it or switch it to a task. For a task, open Edit task → Change entry type. A task with linked work or task history stays a task. Changes to repeating events apply to the full series.',
-      'For a timed event, set `Minutes before` and `Minutes after` under `Planning buffers` to reserve travel, setup, or recovery time. On an imported event, open its details and choose `Save buffers`.',
+      'For a timed event, set `Minutes before` and `Minutes after` under `Planning buffers` to reserve travel, setup, or recovery time. On an imported event, open its details and choose `Save buffers`. In Calendar’s Planned timeline, the buffers appear as striped bands at the right of the day.',
       'Week drafts and deadline plans protect the longer of the event buffer and the regular cooldown on each side. The event retains its original calendar times.'],
     action:'calendar', actionLabel:'Open Calendar', related:['calendar-import','tomorrow','workload']
   },

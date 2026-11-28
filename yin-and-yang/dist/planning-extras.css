@@ -979,10 +979,65 @@ button.project-context-item:hover { color: var(--planner-accent); }
 }
 #app[data-workspace="calendar"] :is(#calendar-panel,#panel-root > .panel,#task-menu,#toast) { color-scheme: var(--calendar-scheme); }
 #app[data-workspace="calendar"] #calendar-panel {
+  --calendar-hour: 76px;
+  --timeline-overlap: #8b481f;
+  --timeline-buffer-ink: #427364;
+  --timeline-buffer-width: 11px;
+  --timeline-hatching: repeating-linear-gradient(135deg, transparent 0 3px, currentColor 3px 4px, transparent 4px 7px);
   --planner-sidebar: var(--calendar-rail); --planner-line: var(--calendar-rule);
   --planner-accent: var(--calendar-focus); --planner-ink: var(--surface-ink); --planner-muted: var(--surface-muted);
   --planner-tint: var(--calendar-fill); --calendar-heading: var(--calendar-grid-heading);
   background: var(--calendar-canvas);
+}
+#app[data-workspace="calendar"]:is([data-calendar-theme="dusk"],[data-calendar-theme="night"]) #calendar-panel {
+  --timeline-overlap: #ffbd88;
+  --timeline-buffer-ink: #add0c4;
+}
+#calendar-timeline-legend {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
+  padding: 5px var(--calendar-inset,clamp(11px,3vw,32px)); color: var(--planner-muted); font-size: 11px;
+}
+#calendar-timeline-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.calendar-overlap-symbol, .calendar-block[data-overlap]::before {
+  width: 8px; height: 8px; background: var(--timeline-overlap);
+  clip-path: polygon(0 0,100% 0,100% 100%);
+}
+.calendar-buffer-symbol { width: 12px; height: 9px; color: var(--timeline-buffer-ink); background: var(--timeline-hatching); outline: 1px solid currentColor; }
+#app[data-workspace="calendar"] .calendar-day:has(.calendar-buffer-band) > .calendar-block {
+  left: calc(var(--lane) * (100% - var(--timeline-buffer-width)) / var(--lanes) + 1px);
+  width: calc((100% - var(--timeline-buffer-width)) / var(--lanes) - 2px);
+}
+.calendar-buffer-band {
+  position: absolute; pointer-events: none; inset-inline: 0;
+  top: calc(var(--start) * var(--calendar-hour) / 60); height: calc(var(--length) * var(--calendar-hour) / 60);
+  color: var(--timeline-buffer-ink); background: color-mix(in srgb,currentColor 12%,transparent);
+}
+.calendar-buffer-band::after {
+  content: ""; position: absolute; inset-block: 0; inset-inline-end: 0;
+  width: var(--timeline-buffer-width); background: var(--timeline-hatching);
+  border-inline-start: 1px solid color-mix(in srgb,currentColor 52%,transparent);
+}
+.calendar-block[data-overlap]::before { content: ""; position: absolute; pointer-events: none; top: 1px; right: 1px; }
+.calendar-block[data-overlap] > strong { padding-right: 8px; }
+.calendar-block[data-timeline-density] > :is(strong,.calendar-block-time,.calendar-block-state) { flex: none; }
+.calendar-block[data-timeline-density] > strong { font-size: 11px; line-height: 13px; }
+.calendar-block[data-timeline-density] > .calendar-block-time { margin: 1px 0 0; }
+.calendar-block[data-timeline-density="compact"] { padding-block: 0; justify-content: center; }
+.calendar-block[data-timeline-density="compact"] > strong { font-size: 10px; line-height: 10px; }
+.calendar-block[data-timeline-density="compact"] > :is(.calendar-block-time,.calendar-block-state),
+.calendar-block[data-timeline-density="marker"] > :is(strong,.calendar-block-time,.calendar-block-state) { display: none; }
+.calendar-block[data-timeline-density="marker"] { min-height: 7px; padding: 0; }
+.calendar-block[data-timeline-density] > [data-resize-edge] { margin-top: 0; }
+.calendar-block:is([data-timeline-density="marker"],[data-timeline-density="compact"]) > [data-resize-edge] { inset-inline-start: auto; width: 10px; }
+.calendar-block[data-timeline-label]:is(:hover,:focus-visible):not(.calendar-resizing) { overflow: visible; z-index: 3; }
+.calendar-block[data-timeline-label]:is(:hover,:focus-visible):not(.calendar-resizing)::after {
+  content: attr(data-timeline-label); display: block; position: absolute; z-index: 1;
+  inset-block-start: calc(100% + 4px); inset-inline-start: 0; width: max-content; max-width: min(220px,65cqw);
+  pointer-events: none; padding: 5px 7px; border: 1px solid var(--surface-line); border-radius: 6px;
+  background: var(--surface-paper); color: var(--surface-ink); box-shadow: 0 2px 8px #0002; overflow-wrap: anywhere;
+}
+#calendar-panel:not([data-visible-days="1"]) .calendar-day[data-last-visible] .calendar-block[data-timeline-label]::after {
+  inset-inline: auto 0;
 }
 #app[data-workspace="calendar"] #calendar-panel :is(#calendar-scroll,#calendar-layout-controls,.calendar-nav) { background: var(--calendar-grid-paper); }
 #app[data-workspace="calendar"] #calendar-panel :is(.calendar-today,.calendar-day-current,.planner-month-cell.other-month) { background-color: var(--calendar-current); }

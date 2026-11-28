@@ -668,6 +668,7 @@ export function installPlanner({root,getState,commit,editTask,openBlock,taskMenu
     const sectionView=['filters','reporting','search','review','workload','health','bundles','waiting'].includes(view);
     const calendar=timeLayout()&&!sectionView;
     root.dataset.plannerView=view;
+    $('#calendar-timeline-legend').hidden=!standalone||!calendar||actual;
     root.dataset.plannerLayout=layout;
     $('#planner-heading').textContent=standalone?'Calendar':project?.name||filter?.name||(view==='label'?`%${selection}`:views[view]);
     const detail=$('#planner-heading-detail');
